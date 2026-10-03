@@ -6,6 +6,13 @@ namespace PTGOilSystem.Web.Security;
 
 public sealed class RoleNavigationAuthorizationFilter : IAsyncActionFilter
 {
+    private readonly ClientModuleProfile _clientModules;
+
+    public RoleNavigationAuthorizationFilter(ClientModuleProfile? clientModules = null)
+    {
+        _clientModules = clientModules ?? ClientModuleProfile.Full;
+    }
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var user = context.HttpContext.User;
@@ -23,7 +30,8 @@ public sealed class RoleNavigationAuthorizationFilter : IAsyncActionFilter
             var apiNavigation = context.ActionDescriptor.EndpointMetadata
                 .OfType<ApiNavigationAttribute>()
                 .LastOrDefault();
-            if (apiNavigation is not null && RoleAccessRules.CanAccessNavigation(user, apiNavigation.NavigationKey))
+            if (apiNavigation is not null
+                && RoleAccessRules.CanAccessNavigation(user, apiNavigation.NavigationKey, _clientModules))
             {
                 await next();
                 return;
@@ -53,7 +61,7 @@ public sealed class RoleNavigationAuthorizationFilter : IAsyncActionFilter
             return;
         }
 
-        if (RoleAccessRules.CanAccessController(user, controller))
+        if (RoleAccessRules.CanAccessController(user, controller, _clientModules))
         {
             await next();
             return;

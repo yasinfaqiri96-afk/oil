@@ -1,0 +1,11 @@
+@model CustomerToCustomerPayment
+@{
+    ViewData["Title"] = UiText.T(Context, "ویرایش پرداخت بین مشتریان", "Edit Customer-to-Customer Payment");
+    ViewData["EditPageIndexLabel"] = UiText.T(Context, "پرداخت‌های بین مشتریان", "Customer-to-Customer Payments");
+    ViewData["EditPageSubtitle"] = UiText.T(Context, "تاریخ، طرفین، مبلغ و ارز این پرداخت را به‌روزرسانی کنید.", "Update date, parties, amount and currency of this payment.");
+    ViewData["EditPageId"] = Model.Id;
+    ViewData["EditFormPartialPath"] = "/Views/CustomerToCustomerPayments/_CreateForm.cshtml";
+}
+
+<partial name="~/Views/Shared/_EditPageShell.cshtml" model="Model" />
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

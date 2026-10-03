@@ -28,7 +28,7 @@ body.controller-auth.action-login .boltz-public-shell {
 .ptg-login-page {
     --lg-page-bg: #ececee;
     --lg-card-bg: #ffffff;
-    --lg-art-bg: #f4f4f4;
+    --lg-art-bg: #e5f6fe;
     --lg-form-bg: #fafafa;
     --lg-heading: #1b333f;
     --lg-muted: #63707a;
@@ -74,34 +74,29 @@ body.controller-auth.action-login .boltz-public-shell {
     user-select: none;
 }
 
+/* Company logo (512x165 transparent PNG). */
 .ptg-login-brand {
     position: relative;
     z-index: 2;
-    display: inline-block;
-    margin: 0;
-    padding: 42px 0 0 52px;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: .01em;
-    line-height: 1;
-    color: #1c1f24;
+    display: block;
+    width: 120px;
+    height: auto;
+    margin: 30px 0 0 40px;
 }
 
-.ptg-login-brand b {
-    font-weight: 700;
-    color: var(--lg-accent);
-}
-
-/* Abstract artwork. The source JPEG has a white ground, so it is blended with
-   the panel instead of being masked. */
+/* Artwork (1600x1900, light-blue ground = --lg-art-bg). The drawing stops
+   ~90px short of each side edge, so it is widened 113% to hide those seams.
+   Sizing follows the column width only, so the drawing is never cut at the
+   sides; spare height shows the matching panel colour or trims empty sky. */
 .ptg-login-ribbon {
     position: absolute;
-    left: -10%;
-    bottom: -26%;
+    left: -6.5%;
+    bottom: 0;
+    /* Sink into the empty strip under the bottom wave (13% of the image). */
+    transform: translateY(8%);
     z-index: 1;
-    width: 118%;
+    width: 113%;
     height: auto;
-    mix-blend-mode: multiply;
     pointer-events: none;
 }
 
@@ -336,21 +331,43 @@ body.controller-auth.action-login .boltz-public-shell {
         min-height: calc(100svh - 24px);
         border-radius: 8px;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto 1fr;
+        grid-template-rows: 1fr auto;
     }
 
+    /* The artwork takes all height left above the form, so no gap opens
+       between them. 60vw keeps the drawing band (42%-87% of the image
+       height) whole on short screens. */
     .ptg-login-art {
-        min-height: 250px;
+        min-height: 60vw;
     }
 
+    .ptg-login-brand {
+        width: 96px;
+        margin: 18px 0 0 20px;
+    }
+
+    /* Welcome heading is desktop-only. */
+    .ptg-login-heading {
+        display: none;
+    }
+
+    /* Drop the empty strip under the bottom wave (13% of the image). */
     .ptg-login-ribbon {
-        width: 78%;
-        left: 4%;
+        bottom: 0;
+        transform: translateY(13%);
     }
 
     .ptg-login-panel {
-        padding: 42px 26px 46px;
+        padding: 26px 26px 46px;
         justify-content: center;
+    }
+
+    .ptg-login-alert {
+        margin: 0 0 14px;
+    }
+
+    .ptg-login-fields {
+        margin-top: 0;
     }
 
     .ptg-login-form {
@@ -359,10 +376,6 @@ body.controller-auth.action-login .boltz-public-shell {
 }
 
 @media (max-width: 520px) {
-    .ptg-login-art {
-        min-height: 190px;
-    }
-
     .ptg-login-title {
         font-size: 24px;
     }

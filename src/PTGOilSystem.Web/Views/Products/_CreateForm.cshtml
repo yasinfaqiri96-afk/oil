@@ -34,7 +34,19 @@
     </div>
 </section>
 
-<section class="ak-form-section">
+@{
+    var showMoreSettings = Model?.SecondaryUnitId != null
+        || !string.IsNullOrWhiteSpace(Model?.Category)
+        || !string.IsNullOrWhiteSpace(Model?.Notes)
+        || ViewData.ModelState.GetFieldValidationState(nameof(Product.SecondaryUnitId)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid
+        || ViewData.ModelState.GetFieldValidationState(nameof(Product.Category)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid
+        || ViewData.ModelState.GetFieldValidationState(nameof(Product.Notes)) == Microsoft.AspNetCore.Mvc.ModelBinding.ModelValidationState.Invalid;
+}
+<button class="btn ak-secondary-action" type="button" data-bs-toggle="collapse" data-bs-target="#productMoreSettings" aria-expanded="@(showMoreSettings ? "true" : "false")" aria-controls="productMoreSettings">
+    <i class="bi bi-sliders"></i> تنظیمات بیشتر
+</button>
+
+<section id="productMoreSettings" class="ak-form-section collapse@(showMoreSettings ? " show" : "")">
     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
              model="@(("تنظیمات بیشتر", (string?)"واحد ثانویه، دسته‌بندی و یادداشت‌ها."))" />
     <div class="ak-form-grid">

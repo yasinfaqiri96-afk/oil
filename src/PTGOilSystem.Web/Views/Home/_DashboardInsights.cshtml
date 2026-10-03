@@ -1,7 +1,13 @@
 @using PTGOilSystem.Web.Models.StatCards
 @model PTGOilSystem.Web.Models.DashboardViewModel
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
+    // Profileی که محموله‌ها را مخفی کرده، کارت محموله‌ها را هم نمی‌بیند.
+    if (!ClientModules.IsControllerEnabled("ShipmentPnl"))
+    {
+        return;
+    }
 }
 
 <section class="dash-insights" aria-label="@T("خلاصه عملیاتی", "Operational summary")">

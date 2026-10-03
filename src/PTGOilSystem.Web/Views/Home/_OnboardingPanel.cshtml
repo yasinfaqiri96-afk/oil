@@ -1,10 +1,11 @@
 @using PTGOilSystem.Web.Security
 @model PTGOilSystem.Web.Models.OnboardingPanelViewModel
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     string T(string fa, string en) => UiText.T(Context, fa, en);
     var p = Model.Progress;
     var home = Url.Action("Index", "Home") ?? "/";
-    bool Can(string controller) => RoleAccessRules.CanAccessController(User, controller);
+    bool Can(string controller) => RoleAccessRules.CanAccessController(User, controller, ClientModules);
 
     // هر مرحله: کلید، عنوان، توضیح یک‌خطی، انجام‌شده، برچسب و مقصد دکمه، تور اختیاری.
     // ترتیب همان وابستگی واقعی ثبت در سیستم است؛ وضعیت فقط از دادهٔ ثبت‌شده خوانده می‌شود.

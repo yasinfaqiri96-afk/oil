@@ -61,14 +61,17 @@ public sealed class AssistantService : IAssistantService
     private readonly IAssistantToolRegistry _tools;
     private readonly ILogger<AssistantService> _logger;
     private readonly IReadOnlyList<IAssistantProvider> _providers;
+    private readonly ClientModuleProfile _clientModules;
 
     public AssistantService(
         IOptions<AssistantOptions> options,
         AssistantPageCatalog catalog,
         IAssistantToolRegistry tools,
         IEnumerable<IAssistantProvider> providers,
-        ILogger<AssistantService> logger)
+        ILogger<AssistantService> logger,
+        ClientModuleProfile? clientModules = null)
     {
+        _clientModules = clientModules ?? ClientModuleProfile.Full;
         _options = options.Value;
         _catalog = catalog;
         _tools = tools;
@@ -178,7 +181,7 @@ public sealed class AssistantService : IAssistantService
         // فشرده است (فقط عنوان صفحه‌ها): شرح کامل هر صفحه فقط برای صفحهٔ جاری فرستاده
         // می‌شود تا حجم هر درخواست کوچک بماند.
         var siteMap = _catalog.BuildSiteMap(
-            controller => RoleAccessRules.CanAccessController(user, controller),
+            controller => RoleAccessRules.CanAccessController(user, controller, _clientModules),
             compact: true);
 
         var messages = BuildConversation(request, question, user, availableTools, siteMap);

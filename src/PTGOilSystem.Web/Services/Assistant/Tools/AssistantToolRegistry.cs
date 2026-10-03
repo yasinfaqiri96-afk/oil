@@ -27,11 +27,16 @@ public sealed class AssistantToolRegistry : IAssistantToolRegistry
 {
     private readonly IReadOnlyList<IAssistantTool> _tools;
     private readonly ILogger<AssistantToolRegistry> _logger;
+    private readonly ClientModuleProfile _clientModules;
 
-    public AssistantToolRegistry(IEnumerable<IAssistantTool> tools, ILogger<AssistantToolRegistry> logger)
+    public AssistantToolRegistry(
+        IEnumerable<IAssistantTool> tools,
+        ILogger<AssistantToolRegistry> logger,
+        ClientModuleProfile? clientModules = null)
     {
         _tools = tools.ToList();
         _logger = logger;
+        _clientModules = clientModules ?? ClientModuleProfile.Full;
     }
 
     public IReadOnlyList<AssistantToolDefinition> GetAvailableTools(ClaimsPrincipal user)
@@ -97,6 +102,6 @@ public sealed class AssistantToolRegistry : IAssistantToolRegistry
         }
     }
 
-    private static bool IsAllowed(IAssistantTool tool, ClaimsPrincipal user)
-        => RoleAccessRules.CanAccessController(user, tool.RequiredController);
+    private bool IsAllowed(IAssistantTool tool, ClaimsPrincipal user)
+        => RoleAccessRules.CanAccessController(user, tool.RequiredController, _clientModules);
 }

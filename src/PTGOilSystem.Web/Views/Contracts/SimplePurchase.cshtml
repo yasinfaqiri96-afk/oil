@@ -1,0 +1,206 @@
+@model PTGOilSystem.Web.Models.Contracts.ContractFormViewModel
+@using PTGOilSystem.Web.Models.Entities
+@{
+    var isEdit = Model.Id > 0;
+    var isPosted = isEdit && Model.Status == ContractStatus.Active;
+    var isCancelled = isEdit && Model.Status == ContractStatus.Cancelled;
+    ViewData["Title"] = isEdit ? "ویرایش خرید" : "ثبت خرید";
+    ViewData["HideSectionTabs"] = true;
+    var action = isEdit ? "Edit" : "Create";
+    var cancelUrl = isEdit
+        ? Url.Action("Details", "Contracts", new { id = Model.Id }) ?? "/Contracts"
+        : Url.Action("Index", "Contracts") ?? "/Contracts";
+    var companies = ViewBag.Companies as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var products = ViewBag.Products as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var units = ViewBag.Units as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var suppliers = ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var currencies = ViewBag.Currencies as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var sources = ViewBag.PurchaseSources as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var tanks = ViewBag.StorageTanks as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var parentContracts = ViewBag.ParentContracts as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+}
+
+<div class="ak-form-page">
+    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkPageHeader.cshtml",
+        (ViewData["Title"]?.ToString() ?? "ثبت خرید", false,
+         (string?)null, (string?)null, (string?)null, (string?)null,
+         "بازگشت", "bi-arrow-right", cancelUrl))
+
+    <form asp-action="@action" asp-route-id="@(isEdit ? Model.Id : null)" method="post" class="ak-form">
+        @Html.AntiForgeryToken()
+        @if (!isEdit) { @Html.FormToken() }
+        <input asp-for="Id" type="hidden" />
+        <input asp-for="Version" type="hidden" />
+        <input asp-for="ContractType" type="hidden" value="@ContractType.Purchase" />
+        <input asp-for="PricingMethod" type="hidden" value="@PricingMethod.Fixed" />
+        <input asp-for="OwnershipType" type="hidden" value="@ContractOwnershipType.Personal" />
+        <input asp-for="SettlementCurrencyCode" type="hidden" value="USD" />
+        <input asp-for="RubRatePolicy" type="hidden" value="@RubSettlementRatePolicy.NotApplicable" />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+
+        @if (isPosted)
+        {
+            <div class="alert alert-info ak-form-alert">
+                این خرید تأیید شده است. فیلدهای مؤثر بر موجودی و حسابداری قفل‌اند؛ برای لغو، وضعیت را «لغوشده» و دلیل را ثبت کنید.
+            </div>
+        }
+        else if (isCancelled)
+        {
+            <div class="alert alert-secondary ak-form-alert">این خرید Reverse و لغو شده است.</div>
+        }
+
+        <section class="ak-form-section">
+            @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("اطلاعات خرید", "یک فورم، یک تأیید، ورود مستقیم به مخزن"))
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label asp-for="ContractName" class="ak-label">عنوان خرید <span class="ak-req">*</span></label>
+                    <input asp-for="ContractName" class="ak-input" readonly="@isCancelled" />
+                    <span asp-validation-for="ContractName" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="CompanyId" class="ak-label">شرکت <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="CompanyId" type="hidden" /> }
+                    <select asp-for="CompanyId" asp-items="companies" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب شرکت</option>
+                    </select>
+                    <span asp-validation-for="CompanyId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="SupplierId" class="ak-label">تأمین‌کننده <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="SupplierId" type="hidden" /> }
+                    <select asp-for="SupplierId" asp-items="suppliers" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب تأمین‌کننده</option>
+                    </select>
+                    <span asp-validation-for="SupplierId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ProductId" class="ak-label">محصول <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="ProductId" type="hidden" /> }
+                    <select asp-for="ProductId" asp-items="products" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب محصول</option>
+                    </select>
+                    <span asp-validation-for="ProductId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="QuantityMt" class="ak-label">مقدار <span class="ak-req">*</span></label>
+                    <input asp-for="QuantityMt" class="ak-input" readonly="@(isPosted || isCancelled)" inputmode="decimal" />
+                    <span asp-validation-for="QuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="UnitId" class="ak-label">واحد <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="UnitId" type="hidden" /> }
+                    <select asp-for="UnitId" asp-items="units" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب واحد</option>
+                    </select>
+                    <span asp-validation-for="UnitId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت خرید هر واحد <span class="ak-req">*</span></label>
+                    <input asp-for="UnitPriceInCurrency" class="ak-input" readonly="@(isPosted || isCancelled)" inputmode="decimal" />
+                    <span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="Currency" class="ak-label">ارز <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="Currency" type="hidden" /> }
+                    <select asp-for="Currency" asp-items="currencies" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب ارز</option>
+                    </select>
+                    <span asp-validation-for="Currency" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="AppliedFxRateToUsd" class="ak-label">نرخ تبدیل ارز به USD</label>
+                    <input asp-for="AppliedFxRateToUsd" class="ak-input" readonly="@(isPosted || isCancelled)" inputmode="decimal" />
+                    <span class="ak-note">برای USD خالی بگذارید؛ برای ارز دیگر، مقدار یک واحد ارز به USD.</span>
+                    <span asp-validation-for="AppliedFxRateToUsd" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ContractDate" class="ak-label">تاریخ خرید <span class="ak-req">*</span></label>
+                    <input asp-for="ContractDate" type="date" class="ak-input" readonly="@(isPosted || isCancelled)" />
+                    <span asp-validation-for="ContractDate" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="PurchaseSourceLocationId" class="ak-label">منبع / محل خرید</label>
+                    @if (isPosted || isCancelled) { <input asp-for="PurchaseSourceLocationId" type="hidden" /> }
+                    <select asp-for="PurchaseSourceLocationId" asp-items="sources" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">اختیاری</option>
+                    </select>
+                    <span asp-validation-for="PurchaseSourceLocationId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="DestinationStorageTankId" class="ak-label">مخزن مقصد <span class="ak-req">*</span></label>
+                    @if (isPosted || isCancelled) { <input asp-for="DestinationStorageTankId" type="hidden" /> }
+                    <select asp-for="DestinationStorageTankId" asp-items="tanks" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">انتخاب مخزن</option>
+                    </select>
+                    <span asp-validation-for="DestinationStorageTankId" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="Status" class="ak-label">وضعیت <span class="ak-req">*</span></label>
+                    <select asp-for="Status" class="ak-input" disabled="@isCancelled" data-simple-purchase-status>
+                        @if (!isPosted) { <option value="0">پیش‌نویس</option> }
+                        @if (!isCancelled) { <option value="1">تأییدشده</option> }
+                        @if (isEdit) { <option value="3">لغوشده / Reverse</option> }
+                    </select>
+                    @if (isCancelled) { <input asp-for="Status" type="hidden" /> }
+                    <span asp-validation-for="Status" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full" data-cancellation-reason>
+                    <label asp-for="CancellationReason" class="ak-label">دلیل لغو</label>
+                    <textarea asp-for="CancellationReason" class="ak-input" rows="2"></textarea>
+                    <span asp-validation-for="CancellationReason" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field ak-col-full">
+                    <label asp-for="Notes" class="ak-label">توضیحات</label>
+                    <textarea asp-for="Notes" class="ak-input" rows="3" readonly="@isCancelled"></textarea>
+                    <span asp-validation-for="Notes" class="ak-field-error"></span>
+                </div>
+            </div>
+        </section>
+
+        <details class="ak-form-section">
+            <summary class="ak-label">اطلاعات تکمیلی قرارداد</summary>
+            <div class="ak-form-grid mt-3">
+                <div class="ak-field">
+                    <label asp-for="ContractNumber" class="ak-label">شماره قرارداد</label>
+                    <input asp-for="ContractNumber" class="ak-input" readonly />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="ParentContractId" class="ak-label">قرارداد اصلی</label>
+                    <select asp-for="ParentContractId" asp-items="parentContracts" class="ak-input" disabled="@(isPosted || isCancelled)">
+                        <option value="">بدون قرارداد اصلی</option>
+                    </select>
+                </div>
+                <div class="ak-field">
+                    <label asp-for="StartDate" class="ak-label">تاریخ شروع</label>
+                    <input asp-for="StartDate" type="date" class="ak-input" readonly="@(isPosted || isCancelled)" />
+                </div>
+                <div class="ak-field">
+                    <label asp-for="EndDate" class="ak-label">تاریخ پایان</label>
+                    <input asp-for="EndDate" type="date" class="ak-input" readonly="@(isPosted || isCancelled)" />
+                </div>
+            </div>
+        </details>
+
+        @if (!isCancelled)
+        {
+            @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkFooterActions.cshtml",
+                ("ذخیره", cancelUrl, "انصراف"))
+        }
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const status = document.querySelector('[data-simple-purchase-status]');
+            const reason = document.querySelector('[data-cancellation-reason]');
+            const refresh = () => {
+                if (reason) reason.hidden = !status || status.value !== '3';
+            };
+            status?.addEventListener('change', refresh);
+            refresh();
+        })();
+    </script>
+}

@@ -108,6 +108,8 @@ public class ApplicationDbContext : DbContext
     // --- Finance & Audit ---
     public DbSet<CashAccount> CashAccounts => Set<CashAccount>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<CustomerToCustomerPayment> CustomerToCustomerPayments => Set<CustomerToCustomerPayment>();
+    public DbSet<PartySettlement> PartySettlements => Set<PartySettlement>();
     public DbSet<Sarraf> Sarrafs => Set<Sarraf>();
     public DbSet<SarrafSettlement> SarrafSettlements => Set<SarrafSettlement>();
     public DbSet<ThreeWaySettlement> ThreeWaySettlements => Set<ThreeWaySettlement>();
@@ -472,6 +474,43 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<PartnerSettlement>().HasIndex(s => new { s.FromPartnerId, s.ToPartnerId, s.SettlementDate });
         modelBuilder.Entity<PartnerSettlement>().HasIndex(s => s.ContractId);
+
+        ConfigureMoney<CustomerToCustomerPayment>(modelBuilder, p => p.Amount);
+        modelBuilder.Entity<CustomerToCustomerPayment>()
+            .HasOne(p => p.PayerCustomer)
+            .WithMany()
+            .HasForeignKey(p => p.PayerCustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerToCustomerPayment>()
+            .HasOne(p => p.PayeeCustomer)
+            .WithMany()
+            .HasForeignKey(p => p.PayeeCustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CustomerToCustomerPayment>().HasIndex(p => p.PaymentDate);
+        modelBuilder.Entity<CustomerToCustomerPayment>().HasIndex(p => p.PayerCustomerId);
+        modelBuilder.Entity<CustomerToCustomerPayment>().HasIndex(p => p.PayeeCustomerId);
+
+        // تسویه بین طرف‌حساب‌ها — طرف‌حساب چندریختی است (نوع + شناسه) و FK ندارد.
+        ConfigureMoney<PartySettlement>(modelBuilder, s => s.Amount);
+        ConfigureMoney<PartySettlement>(modelBuilder, s => s.AmountUsd);
+        modelBuilder.Entity<PartySettlement>().Property(s => s.FxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<PartySettlement>().Property(s => s.CurrencyPerUsdRate).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<PartySettlement>()
+            .HasOne(s => s.FromLedgerEntry)
+            .WithMany()
+            .HasForeignKey(s => s.FromLedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PartySettlement>()
+            .HasOne(s => s.ToLedgerEntry)
+            .WithMany()
+            .HasForeignKey(s => s.ToLedgerEntryId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => s.SettlementDate);
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => s.Status);
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => new { s.FromPartyType, s.FromPartyId });
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => new { s.ToPartyType, s.ToPartyId });
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => s.FromLedgerEntryId).IsUnique();
+        modelBuilder.Entity<PartySettlement>().HasIndex(s => s.ToLedgerEntryId).IsUnique();
 
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedPaymentAmount);
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedBookAmountUsd);
@@ -911,6 +950,20 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(c => c.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Contract>()
+            .HasOne(c => c.PurchaseSourceLocation)
+            .WithMany()
+            .HasForeignKey(c => c.PurchaseSourceLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Contract>().HasIndex(c => c.PurchaseSourceLocationId);
+
+        modelBuilder.Entity<Contract>()
+            .HasOne(c => c.DestinationStorageTank)
+            .WithMany()
+            .HasForeignKey(c => c.DestinationStorageTankId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Contract>().HasIndex(c => c.DestinationStorageTankId);
 
         // قرارداد اصلی ← زیرقراردادها (خودارجاع، یک سطح). حذف قرارداد اصلی با وجود زیرقرارداد ممنوع.
         modelBuilder.Entity<Contract>()

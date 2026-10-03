@@ -1,0 +1,167 @@
+@model PTGOilSystem.Web.Models.Finance.CustomerToCustomerStatementViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "صورت‌حساب پرداخت‌های بین مشتریان", "Customer-to-Customer Statement");
+    var customers = ViewBag.Customers as SelectList;
+    var counterparties = ViewBag.Counterparties as SelectList;
+    var currencies = ViewBag.Currencies as SelectList;
+    var hasExtraFilter = Model.CounterpartyId.HasValue || Model.Currency != null || Model.From.HasValue || Model.To.HasValue;
+    var openings = Model.From.HasValue ? Model.Totals.Where(t => t.Opening != 0m).ToList() : new();
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "صورت‌حساب پرداخت‌های بین مشتریان", "Customer-to-Customer Statement"), true,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "لیست پرداخت‌ها", "Payment list"), "bi-arrow-right",
+                       (string?)Url.Action("Index")))" />
+
+    <form method="get" asp-action="Statement" class="ak-form no-print mb-3">
+        <section class="ak-form-section">
+            <div class="ak-form-grid">
+                <div class="ak-field">
+                    <label for="customerId" class="ak-label">@UiText.T(Context, "مشتری", "Customer") <span class="ak-req">*</span></label>
+                    <select id="customerId" name="customerId" asp-items="customers" class="ak-input" required>
+                        <option value="">@UiText.T(Context, "- انتخاب مشتری -", "- Select customer -")</option>
+                    </select>
+                </div>
+                <details class="ak-advanced ak-col-full" open="@hasExtraFilter">
+                    <summary class="ak-advanced-summary">@UiText.T(Context, "فیلتر بیشتر (اختیاری)", "More filters (optional)")</summary>
+                    <div class="ak-advanced-body ak-form-grid">
+                        <div class="ak-field">
+                            <label for="counterpartyId" class="ak-label">@UiText.T(Context, "فقط با این مشتری", "Only with this customer")</label>
+                            <select id="counterpartyId" name="counterpartyId" asp-items="counterparties" class="ak-input">
+                                <option value="">@UiText.T(Context, "همه", "All")</option>
+                            </select>
+                        </div>
+                        <div class="ak-field">
+                            <label for="currency" class="ak-label">@UiText.T(Context, "ارز", "Currency")</label>
+                            <select id="currency" name="currency" asp-items="currencies" class="ak-input">
+                                <option value="">@UiText.T(Context, "همه", "All")</option>
+                            </select>
+                        </div>
+                        <div class="ak-field">
+                            <label for="from" class="ak-label">@UiText.T(Context, "از تاریخ", "From")</label>
+                            <input id="from" name="from" type="date" class="ak-input" value="@Model.From?.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="ak-field">
+                            <label for="to" class="ak-label">@UiText.T(Context, "تا تاریخ", "To")</label>
+                            <input id="to" name="to" type="date" class="ak-input" value="@Model.To?.ToString("yyyy-MM-dd")" />
+                        </div>
+                    </div>
+                </details>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-search" aria-hidden="true"></i> @UiText.T(Context, "نمایش صورت‌حساب", "Show statement")</button>
+            </div>
+        </section>
+    </form>
+
+    @if (Model.CustomerId.HasValue)
+    {
+        <section class="ak-form-section mb-3" aria-label="@UiText.T(Context, "خلاصه", "Summary")">
+            <h2 class="akrep-group-title">
+                @Model.CustomerName
+                @if (Model.From.HasValue || Model.To.HasValue)
+                {
+                    <small>(@(Model.From?.ToString("yyyy-MM-dd") ?? "…") — @(Model.To?.ToString("yyyy-MM-dd") ?? "…"))</small>
+                }
+            </h2>
+
+            @foreach (var t in Model.Totals)
+            {
+                var amount = NumberDisplay.Money(Math.Abs(t.Closing), t.Currency);
+                <p class="ak-party-meaning @(t.Closing == 0m ? "is-neutral" : null)">
+                    @if (t.Closing > 0m)
+                    {
+                        <i class="bi bi-arrow-down-left-circle" aria-hidden="true"></i>
+                        <span>@UiText.T(Context, "این مشتری", "This customer") <bdi class="ak-num">@amount</bdi> @UiText.T(Context, "بیشتر از دیگران دریافت کرده تا پرداخت.", "more received from others than paid.")</span>
+                    }
+                    else if (t.Closing < 0m)
+                    {
+                        <i class="bi bi-arrow-up-right-circle" aria-hidden="true"></i>
+                        <span>@UiText.T(Context, "این مشتری", "This customer") <bdi class="ak-num">@amount</bdi> @UiText.T(Context, "بیشتر به دیگران پرداخت کرده تا دریافت.", "more paid to others than received.")</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-check-circle" aria-hidden="true"></i>
+                        <span>@t.Currency: @UiText.T(Context, "دریافتی و پرداختی برابر است.", "received and paid are equal.")</span>
+                    }
+                </p>
+                <p class="small text-muted mb-2">
+                    @UiText.T(Context, "دریافت:", "Received:") <bdi class="ak-num">@NumberDisplay.Money(t.Received, t.Currency)</bdi>
+                    · @UiText.T(Context, "پرداخت:", "Paid:") <bdi class="ak-num">@NumberDisplay.Money(t.Paid, t.Currency)</bdi>
+                    @if (Model.From.HasValue && t.Opening != 0m)
+                    {
+                        <text>· @UiText.T(Context, "مانده از قبل:", "Brought forward:") <bdi class="ak-num">@NumberDisplay.Money(t.Opening, t.Currency)</bdi></text>
+                    }
+                </p>
+            }
+            @if (!Model.Totals.Any())
+            {
+                <div class="ak-empty"><i class="bi bi-receipt" aria-hidden="true"></i>@UiText.T(Context, "برای این مشتری پرداختی ثبت نشده", "No payments recorded for this customer")</div>
+            }
+            <p class="small text-muted mb-0">
+                @UiText.T(Context,
+                    "فقط پول‌هایی که بین مشتریان دست‌به‌دست شده؛ ربطی به حساب مشتری نزد شرکت ندارد.",
+                    "Only money passed between customers; unrelated to the customer's account with the company.")
+            </p>
+        </section>
+
+        @if (Model.Rows.Any() || openings.Any())
+        {
+            <div class="ak-list">
+                <div class="ak-table-wrap">
+                    <table class="ak-table" aria-label="@UiText.T(Context, "ردیف‌های صورت‌حساب", "Statement rows")">
+                        <thead><tr>
+                            <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                            <th class="ak-col-grow">@UiText.T(Context, "چه شد", "What happened")</th>
+                            <th class="text-end">@UiText.T(Context, "مبلغ", "Amount")</th>
+                            <th class="text-end" title="@UiText.T(Context, "دریافتی منهای پرداختی تا این ردیف", "Received minus paid up to this row")">@UiText.T(Context, "مانده", "Balance")</th>
+                        </tr></thead>
+                        <tbody>
+                            @foreach (var o in openings)
+                            {
+                                <tr class="table-light">
+                                    <td>@Model.From!.Value.ToString("yyyy-MM-dd")</td>
+                                    <td class="ak-col-grow">@UiText.T(Context, "مانده از قبل", "Brought forward")</td>
+                                    <td class="text-end">—</td>
+                                    <td class="text-end ak-num"><strong>@NumberDisplay.Money(o.Opening, o.Currency)</strong></td>
+                                </tr>
+                            }
+                            @foreach (var r in Model.Rows)
+                            {
+                                var isReceived = r.Received > 0m;
+                                var note = string.Join(" · ", new[] { r.Reference, r.Description }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                                <tr>
+                                    <td>@r.Date.ToString("yyyy-MM-dd")</td>
+                                    <td class="ak-col-grow">
+                                        @if (isReceived)
+                                        {
+                                            <i class="bi bi-arrow-down-left" aria-hidden="true"></i>
+                                            @UiText.T(Context, "دریافت از", "Received from") <strong>@r.CounterpartyName</strong>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                                            @UiText.T(Context, "پرداخت به", "Paid to") <strong>@r.CounterpartyName</strong>
+                                        }
+                                        @if (note.Length > 0)
+                                        {
+                                            <small class="d-block text-muted">@note</small>
+                                        }
+                                    </td>
+                                    <td class="text-end ak-num">@(isReceived ? "+" : "−")@NumberDisplay.Money(isReceived ? r.Received : r.Paid, r.Currency)</td>
+                                    <td class="text-end ak-num"><strong>@NumberDisplay.Money(r.RunningBalance, r.Currency)</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else if (Model.Totals.Any())
+        {
+            <div class="ak-empty"><i class="bi bi-receipt" aria-hidden="true"></i>@UiText.T(Context, "در این بازه ردیفی نیست", "No rows in this range")</div>
+        }
+    }
+</div>

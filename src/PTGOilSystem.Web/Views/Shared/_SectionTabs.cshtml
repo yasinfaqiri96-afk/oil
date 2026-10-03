@@ -1,4 +1,6 @@
 ﻿@using PTGOilSystem.Web.Security
+@inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.ClientProfileOptions> ClientProfileOptionsAccessor
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
@@ -68,6 +70,12 @@
         ("Expenses",               "Index", T("مصارف",               "Expenses"),            "nav-bill", null),
         ("LossEvents",             "Index", T("کسری",                "Loss Events"),         "nav-warning", null)
     };
+    if (ClientProfileOptionsAccessor.Value.SimplePurchaseEnabled)
+    {
+        operationTabs = operationTabs
+            .Where(tab => tab.Controller is not "Loading" and not "LoadingReceipts")
+            .ToArray();
+    }
     var inventoryProfitTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
         ("Inventory",  "Index",        T("حرکت‌های موجودی", "Inventory Movements"), "bi-box-seam-fill",             null)
@@ -116,7 +124,7 @@
         "ChartOfAccounts", "CashAccounts", "Reconciliation", "ThreeWaySettlement", "ContractBalanceTransfers"
     };
     // بخش گزارش‌ها بدون نوار تب است.
-    var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation" };
+    var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation", "CustomerToCustomerPayments" };
     var accountControllers = new[] { "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs" };
     var fiscalYearControllers = new[] { "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear" };
     var isReportsController = string.Equals(currentController, "Reports", StringComparison.OrdinalIgnoreCase);
@@ -268,7 +276,7 @@
     else
     {
         tabs = tabs
-            .Where(tab => RoleAccessRules.CanAccessController(User, tab.Controller))
+            .Where(tab => RoleAccessRules.CanAccessController(User, tab.Controller, ClientModules))
             .ToArray();
     }
 

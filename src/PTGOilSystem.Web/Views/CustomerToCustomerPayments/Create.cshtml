@@ -1,0 +1,10 @@
+@model CustomerToCustomerPayment
+@{
+    ViewData["Title"] = UiText.T(Context, "پرداخت جدید بین مشتریان", "New Customer-to-Customer Payment");
+    ViewData["CreatePageIndexLabel"] = UiText.T(Context, "پرداخت‌های بین مشتریان", "Customer-to-Customer Payments");
+    ViewData["CreatePageSubtitle"] = UiText.T(Context, "پولی که یک مشتری مستقیماً به مشتری دیگر داده است.", "Money one customer paid directly to another.");
+    ViewData["CreateFormPartialPath"] = "/Views/CustomerToCustomerPayments/_CreateForm.cshtml";
+}
+
+<partial name="~/Views/Shared/_CreatePageShell.cshtml" model="Model" />
+@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }

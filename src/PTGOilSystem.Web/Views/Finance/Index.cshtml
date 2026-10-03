@@ -1,3 +1,4 @@
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     ViewData["Title"] = UiText.T(Context, "مالی", "Finance");
 
@@ -6,7 +7,7 @@
     // هر کارت با همان قاعدهٔ دسترسیِ سایدبار فیلتر می‌شود تا کاربر کارتی را نبیند
     // که بعد از کلیک به خطای دسترسی می‌رسد.
     bool CanOpen(string controller)
-        => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, controller);
+        => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, controller, ClientModules);
 
     var groups = new[]
     {
@@ -28,6 +29,8 @@
             Items = new[]
             {
                 new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تصفیه بین مشتری، صراف و تأمین‌کننده در یک سند.", DescriptionEn = "Settle customer, sarraf and supplier in one document.", Icon = "bi-arrow-left-right" },
+                new { Controller = "PartySettlements", Action = "Index", TitleFa = "تسویه بین طرف‌حساب‌ها", TitleEn = "Party-to-Party Settlement", DescriptionFa = "بدهکار شرکت مستقیماً به طلبکار شرکت می‌پردازد؛ بدون صندوق و بانک.", DescriptionEn = "A debtor pays a creditor of the company directly; no cash or bank.", Icon = "bi-arrow-left-right" },
+                new { Controller = "CustomerToCustomerPayments", Action = "Index", TitleFa = "پرداخت بین مشتریان", TitleEn = "Customer-to-Customer Payments", DescriptionFa = "پولی که مشتریان مستقیماً به یکدیگر داده‌اند؛ فقط ثبت، بدون اثر روی حساب شرکت.", DescriptionEn = "Money customers paid each other directly; record only, no effect on company accounts.", Icon = "bi-people-fill" },
                 new { Controller = "Sarrafs", Action = "Index", TitleFa = "صراف‌ها", TitleEn = "Sarrafs", DescriptionFa = "مانده و حواله‌های هر صراف.", DescriptionEn = "Balance and transfers of each sarraf.", Icon = "bi-currency-exchange" },
                 new { Controller = "Customers", Action = "Index", TitleFa = "صورت‌حساب مشتریان", TitleEn = "Customer Statements", DescriptionFa = "مانده و گردش هر مشتری.", DescriptionEn = "Balance and activity of each customer.", Icon = "bi-people" },
                 new { Controller = "Suppliers", Action = "Index", TitleFa = "صورت‌حساب تأمین‌کنندگان", TitleEn = "Supplier Statements", DescriptionFa = "مانده و گردش هر تأمین‌کننده.", DescriptionEn = "Balance and activity of each supplier.", Icon = "bi-briefcase" }

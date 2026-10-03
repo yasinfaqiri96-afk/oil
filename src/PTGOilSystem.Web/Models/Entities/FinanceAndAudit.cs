@@ -196,6 +196,29 @@ public class PaymentTransaction : BaseEntity, IVersionedEntity
         = new List<CustomerPaymentAllocation>();
 }
 
+/// <summary>
+/// پرداخت/دریافت مستقیم بین دو مشتری که شرکت در آن طرف نیست. فقط ثبت و گزارش است:
+/// هیچ LedgerEntry، حرکت صندوق/بانک، اثر روی ماندهٔ مشتری نزد شرکت یا سود و زیان ندارد.
+/// هر دو طرف با یک مبلغ و یک ارز ثبت می‌شوند.
+/// </summary>
+public class CustomerToCustomerPayment : BaseEntity
+{
+    public DateTime PaymentDate { get; set; }
+
+    // مشتری‌ای که پول داد.
+    public int PayerCustomerId { get; set; }
+    public Customer? PayerCustomer { get; set; }
+
+    // مشتری‌ای که پول گرفت.
+    public int PayeeCustomerId { get; set; }
+    public Customer? PayeeCustomer { get; set; }
+
+    public decimal Amount { get; set; }
+    [Required, MaxLength(10)] public string Currency { get; set; } = "USD";
+    [MaxLength(200)] public string? Reference { get; set; }
+    [MaxLength(1000)] public string? Description { get; set; }
+}
+
 public class Sarraf : BaseEntity
 {
     [Required, MaxLength(200)] public string Name { get; set; } = "";

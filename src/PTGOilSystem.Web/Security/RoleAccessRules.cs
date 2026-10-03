@@ -105,7 +105,7 @@ public static class RoleAccessRules
             ["CashAccounts", "Ledger", "Balance", "Finance", "AccountingReadiness", "ChartOfAccounts",
                 "ClosingChecklist", "FinalClose", "FiscalYears", "FiscalYearContext", "PeriodActivity", "TrialClose"]),
         new(RoleNavigationKeys.Payments, "روزنامچه و حواله‌ها", "bi-credit-card-2-front-fill",
-            ["Payments", "AccountStatements", "PartyStatements", "SarrafSettlements", "ThreeWaySettlement", "ViaSarrafPayments"]),
+            ["Payments", "AccountStatements", "PartyStatements", "SarrafSettlements", "ThreeWaySettlement", "ViaSarrafPayments", "CustomerToCustomerPayments", "PartySettlements"]),
         new(RoleNavigationKeys.Reports, "گزارشات", "bi-clipboard-data-fill",
             ["Reports", "Reconciliation", "CustomsPermitTurnover"]),
         new(RoleNavigationKeys.Partners, "اشخاص", "bi-person-vcard-fill",
@@ -361,4 +361,11 @@ public static class RoleAccessRules
         var navigationKey = NavigationKeyForController(controller);
         return navigationKey is not null && CanAccessNavigation(user, navigationKey);
     }
+
+    /// <summary>Client Profile + Role/Permission: ماژول مخفیِ Profile برای هیچ نقشی باز نیست.</summary>
+    public static bool CanAccessController(ClaimsPrincipal user, string? controller, ClientModuleProfile? clientModules)
+        => (clientModules?.IsControllerEnabled(controller) ?? true) && CanAccessController(user, controller);
+
+    public static bool CanAccessNavigation(ClaimsPrincipal user, string? navigationKey, ClientModuleProfile? clientModules)
+        => (clientModules?.IsNavigationEnabled(navigationKey) ?? true) && CanAccessNavigation(user, navigationKey);
 }

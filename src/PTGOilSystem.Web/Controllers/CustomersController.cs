@@ -721,6 +721,7 @@ public partial class CustomersController : Controller
             nameof(PaymentKind.CustomerPayment) => "پرداخت به مشتری",
             ThreeWaySettlementController.LedgerSourceType => "تسویه سه‌طرفه / حواله",
             ThreeWaySettlementController.CancellationLedgerSourceType => "برگشت تسویه سه‌طرفه",
+            PartySettlementsController.LedgerSourceType => "تسویه بین طرف‌حساب‌ها",
             "ContractBalanceTransfer" => "انتقال مانده قرارداد",
             "Adjustment" => "اصلاح حساب",
             _ => sourceType

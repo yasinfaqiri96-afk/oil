@@ -1,4 +1,5 @@
 @model TransportResourceProfileViewModel
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     // صفحه‌بندی سمت DB در TransportResourceProfileBuilder انجام شده؛ اینجا فقط صفحهٔ جاری می‌آید.
     const string PageKey = "tripsPage";
@@ -9,7 +10,7 @@
     // لینک فقط وقتی ساخته می‌شود که کاربر به همان Controller دسترسی دارد؛ وگرنه مرجع متن ساده است.
     bool CanOpen(TransportResourceTripItem item)
         => !string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue
-           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller);
+           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller, ClientModules);
 
     string FormatDate(DateTime? date) => date.HasValue ? date.Value.ToDisplayDate() : "بدون تاریخ";
     string StatusClass(TransportResourceTripItem item)

@@ -78,6 +78,16 @@ public sealed class ContractFormViewModel
     [Display(Name = "مقصد")]
     public int? DestinationLocationId { get; set; }
 
+    [Display(Name = "منبع / محل خرید")]
+    public int? PurchaseSourceLocationId { get; set; }
+
+    [Display(Name = "مخزن مقصد")]
+    public int? DestinationStorageTankId { get; set; }
+
+    [Display(Name = "دلیل لغو")]
+    [StringLength(500)]
+    public string? CancellationReason { get; set; }
+
     [Display(Name = "مالکیت")]
     public ContractOwnershipType OwnershipType { get; set; } = ContractOwnershipType.Personal;
 

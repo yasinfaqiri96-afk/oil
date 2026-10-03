@@ -54,6 +54,10 @@ public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
     public Customer? Customer { get; set; }
     public int? DestinationLocationId { get; set; }
     public Location? DestinationLocation { get; set; }
+    public int? PurchaseSourceLocationId { get; set; }
+    public Location? PurchaseSourceLocation { get; set; }
+    public int? DestinationStorageTankId { get; set; }
+    public StorageTank? DestinationStorageTank { get; set; }
     public ContractOwnershipType OwnershipType { get; set; } = ContractOwnershipType.Personal;
     public ICollection<ContractPartner> ContractPartners { get; set; } = [];
 

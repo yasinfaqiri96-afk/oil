@@ -92,6 +92,7 @@ public static class UiText
             "SupplierViaSarrafPayable" => "بدهی تأمین‌کننده از طریق صراف",
             "ThreeWaySettlement" => "تسویه سه‌طرفه",
             "ThreeWaySettlementCancellation" => "برگشت تسویه سه‌طرفه",
+            "PartySettlement" => "تسویه بین طرف‌حساب‌ها",
             "SarrafSettlementCancel" => "لغو تسویه صراف",
             "SarrafSettlementEditReversal" => "برگشت ویرایش تسویه صراف",
             "SarrafSettlementExchangeDifference" => "تفاوت نرخ تسویه صراف",

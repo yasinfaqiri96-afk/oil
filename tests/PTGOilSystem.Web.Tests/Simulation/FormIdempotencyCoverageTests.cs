@@ -51,6 +51,7 @@ public sealed class FormIdempotencyCoverageTests
             Path.Combine("Transports", "FromReceipt.cshtml"),
             Path.Combine("Transports", "Continue.cshtml"),
             Path.Combine("InventoryTransportLegs", "Details.cshtml"),
+            Path.Combine("PartySettlements", "Create.cshtml"),
         };
 
     [Theory]
@@ -99,6 +100,7 @@ public sealed class FormIdempotencyCoverageTests
             { "TransportsController.cs", "Transport.FromReceipt" },
             { "TransportsController.cs", "Transport.Continue" },
             { "TransportsController.cs", "Transport.SettleFreight" },
+            { "PartySettlementsController.cs", "PartySettlement.Create" },
         };
 
     [Theory]

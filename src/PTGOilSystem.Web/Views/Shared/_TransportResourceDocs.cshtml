@@ -1,4 +1,5 @@
 @model TransportResourceProfileViewModel
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     // صفحه‌بندی سمت DB در TransportResourceProfileBuilder انجام شده؛ اینجا فقط صفحهٔ جاری می‌آید.
     const string PageKey = "docsPage";
@@ -7,7 +8,7 @@
     var hasExpiry = visibleDocuments.Any(d => d.ExpiryDate.HasValue);
     bool CanOpen(TransportResourceDocumentItem item)
         => !string.IsNullOrWhiteSpace(item.Controller) && !string.IsNullOrWhiteSpace(item.Action) && item.RouteId.HasValue
-           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller);
+           && PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller, ClientModules);
 
     string FormatDate(DateTime? date) => date.HasValue ? date.Value.ToDisplayDate() : "بدون تاریخ";
 }

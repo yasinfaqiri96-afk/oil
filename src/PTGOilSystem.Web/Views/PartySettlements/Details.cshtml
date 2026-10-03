@@ -1,0 +1,100 @@
+@model PartySettlement
+@{
+    ViewData["Title"] = UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement");
+    var fromName = ViewBag.FromName as string ?? "—";
+    var toName = ViewBag.ToName as string ?? "—";
+    var amount = NumberDisplay.Money(Model.Amount, Model.Currency);
+    var cancelled = Model.Status == PartySettlementStatus.Cancelled;
+    var canManage = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+    var fromType = PTGOilSystem.Web.Models.Finance.PartySettlementParties.TypeLabel(Model.FromPartyType);
+    var toType = PTGOilSystem.Web.Models.Finance.PartySettlementParties.TypeLabel(Model.ToPartyType);
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement") + " #" + Model.Id, true,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "لیست تسویه‌ها", "Settlement list"), "bi-arrow-right",
+                       (string?)Url.Action("Index")))" />
+
+    <section class="ak-form-section mb-3">
+        <p class="ak-party-meaning @(cancelled ? "is-neutral" : null)">
+            <i class="bi @(cancelled ? "bi-x-circle" : "bi-arrow-left-right")" aria-hidden="true"></i>
+            <span>
+                <strong>@fromName</strong> <small>(@fromType)</small>
+                @UiText.T(Context, "مبلغ", "paid")
+                <bdi class="ak-num">@amount</bdi>
+                @UiText.T(Context, "را مستقیماً به", "directly to")
+                <strong>@toName</strong> <small>(@toType)</small>
+                @UiText.T(Context, "پرداخت کرد.", "")
+            </span>
+        </p>
+
+        @if (cancelled)
+        {
+            <div class="alert alert-secondary mt-3 mb-0">
+                @UiText.T(Context, "این تسویه لغو شده و ماندهٔ هر دو طرف به حالت قبل برگشته است.", "This settlement was cancelled; both balances were restored.")
+                <div class="small mt-1">
+                    @UiText.T(Context, "لغو توسط", "Cancelled by") @(Model.CancelledByUserName ?? "—")
+                    · @Model.CancelledAtUtc?.ToString("yyyy-MM-dd HH:mm")
+                    · @UiText.T(Context, "دلیل:", "Reason:") @Model.CancellationReason
+                </div>
+            </div>
+        }
+        else
+        {
+            <ul class="mt-3 mb-0">
+                <li>@UiText.T(Context, "بدهی", "Debt of") <strong>@fromName</strong> @UiText.T(Context, "به شرکت", "to the company") <bdi class="ak-num">@amount</bdi> @UiText.T(Context, "کم شد.", "reduced.")</li>
+                <li>@UiText.T(Context, "طلب", "Credit of") <strong>@toName</strong> @UiText.T(Context, "از شرکت", "from the company") <bdi class="ak-num">@amount</bdi> @UiText.T(Context, "کم شد.", "reduced.")</li>
+                <li>@UiText.T(Context, "صندوق و بانک شرکت تغییری نکرد.", "Company cash and bank did not change.")</li>
+            </ul>
+        }
+    </section>
+
+    <section class="ak-form-section mb-3">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">@UiText.T(Context, "تاریخ", "Date")</dt>
+            <dd class="col-sm-9">@Model.SettlementDate.ToString("yyyy-MM-dd")</dd>
+            @if (Model.Currency != "USD")
+            {
+                <dt class="col-sm-3">@UiText.T(Context, "معادل دالری", "USD equivalent")</dt>
+                <dd class="col-sm-9"><bdi class="ak-num">@NumberDisplay.Money(Model.AmountUsd, "USD")</bdi> <small class="text-muted">(@UiText.T(Context, "۱ دالر =", "1 USD =") @Model.CurrencyPerUsdRate?.ToString("0.####") @Model.Currency)</small></dd>
+            }
+            <dt class="col-sm-3">@UiText.T(Context, "توضیحات", "Description")</dt>
+            <dd class="col-sm-9">@(Model.Description ?? "—")</dd>
+            <dt class="col-sm-3">@UiText.T(Context, "ثبت توسط", "Created by")</dt>
+            <dd class="col-sm-9">@(Model.CreatedByUserName ?? "—") · @Model.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</dd>
+            <dt class="col-sm-3">@UiText.T(Context, "سند دفتر", "Ledger lines")</dt>
+            <dd class="col-sm-9">
+                @if (Model.FromLedgerEntryId.HasValue)
+                {
+                    <a asp-controller="Ledger" asp-action="Details" asp-route-id="@Model.FromLedgerEntryId">#@Model.FromLedgerEntryId</a>
+                }
+                @if (Model.ToLedgerEntryId.HasValue)
+                {
+                    <text> · </text><a asp-controller="Ledger" asp-action="Details" asp-route-id="@Model.ToLedgerEntryId">#@Model.ToLedgerEntryId</a>
+                }
+            </dd>
+        </dl>
+    </section>
+
+    @if (!cancelled && canManage)
+    {
+        <details class="ak-advanced">
+            <summary class="ak-advanced-summary">@UiText.T(Context, "لغو این تسویه", "Cancel this settlement")</summary>
+            <div class="ak-advanced-body">
+                <form asp-action="Cancel" asp-route-id="@Model.Id" method="post" class="ak-form"
+                      data-ptg-confirm="true"
+                      data-ptg-confirm-title="@UiText.T(Context, "لغو تسویه", "Cancel settlement")"
+                      data-ptg-confirm-message="@UiText.T(Context, "این تسویه لغو شود؟ ماندهٔ هر دو طرف به حالت قبل برمی‌گردد.", "Cancel this settlement? Both balances will be restored.")">
+                    @Html.AntiForgeryToken()
+                    <div class="ak-field">
+                        <label for="cancellationReason" class="ak-label">@UiText.T(Context, "دلیل لغو", "Reason") <span class="ak-req">*</span></label>
+                        <input id="cancellationReason" name="cancellationReason" class="ak-input" required maxlength="1000" />
+                    </div>
+                    <button type="submit" class="btn btn-outline-danger mt-2"><i class="bi bi-x-circle" aria-hidden="true"></i> @UiText.T(Context, "لغو تسویه", "Cancel settlement")</button>
+                </form>
+            </div>
+        </details>
+    }
+</div>

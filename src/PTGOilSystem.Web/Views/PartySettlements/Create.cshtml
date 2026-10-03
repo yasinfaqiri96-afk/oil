@@ -1,0 +1,108 @@
+@model PTGOilSystem.Web.Models.Finance.PartySettlementFormModel
+@{
+    ViewData["Title"] = UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement");
+    var groups = ViewBag.PartyGroups as List<(string Label, List<(string Key, string Name)> Items)> ?? new();
+    var currencies = ViewBag.Currencies as List<string> ?? new();
+}
+
+<div class="ak-form-page">
+    <div class="ak-form-page-content">
+        <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+                 model="@((UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement"), true,
+                           (string?)null, (string?)null, (string?)null, (string?)null,
+                           UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right",
+                           (string?)Url.Action("Index")))" />
+
+        <form asp-action="Create" method="post" class="ak-form" data-party-balance-url="@Url.Action("PartyBalance")">
+            @Html.AntiForgeryToken()
+            @Html.FormToken()
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+
+            <section class="ak-form-section">
+                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                         model="@((UiText.T(Context, "چه کسی به چه کسی پرداخت کرد؟", "Who paid whom?"),
+                                   (string?)UiText.T(Context, "بدهی پرداخت‌کننده و طلب گیرنده هر دو به همین مبلغ کم می‌شود. پول وارد صندوق یا بانک شرکت نمی‌شود.",
+                                                     "The payer's debt and the payee's credit both drop by this amount. No money enters company cash or bank.")))" />
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label for="FromParty" class="ak-label">@UiText.T(Context, "از طرف‌حساب (پرداخت‌کننده)", "From (payer)") <span class="ak-req">*</span></label>
+                        <select id="FromParty" name="FromParty" class="ak-input" data-party-balance-select>
+                            <option value="">@UiText.T(Context, "- انتخاب -", "- Select -")</option>
+                            @foreach (var g in groups.Where(g => g.Items.Count > 0))
+                            {
+                                <optgroup label="@g.Label">
+                                    @foreach (var p in g.Items)
+                                    {
+                                        <option value="@p.Key" selected="@(p.Key == Model.FromParty)">@p.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                        <span class="ak-note" data-party-balance-for="FromParty"></span>
+                        <span asp-validation-for="FromParty" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label for="ToParty" class="ak-label">@UiText.T(Context, "به طرف‌حساب (گیرنده)", "To (payee)") <span class="ak-req">*</span></label>
+                        <select id="ToParty" name="ToParty" class="ak-input" data-party-balance-select>
+                            <option value="">@UiText.T(Context, "- انتخاب -", "- Select -")</option>
+                            @foreach (var g in groups.Where(g => g.Items.Count > 0))
+                            {
+                                <optgroup label="@g.Label">
+                                    @foreach (var p in g.Items)
+                                    {
+                                        <option value="@p.Key" selected="@(p.Key == Model.ToParty)">@p.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                        <span class="ak-note" data-party-balance-for="ToParty"></span>
+                        <span asp-validation-for="ToParty" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Amount" class="ak-label">@UiText.T(Context, "مبلغ", "Amount") <span class="ak-req">*</span></label>
+                        <input asp-for="Amount" type="number" step="0.01" min="0" class="ak-input" />
+                        <span asp-validation-for="Amount" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="Currency" class="ak-label">@UiText.T(Context, "ارز", "Currency") <span class="ak-req">*</span></label>
+                        <select asp-for="Currency" class="ak-input">
+                            @foreach (var c in currencies)
+                            {
+                                <option value="@c" selected="@(c == Model.Currency)">@c</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Currency" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field" data-fx-rate-group data-fx-currency-source="#Currency">
+                        <div data-fx-rate-field>
+                            <label asp-for="CurrencyPerUsdRate" class="ak-label">@UiText.T(Context, "نرخ دالر به", "USD rate to") <span data-fx-currency-name>@UiText.T(Context, "ارز", "currency")</span> <span class="ak-req">*</span></label>
+                            <input asp-for="CurrencyPerUsdRate" class="ak-input" data-fx-rate-input autocomplete="off"
+                                   placeholder="@UiText.T(Context, "مثال: ۷۷ یعنی ۱ دالر = ۷۷ روبل", "e.g. 77 means 1 USD = 77 RUB")" />
+                            <span asp-validation-for="CurrencyPerUsdRate" class="ak-field-error"></span>
+                        </div>
+                        <div data-fx-usd-note class="d-none">
+                            <span class="ak-note"><i class="bi bi-info-circle" aria-hidden="true"></i> @UiText.T(Context, "مبلغ دالری است؛ نرخ لازم نیست.", "Amount is in USD; no rate needed.")</span>
+                        </div>
+                    </div>
+                    <div class="ak-field">
+                        <label asp-for="SettlementDate" class="ak-label">@UiText.T(Context, "تاریخ", "Date") <span class="ak-req">*</span></label>
+                        <input asp-for="SettlementDate" type="date" class="ak-input" />
+                        <span asp-validation-for="SettlementDate" class="ak-field-error"></span>
+                    </div>
+                    <div class="ak-field ak-col-full">
+                        <label asp-for="Description" class="ak-label">@UiText.T(Context, "توضیحات (اختیاری)", "Description (optional)")</label>
+                        <textarea asp-for="Description" class="ak-input" rows="2"></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
+                     model="@((UiText.T(Context, "ثبت تسویه", "Post settlement"), Url.Action("Index") ?? "/", UiText.T(Context, "انصراف", "Cancel")))" />
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/fx-rate-field.js" asp-append-version="true" defer></script>
+    <script src="~/js/party-settlements.js" asp-append-version="true" defer></script>
+}

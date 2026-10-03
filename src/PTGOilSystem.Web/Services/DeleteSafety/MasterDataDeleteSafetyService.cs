@@ -90,6 +90,8 @@ public class MasterDataDeleteSafetyService
             usageAreas.Add("فروش‌ها");
         if (await _db.LedgerEntries.AnyAsync(l => l.CustomerId == customerId))
             usageAreas.Add("دفتر کل");
+        if (await _db.CustomerToCustomerPayments.AnyAsync(p => p.PayerCustomerId == customerId || p.PayeeCustomerId == customerId))
+            usageAreas.Add("پرداخت‌های بین مشتریان");
 
         return BuildArchivableResult(usageAreas);
     }

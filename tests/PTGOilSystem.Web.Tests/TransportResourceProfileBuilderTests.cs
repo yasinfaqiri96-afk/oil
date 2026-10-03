@@ -326,7 +326,7 @@ public class TransportResourceProfileBuilderTests
             AppContext.BaseDirectory, "..", "..", "..", "..", "..", view.Replace('/', Path.DirectorySeparatorChar))));
 
         // لینک (مثلاً ShipmentPnl) فقط با همان قاعدهٔ فیلتر دسترسی ساخته می‌شود؛ بدون دسترسی، مرجع متن ساده است.
-        Assert.Contains("RoleAccessRules.CanAccessController(User, item.Controller)", markup);
+        Assert.Contains("RoleAccessRules.CanAccessController(User, item.Controller, ClientModules)", markup);
         Assert.Contains("@if (CanOpen(item))", markup);
         Assert.DoesNotContain("Model.Trips.Skip", markup);
         Assert.DoesNotContain("Model.Documents.Skip", markup);

@@ -1,0 +1,101 @@
+@model IEnumerable<CustomerToCustomerPayment>
+@{
+    ViewData["Title"] = UiText.T(Context, "پرداخت‌های بین مشتریان", "Customer-to-Customer Payments");
+    var items = Model.ToList();
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var totals = ViewData["TotalsByCurrency"] as Dictionary<string, decimal> ?? new Dictionary<string, decimal>();
+    var customers = ViewBag.Customers as SelectList;
+    var currencies = ViewBag.Currencies as SelectList;
+    var canManage = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "پرداخت‌های بین مشتریان", "Customer-to-Customer Payments"), true,
+                       canManage ? UiText.T(Context, "پرداخت جدید", "New payment") : (string?)null, "bi-plus-lg",
+                       canManage ? (string?)Url.Action("Create", new { returnUrl }) : (string?)null, (string?)null,
+                       UiText.T(Context, "صورت‌حساب مشتری", "Customer statement"), "bi-receipt",
+                       (string?)Url.Action("Statement", new { customerId = ViewData["customerId"] })))" />
+
+    <div class="alert alert-info">
+        @UiText.T(Context,
+            "این بخش فقط پرداخت‌های مستقیم بین مشتریان را ثبت می‌کند و روی صندوق، دفتر کل، ماندهٔ مشتریان نزد شرکت و سود و زیان اثری ندارد.",
+            "This register only records direct payments between customers. It does not affect cash, ledger, customer balances with the company, or P&L.")
+    </div>
+
+    <section class="ak-stat-grid mb-3" aria-label="@UiText.T(Context, "آمار پرداخت‌ها", "Payment statistics")">
+        <vc:stat-card title="@UiText.T(Context, "تعداد ثبت‌ها", "Records")" value="@(((int?)ViewData["TotalCount"] ?? 0).ToString("N0"))" unit="@UiText.T(Context, "ثبت", "records")" avatar="payments-out"></vc:stat-card>
+        @foreach (var total in totals)
+        {
+            <vc:stat-card title="@UiText.T(Context, "جمع مبلغ", "Total amount")" value="@total.Value.ToString("N2")" unit="@total.Key" avatar="cash-flow"></vc:stat-card>
+        }
+    </section>
+
+    @{
+        var filter = new AkSearchFilterModel("q", (string?)ViewData["q"],
+            UiText.T(Context, "جستجو در نام مشتری، مرجع یا توضیحات...", "Search customer, reference or description..."),
+            new List<AkFilterDefinition>
+            {
+                new("customerId", UiText.T(Context, "مشتری", "Customer"), "select",
+                    (customers ?? Enumerable.Empty<SelectListItem>()).Select(c => new AkFilterOption(c.Value, c.Text)).ToList(),
+                    ViewData["customerId"]?.ToString()),
+                new("currency", UiText.T(Context, "ارز", "Currency"), "select",
+                    (currencies ?? Enumerable.Empty<SelectListItem>()).Select(c => new AkFilterOption(c.Text, c.Text)).ToList(),
+                    (string?)ViewData["currency"]),
+                new("from", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                    (string?)ViewData["from"], "to", (string?)ViewData["to"])
+            });
+    }
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="filter" />
+
+    <div class="ak-list">
+        <div class="ak-table-wrap">
+            <table class="ak-table" aria-label="@UiText.T(Context, "لیست پرداخت‌های بین مشتریان", "Customer-to-customer payment list")">
+                <thead><tr>
+                    <th>@UiText.T(Context, "تاریخ", "Date")</th>
+                    <th class="ak-col-grow">@UiText.T(Context, "پرداخت‌کننده", "Payer")</th>
+                    <th class="ak-col-grow">@UiText.T(Context, "دریافت‌کننده", "Payee")</th>
+                    <th>@UiText.T(Context, "مبلغ", "Amount")</th>
+                    <th>@UiText.T(Context, "مرجع", "Reference")</th>
+                    <th>@UiText.T(Context, "توضیحات", "Description")</th>
+                    <th class="ak-col-actions"></th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        <tr>
+                            <td>@item.PaymentDate.ToString("yyyy-MM-dd")</td>
+                            <td class="ak-col-grow">@(item.PayerCustomer?.Name ?? "—")</td>
+                            <td class="ak-col-grow">@(item.PayeeCustomer?.Name ?? "—")</td>
+                            <td>@item.Amount.ToString("N2") @item.Currency</td>
+                            <td>@(item.Reference ?? "—")</td>
+                            <td>@(item.Description ?? "—")</td>
+                            <td class="ak-col-actions">
+                                @if (canManage)
+                                {
+                                    <div class="dropdown ak-row-menu">
+                                        <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")"><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>@UiText.T(Context, "ویرایش", "Edit")</a></li>
+                                            <li><hr class="dropdown-divider" /></li>
+                                            <li><form asp-action="Delete" asp-route-id="@item.Id" method="post" data-ptg-confirm="true" data-ptg-confirm-title="@UiText.T(Context, "حذف پرداخت", "Delete payment")" data-ptg-confirm-message="@UiText.T(Context, "این پرداخت بین مشتریان حذف شود؟", "Delete this customer-to-customer payment?")">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-trash" aria-hidden="true"></i>@UiText.T(Context, "حذف", "Delete")</button>
+                                            </form></li>
+                                        </ul>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!items.Any())
+                    {
+                        <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>@UiText.T(Context, "رکوردی یافت نشد", "No records found")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @{ ViewData["ShownCount"] = items.Count; }
+        <div class="ak-pager">@await Html.PartialAsync("_PagedListFooter")</div>
+    </div>
+</div>

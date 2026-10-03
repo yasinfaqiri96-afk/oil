@@ -1511,6 +1511,7 @@ public partial class SuppliersController : Controller
             ("Expense", _) => "هزینه",
             (var s, _) when s == ThreeWaySettlementController.LedgerSourceType => "تسویه سه‌طرفه / حواله",
             (var s, _) when s == ThreeWaySettlementController.CancellationLedgerSourceType => "برگشت تسویه سه‌طرفه",
+            (var s, _) when s == PartySettlementsController.LedgerSourceType => "تسویه بین طرف‌حساب‌ها",
             (var s, LedgerSide.Debit) when s == ContractBalanceTransferService.LedgerSourceType => "انتقال مانده به قرارداد دیگر",
             (var s, _) when s == ContractBalanceTransferService.LedgerSourceType => "انتقال مانده از قرارداد دیگر",
             (var s, _) when s == SupplierPaymentAllocationService.LedgerSourceType => "مصرف پیش‌پرداخت برای قرارداد",

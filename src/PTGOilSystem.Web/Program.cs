@@ -31,6 +31,20 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+// ---- Client Profile ---------------------------------------------------------
+// فقط Instanceی که ClientProfile__Name دارد فایل appsettings.{Name}.json را می‌خواند؛
+// بدون آن هیچ تنظیمی اضافه نمی‌شود و رفتار سیستم کامل دست‌نخورده می‌ماند.
+// Environment Variables و آرگومان‌ها دوباره افزوده می‌شوند تا بر فایل Profile اولویت داشته باشند.
+var clientProfileName = builder.Configuration[$"{PTGOilSystem.Web.Configuration.ClientProfileOptions.SectionName}:Name"];
+if (!string.IsNullOrWhiteSpace(clientProfileName))
+{
+    if (!ClientModuleProfile.IsValidProfileName(clientProfileName))
+        throw new InvalidOperationException($"Invalid ClientProfile:Name '{clientProfileName}'.");
+    builder.Configuration.AddJsonFile($"appsettings.{clientProfileName.Trim()}.json", optional: false, reloadOnChange: false);
+    builder.Configuration.AddEnvironmentVariables();
+    builder.Configuration.AddCommandLine(args);
+}
+
 // ---- Database ---------------------------------------------------------------
 // Connection string is read from DATABASE_URL first, then DefaultConnection.
 // DATABASE_URL is converted from the URL form
@@ -71,6 +85,9 @@ builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =
 
 // ---- Domain services (business rules, system rules #3-#9, #11, #13) --------
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.Configure<PTGOilSystem.Web.Configuration.ClientProfileOptions>(
+    builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.ClientProfileOptions.SectionName));
+builder.Services.AddSingleton<ClientModuleProfile>();
 // راهنمای شروع کار: پیش‌فرض خاموش؛ فقط نسخه‌های آزمایشی با Onboarding:Enabled روشنش می‌کنند.
 builder.Services.Configure<PTGOilSystem.Web.Configuration.OnboardingOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.OnboardingOptions.SectionName));
@@ -170,6 +187,7 @@ builder.Services.AddScoped<ILossEventWorkflowService, LossEventWorkflowService>(
 builder.Services.AddScoped<
     PTGOilSystem.Web.Services.LoadingReceipts.ILoadingReceiptCancellationService,
     PTGOilSystem.Web.Services.LoadingReceipts.LoadingReceiptCancellationService>();
+builder.Services.AddScoped<ISimplePurchaseWorkflowService, SimplePurchaseWorkflowService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<IUnitConversionService, UnitConversionService>();

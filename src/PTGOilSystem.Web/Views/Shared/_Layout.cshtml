@@ -1,6 +1,8 @@
 ﻿@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject Microsoft.Extensions.Configuration.IConfiguration AppConfiguration
 @inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.OnboardingOptions> OnboardingOptionsAccessor
+@inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.ClientProfileOptions> ClientProfileOptionsAccessor
+@inject PTGOilSystem.Web.Security.ClientModuleProfile ClientModules
 @{
     // ابزار توسعه UI Pick — فقط Development + PTG_UI_PICK=1
     var uiPickEnabled = HostEnvironment.IsDevelopment()
@@ -15,6 +17,7 @@
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var currentRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
     var isAdmin = string.Equals(currentRole, PTGOilSystem.Web.Security.AuthRoles.Admin, StringComparison.Ordinal);
+    var simplePurchaseEnabled = ClientProfileOptionsAccessor.Value.SimplePurchaseEnabled;
     var canManageUsers = PTGOilSystem.Web.Security.RoleAccessRules.CanManageUsers(User);
     // راهنمای شروع (Trial): خاموش باشد هیچ دکمه، CSS یا JS آن بارگذاری نمی‌شود.
     var onboardingEnabled = isAuthenticated
@@ -153,7 +156,7 @@
     // هر گزارش (از جمله تفاوت نرخ ارز) از کارت‌های همان هاب باز می‌شود، پس این آرایه خالی می‌ماند.
     var reportMenuItems = System.Array.Empty<(string Controller, string Action, string Label, string Icon)>();
 
-    var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation" };
+    var journalControllers = new[] { "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation", "CustomerToCustomerPayments", "PartySettlements" };
     var accountControllers = new[] { "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs" };
     var fiscalYearControllers = new[] { "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear" };
     // این دو صفحه در هیچ بخش دیگر سایدبار خانه ندارند و فقط از هاب مالی باز می‌شوند؛
@@ -189,8 +192,10 @@
 
     var dashboardSidebarItem = SidebarItem("Home", "Index", T("داشبورد", "Dashboard"), "nav-dashboard");
     var contractControllers = new[] { "Contracts", "ContractAmendments", "ContractJourney" };
+    // Profile خرید ساده: همان کنترلر Contracts، با عنوان ساده‌تر برای این مشتری.
+    var contractsNavLabel = simplePurchaseEnabled ? T("خرید", "Purchases") : T("قراردادها", "Contracts");
     var operationsSidebarItem = SidebarItem(
-        "Loading",
+        simplePurchaseEnabled ? "Expenses" : "Loading",
         "Index",
         T("عملیات", "Operations"),
         "nav-operations",
@@ -199,7 +204,7 @@
     var primarySidebarItems = new List<(string Controller, string Action, string Label, string Icon, string? RouteKey, string[] ActiveControllers)>
     {
         dashboardSidebarItem,
-        SidebarItem("Contracts", "Index", T("قراردادها", "Contracts"), "nav-contracts", activeControllers: contractControllers),
+        SidebarItem("Contracts", "Index", contractsNavLabel, "nav-contracts", activeControllers: contractControllers),
         operationsSidebarItem,
         SidebarItem("OperationalAssets", "Index", T("دارایی‌ها", "Assets"), "nav-assets"),
         SidebarItem("Sales", "Index", T("فروش", "Sales"), "nav-sales"),
@@ -216,7 +221,7 @@
     primarySidebarItems.Add(SidebarItem("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", activeControllers: coreDataControllers));
     primarySidebarItems = primarySidebarItems
         .Where(item => !string.Equals(item.Controller, "Sales", StringComparison.OrdinalIgnoreCase))
-        .Where(item => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller))
+        .Where(item => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Controller, ClientModules))
         .ToList();
 
     // ===== Two-rail Akaunting navigation model =====
@@ -230,14 +235,16 @@
         => (controller, action, label, icon, routeKey, active ?? new[] { controller }, children ?? emptyChildren);
 
     bool CanAccessController(string controller)
-        => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, controller);
+        => PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, controller, ClientModules);
 
     var navSource = new List<(string Controller, string Action, string Label, string Icon, string? RouteKey, string[] Active,
         (string Controller, string Action, string Label, string Icon)[] Children)>
     {
         NavNode("Home", "Index", T("داشبورد", "Dashboard"), "nav-dashboard"),
-        NavNode("Contracts", "Index", T("قراردادها", "Contracts"), "nav-contracts", active: contractControllers),
-        NavNode("Loading", "Index", T("عملیات", "Operations"), "nav-operations", active: operationTabControllers),
+        NavNode("Contracts", "Index", contractsNavLabel, "nav-contracts", active: contractControllers),
+        simplePurchaseEnabled
+            ? NavNode("Expenses", "Index", T("عملیات", "Operations"), "nav-operations", active: operationTabControllers)
+            : NavNode("Loading", "Index", T("عملیات", "Operations"), "nav-operations", active: operationTabControllers),
         NavNode("OperationalAssets", "Index", T("دارایی‌ها", "Assets"), "nav-assets"),
         NavNode("Finance", "Index", T("مالی", "Finance"), "nav-finance",
             active: financeNavControllers),
@@ -489,7 +496,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/mashal-sidebar-white.webp" asp-append-version="true" alt="Saddiqi Group" width="2289" height="1143" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/saddiqi-sidebar-wordmark.webp" asp-append-version="true" alt="Saddiqi Group" width="1226" height="355" decoding="async" />
                         </span>
                     </a>
 

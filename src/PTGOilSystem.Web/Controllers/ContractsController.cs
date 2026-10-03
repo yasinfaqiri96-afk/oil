@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
@@ -15,6 +16,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Configuration;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -33,6 +35,9 @@ public partial class ContractsController : Controller
     private readonly Services.Accounting.IPurchaseAccountingAdapter? _purchaseAccounting;
 
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly ClientProfileOptions _clientProfile;
+    private readonly ISimplePurchaseWorkflowService? _simplePurchaseWorkflow;
+    private bool SimplePurchaseEnabled => _clientProfile.SimplePurchaseEnabled;
 
     [ActivatorUtilitiesConstructor]
     public ContractsController(
@@ -41,13 +46,17 @@ public partial class ContractsController : Controller
         ICurrencyConversionService currencyConversion,
         IFormTokenGuard formTokens,
         Services.Accounting.IPurchaseAccountingAdapter? purchaseAccounting = null,
-        IAfghanistanBusinessClock? businessClock = null)
+        IAfghanistanBusinessClock? businessClock = null,
+        IOptions<ClientProfileOptions>? clientProfileOptions = null,
+        ISimplePurchaseWorkflowService? simplePurchaseWorkflow = null)
     {
         _db = db;
         _audit = audit;
         _currencyConversion = currencyConversion;
         _formTokens = formTokens;
         _purchaseAccounting = purchaseAccounting;
+        _clientProfile = clientProfileOptions?.Value ?? new ClientProfileOptions();
+        _simplePurchaseWorkflow = simplePurchaseWorkflow;
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
     }
@@ -141,6 +150,33 @@ public partial class ContractsController : Controller
             "Id",
             "Name",
             model?.DestinationLocationId);
+        ViewBag.PurchaseSources = new SelectList(
+            await _db.Locations
+                .AsNoTracking()
+                .Where(l => l.IsActive)
+                .OrderBy(l => l.Name)
+                .Select(l => new { l.Id, l.Name })
+                .ToListAsync(),
+            "Id",
+            "Name",
+            model?.PurchaseSourceLocationId);
+        ViewBag.StorageTanks = new SelectList(
+            await _db.StorageTanks
+                .AsNoTracking()
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.Terminal!.Name)
+                .ThenBy(t => t.TankCode)
+                .Select(t => new
+                {
+                    t.Id,
+                    DisplayName = (t.Terminal != null ? t.Terminal.Name + " — " : "")
+                        + (t.DisplayName ?? t.TankCode)
+                })
+                .ToListAsync(),
+            "Id",
+            "DisplayName",
+            model?.DestinationStorageTankId);
+        ViewBag.SimplePurchaseEnabled = SimplePurchaseEnabled;
         // فقط قراردادهایی که خودشان زیرقرارداد نیستند می‌توانند «قرارداد اصلی» باشند (یک سطح).
         // قرارداد در حال ویرایش هم نمی‌تواند والد خودش باشد.
         var parentContracts = await _db.Contracts
@@ -288,7 +324,7 @@ public partial class ContractsController : Controller
         {
             ContractNumber = await GenerateNextContractNumberAsync(ContractType.Purchase),
             ContractDate = AfghanistanBusinessClock.SystemToday,
-            Status = ContractStatus.Active,
+            Status = SimplePurchaseEnabled ? ContractStatus.Draft : ContractStatus.Active,
             PricingMethod = PricingMethod.ManualFinalPrice,
             UiPricingType = UiPricingType.Agreed,
             PlattsUiMode = PlattsUiMode.ManualDescriptive,
@@ -299,7 +335,7 @@ public partial class ContractsController : Controller
         };
         EnsurePartnerRows(model);
         await PopulateLookupsAsync(model);
-        return View(model);
+        return ContractFormView(model, isEdit: false);
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -316,20 +352,22 @@ public partial class ContractsController : Controller
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
         ValidateRubSettlementModel(model);
+        ValidateSimplePurchaseModel(model);
 
         if (!ModelState.IsValid)
         {
             EnsurePartnerRows(model);
             await PopulateLookupsAsync(model);
-            return View(model);
+            return ContractFormView(model, isEdit: false);
         }
 
+        var confirmSimplePurchase = SimplePurchaseEnabled && model.Status == ContractStatus.Active;
         var contract = new Contract
         {
             ContractName = model.ContractName,
             ContractNumber = model.ContractNumber,
             ContractType = model.ContractType,
-            Status = model.Status,
+            Status = confirmSimplePurchase ? ContractStatus.Draft : model.Status,
             ParentContractId = model.ParentContractId,
             CompanyId = model.CompanyId,
             ProductId = model.ProductId,
@@ -337,6 +375,8 @@ public partial class ContractsController : Controller
             SupplierId = model.SupplierId,
             CustomerId = model.CustomerId,
             DestinationLocationId = model.DestinationLocationId,
+            PurchaseSourceLocationId = model.PurchaseSourceLocationId,
+            DestinationStorageTankId = model.DestinationStorageTankId,
             OwnershipType = model.OwnershipType,
             ContractDate = model.ContractDate,
             StartDate = model.StartDate,
@@ -370,7 +410,7 @@ public partial class ContractsController : Controller
         {
             EnsurePartnerRows(model);
             await PopulateLookupsAsync(model);
-            return View(model);
+            return ContractFormView(model, isEdit: false);
         }
 
         var partnerShares = GetNormalizedPartnerShares(model);
@@ -389,10 +429,28 @@ public partial class ContractsController : Controller
         // Duplicate-submit guard: token persists atomically with the contract.
         _formTokens.Stamp(formToken, "Contract.Create", nameof(Contract));
 
+        await using var simpleTransaction = confirmSimplePurchase && _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
         _db.Contracts.Add(contract);
         try
         {
             await _db.SaveChangesAsync();
+            if (confirmSimplePurchase)
+            {
+                if (_simplePurchaseWorkflow is null)
+                    throw new InvalidOperationException("Simple purchase workflow service is not configured.");
+                await _simplePurchaseWorkflow.ConfirmAsync(contract.Id);
+            }
+        }
+        catch (BusinessRuleException ex)
+        {
+            if (simpleTransaction is not null) await simpleTransaction.RollbackAsync();
+            _db.ChangeTracker.Clear();
+            ModelState.AddModelError(string.Empty, ex.Message);
+            EnsurePartnerRows(model);
+            await PopulateLookupsAsync(model);
+            return ContractFormView(model, isEdit: false);
         }
         catch (DbUpdateException ex) when (_formTokens.IsDuplicate(ex))
         {
@@ -405,7 +463,7 @@ public partial class ContractsController : Controller
             // این فقط پیام خوانا برای مسیرهایی است که از فرم عبور نکرده‌اند.
             ModelState.AddModelError(nameof(model.PartnerShares), PartnerShareViolationMessage(ex));
             await PopulateLookupsAsync(model);
-            return View(model);
+            return ContractFormView(model, isEdit: false);
         }
 
         await _audit.LogAndSaveAsync(
@@ -423,6 +481,8 @@ public partial class ContractsController : Controller
                 ("UnitId", contract.UnitId),
                 ("SupplierId", contract.SupplierId),
                 ("CustomerId", contract.CustomerId),
+                ("PurchaseSourceLocationId", contract.PurchaseSourceLocationId),
+                ("DestinationStorageTankId", contract.DestinationStorageTankId),
                 ("OwnershipType", contract.OwnershipType),
                 ("Partners", BuildPartnerSummary(contract.ContractPartners)),
                 ("PricingMethod", contract.PricingMethod),
@@ -448,7 +508,16 @@ public partial class ContractsController : Controller
                 ("PricingFormulaNote", contract.PricingFormulaNote),
                 ("ContractDate", contract.ContractDate)));
 
-        TempData["ok"] = "قرارداد ثبت شد.";
+        if (simpleTransaction is not null)
+        {
+            await simpleTransaction.CommitAsync();
+        }
+
+        TempData["ok"] = SimplePurchaseEnabled
+            ? confirmSimplePurchase
+                ? "خرید تأیید شد؛ جنس وارد مخزن و بدهی تأمین‌کننده ثبت گردید."
+                : "قرارداد به‌صورت پیش‌نویس ثبت شد."
+            : "قرارداد ثبت شد.";
         await SetBookOwnerWarningAsync(
             contract.OwnershipType,
             contract.CompanyId,
@@ -476,7 +545,7 @@ public partial class ContractsController : Controller
         var model = BuildFormModel(item);
         EnsurePartnerRows(model);
         await PopulateLookupsAsync(model);
-        return View(model);
+        return ContractFormView(model, isEdit: true);
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -510,6 +579,7 @@ public partial class ContractsController : Controller
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
         ValidateRubSettlementModel(model);
+        ValidateSimplePurchaseModel(model);
         if (model.Status == ContractStatus.Closed)
         {
             ModelState.AddModelError(
@@ -521,7 +591,7 @@ public partial class ContractsController : Controller
         {
             EnsurePartnerRows(model);
             await PopulateLookupsAsync(model);
-            return View(model);
+            return ContractFormView(model, isEdit: true);
         }
 
         var candidate = new Contract
@@ -538,6 +608,8 @@ public partial class ContractsController : Controller
             SupplierId = model.SupplierId,
             CustomerId = model.CustomerId,
             DestinationLocationId = model.DestinationLocationId,
+            PurchaseSourceLocationId = model.PurchaseSourceLocationId,
+            DestinationStorageTankId = model.DestinationStorageTankId,
             OwnershipType = model.OwnershipType,
             ContractDate = model.ContractDate,
             StartDate = model.StartDate,
@@ -571,7 +643,17 @@ public partial class ContractsController : Controller
         {
             EnsurePartnerRows(model);
             await PopulateLookupsAsync(model);
-            return View(model);
+            return ContractFormView(model, isEdit: true);
+        }
+
+        var hasSimplePurchasePosting = SimplePurchaseEnabled
+            && _simplePurchaseWorkflow is not null
+            && await _simplePurchaseWorkflow.HasPostingAsync(existing.Id);
+        if (SimplePurchaseEnabled
+            && existing.ContractType == ContractType.Purchase
+            && (existing.Status == ContractStatus.Draft || hasSimplePurchasePosting))
+        {
+            return await EditSimplePurchaseAsync(existing, candidate, model, hasSimplePurchasePosting);
         }
 
         // نرخ نهاییِ قبل از اعمال تغییرات را نگه می‌داریم تا اگر نرخ قرارداد عوض شد،
@@ -633,6 +715,8 @@ public partial class ContractsController : Controller
         existing.StartDate = candidate.StartDate;
         existing.EndDate = candidate.EndDate;
         existing.DestinationLocationId = candidate.DestinationLocationId;
+        existing.PurchaseSourceLocationId = candidate.PurchaseSourceLocationId;
+        existing.DestinationStorageTankId = candidate.DestinationStorageTankId;
         existing.UnitId = candidate.UnitId;
         existing.OwnershipType = candidate.OwnershipType;
         existing.Notes = candidate.Notes;
@@ -1272,6 +1356,141 @@ public partial class ContractsController : Controller
         }
     }
 
+    private async Task<IActionResult> EditSimplePurchaseAsync(
+        Contract existing,
+        Contract candidate,
+        ContractFormViewModel model,
+        bool hasPosting)
+    {
+        if (_simplePurchaseWorkflow is null)
+            throw new InvalidOperationException("Simple purchase workflow service is not configured.");
+
+        var protectedFieldsChanged = existing.CompanyId != candidate.CompanyId
+            || existing.ProductId != candidate.ProductId
+            || existing.UnitId != candidate.UnitId
+            || existing.SupplierId != candidate.SupplierId
+            || existing.ContractDate.Date != candidate.ContractDate.Date
+            || existing.QuantityMt != candidate.QuantityMt
+            || existing.Currency != candidate.Currency
+            || existing.UnitPriceInCurrency != candidate.UnitPriceInCurrency
+            || existing.AppliedFxRateToUsd != candidate.AppliedFxRateToUsd
+            || existing.UnitPriceUsd != candidate.UnitPriceUsd
+            || existing.DestinationStorageTankId != candidate.DestinationStorageTankId
+            || existing.PurchaseSourceLocationId != candidate.PurchaseSourceLocationId;
+
+        if (hasPosting && existing.Status == ContractStatus.Active)
+        {
+            if (candidate.Status == ContractStatus.Draft)
+                ModelState.AddModelError(nameof(model.Status), "خرید تأییدشده بدون Reverse صحیح نمی‌تواند به پیش‌نویس برگردد.");
+            if (candidate.Status == ContractStatus.Active && protectedFieldsChanged)
+                ModelState.AddModelError(string.Empty, "مقدار، محصول، تأمین‌کننده، قیمت، تاریخ یا مخزن خرید تأییدشده قابل ویرایش نیست؛ ابتدا خرید را Reverse کنید.");
+            if (candidate.Status == ContractStatus.Cancelled && protectedFieldsChanged)
+                ModelState.AddModelError(string.Empty, "هنگام لغو، اطلاعات مالی و موجودی خرید را تغییر ندهید.");
+            if (candidate.Status == ContractStatus.Cancelled && string.IsNullOrWhiteSpace(model.CancellationReason))
+                ModelState.AddModelError(nameof(model.CancellationReason), "ثبت دلیل لغو الزامی است.");
+        }
+        else if (existing.Status == ContractStatus.Cancelled)
+        {
+            ModelState.AddModelError(string.Empty, "خرید لغوشده قابل ویرایش یا تأیید دوباره نیست.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            EnsurePartnerRows(model);
+            await PopulateLookupsAsync(model);
+            return ContractFormView(model, isEdit: true);
+        }
+
+        await using var transaction = _db.Database.IsRelational()
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+        try
+        {
+            var previousStatus = existing.Status;
+            if (!hasPosting || existing.Status == ContractStatus.Draft)
+            {
+                CopySimplePurchaseFields(existing, candidate);
+                existing.Status = candidate.Status == ContractStatus.Active
+                    ? ContractStatus.Draft
+                    : candidate.Status;
+            }
+            else
+            {
+                // پس از posting فقط metadata بی‌اثر بر حساب/موجودی قابل اصلاح است.
+                existing.ContractName = candidate.ContractName;
+                existing.Notes = candidate.Notes;
+            }
+
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            if (previousStatus == ContractStatus.Draft && candidate.Status == ContractStatus.Active)
+            {
+                await _simplePurchaseWorkflow.ConfirmAsync(existing.Id);
+            }
+            else if (previousStatus == ContractStatus.Active && candidate.Status == ContractStatus.Cancelled)
+            {
+                await _simplePurchaseWorkflow.ReverseAsync(
+                    existing.Id,
+                    model.CancellationReason!);
+            }
+
+            await _audit.LogAndSaveAsync(
+                nameof(Contract),
+                existing.Id,
+                candidate.Status == ContractStatus.Cancelled ? AuditAction.Reverse : AuditAction.Update,
+                diff: AuditDiffFormatter.ForUpdate(
+                    ("Status", previousStatus, existing.Status),
+                    ("ProductId", candidate.Status == ContractStatus.Active ? candidate.ProductId : existing.ProductId, existing.ProductId),
+                    ("QuantityMt", candidate.Status == ContractStatus.Active ? candidate.QuantityMt : existing.QuantityMt, existing.QuantityMt),
+                    ("DestinationStorageTankId", candidate.Status == ContractStatus.Active ? candidate.DestinationStorageTankId : existing.DestinationStorageTankId, existing.DestinationStorageTankId)));
+
+            if (transaction is not null) await transaction.CommitAsync();
+            TempData["ok"] = candidate.Status switch
+            {
+                ContractStatus.Active => "خرید تأیید شد؛ جنس وارد مخزن و بدهی تأمین‌کننده ثبت گردید.",
+                ContractStatus.Cancelled => "خرید، ورود موجودی و بدهی تأمین‌کننده به‌صورت استاندارد Reverse شد.",
+                _ => "پیش‌نویس خرید ذخیره شد."
+            };
+            return RedirectToAction(nameof(Details), new { id = existing.Id });
+        }
+        catch (BusinessRuleException ex)
+        {
+            if (transaction is not null) await transaction.RollbackAsync();
+            _db.ChangeTracker.Clear();
+            ModelState.AddModelError(string.Empty, ex.Message);
+            EnsurePartnerRows(model);
+            await PopulateLookupsAsync(model);
+            return ContractFormView(model, isEdit: true);
+        }
+    }
+
+    private ViewResult ContractFormView(ContractFormViewModel model, bool isEdit)
+        => SimplePurchaseEnabled && model.ContractType == ContractType.Purchase
+            ? View("SimplePurchase", model)
+            : View(isEdit ? "Edit" : "Create", model);
+
+    private static void CopySimplePurchaseFields(Contract target, Contract source)
+    {
+        target.ContractName = source.ContractName;
+        target.CompanyId = source.CompanyId;
+        target.ProductId = source.ProductId;
+        target.UnitId = source.UnitId;
+        target.SupplierId = source.SupplierId;
+        target.CustomerId = null;
+        target.PurchaseSourceLocationId = source.PurchaseSourceLocationId;
+        target.DestinationStorageTankId = source.DestinationStorageTankId;
+        target.ContractDate = source.ContractDate;
+        target.PricingMethod = source.PricingMethod;
+        target.QuantityMt = source.QuantityMt;
+        target.Currency = source.Currency;
+        target.UnitPriceInCurrency = source.UnitPriceInCurrency;
+        target.AppliedFxRateToUsd = source.AppliedFxRateToUsd;
+        target.UnitPriceUsd = source.UnitPriceUsd;
+        target.ManualFinalPriceUsd = source.ManualFinalPriceUsd;
+        target.Notes = source.Notes;
+    }
+
     private async Task ValidateLookupsAsync(ContractFormViewModel model, bool isCreate)
     {
         if (await _db.Contracts.AnyAsync(c => c.ContractNumber == model.ContractNumber
@@ -1340,6 +1559,28 @@ public partial class ContractsController : Controller
             ModelState.AddModelError(nameof(model.DestinationLocationId), "مقصد انتخاب‌شده معتبر نیست.");
         }
 
+        if (model.PurchaseSourceLocationId.HasValue &&
+            !await _db.Locations.AsNoTracking().AnyAsync(l => l.Id == model.PurchaseSourceLocationId.Value && l.IsActive))
+        {
+            ModelState.AddModelError(nameof(model.PurchaseSourceLocationId), "منبع خرید انتخاب‌شده معتبر نیست.");
+        }
+
+        if (model.DestinationStorageTankId.HasValue)
+        {
+            var tank = await _db.StorageTanks.AsNoTracking()
+                .Where(t => t.Id == model.DestinationStorageTankId.Value && t.IsActive)
+                .Select(t => new { t.Id, t.ProductId })
+                .SingleOrDefaultAsync();
+            if (tank is null)
+            {
+                ModelState.AddModelError(nameof(model.DestinationStorageTankId), "مخزن مقصد انتخاب‌شده معتبر نیست.");
+            }
+            else if (tank.ProductId.HasValue && tank.ProductId != model.ProductId)
+            {
+                ModelState.AddModelError(nameof(model.DestinationStorageTankId), "محصول مخزن مقصد با محصول خرید یکسان نیست.");
+            }
+        }
+
         var shouldValidateCurrency = model.PricingMethod == PricingMethod.Fixed || !string.IsNullOrWhiteSpace(model.Currency);
         if (shouldValidateCurrency)
         {
@@ -1366,6 +1607,23 @@ public partial class ContractsController : Controller
                     "ارز تسویهٔ انتخاب‌شده در master data وجود ندارد یا غیرفعال است.");
             }
         }
+    }
+
+    private void ValidateSimplePurchaseModel(ContractFormViewModel model)
+    {
+        if (!SimplePurchaseEnabled)
+        {
+            return;
+        }
+
+        if (model.ContractType != ContractType.Purchase)
+            ModelState.AddModelError(nameof(model.ContractType), "در Profile خرید ساده فقط قرارداد خرید قابل ثبت است.");
+        if (model.PricingMethod != PricingMethod.Fixed)
+            ModelState.AddModelError(nameof(model.PricingMethod), "خرید ساده باید قیمت قطعی داشته باشد.");
+        if (model.Id == 0 && model.Status == ContractStatus.Cancelled)
+            ModelState.AddModelError(nameof(model.Status), "خرید جدید نمی‌تواند در حالت لغوشده ثبت شود.");
+        if (model.Status == ContractStatus.Active && !model.DestinationStorageTankId.HasValue)
+            ModelState.AddModelError(nameof(model.DestinationStorageTankId), "برای تأیید خرید، مخزن مقصد الزامی است.");
     }
 
     private async Task<string> GenerateNextContractNumberAsync(ContractType contractType)
@@ -1993,6 +2251,8 @@ public partial class ContractsController : Controller
             SupplierId = contract.SupplierId,
             CustomerId = contract.CustomerId,
             DestinationLocationId = contract.DestinationLocationId,
+            PurchaseSourceLocationId = contract.PurchaseSourceLocationId,
+            DestinationStorageTankId = contract.DestinationStorageTankId,
             OwnershipType = contract.OwnershipType,
             ContractDate = contract.ContractDate,
             StartDate = contract.StartDate,
