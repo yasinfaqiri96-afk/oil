@@ -256,56 +256,19 @@ public class PartySettlementsController : Controller
         PartySettlementFormModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
-        model.Currency = string.IsNullOrWhiteSpace(model.Currency) ? "USD" : model.Currency.Trim().ToUpperInvariant();
-        model.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
-
-        var hasFrom = PartySettlementParties.TryParse(model.FromParty, out var fromType, out var fromId);
-        var hasTo = PartySettlementParties.TryParse(model.ToParty, out var toType, out var toId);
-        if (!hasFrom)
-            ModelState.AddModelError(nameof(model.FromParty), "طرف‌حساب پرداخت‌کننده را انتخاب کنید.");
-        if (!hasTo)
-            ModelState.AddModelError(nameof(model.ToParty), "طرف‌حساب گیرنده را انتخاب کنید.");
-        if (hasFrom && hasTo && fromType == toType && fromId == toId)
-            ModelState.AddModelError(nameof(model.ToParty), "پرداخت‌کننده و گیرنده نمی‌توانند یک طرف‌حساب باشند.");
-        if (model.Amount <= 0m)
-            ModelState.AddModelError(nameof(model.Amount), "مبلغ باید بزرگ‌تر از صفر باشد.");
-        if (model.SettlementDate == default)
-            ModelState.AddModelError(nameof(model.SettlementDate), "تاریخ را وارد کنید.");
-        if (!await _db.Currencies.AnyAsync(c => c.Code == model.Currency && c.IsActive))
-            ModelState.AddModelError(nameof(model.Currency), "ارز نامعتبر است.");
-
-        var isUsd = model.Currency == "USD";
-        if (!isUsd && !(model.CurrencyPerUsdRate > 0m))
-            ModelState.AddModelError(nameof(model.CurrencyPerUsdRate), "نرخ دالر به این ارز را وارد کنید.");
-
-        if (hasFrom && !await PartyExistsAsync(fromType, fromId))
-            ModelState.AddModelError(nameof(model.FromParty), "طرف‌حساب پرداخت‌کننده یافت نشد.");
-        if (hasTo && !await PartyExistsAsync(toType, toId))
-            ModelState.AddModelError(nameof(model.ToParty), "طرف‌حساب گیرنده یافت نشد.");
-
-        if (!ModelState.IsValid)
+        var parsed = await ValidateFormAsync(model);
+        if (parsed is not var (fromType, fromId, toType, toId))
         {
             await PopulateLookupsAsync();
             return View(model);
         }
 
-        var fxRateToUsd = isUsd ? 1m : 1m / model.CurrencyPerUsdRate!.Value;
         var settlement = new PartySettlement
         {
-            SettlementDate = model.SettlementDate.Date,
             Status = PartySettlementStatus.Posted,
-            FromPartyType = fromType,
-            FromPartyId = fromId,
-            ToPartyType = toType,
-            ToPartyId = toId,
-            Amount = Math.Round(model.Amount, 4, MidpointRounding.AwayFromZero),
-            Currency = model.Currency,
-            CurrencyPerUsdRate = isUsd ? null : model.CurrencyPerUsdRate,
-            FxRateToUsd = fxRateToUsd,
-            AmountUsd = Math.Round(model.Amount * fxRateToUsd, 2, MidpointRounding.AwayFromZero),
-            Description = model.Description,
             CreatedByUserName = User?.Identity?.Name
         };
+        ApplyForm(settlement, model, fromType, fromId, toType, toId);
 
         var names = await LoadNamesAsync([(fromType, fromId), (toType, toId)]);
         var fromName = NameOf(names, fromType, fromId);
@@ -348,6 +311,97 @@ public class PartySettlementsController : Controller
 
         TempData["ok"] = "تسویه ثبت شد.";
         return RedirectToAction(nameof(Details), new { id = settlement.Id });
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    public async Task<IActionResult> Edit(int id)
+    {
+        var item = await _db.PartySettlements.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
+        if (item == null) return NotFound();
+        if (await EditBlockReasonAsync(item) is { } blocked)
+        {
+            TempData["err"] = blocked;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        await PopulateLookupsAsync(keep: item);
+        ViewBag.EditId = item.Id;
+        return View("Create", new PartySettlementFormModel
+        {
+            SettlementDate = item.SettlementDate,
+            FromParty = PartySettlementParties.Key(item.FromPartyType, item.FromPartyId),
+            ToParty = PartySettlementParties.Key(item.ToPartyType, item.ToPartyId),
+            Amount = item.Amount,
+            Currency = item.Currency,
+            CurrencyPerUsdRate = item.CurrencyPerUsdRate,
+            Description = item.Description
+        });
+    }
+
+    /// <summary>
+    /// ویرایش تسویهٔ ثبت‌شده: همان دو سطر دفتر کل (پرداخت‌کننده/گیرنده) با <c>Ledger.Apply</c>
+    /// در جا به‌روز می‌شوند — هم‌الگوی بقیهٔ مسیرهای «ویرایش سند» — تا هیچ سطر تکراری یا برگشتی
+    /// ساخته نشود و شناسهٔ سطرها و پیوندشان با سند ثابت بماند. قاعدهٔ جهت (Debit/Credit) همان BuildLedger است.
+    /// </summary>
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, PartySettlementFormModel model)
+    {
+        var item = await _db.PartySettlements
+            .Include(s => s.FromLedgerEntry)
+            .Include(s => s.ToLedgerEntry)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (item == null) return NotFound();
+        if (await EditBlockReasonAsync(item) is { } blocked)
+        {
+            TempData["err"] = blocked;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var parsed = await ValidateFormAsync(model, keepCurrency: item.Currency);
+        if (parsed is not var (fromType, fromId, toType, toId))
+        {
+            await PopulateLookupsAsync(keep: item);
+            ViewBag.EditId = item.Id;
+            return View("Create", model);
+        }
+
+        var oldNames = await LoadNamesAsync([(item.FromPartyType, item.FromPartyId), (item.ToPartyType, item.ToPartyId)]);
+        var before = (
+            Date: item.SettlementDate.ToString("yyyy-MM-dd"),
+            From: $"{PartySettlementParties.TypeLabel(item.FromPartyType)} {NameOf(oldNames, item.FromPartyType, item.FromPartyId)} (#{item.FromPartyId})",
+            To: $"{PartySettlementParties.TypeLabel(item.ToPartyType)} {NameOf(oldNames, item.ToPartyType, item.ToPartyId)} (#{item.ToPartyId})",
+            item.Amount, item.Currency, item.CurrencyPerUsdRate, item.AmountUsd, item.Description);
+
+        ApplyForm(item, model, fromType, fromId, toType, toId);
+
+        var names = await LoadNamesAsync([(fromType, fromId), (toType, toId)]);
+        var fromName = NameOf(names, fromType, fromId);
+        var toName = NameOf(names, toType, toId);
+
+        await using var transaction = await BeginTransactionIfRelationalAsync();
+
+        Ledger.Apply(item.FromLedgerEntry!,
+            BuildLedger(item, fromType, fromId, isPayer: true, $"{LedgerTitle}: پرداخت مستقیم به {toName}"));
+        Ledger.Apply(item.ToLedgerEntry!,
+            BuildLedger(item, toType, toId, isPayer: false, $"{LedgerTitle}: دریافت مستقیم از {fromName}"));
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAndSaveAsync(nameof(PartySettlement), item.Id, AuditAction.Update,
+            diff: AuditDiffFormatter.ForUpdate(
+                ("SettlementDate", before.Date, item.SettlementDate.ToString("yyyy-MM-dd")),
+                ("From", before.From, $"{PartySettlementParties.TypeLabel(fromType)} {fromName} (#{fromId})"),
+                ("To", before.To, $"{PartySettlementParties.TypeLabel(toType)} {toName} (#{toId})"),
+                ("Amount", before.Amount, item.Amount),
+                ("Currency", before.Currency, item.Currency),
+                ("CurrencyPerUsdRate", before.CurrencyPerUsdRate, item.CurrencyPerUsdRate),
+                ("AmountUsd", before.AmountUsd, item.AmountUsd),
+                ("Description", before.Description, item.Description)));
+
+        if (transaction is not null) await transaction.CommitAsync();
+
+        TempData["ok"] = "تسویه ویرایش شد و ماندهٔ هر دو طرف با مقادیر جدید هماهنگ شد.";
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -400,6 +454,76 @@ public class PartySettlementsController : Controller
 
         TempData["ok"] = "تسویه لغو شد و ماندهٔ هر دو طرف به حالت قبل برگشت.";
         return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // فقط تسویهٔ فعال با هر دو سطر دفتر و بدون هیچ سطر برگشتی قابل ویرایش است.
+    private async Task<string?> EditBlockReasonAsync(PartySettlement item)
+    {
+        if (item.Status != PartySettlementStatus.Posted)
+            return "تسویهٔ لغوشده قابل ویرایش نیست.";
+        if (item.FromLedgerEntryId == null || item.ToLedgerEntryId == null)
+            return "سطرهای دفتر این تسویه کامل نیست و ویرایش امن ممکن نیست.";
+        var reversalRefs = new[]
+        {
+            ReferenceOf(item.Id, isPayer: true) + CompanyFlowSourceTypes.ReversalReferenceSuffix,
+            ReferenceOf(item.Id, isPayer: false) + CompanyFlowSourceTypes.ReversalReferenceSuffix
+        };
+        if (await _db.LedgerEntries.AnyAsync(l => l.SourceType == LedgerSourceType
+                && l.SourceId == item.Id && reversalRefs.Contains(l.Reference)))
+            return "برای این تسویه سند برگشت وجود دارد و ویرایش ممکن نیست.";
+        return null;
+    }
+
+    // اعتبارسنجی مشترک ثبت و ویرایش؛ در صورت خطا null برمی‌گرداند و خطاها در ModelState است.
+    private async Task<(AccountingPartyType FromType, int FromId, AccountingPartyType ToType, int ToId)?> ValidateFormAsync(
+        PartySettlementFormModel model, string? keepCurrency = null)
+    {
+        model.Currency = string.IsNullOrWhiteSpace(model.Currency) ? "USD" : model.Currency.Trim().ToUpperInvariant();
+        model.Description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
+
+        var hasFrom = PartySettlementParties.TryParse(model.FromParty, out var fromType, out var fromId);
+        var hasTo = PartySettlementParties.TryParse(model.ToParty, out var toType, out var toId);
+        if (!hasFrom)
+            ModelState.AddModelError(nameof(model.FromParty), "طرف‌حساب پرداخت‌کننده را انتخاب کنید.");
+        if (!hasTo)
+            ModelState.AddModelError(nameof(model.ToParty), "طرف‌حساب گیرنده را انتخاب کنید.");
+        if (hasFrom && hasTo && fromType == toType && fromId == toId)
+            ModelState.AddModelError(nameof(model.ToParty), "پرداخت‌کننده و گیرنده نمی‌توانند یک طرف‌حساب باشند.");
+        if (model.Amount <= 0m)
+            ModelState.AddModelError(nameof(model.Amount), "مبلغ باید بزرگ‌تر از صفر باشد.");
+        if (model.SettlementDate == default)
+            ModelState.AddModelError(nameof(model.SettlementDate), "تاریخ را وارد کنید.");
+        if (!await _db.Currencies.AnyAsync(c => c.Code == model.Currency && (c.IsActive || c.Code == keepCurrency)))
+            ModelState.AddModelError(nameof(model.Currency), "ارز نامعتبر است.");
+
+        if (model.Currency != "USD" && !(model.CurrencyPerUsdRate > 0m))
+            ModelState.AddModelError(nameof(model.CurrencyPerUsdRate), "نرخ دالر به این ارز را وارد کنید.");
+
+        if (hasFrom && !await PartyExistsAsync(fromType, fromId))
+            ModelState.AddModelError(nameof(model.FromParty), "طرف‌حساب پرداخت‌کننده یافت نشد.");
+        if (hasTo && !await PartyExistsAsync(toType, toId))
+            ModelState.AddModelError(nameof(model.ToParty), "طرف‌حساب گیرنده یافت نشد.");
+
+        return ModelState.IsValid ? (fromType, fromId, toType, toId) : null;
+    }
+
+    private static void ApplyForm(
+        PartySettlement s, PartySettlementFormModel model,
+        AccountingPartyType fromType, int fromId, AccountingPartyType toType, int toId)
+    {
+        var isUsd = model.Currency == "USD";
+        var fxRateToUsd = isUsd ? 1m : 1m / model.CurrencyPerUsdRate!.Value;
+        s.SettlementDate = model.SettlementDate.Date;
+        s.FromPartyType = fromType;
+        s.FromPartyId = fromId;
+        s.ToPartyType = toType;
+        s.ToPartyId = toId;
+        s.Amount = Math.Round(model.Amount, 4, MidpointRounding.AwayFromZero);
+        s.Currency = model.Currency;
+        s.CurrencyPerUsdRate = isUsd ? null : model.CurrencyPerUsdRate;
+        s.FxRateToUsd = fxRateToUsd;
+        s.AmountUsd = Math.Round(model.Amount * fxRateToUsd, 2, MidpointRounding.AwayFromZero);
+        s.Description = model.Description;
     }
 
     /// <summary>ماندهٔ فعلی یک طرف‌حساب با شرکت، به زبان ساده — برای نمایش زیر لیست فورم.</summary>
@@ -494,26 +618,37 @@ public class PartySettlementsController : Controller
         => names.TryGetValue((type, id), out var name) ? name : $"#{id}";
 
     // گزارش، طرف‌حساب‌های غیرفعال را هم نشان می‌دهد چون تسویه‌های قدیمی آن‌ها هنوز گزارش می‌شوند.
-    private async Task PopulateLookupsAsync(bool includeInactive = false)
+    // ویرایش: طرف‌حساب‌ها و ارزِ فعلیِ سند حتی اگر غیرفعال شده باشند در لیست می‌مانند.
+    private async Task PopulateLookupsAsync(bool includeInactive = false, PartySettlement? keep = null)
     {
+        int[] Keep(AccountingPartyType t) => keep == null ? [] : new[]
+        {
+            keep.FromPartyType == t ? keep.FromPartyId : 0,
+            keep.ToPartyType == t ? keep.ToPartyId : 0
+        }.Where(i => i > 0).ToArray();
+        var keepCustomers = Keep(AccountingPartyType.Customer);
+        var keepSuppliers = Keep(AccountingPartyType.Supplier);
+        var keepProviders = Keep(AccountingPartyType.ServiceProvider);
+        var keepDrivers = Keep(AccountingPartyType.Driver);
+        var keepCurrency = keep?.Currency;
         var groups = new List<(string Label, List<(string Key, string Name)> Items)>
         {
             (PartySettlementParties.GroupLabel(AccountingPartyType.Customer),
-                (await _db.Customers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.Customers.AsNoTracking().Where(c => includeInactive || c.IsActive || keepCustomers.Contains(c.Id)).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Customer, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.Supplier),
-                (await _db.Suppliers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.Suppliers.AsNoTracking().Where(c => includeInactive || c.IsActive || keepSuppliers.Contains(c.Id)).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Supplier, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.ServiceProvider),
-                (await _db.ServiceProviders.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
+                (await _db.ServiceProviders.AsNoTracking().Where(c => includeInactive || c.IsActive || keepProviders.Contains(c.Id)).OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.ServiceProvider, c.Id), c.Name)).ToList()),
             (PartySettlementParties.GroupLabel(AccountingPartyType.Driver),
-                (await _db.Drivers.AsNoTracking().Where(c => includeInactive || c.IsActive).OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync())
+                (await _db.Drivers.AsNoTracking().Where(c => includeInactive || c.IsActive || keepDrivers.Contains(c.Id)).OrderBy(c => c.FullName).Select(c => new { c.Id, c.FullName }).ToListAsync())
                     .Select(c => (PartySettlementParties.Key(AccountingPartyType.Driver, c.Id), c.FullName)).ToList())
         };
         ViewBag.PartyGroups = groups;
         ViewBag.Currencies = await _db.Currencies.AsNoTracking()
-            .Where(c => c.IsActive)
+            .Where(c => c.IsActive || c.Code == keepCurrency)
             .OrderBy(c => c.Code)
             .Select(c => c.Code)
             .ToListAsync();

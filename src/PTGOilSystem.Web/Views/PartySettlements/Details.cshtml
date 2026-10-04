@@ -80,6 +80,11 @@
 
     @if (!cancelled && canManage)
     {
+        <div class="mb-3">
+            <a class="btn btn-primary" asp-action="Edit" asp-route-id="@Model.Id">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> @UiText.T(Context, "ویرایش تسویه", "Edit settlement")
+            </a>
+        </div>
         <details class="ak-advanced">
             <summary class="ak-advanced-summary">@UiText.T(Context, "لغو این تسویه", "Cancel this settlement")</summary>
             <div class="ak-advanced-body">

@@ -3,19 +3,36 @@
     ViewData["Title"] = UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement");
     var groups = ViewBag.PartyGroups as List<(string Label, List<(string Key, string Name)> Items)> ?? new();
     var currencies = ViewBag.Currencies as List<string> ?? new();
+    var editId = ViewBag.EditId as int?;
+    var isEdit = editId.HasValue;
+    var pageTitle = isEdit
+        ? UiText.T(Context, "ویرایش تسویه بین طرف‌حساب‌ها", "Edit Party-to-Party Settlement") + " #" + editId
+        : UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement");
+    var backUrl = isEdit ? Url.Action("Details", new { id = editId }) : Url.Action("Index");
 }
 
 <div class="ak-form-page">
     <div class="ak-form-page-content">
         <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-                 model="@((UiText.T(Context, "تسویه بین طرف‌حساب‌ها", "Party-to-Party Settlement"), true,
+                 model="@((pageTitle, true,
                            (string?)null, (string?)null, (string?)null, (string?)null,
                            UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right",
-                           (string?)Url.Action("Index")))" />
+                           (string?)backUrl))" />
 
-        <form asp-action="Create" method="post" class="ak-form" data-party-balance-url="@Url.Action("PartyBalance")">
+        <form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@editId" method="post" class="ak-form" data-party-balance-url="@Url.Action("PartyBalance")">
             @Html.AntiForgeryToken()
-            @Html.FormToken()
+            @if (!isEdit)
+            {
+                @Html.FormToken()
+            }
+            else
+            {
+                <div class="alert alert-info ak-form-alert">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    @UiText.T(Context, "با ذخیره، همین سند و دو سطر دفتر آن با مقادیر جدید اصلاح می‌شوند؛ ماندهٔ طرف‌حساب‌ها، صورت‌حساب‌ها و گزارش‌ها خودکار هماهنگ می‌شوند. ماندهٔ نمایش‌داده‌شده زیر هر طرف، اثر همین تسویه را از قبل در خود دارد.",
+                              "Saving corrects this document and its two ledger lines in place; balances, statements and reports update automatically. The balance shown under each party already includes this settlement.")
+                </div>
+            }
             <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
 
             <section class="ak-form-section">
@@ -97,7 +114,7 @@
             </section>
 
             <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
-                     model="@((UiText.T(Context, "ثبت تسویه", "Post settlement"), Url.Action("Index") ?? "/", UiText.T(Context, "انصراف", "Cancel")))" />
+                     model="@((isEdit ? UiText.T(Context, "ذخیره ویرایش", "Save changes") : UiText.T(Context, "ثبت تسویه", "Post settlement"), backUrl ?? "/", UiText.T(Context, "انصراف", "Cancel")))" />
         </form>
     </div>
 </div>

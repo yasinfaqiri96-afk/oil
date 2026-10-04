@@ -133,6 +133,111 @@ public class PartySettlementsControllerTests
         Assert.Equal(0m, await BalanceAsync(db, PartyStatementPartyType.Supplier, Mahmoud));
     }
 
+    [Fact]
+    public async Task Edit_UpdatesBothLedgerLinesInPlace_AndRebalances()
+    {
+        await using var db = await SeedAsync();
+        await NewController(db).Create(new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 3),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, Ahmad),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 10000m,
+            Currency = "USD"
+        });
+        var settlement = await db.PartySettlements.AsNoTracking().SingleAsync();
+        var lineIds = new[] { settlement.FromLedgerEntryId, settlement.ToLedgerEntryId };
+
+        var controller = NewController(db);
+        var result = await controller.Edit(settlement.Id, new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 4),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, Ahmad),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 280000m,
+            Currency = "AFN",
+            CurrencyPerUsdRate = 70m
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(controller.TempData["err"]);
+        var edited = await db.PartySettlements.AsNoTracking().SingleAsync();
+        Assert.Equal(4000m, edited.AmountUsd);
+        Assert.Equal(new DateTime(2026, 10, 4), edited.SettlementDate);
+        Assert.Equal(lineIds, new[] { edited.FromLedgerEntryId, edited.ToLedgerEntryId });
+
+        // بدون سطر تکراری یا برگشتی: هنوز همان دو سطر.
+        var lines = await db.LedgerEntries.AsNoTracking()
+            .Where(l => l.SourceType == PartySettlementsController.LedgerSourceType).ToListAsync();
+        Assert.Equal(2, lines.Count);
+        Assert.All(lines, l => Assert.Equal(4000m, l.AmountUsd));
+        Assert.All(lines, l => Assert.Equal(new DateTime(2026, 10, 4), l.EntryDate));
+        Assert.Equal(6000m, await BalanceAsync(db, PartyStatementPartyType.Customer, Ahmad));
+        Assert.Equal(-6000m, await BalanceAsync(db, PartyStatementPartyType.Supplier, Mahmoud));
+        Assert.True(await db.AuditLogs.AnyAsync(a => a.EntityName == nameof(PartySettlement)
+            && a.EntityId == edited.Id && a.Action == AuditAction.Update.ToString()));
+    }
+
+    [Fact]
+    public async Task Edit_SwapToAnotherParty_MovesEffectOffOldParty()
+    {
+        await using var db = await SeedAsync();
+        db.Customers.Add(new Customer { Id = 3, Name = "کریم" });
+        await db.SaveChangesAsync();
+        await NewController(db).Create(new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 3),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, Ahmad),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 10000m,
+            Currency = "USD"
+        });
+        var id = (await db.PartySettlements.SingleAsync()).Id;
+
+        await NewController(db).Edit(id, new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 3),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, 3),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 10000m,
+            Currency = "USD"
+        });
+
+        Assert.Equal(10000m, await BalanceAsync(db, PartyStatementPartyType.Customer, Ahmad));
+        Assert.Equal(-10000m, await BalanceAsync(db, PartyStatementPartyType.Customer, 3));
+        Assert.Equal(0m, await BalanceAsync(db, PartyStatementPartyType.Supplier, Mahmoud));
+    }
+
+    [Fact]
+    public async Task Edit_CancelledSettlement_IsRejected()
+    {
+        await using var db = await SeedAsync();
+        await NewController(db).Create(new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 3),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, Ahmad),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 10000m,
+            Currency = "USD"
+        });
+        var id = (await db.PartySettlements.SingleAsync()).Id;
+        await NewController(db).Cancel(id, "اشتباه");
+
+        var controller = NewController(db);
+        await controller.Edit(id, new PartySettlementFormModel
+        {
+            SettlementDate = new DateTime(2026, 10, 3),
+            FromParty = PartySettlementParties.Key(AccountingPartyType.Customer, Ahmad),
+            ToParty = PartySettlementParties.Key(AccountingPartyType.Supplier, Mahmoud),
+            Amount = 5000m,
+            Currency = "USD"
+        });
+
+        Assert.NotNull(controller.TempData["err"]);
+        Assert.Equal(10000m, (await db.PartySettlements.AsNoTracking().SingleAsync()).Amount);
+        Assert.Equal(10000m, await BalanceAsync(db, PartyStatementPartyType.Customer, Ahmad));
+    }
+
     private static async Task<ApplicationDbContext> SeedAsync()
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
