@@ -104,7 +104,8 @@
    محتوا نامنظم می‌شد؛ چرومِ پوسته (سایدبار/تاپ‌بار/PageFrame) در این سند
    وجود ندارد، پس آن قواعد بی‌اثر می‌مانند. *@
 <body class="app-body boltz-shell app-shell-authenticated @(isEnglishUi ?"boltz-ltr" : "boltz-rtl") @(isFinanceWorkspace ? "is-finance-workspace" : null) ptg-modal-document @routeBodyClass"
-      data-ui-language="@htmlLanguage">
+      data-ui-language="@htmlLanguage"
+      data-calendar="@(PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri ? "solar" : "gregorian")">
     @await Html.PartialAsync("_FlashAlerts")
     <main class="ak-form-page ptg-modal-body-shell">
         @RenderBody()
@@ -116,6 +117,11 @@
     <script src="~/js/system-list-digits.js" asp-append-version="true" defer></script>
     <script src="~/js/ptg-tabs.js" asp-append-version="true" defer></script>
     <script src="~/js/ak-entity-combobox.js" asp-append-version="true" defer></script>
+    @if (PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri)
+    {
+        @* تقویم هجری شمسی: input تاریخِ بومی میلادی است؛ همان datepicker مشترک نمایش/ورود شمسی را می‌دهد. *@
+        <script src="~/js/ak-datepicker.js" asp-append-version="true" defer></script>
+    }
     @if (useFinanceFormAssets)
     {
         <script src="~/js/finance-forms.js" asp-append-version="true" defer></script>

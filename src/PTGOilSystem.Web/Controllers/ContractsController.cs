@@ -780,7 +780,7 @@ public partial class ContractsController : Controller
             ? _businessClock.Today.Date
             : existing.ContractPartners.Max(cp => cp.EffectiveFrom).Date;
         var shareSliceNote = shareSliceOpened
-            ? $" سهم‌های جدید از تاریخ {appliedShareStart:yyyy-MM-dd} تطبیق می‌شوند و دوره‌های قبلی تغییر نمی‌کنند."
+            ? $" سهم‌های جدید از تاریخ {appliedShareStart.ToCalendarString("yyyy-MM-dd")} تطبیق می‌شوند و دوره‌های قبلی تغییر نمی‌کنند."
             : string.Empty;
 
         TempData["ok"] = BuildPricingSyncMessage(
@@ -1802,7 +1802,7 @@ public partial class ContractsController : Controller
             {
                 ModelState.AddModelError(
                     nameof(model.PartnerSharesEffectiveFrom),
-                    $"تاریخ اجرا نمی‌تواند پیش از آغاز آخرین بازهٔ سهم ({latest:yyyy-MM-dd}) باشد؛ "
+                    $"تاریخ اجرا نمی‌تواند پیش از آغاز آخرین بازهٔ سهم ({latest.ToCalendarString("yyyy-MM-dd")}) باشد؛ "
                     + "بازه‌های گذشته بازنویسی نمی‌شوند.");
                 return;
             }
@@ -1828,7 +1828,7 @@ public partial class ContractsController : Controller
         {
             ModelState.AddModelError(
                 nameof(model.PartnerSharesEffectiveFrom),
-                $"دوره مالی تا {lockedThrough:yyyy-MM-dd} بسته است و تغییر سهم در آن دوره مجاز نیست.");
+                $"دوره مالی تا {lockedThrough.ToCalendarString("yyyy-MM-dd")} بسته است و تغییر سهم در آن دوره مجاز نیست.");
         }
     }
 

@@ -129,7 +129,7 @@
 
             tr.innerHTML =
                 '<td>' + escapeHtml(loading.label) + '</td>' +
-                '<td>' + escapeHtml((loading.loadingDate || '').slice(0, 10)) + '</td>' +
+                '<td>' + escapeHtml(calendarText(loading.loadingDate)) + '</td>' +
                 '<td class="text-end">' + format(loading.loadedQuantityMt) + '</td>' +
                 '<td class="text-end">' + format(loading.allocatedQuantityMt) + '</td>' +
                 '<td class="text-end">' + format(max) + '</td>' +
@@ -166,6 +166,13 @@
         } else {
             refreshTotals(panel);
         }
+    }
+
+    // ISO date → active display calendar (Solar Hijri when enabled); values stay ISO.
+    function calendarText(value) {
+        var calendar = window.PTG && window.PTG.calendar;
+        var iso = value ? String(value).slice(0, 10) : "";
+        return calendar && iso ? calendar.formatIso(iso) : iso;
     }
 
     function escapeHtml(value) {

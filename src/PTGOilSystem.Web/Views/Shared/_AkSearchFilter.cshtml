@@ -25,13 +25,15 @@
     {
         if (f.Type == "daterange")
         {
-            var from = string.IsNullOrEmpty(f.Value) ? "…" : f.Value;
-            var to = string.IsNullOrEmpty(f.SecondValue) ? "…" : f.SecondValue;
+            // مقدارِ فیلتر ISO می‌ماند (query string)؛ فقط متنِ chip به تقویمِ فعال نمایش داده می‌شود.
+            var from = string.IsNullOrEmpty(f.Value) ? "…" : DateDisplay.IsoTextToDisplay(f.Value);
+            var to = string.IsNullOrEmpty(f.SecondValue) ? "…" : DateDisplay.IsoTextToDisplay(f.SecondValue);
             return $"{from} → {to}";
         }
 
         var applied = f.AppliedValues;
         if (applied.Count == 0) return "";
+        if (f.Type == "date") return DateDisplay.IsoTextToDisplay(applied[0]);
         var first = OptionLabel(f, applied[0]) ?? applied[0];
         // چند مقدار در یک فیلتر: برچسب اولی + شمارندهٔ بقیه (OR بین مقادیر).
         return applied.Count > 1 ? $"{first} +{applied.Count - 1}" : first;

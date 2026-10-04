@@ -3,6 +3,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Reports;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services.Reporting;
 
@@ -503,7 +504,7 @@ public sealed class PreSaleReservationService : IPreSaleReservationService
         return rows.Select(o => new PreSaleDiscrepancyRow(
             PreSaleDiscrepancyKind.OverdueUndelivered,
             $"پیش‌فروش {o.OrderNumber}",
-            $"{o.CustomerName} — {o.ProductName} — سررسید {o.ExpectedDeliveryTo:yyyy-MM-dd}",
+            $"{o.CustomerName} — {o.ProductName} — سررسید {o.ExpectedDeliveryTo.ToCalendarString("yyyy-MM-dd")}",
             QuantityMt: Round(o.QuantityMt - o.DeliveredMt),
             AmountUsd: null,
             DocumentDate: o.ExpectedDeliveryTo,

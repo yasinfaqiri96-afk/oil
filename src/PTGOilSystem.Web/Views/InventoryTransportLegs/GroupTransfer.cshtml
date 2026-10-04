@@ -300,7 +300,7 @@
                             @foreach (var t in Model.RegisteredTransfers)
                             {
                                 <tr>
-                                    <td dir="ltr">@t.ReceiptDate.ToString("yyyy/MM/dd")</td>
+                                    <td dir="ltr">@t.ReceiptDate.ToCalendarString("yyyy/MM/dd")</td>
                                     <td>@t.WagonLabel</td>
                                     <td>@t.TruckPlateNumber</td>
                                     <td>@(string.IsNullOrWhiteSpace(t.DriverName) ? "—" : t.DriverName)</td>

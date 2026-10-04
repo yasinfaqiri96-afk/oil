@@ -47,8 +47,8 @@ public sealed record TabularExportCell(TabularExportValueType ValueType, object?
 
         return ValueType switch
         {
-            TabularExportValueType.Date when Value is DateTime date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            TabularExportValueType.DateTime when Value is DateTime dateTime => dateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+            TabularExportValueType.Date when Value is DateTime date => Helpers.DateDisplay.Format(date, "yyyy-MM-dd"),
+            TabularExportValueType.DateTime when Value is DateTime dateTime => Helpers.DateDisplay.Format(dateTime, "yyyy-MM-dd HH:mm"),
             TabularExportValueType.Integer => Convert.ToInt64(Value, CultureInfo.InvariantCulture).ToString("N0", CultureInfo.InvariantCulture),
             TabularExportValueType.Number => Convert.ToDecimal(Value, CultureInfo.InvariantCulture).ToString("N2", CultureInfo.InvariantCulture),
             TabularExportValueType.Percentage => Convert.ToDecimal(Value, CultureInfo.InvariantCulture).ToString("P2", CultureInfo.InvariantCulture),

@@ -1585,6 +1585,14 @@ public partial class ExpensesController : Controller
             {
                 row.Errors.Add("ستون «تاریخ» خالی است.");
             }
+            else if (PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.TryParseActiveCalendarText(row.ExpenseDateText, out var solarDate))
+            {
+                // تقویم هجری شمسی: متنِ شمسی هرگز به‌عنوان سالِ میلادی خوانده نمی‌شود.
+                if (solarDate.HasValue)
+                    row.ExpenseDate = solarDate.Value;
+                else
+                    row.Errors.Add($"تاریخ «{row.ExpenseDateText}» معتبر نیست. قالب درست مانند 1405/07/12 است.");
+            }
             else if (DateTime.TryParse(row.ExpenseDateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var date))
             {
                 row.ExpenseDate = date.Date;

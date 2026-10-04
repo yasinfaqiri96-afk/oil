@@ -49,7 +49,7 @@
                             <td>@row.ProductName</td>
                             <td>@row.SourceLabel</td>
                             <td class="ak-num text-end">@row.QuantityMt.ToString("N4") MT</td>
-                            <td>@row.TransferDate.ToString("yyyy-MM-dd")</td>
+                            <td>@row.TransferDate.ToCalendarString("yyyy-MM-dd")</td>
                             <td>
                                 @if (row.BlockReason is null)
                                 {

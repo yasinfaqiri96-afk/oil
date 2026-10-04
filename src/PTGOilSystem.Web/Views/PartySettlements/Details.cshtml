@@ -36,7 +36,7 @@
                 @UiText.T(Context, "این تسویه لغو شده و ماندهٔ هر دو طرف به حالت قبل برگشته است.", "This settlement was cancelled; both balances were restored.")
                 <div class="small mt-1">
                     @UiText.T(Context, "لغو توسط", "Cancelled by") @(Model.CancelledByUserName ?? "—")
-                    · @Model.CancelledAtUtc?.ToString("yyyy-MM-dd HH:mm")
+                    · @Model.CancelledAtUtc?.ToCalendarString("yyyy-MM-dd HH:mm")
                     · @UiText.T(Context, "دلیل:", "Reason:") @Model.CancellationReason
                 </div>
             </div>
@@ -54,7 +54,7 @@
     <section class="ak-form-section mb-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">@UiText.T(Context, "تاریخ", "Date")</dt>
-            <dd class="col-sm-9">@Model.SettlementDate.ToString("yyyy-MM-dd")</dd>
+            <dd class="col-sm-9">@Model.SettlementDate.ToCalendarString("yyyy-MM-dd")</dd>
             @if (Model.Currency != "USD")
             {
                 <dt class="col-sm-3">@UiText.T(Context, "معادل دالری", "USD equivalent")</dt>
@@ -63,7 +63,7 @@
             <dt class="col-sm-3">@UiText.T(Context, "توضیحات", "Description")</dt>
             <dd class="col-sm-9">@(Model.Description ?? "—")</dd>
             <dt class="col-sm-3">@UiText.T(Context, "ثبت توسط", "Created by")</dt>
-            <dd class="col-sm-9">@(Model.CreatedByUserName ?? "—") · @Model.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</dd>
+            <dd class="col-sm-9">@(Model.CreatedByUserName ?? "—") · @Model.CreatedAtUtc.ToCalendarString("yyyy-MM-dd HH:mm")</dd>
             <dt class="col-sm-3">@UiText.T(Context, "سند دفتر", "Ledger lines")</dt>
             <dd class="col-sm-9">
                 @if (Model.FromLedgerEntryId.HasValue)

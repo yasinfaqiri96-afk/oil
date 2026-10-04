@@ -67,7 +67,7 @@
             {
                 <div class="alert alert-danger">
                     <strong>نرخ پایان دوره موجود نیست:</strong>
-                    @string.Join("، ", p.MissingRates.Select(m => $"{m.Currency} @ {m.RequiredDate:yyyy-MM-dd}"))
+                    @string.Join("، ", p.MissingRates.Select(m => $"{m.Currency} @ {m.RequiredDate.ToCalendarString("yyyy-MM-dd")}"))
                 </div>
             }
         </div>
@@ -94,7 +94,7 @@
             foreach (var g in p.Revaluations)
             {
                 <div class="mb-3">
-                    <div class="fw-bold">@g.Currency — نرخ بستن @g.ClosingRate (@g.ClosingRateDate.ToString("yyyy-MM-dd")) — خالص اختلاف: @g.NetDifferenceUsd USD</div>
+                    <div class="fw-bold">@g.Currency — نرخ بستن @g.ClosingRate (@g.ClosingRateDate.ToCalendarString("yyyy-MM-dd")) — خالص اختلاف: @g.NetDifferenceUsd USD</div>
                     <div class="ak-table-wrap">
                         <table class="ak-table">
                             <thead>
@@ -131,7 +131,7 @@
                         {
                             <tr>
                                 <td>@r.Id</td><td>@r.RunType</td><td>@r.Revision</td><td>@r.Status</td>
-                                <td>@r.StartedAt.ToString("yyyy-MM-dd HH:mm")</td><td>@r.StartedBy</td>
+                                <td>@r.StartedAt.ToCalendarString("yyyy-MM-dd HH:mm")</td><td>@r.StartedBy</td>
                                 <td>@r.JournalCount</td>
                                 <td><code class="small">@(r.SnapshotHash is { Length: > 12 } h ? h[..12] : r.SnapshotHash)</code></td>
                             </tr>

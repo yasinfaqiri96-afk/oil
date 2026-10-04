@@ -7,6 +7,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.OperationalPeriod;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -60,7 +61,7 @@ public sealed class OperationalPeriodLocksController(
         var current = await guard.GetStatusAsync(cancellationToken);
         if (current.IsLocked && lockedThroughDate.Date <= current.LockedThroughDate!.Value)
         {
-            TempData["err"] = $"دوره از قبل تا {current.LockedThroughDate:yyyy-MM-dd} بسته است.";
+            TempData["err"] = $"دوره از قبل تا {current.LockedThroughDate.ToCalendarString("yyyy-MM-dd")} بسته است.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -81,7 +82,7 @@ public sealed class OperationalPeriodLocksController(
 
         await db.SaveChangesAsync(cancellationToken);
 
-        TempData["ok"] = $"دوره مالی تا {lockedThroughDate:yyyy-MM-dd} بسته شد.";
+        TempData["ok"] = $"دوره مالی تا {lockedThroughDate.ToCalendarString("yyyy-MM-dd")} بسته شد.";
         return RedirectToAction(nameof(Index));
     }
 

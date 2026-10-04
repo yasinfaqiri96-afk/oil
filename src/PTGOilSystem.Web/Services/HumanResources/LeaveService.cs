@@ -5,6 +5,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services.HumanResources;
 
@@ -309,7 +310,7 @@ public sealed class LeaveService(
         var lockedThrough = await PayrollLocks.LatestFinalizedMonthEndAsync(db, employee.Id, ct);
         if (lockedThrough.HasValue && from.Date <= lockedThrough.Value)
             throw new BusinessRuleException("HR_LEAVE_PAYROLL_LOCKED",
-                $"معاشِ {employee.FullName} تا {lockedThrough.Value:yyyy-MM-dd} نهایی شده؛ رخصتیِ این بازه قفل است.");
+                $"معاشِ {employee.FullName} تا {lockedThrough.Value.ToCalendarString("yyyy-MM-dd")} نهایی شده؛ رخصتیِ این بازه قفل است.");
     }
 
     private async Task InTransactionAsync(Func<Task> work, CancellationToken ct)

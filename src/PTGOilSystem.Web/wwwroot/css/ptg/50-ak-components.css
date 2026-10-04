@@ -2834,6 +2834,59 @@ select.ak-input {
     pointer-events: none;
 }
 
+/* Solar Hijri mode (body[data-calendar="solar"]): the field is a typeable
+   text box + calendar button; the native input still carries the ISO value. */
+.ak-date-field-solar {
+    cursor: text;
+}
+
+.ak-date-field-solar:focus-within {
+    outline: 0;
+    border-color: var(--ak-control-border-focus);
+    box-shadow: 0 0 0 3px var(--ptg-field-focus-ring);
+}
+
+.ak-datepicker[data-readonly="true"] .ak-date-field-solar,
+.ak-date-field-solar:has(.ak-date-text:disabled) {
+    background: var(--ptg-field-disabled-bg);
+    color: var(--ptg-muted);
+}
+
+.ak-date-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    direction: ltr;
+    text-align: start;
+    outline: 0;
+}
+
+.ak-date-text::placeholder {
+    color: var(--ak-control-placeholder);
+}
+
+.ak-date-icon-btn {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.ak-date-icon-btn:disabled {
+    cursor: default;
+}
+
+.ak-date-error:not([hidden]) {
+    display: block;
+    margin-top: 4px;
+}
+
 /* ============================================================= *
  * Overlay root — body-level portal host (ak-datepicker.js).
  * Any ancestor with overflow:auto (e.g. .ak-filter-popover, which keeps

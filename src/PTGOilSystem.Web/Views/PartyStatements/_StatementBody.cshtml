@@ -241,7 +241,7 @@
             <div class="statement-identity-line">
                 <span>@PartyTypeLabel()</span>
                 @if (!string.IsNullOrWhiteSpace(s.PartyInfo.Code)) { <span>کد @s.PartyInfo.Code</span> }
-                <span>@(s.DocumentInfo.PeriodFrom?.ToString("yyyy/MM/dd") ?? "ابتدای حساب") تا @(s.DocumentInfo.PeriodTo?.ToString("yyyy/MM/dd") ?? "امروز")</span>
+                <span>@(s.DocumentInfo.PeriodFrom?.ToCalendarString("yyyy/MM/dd") ?? "ابتدای حساب") تا @(s.DocumentInfo.PeriodTo?.ToCalendarString("yyyy/MM/dd") ?? "امروز")</span>
             </div>
         </div>
     </header>
@@ -309,7 +309,7 @@
                         {
                             <tr class="@(row.IsOpeningBalance ? "is-opening-row" : row.IsReversalRow ? "is-reversal-row" : null)">
                                 <td class="statement-num">@(row.IsOpeningBalance ? "—" : row.Sequence)</td>
-                                <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
+                                <td class="statement-date">@row.Date.ToCalendarString("yyyy/MM/dd")</td>
                                 <td class="statement-ref">
                                     @if (row.LedgerEntryId.HasValue) { <a asp-controller="Ledger" asp-action="Details" asp-route-id="@row.LedgerEntryId">@(row.Reference ?? $"#{row.LedgerEntryId}")</a> }
                                     else { @(row.Reference ?? "—") }
@@ -381,6 +381,6 @@
     }
 
     <footer class="statement-print-footer">
-        <span>@s.CompanyInfo.Name</span><span>تولید: @s.DocumentInfo.GeneratedAtUtc.ToString("yyyy/MM/dd HH:mm") UTC</span>
+        <span>@s.CompanyInfo.Name</span><span>تولید: @s.DocumentInfo.GeneratedAtUtc.ToCalendarString("yyyy/MM/dd HH:mm") UTC</span>
     </footer>
 </article>

@@ -27,7 +27,7 @@
     // مشتری/تأمین‌کننده/وضعیت در سربرگ‌اند؛ اثر صندوق در جدول حساب‌ها می‌ماند.
     var summaryItems = new List<AkInfoItem>
     {
-        new() { Label = "تاریخ", Value = Model.SettlementDate.ToString("yyyy-MM-dd") },
+        new() { Label = "تاریخ", Value = Model.SettlementDate.ToCalendarString("yyyy-MM-dd") },
         new() { Label = "شماره حواله / مرجع", Value = Model.HawalaReference },
         new() { Label = "واسطه حواله (صراف)", Value = Model.PayeeType == ThreeWayPayeeType.Sarraf ? Model.Sarraf?.Name : null },
         new() { Label = "قرارداد فروش مشتری", Value = Model.CustomerSaleContract?.ContractNumber },
@@ -40,7 +40,7 @@
         new() { Label = "شناسه تسویه", Value = $"#{Model.Id}", IsNumeric = true },
         new() { Label = "سند دفتر کل مشتری", Value = Model.CustomerLedgerEntryId.HasValue ? $"#{Model.CustomerLedgerEntryId.Value}" : null, IsNumeric = true },
         new() { Label = "سند دفتر کل تأمین‌کننده", Value = Model.SupplierLedgerEntryId.HasValue ? $"#{Model.SupplierLedgerEntryId.Value}" : null, IsNumeric = true },
-        new() { Label = "زمان لغو", Value = Model.CancelledAtUtc?.ToString("yyyy-MM-dd HH:mm") },
+        new() { Label = "زمان لغو", Value = Model.CancelledAtUtc?.ToCalendarString("yyyy-MM-dd HH:mm") },
         new() { Label = "کاربر لغو", Value = Model.CancelledByUserName },
         new() { Label = "دلیل لغو", Value = Model.CancellationReason, IsWide = true }
     };

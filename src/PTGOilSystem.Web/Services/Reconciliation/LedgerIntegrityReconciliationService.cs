@@ -254,7 +254,7 @@ public sealed class LedgerIntegrityReconciliationService(ApplicationDbContext db
             "دورهٔ سهم شراکت که جمع آن ۱۰۰٪ نیست",
             invalid.Count,
             invalid
-                .Select(period => $"قرارداد {period.ContractId} از {period.EffectiveFrom:yyyy-MM-dd}: {period.Total:N4}%")
+                .Select(period => $"قرارداد {period.ContractId} از {period.EffectiveFrom.ToCalendarString("yyyy-MM-dd")}: {period.Total:N4}%")
                 .ToList());
     }
 
@@ -283,8 +283,8 @@ public sealed class LedgerIntegrityReconciliationService(ApplicationDbContext db
                 {
                     overlaps.Add(
                         $"قرارداد {group.Key.ContractId} / شریک {group.Key.PartnerId}: "
-                        + $"بازهٔ {previous.EffectiveFrom:yyyy-MM-dd} تا {previous.EffectiveTo?.ToString("yyyy-MM-dd") ?? "…"} "
-                        + $"با بازهٔ {current.EffectiveFrom:yyyy-MM-dd} هم‌پوشانی دارد");
+                        + $"بازهٔ {previous.EffectiveFrom.ToCalendarString("yyyy-MM-dd")} تا {previous.EffectiveTo?.ToCalendarString("yyyy-MM-dd") ?? "…"} "
+                        + $"با بازهٔ {current.EffectiveFrom.ToCalendarString("yyyy-MM-dd")} هم‌پوشانی دارد");
                 }
             }
         }

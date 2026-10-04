@@ -1464,7 +1464,7 @@ public partial class LoadingReceiptsController : Controller
             .Select(s => new SelectListItem
             {
                 Value = s.Id.ToString(),
-                Text = $"#{s.Id} — {s.LoadingDate:yyyy-MM-dd} — {s.ContractNumber} — {s.ProductName} — {s.Reference} — {(s.LoadedQuantityMt - s.ReceivedQuantityMt):N3} MT"
+                Text = $"#{s.Id} — {s.LoadingDate.ToCalendarString("yyyy-MM-dd")} — {s.ContractNumber} — {s.ProductName} — {s.Reference} — {(s.LoadedQuantityMt - s.ReceivedQuantityMt):N3} MT"
             })
             .ToList();
     }

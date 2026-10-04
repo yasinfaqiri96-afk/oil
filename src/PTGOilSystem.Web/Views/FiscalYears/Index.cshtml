@@ -35,6 +35,16 @@
                 var today = BusinessClock.Today;
                 var defaultStart = new DateTime(today.Year, 1, 1);
                 var defaultEnd = new DateTime(today.Year, 12, 31);
+                var defaultYearLabel = today.Year;
+                if (DateDisplay.IsSolarHijri)
+                {
+                    // فقط پیش‌فرضِ فرم: سالِ شمسیِ جاری (۱ حمل تا آخرِ حوت). منطقِ ساختِ سال و دوره‌ها تغییر نمی‌کند.
+                    var solarYear = PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.FromGregorian(today).Year;
+                    defaultStart = PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.ToGregorian(solarYear, 1, 1);
+                    defaultEnd = PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.ToGregorian(
+                        solarYear, 12, PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.DaysInMonth(solarYear, 12));
+                    defaultYearLabel = solarYear;
+                }
                 <form asp-action="CreateInitialYear" method="post" class="finance-initial-year"
                       data-ptg-confirm="true" data-ptg-confirm-title="ایجاد اولین سال مالی"
                       data-ptg-confirm-message="اولین سال مالی با وضعیت «باز» و به‌عنوان سال جاری ساخته شود؟">
@@ -42,7 +52,7 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label" for="initial-name">نام سال مالی</label>
-                            <input class="ak-input" id="initial-name" name="name" value="FY-@today.Year" required maxlength="100" />
+                            <input class="ak-input" id="initial-name" name="name" value="FY-@defaultYearLabel" required maxlength="100" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label" for="initial-start">تاریخ شروع</label>

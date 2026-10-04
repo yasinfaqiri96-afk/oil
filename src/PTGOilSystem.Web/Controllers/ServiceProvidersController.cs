@@ -470,5 +470,5 @@ public class ServiceProvidersController : Controller
     private static string? BuildTruckDispatchLabel(TruckDispatch? dispatch)
         => dispatch is null
             ? null
-            : $"#{dispatch.Id} - {dispatch.Truck?.PlateNumber ?? dispatch.DispatchDate.ToString("yyyy-MM-dd")}";
+            : $"#{dispatch.Id} - {dispatch.Truck?.PlateNumber ?? dispatch.DispatchDate.ToCalendarString("yyyy-MM-dd")}";
 }

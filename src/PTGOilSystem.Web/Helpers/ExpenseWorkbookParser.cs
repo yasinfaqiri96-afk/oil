@@ -238,6 +238,12 @@ public static class ExpenseWorkbookParser
             return DateTime.FromOADate(serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
 
+        if (PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.TryParseActiveCalendarText(text, out var solar))
+        {
+            // تقویم هجری شمسی: متنِ شمسیِ نامعتبر خام می‌ماند تا اعتبارسنجی آن را گزارش کند.
+            return solar?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? text.Trim();
+        }
+
         if (DateTime.TryParseExact(text.Trim(), ExplicitDateFormats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var exact))
         {
             return exact.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

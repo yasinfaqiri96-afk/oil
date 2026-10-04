@@ -81,7 +81,7 @@
                     @foreach (var row in rows)
                     {
                         <tr>
-                            <td class="statement-date">@row.Date.ToString("yyyy/MM/dd")</td>
+                            <td class="statement-date">@row.Date.ToCalendarString("yyyy/MM/dd")</td>
                             <td class="statement-description">
                                 @row.DescriptionFor(UiText.IsEn(Context))
                                 @if (!string.IsNullOrWhiteSpace(row.Reference))

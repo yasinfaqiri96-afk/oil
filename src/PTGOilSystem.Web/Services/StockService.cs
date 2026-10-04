@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -587,8 +588,8 @@ public class StockService : IStockService
         var scope = await DescribeStockScopeAsync(movement, ct);
         throw new BusinessRuleException(
             "STOCK_FUTURE_NEGATIVE",
-            $"این ثبت انجام نشد: خروج {movement.QuantityMt:N4} MT به تاریخ {movementDate:yyyy-MM-dd} " +
-            $"باعث می‌شود موجودی {scope} از تاریخ {firstNegativeDate:yyyy-MM-dd} منفی شود " +
+            $"این ثبت انجام نشد: خروج {movement.QuantityMt:N4} MT به تاریخ {movementDate.ToCalendarString("yyyy-MM-dd")} " +
+            $"باعث می‌شود موجودی {scope} از تاریخ {firstNegativeDate.ToCalendarString("yyyy-MM-dd")} منفی شود " +
             $"(کمترین موجودی پیش‌بینی‌شده: {lowest:N4} MT، ماندهٔ پایانی: {running:N4} MT). " +
             "اگر این سند عقب‌تاریخ است، اول اسناد بعدیِ همان مخزن را اصلاح کنید، " +
             "یا تاریخ و مقدار این سند را تصحیح کنید.");

@@ -367,7 +367,7 @@ internal static class PdfDesignSystem
         value = ToAfghanistanLocalTime(value);
         if (isEnglish)
         {
-            return $"Print date: {value:yyyy/M/d}";
+            return $"Print date: {Helpers.DateDisplay.Format(value, "yyyy/M/d")}";
         }
 
         var calendar = new PersianCalendar();
@@ -462,7 +462,7 @@ internal static class PdfDesignSystem
     {
         if (isEnglish)
         {
-            return value.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture);
+            return Helpers.DateDisplay.Format(value, "yyyy/MM/dd");
         }
 
         var calendar = new PersianCalendar();

@@ -236,7 +236,7 @@ internal sealed class ShipmentSummaryPdfDocument(
 
     private string FormatGregorianPrintDate(DateTime value)
         => (isEnglish ? "Print date: " : "تاریخ چاپ: ")
-            + value.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+            + Helpers.DateDisplay.Format(value, "yyyy/MM/dd");
 
     private static string ToneColor(ShipmentSummaryPdfTone tone) => tone switch
     {

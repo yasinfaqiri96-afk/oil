@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services.OperationalPeriod;
 
@@ -232,5 +233,5 @@ public sealed class OperationalPeriodGuard(
     /// </summary>
     public static string BuildMessage(string documentKind, DateTime transactionDate, DateTime lockedThroughDate)
         => $"دوره مالی این تاریخ بسته شده است و ثبت یا تغییر سند در این دوره مجاز نیست. "
-           + $"({documentKind} به تاریخ {transactionDate:yyyy-MM-dd}؛ دوره تا {lockedThroughDate:yyyy-MM-dd} بسته است.)";
+           + $"({documentKind} به تاریخ {transactionDate.ToCalendarString("yyyy-MM-dd")}؛ دوره تا {lockedThroughDate.ToCalendarString("yyyy-MM-dd")} بسته است.)";
 }

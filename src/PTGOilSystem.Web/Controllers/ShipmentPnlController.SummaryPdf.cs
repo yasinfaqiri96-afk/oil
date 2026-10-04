@@ -1,4 +1,5 @@
 using System.Globalization;
+using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.ShipmentPnl;
 using PTGOilSystem.Web.Services.Exports;
 
@@ -20,7 +21,7 @@ public partial class ShipmentPnlController
         string T(string fa, string en) => isEnglish ? en : fa;
         string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
         string DateOrDash(DateTime? value) => value.HasValue
-            ? value.Value.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture)
+            ? DateDisplay.Format(value.Value, "yyyy/MM/dd")
             : "-";
 
         // منبع واحد آمار: همان سند خروجی اکسل تب خلاصه.

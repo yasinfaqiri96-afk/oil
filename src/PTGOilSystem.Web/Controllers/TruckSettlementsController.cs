@@ -836,7 +836,8 @@ public partial class TruckSettlementsController : Controller
                     || Contains(r.SourceName, term)
                     || Contains(r.DestinationName, term)
                     || Contains(r.TypeLabel, term)
-                    || Contains(r.Date.ToString("yyyy-MM-dd"), term))
+                    || Contains(r.Date.ToString("yyyy-MM-dd"), term)
+                    || Contains(r.Date.ToCalendarString("yyyy-MM-dd"), term))
                 .ToList();
 
             static bool Contains(string? value, string term)

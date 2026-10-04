@@ -390,7 +390,7 @@
                             <td><a asp-action="GroupDetails" asp-route-id="@batch.Id">@batch.BatchNumber</a></td>
                             <td>@batch.ExpenseTypeName</td>
                             <td>@(string.IsNullOrWhiteSpace(batch.ServiceProviderName) ?"-" : batch.ServiceProviderName)</td>
-                            <td dir="ltr">@batch.ExpenseDate.ToString("yyyy/MM/dd")</td>
+                            <td dir="ltr">@batch.ExpenseDate.ToCalendarString("yyyy/MM/dd")</td>
                             <td class="text-end">@batch.OperationCount.ToString("N0")</td>
                             <td class="text-end">@batch.TotalAmount.ToString("N2") @batch.Currency</td>
                             <td class="text-end">@batch.TotalAmountUsd.ToString("N2")</td>
@@ -427,7 +427,8 @@
     contract = o.ContractNumber,
     qty = o.QuantityMt,
     status = o.StatusLabel,
-    date = o.MoveDate.ToString("yyyy-MM-dd")
+    date = o.MoveDate.ToString("yyyy-MM-dd"),
+    dateText = o.MoveDate.ToCalendarString("yyyy-MM-dd")
 })))</script>
 <script id="gexpSelectedData" type="application/json">@Html.Raw(selectedItemsJson)</script>
 
@@ -556,7 +557,7 @@
                     '<td>' + o.route + '</td>' +
                     '<td class="ak-num">' + fmtQty(o.qty) + '</td>' +
                     '<td>تن</td>' +
-                    '<td class="ak-num">' + o.date + '</td>' +
+                    '<td class="ak-num">' + (o.dateText || o.date) + '</td>' +
                     '<td><span class="ak-status is-active">' + o.status + '</span></td>';
                 tr.addEventListener('click', function (e) {
                     if (e.target.tagName === 'INPUT') return;

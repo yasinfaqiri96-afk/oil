@@ -60,7 +60,7 @@
                         }
                     </span>
                     <span class="ptg-hfyear-item-dates ak-num">
-                        @option.StartDate.ToString("yyyy/MM/dd") – @option.EndDate.ToString("yyyy/MM/dd")
+                        @option.StartDate.ToCalendarString("yyyy/MM/dd") – @option.EndDate.ToCalendarString("yyyy/MM/dd")
                     </span>
                     @if (option.IsSelected)
                     {

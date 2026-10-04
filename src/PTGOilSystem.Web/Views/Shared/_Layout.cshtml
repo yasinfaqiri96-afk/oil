@@ -264,6 +264,11 @@
     {
         navSource.Add(NavNode("Backups", "Index", T("پشتیبان‌گیری", "Backups"), "nav-settings", active: backupManagementControllers));
     }
+    // «تنظیمات سیستم» (نوع تقویم) فقط برای مدیر سیستم؛ کنترلر هم AdminOnly است.
+    if (isAdmin)
+    {
+        navSource.Add(NavNode("SystemSettings", "Index", T("تنظیمات سیستم", "System settings"), "nav-settings"));
+    }
 
     // Access filtering: keep visible children; keep node if it (or any child) is reachable.
     var navTree = navSource
@@ -459,6 +464,7 @@
 </head>
 <body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass"
       data-ui-language="@htmlLanguage"
+      data-calendar="@(PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri ? "solar" : "gregorian")"
       data-ptg-view="@(uiPickEnabled ? ViewContext.View?.Path : null)"
       data-ptg-controller="@(uiPickEnabled ? currentController : null)"
       data-ptg-action="@(uiPickEnabled ? currentAction : null)"

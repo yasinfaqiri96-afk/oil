@@ -4,6 +4,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services.HumanResources;
 
@@ -69,7 +70,7 @@ public sealed class EmployeeCompensationService(ApplicationDbContext db, IAuditS
         if (latest is not null && effectiveFrom <= latest.EffectiveFrom)
             throw new BusinessRuleException(
                 "HR_SALARY_BACKDATED",
-                $"تاریخ اعتبارِ معاشِ تازه باید بعد از آخرین تغییر ({latest.EffectiveFrom:yyyy-MM-dd}) باشد. تاریخچهٔ معاش بازنویسی نمی‌شود.");
+                $"تاریخ اعتبارِ معاشِ تازه باید بعد از آخرین تغییر ({latest.EffectiveFrom.ToCalendarString("yyyy-MM-dd")}) باشد. تاریخچهٔ معاش بازنویسی نمی‌شود.");
 
         await EnsurePeriodNotFinalizedAsync(change.EmployeeId, effectiveFrom, ct);
 
@@ -143,7 +144,7 @@ public sealed class EmployeeCompensationService(ApplicationDbContext db, IAuditS
         if (finalizedThrough.HasValue && effectiveFrom <= finalizedThrough.Value)
             throw new BusinessRuleException(
                 "HR_SALARY_PERIOD_FINALIZED",
-                $"معاشِ ماه‌های تا {finalizedThrough.Value:yyyy-MM-dd} نهایی شده است. تغییرِ معاش باید بعد از این تاریخ اعتبار بگیرد.");
+                $"معاشِ ماه‌های تا {finalizedThrough.Value.ToCalendarString("yyyy-MM-dd")} نهایی شده است. تغییرِ معاش باید بعد از این تاریخ اعتبار بگیرد.");
     }
 }
 

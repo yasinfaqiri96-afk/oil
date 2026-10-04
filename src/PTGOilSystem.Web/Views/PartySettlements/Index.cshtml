@@ -38,7 +38,7 @@
                     {
                         var cancelled = r.Status == PartySettlementStatus.Cancelled;
                         <tr>
-                            <td>@r.SettlementDate.ToString("yyyy-MM-dd")</td>
+                            <td>@r.SettlementDate.ToCalendarString("yyyy-MM-dd")</td>
                             <td class="ak-col-grow">
                                 <a asp-action="Details" asp-route-id="@r.Id">
                                     <strong>@r.FromName</strong> <small class="text-muted">(@r.FromTypeLabel)</small>

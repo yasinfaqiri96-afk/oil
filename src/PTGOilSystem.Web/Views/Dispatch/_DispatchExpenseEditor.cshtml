@@ -25,7 +25,7 @@
                     <li>
                         <a asp-controller="Expenses" asp-action="Details" asp-route-id="@exp.Id">#@exp.Id</a>
                         — @exp.ExpenseTypeName
-                        — @exp.ExpenseDate.ToString("yyyy-MM-dd")
+                        — @exp.ExpenseDate.ToCalendarString("yyyy-MM-dd")
                         — @exp.AmountUsd.ToString("N2") USD
                         @if (!string.IsNullOrWhiteSpace(exp.ServiceProviderName)) { <text> — @exp.ServiceProviderName</text> }
                         else if (!string.IsNullOrWhiteSpace(exp.OperationalAssetName)) { <text> — @exp.OperationalAssetName</text> }

@@ -26,7 +26,7 @@
             <div class="ak-callout is-warning">
                 <p>
                     @T("دوره مالی تا تاریخ", "The financial period is closed through")
-                    <bdi class="ak-num">@status.LockedThroughDate!.Value.ToString("yyyy-MM-dd")</bdi>
+                    <bdi class="ak-num">@status.LockedThroughDate!.Value.ToCalendarString("yyyy-MM-dd")</bdi>
                     @T("بسته است. ثبت، ویرایش و حذف سند در این دوره مجاز نیست.",
                        "Creating, editing and deleting documents in that period is not allowed.")
                 </p>
@@ -102,7 +102,7 @@
                 @foreach (var row in Model)
                 {
                     <tr>
-                        <td class="ak-num"><bdi>@row.LockedThroughDate.ToString("yyyy-MM-dd")</bdi></td>
+                        <td class="ak-num"><bdi>@row.LockedThroughDate.ToCalendarString("yyyy-MM-dd")</bdi></td>
                         <td>@(row.IsActive ? T("فعال", "Active") : T("برداشته شده", "Removed"))</td>
                         <td class="ak-col-grow">@row.Reason</td>
                         <td class="ak-num"><bdi>@row.CreatedAtUtc.ToDisplayDate()</bdi></td>

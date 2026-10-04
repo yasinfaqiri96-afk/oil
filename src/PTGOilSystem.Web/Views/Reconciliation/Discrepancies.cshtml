@@ -19,7 +19,7 @@
     </div>
 
     <p class="ak-note">
-        تاریخ تولید گزارش به وقت کابل: <span dir="ltr" class="ak-num">@Model.GeneratedOnBusinessDate.ToString("yyyy-MM-dd")</span>
+        تاریخ تولید گزارش به وقت کابل: <span dir="ltr" class="ak-num">@Model.GeneratedOnBusinessDate.ToCalendarString("yyyy-MM-dd")</span>
         — شمارش و صفحه‌بندی هر دسته مستقل و در پایگاه داده انجام می‌شود.
     </p>
 
@@ -103,7 +103,7 @@
                     {
                         <tr>
                             <td class="ak-col-grow">@row.Reference</td>
-                            <td dir="ltr" class="ak-num">@(row.Date?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td dir="ltr" class="ak-num">@(row.Date?.ToCalendarString("yyyy-MM-dd") ?? "-")</td>
                             <td class="ak-col-num ak-num">@(row.AmountUsd?.ToString("N2") ?? "-")</td>
                             <td class="ak-col-num ak-num">@(row.QuantityMt?.ToString("N3") ?? "-")</td>
                             <td class="ak-col-grow">@row.Detail</td>

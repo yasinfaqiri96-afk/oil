@@ -397,8 +397,8 @@ public sealed class SupplierBalanceTransfersController : Controller
             model.TransferPerUsdRate = decimal.Round(
                 FxRateMath.PerUsdFromToUsd(fx.Value), 6, MidpointRounding.AwayFromZero);
             model.DayRateSource = fx.FallbackApplied
-                ? $"نرخ روز {fx.EffectiveDate:yyyy-MM-dd} (نزدیک‌ترین نرخ ثبت‌شده)"
-                : $"نرخ روز {fx.EffectiveDate:yyyy-MM-dd}";
+                ? $"نرخ روز {fx.EffectiveDate.ToCalendarString("yyyy-MM-dd")} (نزدیک‌ترین نرخ ثبت‌شده)"
+                : $"نرخ روز {fx.EffectiveDate.ToCalendarString("yyyy-MM-dd")}";
         }
         catch (BusinessRuleException)
         {

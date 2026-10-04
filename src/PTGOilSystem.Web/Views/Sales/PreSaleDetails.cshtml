@@ -361,7 +361,7 @@
                                 @foreach (var p in Model.AllocatablePayments)
                                 {
                                     <option value="@p.PaymentTransactionId" data-allocatable="@p.AllocatableAmount">
-                                        @p.PaymentDate.ToString("yyyy-MM-dd") — مانده @p.AllocatableAmount.ToString("N2") از @p.Amount.ToString("N2") @p.Currency@(p.IsAdvance ? " (پیش‌دریافت)" : "")
+                                        @p.PaymentDate.ToCalendarString("yyyy-MM-dd") — مانده @p.AllocatableAmount.ToString("N2") از @p.Amount.ToString("N2") @p.Currency@(p.IsAdvance ? " (پیش‌دریافت)" : "")
                                     </option>
                                 }
                             </select>

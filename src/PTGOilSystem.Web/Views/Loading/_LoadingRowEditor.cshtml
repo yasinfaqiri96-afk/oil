@@ -111,6 +111,19 @@
         </td>
 
         <td>
+            @if (DateDisplay.IsSolarHijri)
+            {
+                @* تقویم هجری شمسی: تقویمِ اختصاصیِ این جدول میلادی است؛ پس همان datepicker مشترک
+                   (ورود/نمایش شمسی) روی input تاریخ با مقدارِ ISO کانونیک استفاده می‌شود. *@
+                <input type="date"
+                       name="@($"{prefix}.LoadingDate")"
+                       value="@effectiveLoadingDate.ToHtmlDateInput()"
+                       class="ak-input"
+                       aria-label="تاریخ بارگیری"
+                       data-row-date-value />
+            }
+            else
+            {
             @* یک کنترل تاریخ به‌جای دکمهٔ آیکون + دکمهٔ متن؛ کلیک روی خودش تقویم را باز می‌کند. *@
             <div data-loading-date-picker>
                 <input type="hidden"
@@ -125,6 +138,7 @@
                     <span data-row-date-text>@effectiveLoadingDate.ToString("yyyy-MM-dd")</span>
                 </button>
             </div>
+            }
         </td>
 
         <td>

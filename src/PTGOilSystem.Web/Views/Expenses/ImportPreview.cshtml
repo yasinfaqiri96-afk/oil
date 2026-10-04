@@ -63,7 +63,7 @@
                                 : row.IsDuplicate ? "table-warning" : "";
                             <tr class="@rowClass">
                                 <td>@row.ExcelRowNumber</td>
-                                <td dir="ltr">@(row.ExpenseDate?.ToString("yyyy-MM-dd") ?? row.ExpenseDateText)</td>
+                                <td dir="ltr">@(row.ExpenseDate?.ToCalendarString("yyyy-MM-dd") ?? row.ExpenseDateText)</td>
                                 <td>@(row.ResolvedExpenseTypeName ?? row.ExpenseTypeName)</td>
                                 <td class="text-end" dir="ltr">@Fa(row.Amount)</td>
                                 <td dir="ltr">@row.Currency</td>

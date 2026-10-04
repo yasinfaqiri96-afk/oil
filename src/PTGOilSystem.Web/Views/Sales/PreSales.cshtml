@@ -62,7 +62,7 @@
                             {
                                 <tr>
                                     <td class="ak-col-num text-end"><span class="ak-num">@item.OrderNumber</span></td>
-                                    <td class="ak-col-num text-end"><span class="ak-num">@item.OrderDate.ToString("yyyy-MM-dd")</span></td>
+                                    <td class="ak-col-num text-end"><span class="ak-num">@item.OrderDate.ToCalendarString("yyyy-MM-dd")</span></td>
                                     <td>@item.CustomerName</td>
                                     <td>@item.ProductName</td>
                                     <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.QuantityMt)</span></td>

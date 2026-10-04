@@ -159,6 +159,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<BackupDriveCredential> BackupDriveCredentials => Set<BackupDriveCredential>();
     public DbSet<BackupJob> BackupJobs => Set<BackupJob>();
 
+    // --- System settings (UI-only preferences; no business/financial logic) ---
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+
     // --- Operational period lock (PTG-P1-01; independent of the disabled Accounting module) ---
     public DbSet<OperationalPeriodLock> OperationalPeriodLocks => Set<OperationalPeriodLock>();
 
@@ -2523,6 +2526,7 @@ public class ApplicationDbContext : DbContext
             .ToTable(t => t.HasCheckConstraint("CK_ExpenseLotAllocations_AmountNonNegative", "\"AmountUsd\" >= 0"));
 
         ConfigureBackups(modelBuilder);
+        modelBuilder.Entity<SystemSetting>().ToTable("SystemSettings");
     }
 
     // ---- Backups -------------------------------------------------------------

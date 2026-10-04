@@ -995,6 +995,11 @@ public static class LoadingWorkbookParser
             return DateTime.FromOADate(serial).Date;
         }
 
+        if (PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.TryParseActiveCalendarText(text, out var solarDate))
+        {
+            return solarDate;
+        }
+
         if (DateTime.TryParseExact(
                 text.Trim(),
                 ExplicitDateFormats,

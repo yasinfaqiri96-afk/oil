@@ -3,6 +3,7 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services.HumanResources;
 
@@ -173,6 +174,6 @@ public sealed class AttendanceService(ApplicationDbContext db, IHrCalendarServic
         var lockedThrough = await PayrollLocks.LatestFinalizedMonthEndAsync(db, employee.Id, ct);
         if (lockedThrough.HasValue && day <= lockedThrough.Value)
             throw new BusinessRuleException("HR_ATTENDANCE_PAYROLL_LOCKED",
-                $"معاشِ {employee.FullName} تا {lockedThrough.Value:yyyy-MM-dd} نهایی شده؛ حاضریِ این روز قفل است.");
+                $"معاشِ {employee.FullName} تا {lockedThrough.Value.ToCalendarString("yyyy-MM-dd")} نهایی شده؛ حاضریِ این روز قفل است.");
     }
 }

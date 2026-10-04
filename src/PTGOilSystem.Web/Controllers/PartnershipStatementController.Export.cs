@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using PTGOilSystem.Web.Infrastructure.RateLimiting;
 using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -184,7 +185,7 @@ public partial class PartnershipStatementController
                 : null;
             rows.Add(new TabularExportRow([
                 TabularExportCell.Text(
-                    $"{line.Date?.ToString("yyyy-MM-dd") ?? "—"} · {line.Title} · {owner ?? "—"}"),
+                    $"{line.Date?.ToCalendarString("yyyy-MM-dd") ?? "—"} · {line.Title} · {owner ?? "—"}"),
                 TabularExportCell.Text(line.Source),
                 TabularExportCell.Number(line.AmountUsd)
             ]));

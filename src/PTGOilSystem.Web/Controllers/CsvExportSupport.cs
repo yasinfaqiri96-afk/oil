@@ -16,7 +16,9 @@ internal static class CsvExportSupport
     public static IActionResult File(Controller controller, string filename, string[] headers, IEnumerable<string?[]> rows)
         => new CsvStreamResult(filename, headers, rows);
 
-    public static string Date(DateTime? value) => DateDisplay.HtmlDateInput(value);
+    // میلادی: همان ISO قبلی؛ هجری شمسی: همان الگو با تاریخِ شمسی.
+    public static string Date(DateTime? value)
+        => value.HasValue ? DateDisplay.Format(value.Value, DateDisplay.HtmlDateInputPattern) : string.Empty;
     public static string Decimal(decimal? value) => value?.ToString("0.####") ?? "";
 
     internal static string Escape(string? value)

@@ -314,7 +314,7 @@ public sealed class TabularExportService : ITabularExportService
             2,
             totalColumnCount,
             isEnglish ? document.TitleEn : document.TitleFa,
-            _businessClock.Now.DateTime.ToString("yyyy/M/d", CultureInfo.InvariantCulture));
+            Helpers.DateDisplay.Format(_businessClock.Now.DateTime, "yyyy/M/d"));
 
         writer.WriteStartElement(new Row { RowIndex = headerRowIndex, Height = ExcelDesignSystem.HeaderRowHeight, CustomHeight = true });
         WriteInlineTextCell(writer, "#", ExcelDesignSystem.HeaderStyle);
@@ -725,6 +725,14 @@ public sealed class TabularExportService : ITabularExportService
             case TabularExportValueType.Percentage:
                 WriteNumberCell(writer, Convert.ToDecimal(cell.Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), style);
                 break;
+            // Excel تقویم شمسی ندارد؛ در حالت هجری شمسی تاریخ به‌صورت متنِ صفرپرشدهٔ «1405/07/12» نوشته
+            // می‌شود تا مرتب‌سازیِ متنی همان ترتیبِ زمانی را بدهد. در حالت میلادی مثل قبل عددِ تاریخ است.
+            case TabularExportValueType.Date when cell.Value is DateTime date && Helpers.DateDisplay.IsSolarHijri:
+                WriteInlineTextCell(writer, Helpers.DateDisplay.PlainDate(date), style);
+                break;
+            case TabularExportValueType.DateTime when cell.Value is DateTime dateTime && Helpers.DateDisplay.IsSolarHijri:
+                WriteInlineTextCell(writer, Helpers.DateDisplay.PlainDateTime(dateTime), style);
+                break;
             case TabularExportValueType.Date when cell.Value is DateTime date:
                 WriteNumberCell(writer, date.ToOADate().ToString(CultureInfo.InvariantCulture), style);
                 break;
@@ -821,7 +829,7 @@ public sealed class TabularExportService : ITabularExportService
     {
         var activeFilters = document.Filters
             .Where(filter => !string.IsNullOrWhiteSpace(filter.Value))
-            .Select(filter => $"{(isEnglish ? filter.LabelEn : filter.LabelFa)}: {filter.Value!.Trim()}")
+            .Select(filter => $"{(isEnglish ? filter.LabelEn : filter.LabelFa)}: {Helpers.DateDisplay.IsoTextToDisplay(filter.Value!.Trim())}")
             .ToArray();
 
         return activeFilters.Length == 0

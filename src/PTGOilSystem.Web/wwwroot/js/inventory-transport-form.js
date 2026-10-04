@@ -19,6 +19,13 @@
         });
     }
 
+    // ISO date → active display calendar (Solar Hijri when enabled); values stay ISO.
+    function calendarText(value) {
+        var calendar = window.PTG && window.PTG.calendar;
+        var iso = value ? String(value).slice(0, 10) : "";
+        return calendar && iso ? calendar.formatIso(iso) : iso;
+    }
+
     function escapeHtml(value) {
         return String(value == null ? "" : value)
             .replace(/&/g, "&amp;")
@@ -436,7 +443,7 @@
                 var kindClass = "ak-status" + (isVessel ? " is-warning" : "");
                 return "<tr data-source-row data-source-id=\"" + source.sourceInventoryMovementId + "\" data-available=\"" + source.availableQuantityMt + "\"" + (isVessel ? " data-source-vessel=\"true\"" : "") + " data-label=\"" + escapeHtml(source.contractNumber + " / " + kind) + "\">" +
                     "<td><input type=\"checkbox\" data-source-check></td>" +
-                    "<td>" + escapeHtml(source.contractNumber) + "</td><td><span class=\"" + kindClass + "\">" + escapeHtml(kind) + "</span></td><td>" + escapeHtml(source.sourceDate) + "</td><td><strong class=\"ak-num\">" + readableQuantity(source.availableQuantityMt) + "</strong></td>" +
+                    "<td>" + escapeHtml(source.contractNumber) + "</td><td><span class=\"" + kindClass + "\">" + escapeHtml(kind) + "</span></td><td>" + escapeHtml(calendarText(source.sourceDate)) + "</td><td><strong class=\"ak-num\">" + readableQuantity(source.availableQuantityMt) + "</strong></td>" +
                     "<td><input type=\"hidden\" name=\"Sources[" + index + "].SourceInventoryMovementId\" value=\"" + source.sourceInventoryMovementId + "\"><input type=\"hidden\" name=\"Sources[" + index + "].QuantityMt\" data-source-quantity><span class=\"ak-num\" data-source-consumed>0.0000</span></td></tr>";
             }).join("");
             form.querySelector("[data-source-empty]").hidden = sources.length > 0;

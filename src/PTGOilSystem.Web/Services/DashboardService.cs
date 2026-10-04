@@ -626,7 +626,7 @@ public class DashboardService : IDashboardService
             .ToList();
 
         vm.MarketLabels = weekStarts
-            .Select(weekStart => weekStart.ToString("MM/dd", CultureInfo.InvariantCulture))
+            .Select(weekStart => weekStart.ToCalendarString("MM/dd", CultureInfo.InvariantCulture))
             .ToList();
         vm.MarketSalesSeries = weekStarts
             .Select(weekStart => salesRows
@@ -872,8 +872,8 @@ public class DashboardService : IDashboardService
                 {
                     Title = Text("قرارداد رو به پایان", "Contract ending soon"),
                     Message = Text(
-                        $"قرارداد {c.ContractNumber} در تاریخ {c.EndDate:yyyy/MM/dd} پایان می یابد ({daysLeft:N0} روز مانده).",
-                        $"Contract {c.ContractNumber} ends on {c.EndDate:yyyy/MM/dd} ({daysLeft:N0} days left)."),
+                        $"قرارداد {c.ContractNumber} در تاریخ {c.EndDate.ToCalendarString("yyyy/MM/dd")} پایان می یابد ({daysLeft:N0} روز مانده).",
+                        $"Contract {c.ContractNumber} ends on {c.EndDate.ToCalendarString("yyyy/MM/dd")} ({daysLeft:N0} days left)."),
                     Severity = daysLeft <= 7 ? "danger" : "warning",
                     Reference = c.ContractNumber
                 };

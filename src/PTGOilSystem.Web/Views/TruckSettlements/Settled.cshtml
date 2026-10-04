@@ -96,7 +96,7 @@
                                 <span class="ak-section-desc">@(row.DestinationName ?? "-")</span>
                             </td>
                             <td class="col-status"><span class="ak-status is-info">@row.TypeLabel</span></td>
-                            <td class="col-ltr">@(row.SettledDate.HasValue ? row.SettledDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                            <td class="col-ltr">@(row.SettledDate.HasValue ? row.SettledDate.Value.ToCalendarString("yyyy-MM-dd") : "-")</td>
                             <td class="col-ltr fw-bold">@NumberDisplay.Money(row.FreightUsd)</td>
                             <td class="col-ltr">@NumberDisplay.Quantity(row.ShortageMt)</td>
                             <td class="col-ltr">@NumberDisplay.Quantity(row.RemainingQuantityMt)</td>

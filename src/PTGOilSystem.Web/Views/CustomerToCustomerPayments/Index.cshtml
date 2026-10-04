@@ -64,7 +64,7 @@
                     @foreach (var item in items)
                     {
                         <tr>
-                            <td>@item.PaymentDate.ToString("yyyy-MM-dd")</td>
+                            <td>@item.PaymentDate.ToCalendarString("yyyy-MM-dd")</td>
                             <td class="ak-col-grow">@(item.PayerCustomer?.Name ?? "—")</td>
                             <td class="ak-col-grow">@(item.PayeeCustomer?.Name ?? "—")</td>
                             <td>@item.Amount.ToString("N2") @item.Currency</td>

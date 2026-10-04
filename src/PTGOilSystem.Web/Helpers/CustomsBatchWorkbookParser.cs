@@ -273,6 +273,11 @@ public static class CustomsBatchWorkbookParser
             catch { /* ignore */ }
         }
 
+        if (PTGOilSystem.Web.Services.Calendars.AfghanSolarCalendar.TryParseActiveCalendarText(text, out var solar))
+        {
+            return solar;
+        }
+
         return DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
             ? parsed
             : null;

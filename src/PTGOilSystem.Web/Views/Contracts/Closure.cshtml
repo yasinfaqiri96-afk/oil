@@ -128,7 +128,7 @@
                 @foreach (var row in Model.History)
                 {
                     <tr>
-                        <td><span class="ak-num">@row.ActionAtUtc.ToString("yyyy-MM-dd HH:mm")</span></td>
+                        <td><span class="ak-num">@row.ActionAtUtc.ToCalendarString("yyyy-MM-dd HH:mm")</span></td>
                         <td>@HistoryActionLabel(row.Action)</td>
                         <td><bdi>@(string.IsNullOrWhiteSpace(row.ActorUsername) ? "-" : row.ActorUsername)</bdi></td>
                         <td>@(row.Description ?? "-")</td>

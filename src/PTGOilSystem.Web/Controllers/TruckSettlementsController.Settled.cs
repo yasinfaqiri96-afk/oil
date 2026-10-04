@@ -210,7 +210,9 @@ public partial class TruckSettlementsController
                     || Contains(r.FreightPartyName, term)
                     || Contains(r.TypeLabel, term)
                     || Contains(r.Date.ToString("yyyy-MM-dd"), term)
-                    || Contains(r.SettledDate?.ToString("yyyy-MM-dd"), term))
+                    || Contains(r.SettledDate?.ToString("yyyy-MM-dd"), term)
+                    || Contains(r.Date.ToCalendarString("yyyy-MM-dd"), term)
+                    || Contains(r.SettledDate?.ToCalendarString("yyyy-MM-dd"), term))
                 .ToList();
 
             static bool Contains(string? value, string term)

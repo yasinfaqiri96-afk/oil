@@ -6,6 +6,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Helpers;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -1875,7 +1876,7 @@ public sealed class InventoryTransportBatchService
 
             if (!seenVehicles.Add(vehicleKey))
             {
-                throw Rule("INVENTORY_TRANSPORT_VEHICLE_DUPLICATE", $"ردیف {i + 1}: همین وسیله در تاریخ {vehicleDate:yyyy-MM-dd} بیش از یک بار آمده است. برای سفر دوم، تاریخ بارگیری آن ردیف را تغییر دهید.");
+                throw Rule("INVENTORY_TRANSPORT_VEHICLE_DUPLICATE", $"ردیف {i + 1}: همین وسیله در تاریخ {vehicleDate.ToCalendarString("yyyy-MM-dd")} بیش از یک بار آمده است. برای سفر دوم، تاریخ بارگیری آن ردیف را تغییر دهید.");
             }
             // Capacity is optional: when master data has a positive capacity we still
             // guard against overloading, but a missing/unknown capacity no longer blocks.

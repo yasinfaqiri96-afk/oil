@@ -112,7 +112,7 @@ public class PricingService : IPricingService
         {
             throw new BusinessRuleException(
                 "PRICING_NO_PLATTS",
-                $"قیمت Platt's برای benchmark «{benchmarkCode}» در یا قبل از تاریخ {transactionDate:yyyy-MM-dd} ثبت نشده است.");
+                $"قیمت Platt's برای benchmark «{benchmarkCode}» در یا قبل از تاریخ {transactionDate.ToCalendarString("yyyy-MM-dd")} ثبت نشده است.");
         }
 
         return new PriceLookupResult(
@@ -152,7 +152,7 @@ public class PricingService : IPricingService
         {
             throw new BusinessRuleException(
                 "PRICING_NO_FX",
-                $"نرخ ارز {baseCurrency}/{quoteCurrency} در یا قبل از تاریخ {transactionDate:yyyy-MM-dd} ثبت نشده است.");
+                $"نرخ ارز {baseCurrency}/{quoteCurrency} در یا قبل از تاریخ {transactionDate.ToCalendarString("yyyy-MM-dd")} ثبت نشده است.");
         }
 
         return new PriceLookupResult(

@@ -130,8 +130,8 @@
                                     <i class="bi bi-lock" aria-hidden="true"></i>
                                 }
                             </td>
-                            <td>@row.LoadingDate.ToString("yyyy-MM-dd")</td>
-                            <td><span class="ak-section-desc">@row.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</span></td>
+                            <td>@row.LoadingDate.ToCalendarString("yyyy-MM-dd")</td>
+                            <td><span class="ak-section-desc">@row.CreatedAtUtc.ToCalendarString("yyyy-MM-dd HH:mm")</span></td>
                             <td>@row.ProductName</td>
                             <td><bdi>@(string.IsNullOrWhiteSpace(row.VehicleSummary) ? "-" : row.VehicleSummary)</bdi></td>
                             <td><bdi>@(string.IsNullOrWhiteSpace(row.BillOfLadingNumber) ? "-" : row.BillOfLadingNumber)</bdi></td>

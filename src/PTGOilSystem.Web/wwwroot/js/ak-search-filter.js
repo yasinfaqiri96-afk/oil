@@ -100,7 +100,12 @@
                 var first = owned[0].value || "";
                 var valueLabel = first;
                 if (f.type === "daterange") {
-                    valueLabel = first + (owned[1] ? " → " + owned[1].value : "");
+                    // Values stay ISO (query params); only the chip text follows the active calendar.
+                    var cal = window.PTG && window.PTG.calendar;
+                    var fmt = cal ? cal.formatIso : function (v) { return v; };
+                    valueLabel = fmt(first) + (owned[1] ? " → " + fmt(owned[1].value) : "");
+                } else if (f.type === "date") {
+                    valueLabel = window.PTG && window.PTG.calendar ? window.PTG.calendar.formatIso(first) : first;
                 } else {
                     valueLabel = optionLabel(f, first);
                     if (f.multiple && owned.length > 1) valueLabel += " +" + (owned.length - 1);
