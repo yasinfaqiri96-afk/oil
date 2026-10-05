@@ -54,7 +54,7 @@
                     <i class="bi bi-arrow-up-circle"></i>
                     <div>
                         این موتر @NumberDisplay.Quantity(Model.DispatchSurplusMt) MT بیشتر از وزن بارگیری تخلیه کرده است.
-                        فروش روی مقدار واقعیِ تخلیه‌شده ثبت می‌شود و طلب مشتری هم بر همان مقدار محاسبه می‌گردد.
+                        فروش روی مقدار واقعیِ تخلیه‌شده ثبت می‌شود و اثر حساب خریدار هم بر همان مقدار محاسبه می‌گردد.
                         برای این اضافه‌بار هیچ قیمت خریدی ساخته نمی‌شود.
                     </div>
                 </div>
@@ -62,11 +62,11 @@
 
             <div class="ak-form-grid g-3">
                 <div class="ak-field">
-                    <label asp-for="CustomerId" class="ak-label"></label>
-                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                        <option value="">Select customer</option>
+                    <label asp-for="BuyerKey" class="ak-label"></label>
+                    <select asp-for="BuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
+                        <option value="">Select buyer</option>
                     </select>
-                    <span asp-validation-for="CustomerId" class="text-danger"></span>
+                    <span asp-validation-for="BuyerKey" class="text-danger"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="SaleDate" class="ak-label"></label>

@@ -419,7 +419,18 @@ public sealed class InventoryTransportReceiptService
         ModelStateDictionary modelState,
         string keyPrefix)
     {
-        if (!model.SaleCustomerId.HasValue || model.SaleCustomerId.Value <= 0)
+        if (model.SaleSupplierId is > 0)
+        {
+            if (model.SaleCustomerId.HasValue)
+            {
+                modelState.AddModelError(keyPrefix + nameof(model.SaleCustomerId), "Sale buyer must be either a customer or a supplier.");
+            }
+            else if (!await _db.Suppliers.AsNoTracking().AnyAsync(s => s.Id == model.SaleSupplierId.Value && s.IsActive))
+            {
+                modelState.AddModelError(keyPrefix + nameof(model.SaleSupplierId), "Supplier is invalid.");
+            }
+        }
+        else if (!model.SaleCustomerId.HasValue || model.SaleCustomerId.Value <= 0)
         {
             modelState.AddModelError(keyPrefix + nameof(model.SaleCustomerId), "Customer is required for direct sale.");
         }
@@ -559,7 +570,8 @@ public sealed class InventoryTransportReceiptService
         {
             ContractId = null,
             CompanyId = leg.SourcePurchaseContract!.CompanyId,
-            CustomerId = model.SaleCustomerId!.Value,
+            CustomerId = model.SaleSupplierId is > 0 ? null : model.SaleCustomerId!.Value,
+            SupplierId = model.SaleSupplierId is > 0 ? model.SaleSupplierId : null,
             ProductId = leg.ProductId,
             DestinationLocationId = leg.DestinationLocationId,
             ShipmentId = leg.ShipmentId,

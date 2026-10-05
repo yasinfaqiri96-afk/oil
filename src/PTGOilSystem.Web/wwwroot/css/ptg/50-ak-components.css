@@ -3348,7 +3348,7 @@ select.ak-input {
    forced horizontal scroll on every screen. */
 .loading-import-workbook .ak-table {
     table-layout: fixed;
-    min-width: 1180px;
+    min-width: 1540px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th,
@@ -3433,6 +3433,15 @@ select.ak-input {
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(16),
 .loading-import-workbook .ak-table > tbody > tr > td:nth-child(16) { width: 116px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(17),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(17) { width: 116px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(18),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(18) { width: 128px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(19),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(19) { width: 116px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:first-child,
 .loading-import-workbook .ak-table > tbody > tr > td:first-child {

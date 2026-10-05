@@ -92,11 +92,11 @@
                 <section class="ak-form-section op-mode-block" data-mode="1" data-fara-title="@T("مشخصات فروش", "Sale details")">
                     <div class="ak-form-grid g-4">
                         <div class="ak-field">
-                            <label asp-for="SaleCustomerId" class="ak-label"></label>
-                            <select asp-for="SaleCustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                                <option value="">@T("انتخاب مشتری", "Select customer")</option>
+                            <label asp-for="SaleBuyerKey" class="ak-label"></label>
+                            <select asp-for="SaleBuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
+                                <option value="">@T("انتخاب خریدار", "Select buyer")</option>
                             </select>
-                            <span asp-validation-for="SaleCustomerId" class="field-validation-error"></span>
+                            <span asp-validation-for="SaleBuyerKey" class="field-validation-error"></span>
                         </div>
                         <div class="ak-field">
                             <label asp-for="SaleCurrency" class="ak-label"></label>

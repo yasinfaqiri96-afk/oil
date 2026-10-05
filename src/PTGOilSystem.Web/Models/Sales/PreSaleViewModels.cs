@@ -48,9 +48,15 @@ public static class PreSaleOrderStatusLabels
 
 public sealed class PreSaleCreateViewModel
 {
-    [Display(Name = "مشتری")]
-    [Range(1, int.MaxValue, ErrorMessage = "انتخاب مشتری الزامی است.")]
-    public int CustomerId { get; set; }
+    [Display(Name = "خریدار")]
+    [Required(ErrorMessage = "انتخاب خریدار الزامی است.")]
+    public string? BuyerKey
+    {
+        get => SaleBuyerKey.Build(CustomerId, SupplierId);
+        set => (CustomerId, SupplierId) = SaleBuyerKey.Parse(value);
+    }
+    public int? CustomerId { get; set; }
+    public int? SupplierId { get; set; }
 
     [Display(Name = "کالا")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب کالا الزامی است.")]
@@ -180,7 +186,8 @@ public sealed class PreSaleDetailsViewModel
 {
     public int Id { get; init; }
     public string OrderNumber { get; init; } = "";
-    public int CustomerId { get; init; }
+    public int? CustomerId { get; init; }
+    public bool IsSupplierBuyer { get; init; }
     public string CustomerName { get; init; } = "";
     public string ProductName { get; init; } = "";
     public string? CompanyName { get; init; }

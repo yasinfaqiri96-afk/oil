@@ -206,9 +206,15 @@ public sealed class DispatchDirectFromReceiptSaleCreateViewModel
     [Range(1, int.MaxValue, ErrorMessage = "Truck dispatch is required.")]
     public int TruckDispatchId { get; set; }
 
-    [Display(Name = "مشتری")]
-    [Range(1, int.MaxValue, ErrorMessage = "Customer is required.")]
-    public int CustomerId { get; set; }
+    [Display(Name = "خریدار")]
+    [Required(ErrorMessage = "Buyer is required.")]
+    public string? BuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(CustomerId, SupplierId);
+        set => (CustomerId, SupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
+    public int? CustomerId { get; set; }
+    public int? SupplierId { get; set; }
 
     [Display(Name = "تاریخ فروش")]
     [DataType(DataType.Date)]

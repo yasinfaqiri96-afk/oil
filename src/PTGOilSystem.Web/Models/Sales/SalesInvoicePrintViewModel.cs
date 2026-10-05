@@ -175,10 +175,12 @@ public static class SalesInvoiceMapper
             SellerPhone = template.Phone,
             SellerEmail = template.Email,
             SellerWebsite = template.Website,
-            BuyerCompanyName = DisplayName(sale.Customer?.NamePersian, sale.Customer?.Name),
-            BuyerRepresentativeName = Clean(sale.Customer?.ContactPerson),
-            BuyerPhoneNumber = Clean(sale.Customer?.Phone),
-            BuyerAddress = Clean(sale.Customer?.Address),
+            BuyerCompanyName = sale.SupplierId.HasValue
+                ? DisplayName(sale.Supplier?.NamePersian, sale.Supplier?.Name)
+                : DisplayName(sale.Customer?.NamePersian, sale.Customer?.Name),
+            BuyerRepresentativeName = Clean(sale.SupplierId.HasValue ? sale.Supplier?.ContactPerson : sale.Customer?.ContactPerson),
+            BuyerPhoneNumber = Clean(sale.SupplierId.HasValue ? sale.Supplier?.Phone : sale.Customer?.Phone),
+            BuyerAddress = Clean(sale.SupplierId.HasValue ? sale.Supplier?.Address : sale.Customer?.Address),
             ProductType = DisplayName(sale.Product?.NamePersian, sale.Product?.Name),
             BorderOrLocation = Clean(borderOrLocation),
             QuantityMt = sale.QuantityMt,

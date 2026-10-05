@@ -60,11 +60,11 @@
                      model="@((UiText.T(Context, "اطلاعات فروش", "Sale Information"), (string?)UiText.T(Context, "مشخصات خریدار، شرکت و سند فروش را وارد کنید.", "Enter the buyer, company and sales document details.")))" />
             <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label asp-for="CustomerId" class="ak-label">@UiText.T(Context, "خریدار", "Buyer") <span class="ak-req">*</span></label>
-                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                    <label asp-for="BuyerKey" class="ak-label">@UiText.T(Context, "خریدار", "Buyer") <span class="ak-req">*</span></label>
+                    <select asp-for="BuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
                         <option value="">@UiText.T(Context, "انتخاب خریدار", "Select buyer")</option>
                     </select>
-                    <span asp-validation-for="CustomerId" class="ak-field-error"></span>
+                    <span asp-validation-for="BuyerKey" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="CompanyId" class="ak-label">@UiText.T(Context, "شرکت", "Company") <span class="ak-req">*</span></label>

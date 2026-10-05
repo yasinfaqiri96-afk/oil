@@ -195,7 +195,7 @@
     // Profile خرید ساده: همان کنترلر Contracts، با عنوان ساده‌تر برای این مشتری.
     var contractsNavLabel = simplePurchaseEnabled ? T("خرید", "Purchases") : T("قراردادها", "Contracts");
     var operationsSidebarItem = SidebarItem(
-        simplePurchaseEnabled ? "Expenses" : "Loading",
+        simplePurchaseEnabled && !ClientModules.IsControllerEnabled("Loading") ? "Expenses" : "Loading",
         "Index",
         T("عملیات", "Operations"),
         "nav-operations",
@@ -242,7 +242,7 @@
     {
         NavNode("Home", "Index", T("داشبورد", "Dashboard"), "nav-dashboard"),
         NavNode("Contracts", "Index", contractsNavLabel, "nav-contracts", active: contractControllers),
-        simplePurchaseEnabled
+        simplePurchaseEnabled && !ClientModules.IsControllerEnabled("Loading")
             ? NavNode("Expenses", "Index", T("عملیات", "Operations"), "nav-operations", active: operationTabControllers)
             : NavNode("Loading", "Index", T("عملیات", "Operations"), "nav-operations", active: operationTabControllers),
         NavNode("OperationalAssets", "Index", T("دارایی‌ها", "Assets"), "nav-assets"),

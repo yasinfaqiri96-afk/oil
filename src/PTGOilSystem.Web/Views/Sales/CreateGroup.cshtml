@@ -156,10 +156,11 @@
                     <h2 class="ak-section-title">مشخصات فروش</h2>
                     <div class="ak-form-grid">
                         <div class="ak-field">
-                            <label asp-for="CustomerId">مشتری <em>*</em></label>
-                            <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                                <option value="">انتخاب مشتری</option>
+                            <label asp-for="BuyerKey">خریدار <em>*</em></label>
+                            <select asp-for="BuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
+                                <option value="">انتخاب خریدار</option>
                             </select>
+                            <span asp-validation-for="BuyerKey" class="ak-field-error"></span>
                         </div>
                         <div class="ak-field">
                             <label asp-for="SaleDate">تاریخ فروش <em>*</em></label>
@@ -484,7 +485,7 @@
                     '<td class="ak-num">' + fmt(amount) + '</td>';
                 body.appendChild(tr);
             });
-            var cust = $('CustomerId');
+            var cust = $('BuyerKey');
             $('previewMeta').innerHTML =
                 '<span><b>مشتری:</b> ' + (cust.options[cust.selectedIndex] ? cust.options[cust.selectedIndex].text : '-') + '</span>' +
                 '<span><b>نرخ هر تن:</b> ' + fmt(price) + ' ' + (curSel.value || 'USD') + '</span>' +
@@ -540,7 +541,7 @@
         }
 
         function validateStep3() {
-            if (!$('CustomerId').value) { alert('مشتری را انتخاب کنید.'); return false; }
+            if (!$('BuyerKey').value) { alert('خریدار را انتخاب کنید.'); return false; }
             if (!(parseFloat($('UnitPriceInCurrency').value) > 0)) { alert('نرخ فروش هر تن را وارد کنید.'); return false; }
             var cur = (curSel && curSel.value) || 'USD';
             if (cur !== 'USD') {

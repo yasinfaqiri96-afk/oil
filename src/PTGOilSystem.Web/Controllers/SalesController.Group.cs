@@ -352,10 +352,7 @@ public partial class SalesController
 
     private async Task PopulateGroupSaleLookupsAsync(GroupSaleCreateViewModel model)
     {
-        ViewBag.Customers = new SelectList(
-            await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name }).ToListAsync(),
-            "Id", "Name", model.CustomerId > 0 ? model.CustomerId : null);
+        await PopulateBuyerLookupAsync(model.BuyerKey);
 
         ViewBag.Currencies = new SelectList(
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code)
@@ -388,11 +385,7 @@ public partial class SalesController
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
         model.PaymentNote = string.IsNullOrWhiteSpace(model.PaymentNote) ? null : model.PaymentNote.Trim();
 
-        var customer = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == model.CustomerId && c.IsActive);
-        if (customer is null)
-        {
-            ModelState.AddModelError(nameof(model.CustomerId), "مشتری انتخاب‌شده معتبر نیست.");
-        }
+        await ValidateBuyerAsync(model.CustomerId, model.SupplierId);
 
         var hasActiveCurrencies = await _db.Currencies.AsNoTracking().AnyAsync(c => c.IsActive);
         if (hasActiveCurrencies && !await _db.Currencies.AsNoTracking().AnyAsync(c => c.Code == model.Currency && c.IsActive))
@@ -459,6 +452,7 @@ public partial class SalesController
             var batch = new SalesBatch
             {
                 CustomerId = model.CustomerId,
+                SupplierId = model.SupplierId,
                 SaleDate = model.SaleDate.Date,
                 Currency = conversion.SourceCurrencyCode,
                 AppliedFxRateToUsd = conversion.AppliedRateToBase,
@@ -508,6 +502,7 @@ public partial class SalesController
                 diff: AuditDiffFormatter.ForCreate(
                     ("BatchNumber", batch.BatchNumber),
                     ("CustomerId", batch.CustomerId),
+                    ("SupplierId", batch.SupplierId),
                     ("SaleDate", batch.SaleDate),
                     ("Currency", batch.Currency),
                     ("UnitPriceInCurrency", batch.UnitPriceInCurrency),
@@ -585,6 +580,7 @@ public partial class SalesController
             ContractId = null,
             CompanyId = contract.CompanyId,
             CustomerId = model.CustomerId,
+            SupplierId = model.SupplierId,
             ProductId = input.ProductId,
             ShipmentId = await ResolveShipmentIdForContractAsync(input.SourcePurchaseContractId),
             SaleStage = SaleStage.TerminalStock,
@@ -679,6 +675,7 @@ public partial class SalesController
             ContractId = null,
             CompanyId = sourceContract.CompanyId,
             CustomerId = model.CustomerId,
+            SupplierId = model.SupplierId,
             ProductId = dispatch.ProductId,
             DestinationLocationId = dispatch.DestinationLocationId,
             ShipmentId = currentLegId.HasValue
@@ -789,6 +786,7 @@ public partial class SalesController
             ShortageQuantityMt = 0m,
             ReceiptDestination = InventoryTransportReceiptDestination.DirectSale,
             SaleCustomerId = model.CustomerId,
+            SaleSupplierId = model.SupplierId,
             SaleInvoiceNumber = invoice,
             SaleDate = model.SaleDate.Date,
             SaleCurrency = model.Currency,
@@ -829,6 +827,7 @@ public partial class SalesController
         var batch = await _db.SalesBatches
             .AsNoTracking()
             .Include(b => b.Customer)
+            .Include(b => b.Supplier)
             .FirstOrDefaultAsync(b => b.Id == id);
         if (batch is null)
         {
@@ -899,15 +898,15 @@ public partial class SalesController
                 4,
                 MidpointRounding.AwayFromZero);
 
-        var applicableReceipts = batch.IsCancelled
+        var applicableReceipts = batch.IsCancelled || batch.SupplierId.HasValue || !batch.CustomerId.HasValue
             ? []
-            : await LoadApplicableReceiptsAsync(batch.CustomerId);
+            : await LoadApplicableReceiptsAsync(batch.CustomerId.Value);
 
         var vm = new GroupSaleDetailsViewModel
         {
             Id = batch.Id,
             BatchNumber = batch.BatchNumber,
-            CustomerName = batch.Customer?.Name ?? "",
+            CustomerName = batch.Customer?.Name ?? batch.Supplier?.Name ?? "",
             SaleDate = batch.SaleDate,
             Currency = batch.Currency,
             AppliedFxRateToUsd = batch.AppliedFxRateToUsd,
@@ -961,6 +960,7 @@ public partial class SalesController
                 };
             }).ToList(),
             CustomerId = batch.CustomerId,
+            IsSupplierBuyer = batch.SupplierId.HasValue,
             ReceivedUsd = decimal.Round(
                 lines.Where(l => !l.IsCancelled).Sum(l => ReceivedUsdOf(l.Id)), 4, MidpointRounding.AwayFromZero),
             OpenReceivableUsd = Math.Max(decimal.Round(

@@ -134,7 +134,15 @@ public sealed class SalesAccountingAdapter(
         // بدهیِ پیش‌دریافت مشتری را مصرف می‌کند. مصرف واقعی است و ردیابی می‌شود: هر بند از یک
         // CustomerPaymentAllocation فعال گرفته می‌شود و بعد از ثبتِ ژورنال به Application تبدیل
         // می‌شود. فروش عادی (بدون PreSaleOrderId یا بدون تخصیص) دست‌نخورده می‌ماند.
-        var plan = await BuildAdvancePlanAsync(sale, settings, companyId, cancellationToken);
+        // فروش به تأمین‌کننده: به جای مطالبات، بدهیِ ما به همان تأمین‌کننده (حساب پرداختنی) کم می‌شود.
+        // پیش‌دریافت فقط برای مشتری معنی دارد، پس برنامهٔ مصرف پیش‌دریافت ساخته نمی‌شود.
+        var buyerIsSupplier = sale.SupplierId.HasValue;
+        var buyerAccountId = buyerIsSupplier ? settings.AccountsPayableAccountId : settings.AccountsReceivableAccountId;
+        var buyerPartyType = buyerIsSupplier ? AccountingPartyType.Supplier : AccountingPartyType.Customer;
+        var buyerPartyId = buyerIsSupplier ? sale.SupplierId : sale.CustomerId;
+        var plan = buyerIsSupplier
+            ? new List<AdvancePlanItem>()
+            : await BuildAdvancePlanAsync(sale, settings, companyId, cancellationToken);
         var advanceUsd = plan.Sum(x => x.AppliedAmountUsd);
         var receivableUsd = decimal.Round(sale.TotalUsd - advanceUsd, 4, MidpointRounding.AwayFromZero);
 
@@ -166,27 +174,27 @@ public sealed class SalesAccountingAdapter(
             // هم‌واحد و همیشه متوازن باشد؛ درآمد همچنان ارز و ارزشِ فروش را نشان می‌دهد.
             lines.Add(advanceUsd > 0m
                 ? new AccountingPostLine(
-                    settings.AccountsReceivableAccountId,
+                    buyerAccountId,
                     Debit: receivableUsd,
                     Credit: 0m,
                     SystemCurrency.BaseCurrencyCode,
                     receivableUsd,
                     1m,
-                    AccountingPartyType.Customer,
-                    sale.CustomerId,
+                    buyerPartyType,
+                    buyerPartyId,
                     ContractId: sale.ContractId,
                     ShipmentId: sale.ShipmentId,
                     ProductId: sale.ProductId,
                     Description: $"Sale invoice {sale.InvoiceNumber}")
                 : new AccountingPostLine(
-                    settings.AccountsReceivableAccountId,
+                    buyerAccountId,
                     Debit: receivableUsd,
                     Credit: 0m,
                     sale.Currency,
                     sale.TotalInCurrency,
                     rate,
-                    AccountingPartyType.Customer,
-                    sale.CustomerId,
+                    buyerPartyType,
+                    buyerPartyId,
                     ContractId: sale.ContractId,
                     ShipmentId: sale.ShipmentId,
                     ProductId: sale.ProductId,

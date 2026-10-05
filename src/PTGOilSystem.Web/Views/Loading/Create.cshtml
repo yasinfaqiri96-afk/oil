@@ -277,7 +277,9 @@
                         <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>معادل روبلی</th>
                         <th class="@freightColumnCss" data-loading-freight-column>ترانسپورت</th>
                         <th class="ak-col-num @freightColumnCss" data-loading-freight-column>کرایه فی تن</th>
-                        <th>گیرنده</th><th>مقصد</th><th class="ak-col-actions"></th>
+                        <th>گیرنده</th><th>مقصد</th>
+                        <th>نمبر ترانزیت</th><th>نام راننده</th><th>تماس راننده</th>
+                        <th class="ak-col-actions"></th>
                     </tr></thead>
                     <tbody data-loading-rows>
                                 @foreach (var rowEditor in rowEditors)
@@ -462,6 +464,21 @@
                             <tr>
                                 <td>مقصد</td>
                                 <td>Destination · Belong to · مقصد</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>نمبر ترانزیت</td>
+                                <td>Transit No · Transit number · Transit · نمبر ترانزیت · شماره ترانزیت</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>نام راننده</td>
+                                <td>Driver · Driver name · نام راننده · راننده</td>
+                                <td>اختیاری</td>
+                            </tr>
+                            <tr>
+                                <td>شماره تماس راننده</td>
+                                <td>Driver phone · Driver contact · Driver mobile · شماره تماس راننده · تماس راننده</td>
                                 <td>اختیاری</td>
                             </tr>
                             <tr>
@@ -2223,7 +2240,8 @@
                 'contractId', 'loadingDate', 'importedTransportReference',
                 'billOfLadingNumber', 'wagonNumber', 'routeDescription',
                 'logisticsCompanyName', 'logisticsServiceProviderId', 'operationalAssetId',
-                'consigneeName', 'destinationName', 'loadedQuantityMt', 'plattsUsd',
+                'consigneeName', 'destinationName', 'transitNumber', 'driverName',
+                'driverPhone', 'loadedQuantityMt', 'plattsUsd',
                 'loadingPriceUsd', 'freightRateUsdPerMt', 'transportExpenseUsd',
                 'warehouseExpenseUsd', 'otherExpenseUsd', 'chargeableQuantityMt',
                 'railwayRateUsd', 'railwayExpenseUsd', 'settlementCurrencyCode',

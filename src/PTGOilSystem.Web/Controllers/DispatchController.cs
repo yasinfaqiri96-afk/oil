@@ -404,16 +404,12 @@ public partial class DispatchController : Controller
 
     private async Task PopulateDirectFromReceiptSaleLookupsAsync(DispatchDirectFromReceiptSaleCreateViewModel model)
     {
-        ViewBag.Customers = new SelectList(
-            await _db.Customers
-                .AsNoTracking()
-                .Where(c => c.IsActive)
-                .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
-                .ToListAsync(),
-            "Id",
-            "Name",
-            model.CustomerId);
+        var saleCustomers = await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name }).ToListAsync();
+        var saleSuppliers = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).OrderBy(s => s.Name)
+            .Select(s => new { s.Id, s.Name }).ToListAsync();
+        ViewBag.Buyers = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.BuildOptions(
+            saleCustomers.Select(c => (c.Id, c.Name)), saleSuppliers.Select(s => (s.Id, s.Name)), model.BuyerKey);
 
         ViewBag.Currencies = new SelectList(
             await _db.Currencies
@@ -2006,7 +2002,6 @@ public partial class DispatchController : Controller
         var model = new DispatchDirectFromReceiptSaleCreateViewModel
         {
             TruckDispatchId = dispatch.Id,
-            CustomerId = 0,
             SaleDate = _businessClock.Today,
             // پیش‌فرض = باقی‌ماندهٔ مقدار واقعیِ تخلیه‌شده (شامل اضافه‌بار).
             QuantityMt = remainingQuantityMt,
@@ -2072,12 +2067,19 @@ public partial class DispatchController : Controller
             ModelState.AddModelError(string.Empty, "Dispatch source loading context is missing.");
         }
 
-        var customer = model.CustomerId > 0
-            ? await _db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == model.CustomerId && c.IsActive)
-            : null;
-        if (customer is null)
+        if (model.CustomerId.HasValue == model.SupplierId.HasValue)
         {
-            ModelState.AddModelError(nameof(model.CustomerId), "Customer is required.");
+            ModelState.AddModelError(nameof(model.BuyerKey), "Exactly one buyer is required.");
+        }
+        else if (model.CustomerId.HasValue
+            && !await _db.Customers.AsNoTracking().AnyAsync(c => c.Id == model.CustomerId.Value && c.IsActive))
+        {
+            ModelState.AddModelError(nameof(model.BuyerKey), "Customer is invalid.");
+        }
+        else if (model.SupplierId.HasValue
+            && !await _db.Suppliers.AsNoTracking().AnyAsync(s => s.Id == model.SupplierId.Value && s.IsActive))
+        {
+            ModelState.AddModelError(nameof(model.BuyerKey), "Supplier is invalid.");
         }
 
         var hasActiveCurrencies = await _db.Currencies.AsNoTracking().AnyAsync(c => c.IsActive);
@@ -2171,6 +2173,7 @@ public partial class DispatchController : Controller
             ContractId = null,
             CompanyId = sourcePurchaseContract!.CompanyId,
             CustomerId = model.CustomerId,
+            SupplierId = model.SupplierId,
             ProductId = dispatch.ProductId,
             DestinationLocationId = dispatch.DestinationLocationId ?? allocation?.DestinationLocationId,
             ShipmentId = await ResolveDispatchShipmentIdAsync(dispatch),
@@ -2241,6 +2244,7 @@ public partial class DispatchController : Controller
                     ("ShipmentId", sale.ShipmentId),
                     ("CompanyId", sale.CompanyId),
                     ("CustomerId", sale.CustomerId),
+                    ("SupplierId", sale.SupplierId),
                     ("ProductId", sale.ProductId),
                     ("SaleStage", sale.SaleStage),
                     ("InvoiceNumber", sale.InvoiceNumber),

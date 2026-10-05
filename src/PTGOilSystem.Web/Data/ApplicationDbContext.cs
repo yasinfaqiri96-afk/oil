@@ -383,6 +383,14 @@ public class ApplicationDbContext : DbContext
         ConfigureMoney<SalesTransaction>(modelBuilder, s => s.TotalUsd);
         modelBuilder.Entity<SalesTransaction>().Property(s => s.AppliedFxRateToUsd).HasColumnType("numeric(18,6)");
         modelBuilder.Entity<SalesTransaction>().Property(s => s.Currency).HasDefaultValue("USD");
+        modelBuilder.Entity<SalesTransaction>().ToTable(t => t.HasCheckConstraint(
+            "CK_SalesTransactions_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)"));
+        modelBuilder.Entity<SalesTransaction>()
+            .HasOne(s => s.Supplier)
+            .WithMany()
+            .HasForeignKey(s => s.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesTransaction>().HasIndex(s => s.SupplierId);
 
         ConfigureMoney<ExpenseRule>(modelBuilder, r => r.Amount);
         ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.Amount);
@@ -1548,6 +1556,15 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(b => b.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<SalesBatch>()
+            .HasOne(b => b.Supplier)
+            .WithMany()
+            .HasForeignKey(b => b.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesBatch>().ToTable(t => t.HasCheckConstraint(
+            "CK_SalesBatches_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)"));
+        modelBuilder.Entity<SalesBatch>().HasIndex(b => b.SupplierId);
+
         ConfigureWeight<SalesBatch>(modelBuilder, b => b.TotalQuantityMt);
         ConfigureMoney<SalesBatch>(modelBuilder, b => b.UnitPriceInCurrency);
         ConfigureMoney<SalesBatch>(modelBuilder, b => b.TotalInCurrency);
@@ -1570,6 +1587,15 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(o => o.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PreSaleOrder>()
+            .HasOne(o => o.Supplier)
+            .WithMany()
+            .HasForeignKey(o => o.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PreSaleOrder>().ToTable(t => t.HasCheckConstraint(
+            "CK_PreSaleOrders_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)"));
+        modelBuilder.Entity<PreSaleOrder>().HasIndex(o => o.SupplierId);
 
         modelBuilder.Entity<PreSaleOrder>()
             .HasOne(o => o.Product)

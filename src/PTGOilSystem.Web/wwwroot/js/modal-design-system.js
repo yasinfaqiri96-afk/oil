@@ -439,7 +439,7 @@
 
         function destinationDetailText() {
             if (activeScenario === "inventory") return selectedText("StorageTankId");
-            if (activeScenario === "sale") return selectedText("SaleCustomerId");
+            if (activeScenario === "sale") return selectedText("SaleBuyerKey");
             if (activeScenario === "truck") {
                 return [selectedText("DirectTruckId"), selectedText("DestinationLocationId")]
                     .filter(Boolean)
@@ -472,7 +472,7 @@
             setPreviewValue("reference", selectedText("ReferenceDocument"));
             setPreviewValue("terminal", selectedText("TerminalId"));
             setPreviewValue("storageTank", selectedText("StorageTankId"));
-            setPreviewValue("customer", selectedText("SaleCustomerId"));
+            setPreviewValue("customer", selectedText("SaleBuyerKey"));
             setPreviewValue("truck", selectedText("DirectTruckId"));
             setPreviewValue("driver", selectedText("DirectDriverId"));
         }
@@ -485,7 +485,7 @@
             "DestinationTerminalId",
             "DestinationStorageTankId",
             "DestinationLocationId",
-            "SaleCustomerId",
+            "SaleBuyerKey",
             "DirectTruckId",
             "DirectDriverId"
         ].forEach(function (id) {

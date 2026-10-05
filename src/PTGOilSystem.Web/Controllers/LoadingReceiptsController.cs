@@ -266,6 +266,7 @@ public partial class LoadingReceiptsController : Controller
         var normalizedQuery = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
 
         var query = _db.LoadingReceipts
+            .Where(receipt => !receipt.IsArchived)
             .AsNoTracking()
             .AsQueryable();
 
@@ -620,6 +621,7 @@ public partial class LoadingReceiptsController : Controller
                 DestinationName = normalizedDestinationName,
                 DestinationReference = normalizedDestinationReference,
                 SaleCustomerId = model.SaleCustomerId,
+                SaleSupplierId = model.SaleSupplierId,
                 SaleDate = model.SaleDate,
                 SaleCurrency = model.SaleCurrency,
                 SaleUnitPriceInCurrency = model.SaleUnitPriceInCurrency,
@@ -910,16 +912,12 @@ public partial class LoadingReceiptsController : Controller
             "Name",
             model.DestinationLocationId);
 
-        ViewBag.SaleCustomers = new SelectList(
-            await _db.Customers
-                .AsNoTracking()
-                .Where(c => c.IsActive)
-                .OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name })
-                .ToListAsync(),
-            "Id",
-            "Name",
-            model.SaleCustomerId);
+        var saleCustomers = await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name }).ToListAsync();
+        var saleSuppliers = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).OrderBy(s => s.Name)
+            .Select(s => new { s.Id, s.Name }).ToListAsync();
+        ViewBag.SaleBuyers = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.BuildOptions(
+            saleCustomers.Select(c => (c.Id, c.Name)), saleSuppliers.Select(s => (s.Id, s.Name)), model.SaleBuyerKey);
 
         ViewBag.SaleCurrencies = new SelectList(
             await _db.Currencies
@@ -964,11 +962,11 @@ public partial class LoadingReceiptsController : Controller
         static string Key(string prefix, string field)
             => string.IsNullOrWhiteSpace(prefix) ? field : $"{prefix}.{field}";
 
-        if (!line.SaleCustomerId.HasValue)
+        if (line.SaleCustomerId.HasValue == line.SaleSupplierId.HasValue)
         {
-            modelState.AddModelError(Key(prefix, nameof(line.SaleCustomerId)), "برای DirectSale انتخاب مشتری الزامی است.");
+            modelState.AddModelError(Key(prefix, nameof(line.SaleBuyerKey)), "برای DirectSale دقیقاً یک خریدار الزامی است.");
         }
-        else
+        else if (line.SaleCustomerId.HasValue)
         {
             var customerExists = await _db.Customers
                 .AsNoTracking()
@@ -977,6 +975,10 @@ public partial class LoadingReceiptsController : Controller
             {
                 modelState.AddModelError(Key(prefix, nameof(line.SaleCustomerId)), "مشتری فروش مستقیم معتبر نیست.");
             }
+        }
+        else if (!await _db.Suppliers.AsNoTracking().AnyAsync(s => s.Id == line.SaleSupplierId!.Value && s.IsActive))
+        {
+            modelState.AddModelError(Key(prefix, nameof(line.SaleBuyerKey)), "تأمین‌کننده فروش مستقیم معتبر نیست.");
         }
 
         if (!line.SaleDate.HasValue)
@@ -1051,7 +1053,8 @@ public partial class LoadingReceiptsController : Controller
         {
             ContractId = null,
             CompanyId = loading.Contract.CompanyId,
-            CustomerId = line.SaleCustomerId!.Value,
+            CustomerId = line.SaleCustomerId,
+            SupplierId = line.SaleSupplierId,
             ProductId = loading.ProductId,
             DestinationLocationId = line.DestinationLocationId,
             ShipmentId = null,
@@ -1088,7 +1091,7 @@ public partial class LoadingReceiptsController : Controller
             .Include(l => l.Vessel)
             .Include(l => l.Truck)
             .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.Id == loadingRegisterId);
+            .FirstOrDefaultAsync(l => l.Id == loadingRegisterId && !l.IsCancelled && !l.IsArchived);
 
         if (loading is null)
         {
@@ -1687,7 +1690,7 @@ public partial class LoadingReceiptsController : Controller
             try
             {
                 var lockedLoading = await LockLoadingRegisterAsync(loading.Id);
-                if (lockedLoading is null)
+                if (lockedLoading is null || lockedLoading.IsCancelled || lockedLoading.IsArchived)
                 {
                     if (transaction is not null)
                     {
@@ -1917,6 +1920,7 @@ public partial class LoadingReceiptsController : Controller
                             ("SourcePurchaseContractId", allocation.SourcePurchaseContractId),
                             ("CompanyId", sale.CompanyId),
                             ("CustomerId", sale.CustomerId),
+                            ("SupplierId", sale.SupplierId),
                             ("ProductId", sale.ProductId),
                             ("DestinationLocationId", sale.DestinationLocationId),
                             ("SaleStage", sale.SaleStage),
@@ -2153,7 +2157,7 @@ public partial class LoadingReceiptsController : Controller
 
         var selectedLoadings = await _db.LoadingRegisters
             .AsNoTracking()
-            .Where(l => model.LoadingRegisterIds.Contains(l.Id) && l.ContractId == model.ContractId)
+            .Where(l => model.LoadingRegisterIds.Contains(l.Id) && l.ContractId == model.ContractId && !l.IsCancelled && !l.IsArchived)
             .OrderBy(l => l.LoadingDate)
             .ThenBy(l => l.Id)
             .ToListAsync();
@@ -2233,7 +2237,7 @@ public partial class LoadingReceiptsController : Controller
                 foreach (var loadingId in selectedLoadingIds)
                 {
                     if (!lockedLoadingsById.TryGetValue(loadingId, out var lockedLoading)
-                        || lockedLoading.ContractId != model.ContractId)
+                        || lockedLoading.ContractId != model.ContractId || lockedLoading.IsCancelled || lockedLoading.IsArchived)
                     {
                         ModelState.AddModelError(nameof(model.LoadingRegisterIds), "یک یا چند بارگیری انتخاب‌شده در زمان ثبت قابل تایید نبود.");
                         continue;

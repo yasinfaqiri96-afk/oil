@@ -102,7 +102,11 @@ public partial class SalesController
                 && s.PreSaleOrder.Status != PreSaleOrderStatus.Closed
                 && s.PreSaleOrder.Status != PreSaleOrderStatus.Cancelled)
             .SumAsync(s => (decimal?)s.QuantityMt) ?? 0m;
-        var customerCount = await activeOrders.Select(o => o.CustomerId).Distinct().CountAsync();
+        var customerCount = await activeOrders
+            .Where(o => o.CustomerId.HasValue)
+            .Select(o => o.CustomerId!.Value)
+            .Distinct()
+            .CountAsync();
         var activeOrderCount = await activeOrders.CountAsync();
         var closedOrderCount = await _db.PreSaleOrders.AsNoTracking()
             .CountAsync(o => o.Status == PreSaleOrderStatus.Closed);
@@ -116,7 +120,7 @@ public partial class SalesController
             {
                 o.Id,
                 o.OrderNumber,
-                CustomerName = o.Customer != null ? o.Customer.Name : "",
+                CustomerName = o.Customer != null ? o.Customer.Name : (o.Supplier != null ? o.Supplier.Name : ""),
                 ProductName = o.Product != null ? o.Product.Name : "",
                 o.OrderDate,
                 o.QuantityMt,
@@ -173,7 +177,7 @@ public partial class SalesController
             {
                 o.Id,
                 o.OrderNumber,
-                CustomerName = o.Customer != null ? o.Customer.Name : "",
+                CustomerName = o.Customer != null ? o.Customer.Name : (o.Supplier != null ? o.Supplier.Name : ""),
                 ProductName = o.Product != null ? o.Product.Name : "",
                 o.OrderDate,
                 o.ExpectedDeliveryTo,
@@ -278,10 +282,7 @@ public partial class SalesController
         model.ReferenceNumber = string.IsNullOrWhiteSpace(model.ReferenceNumber) ? null : model.ReferenceNumber.Trim();
         model.PaymentTerms = string.IsNullOrWhiteSpace(model.PaymentTerms) ? null : model.PaymentTerms.Trim();
 
-        if (!await _db.Customers.AsNoTracking().AnyAsync(c => c.Id == model.CustomerId && c.IsActive))
-        {
-            ModelState.AddModelError(nameof(model.CustomerId), "مشتری انتخاب‌شده معتبر نیست.");
-        }
+        await ValidateBuyerAsync(model.CustomerId, model.SupplierId);
 
         if (!await _db.Products.AsNoTracking().AnyAsync(p => p.Id == model.ProductId && p.IsActive))
         {
@@ -329,6 +330,7 @@ public partial class SalesController
         var order = new PreSaleOrder
         {
             CustomerId = model.CustomerId,
+            SupplierId = model.SupplierId,
             ProductId = model.ProductId,
             OrderDate = model.OrderDate.Date,
             ExpectedDeliveryFrom = model.ExpectedDeliveryFrom?.Date,
@@ -361,6 +363,7 @@ public partial class SalesController
             diff: AuditDiffFormatter.ForCreate(
                 ("OrderNumber", order.OrderNumber),
                 ("CustomerId", order.CustomerId),
+                ("SupplierId", order.SupplierId),
                 ("ProductId", order.ProductId),
                 ("OrderDate", order.OrderDate),
                 ("QuantityMt", order.QuantityMt),
@@ -390,6 +393,7 @@ public partial class SalesController
         var order = await _db.PreSaleOrders
             .AsNoTracking()
             .Include(o => o.Customer)
+            .Include(o => o.Supplier)
             .Include(o => o.Product)
             .Include(o => o.Company)
             .FirstOrDefaultAsync(o => o.Id == id);
@@ -488,7 +492,9 @@ public partial class SalesController
         // دریافت‌های همین مشتری که هنوز مانده قابل تخصیص دارند (تخصیص جزئی و چندگانه مجاز است).
         var customerReceipts = await _db.PaymentTransactions
             .AsNoTracking()
-            .Where(p => p.CustomerId == order.CustomerId && p.PaymentKind == PaymentKind.CustomerReceipt)
+            .Where(p => order.CustomerId.HasValue
+                && p.CustomerId == order.CustomerId.Value
+                && p.PaymentKind == PaymentKind.CustomerReceipt)
             .OrderByDescending(p => p.PaymentDate)
             .Take(100)
             .Select(p => new
@@ -535,7 +541,8 @@ public partial class SalesController
             Id = order.Id,
             OrderNumber = order.OrderNumber,
             CustomerId = order.CustomerId,
-            CustomerName = order.Customer?.Name ?? "",
+            IsSupplierBuyer = order.SupplierId.HasValue,
+            CustomerName = order.Customer?.Name ?? order.Supplier?.Name ?? "",
             ProductName = order.Product?.Name ?? "",
             CompanyName = order.Company?.Name,
             OrderDate = order.OrderDate,
@@ -643,6 +650,7 @@ public partial class SalesController
             var lineModel = new GroupSaleCreateViewModel
             {
                 CustomerId = locked.CustomerId,
+                SupplierId = locked.SupplierId,
                 SaleDate = model.DeliveryDate.Date,
                 Currency = locked.Currency,
                 UnitPriceInCurrency = locked.UnitPriceInCurrency,
@@ -855,9 +863,18 @@ public partial class SalesController
         decimal amount,
         DateTime? allocationDate = null)
     {
-        if (!await _db.PreSaleOrders.AsNoTracking().AnyAsync(o => o.Id == id))
+        var buyer = await _db.PreSaleOrders.AsNoTracking()
+            .Where(o => o.Id == id)
+            .Select(o => new { o.CustomerId, o.SupplierId })
+            .FirstOrDefaultAsync();
+        if (buyer is null)
         {
             return NotFound();
+        }
+        if (buyer.SupplierId.HasValue || !buyer.CustomerId.HasValue)
+        {
+            TempData["err"] = "تخصیص دریافت مشتری برای پیش‌فروش به تأمین‌کننده مجاز نیست.";
+            return RedirectToAction(nameof(PreSaleDetails), new { id });
         }
 
         IDbContextTransaction? transaction = null;
@@ -950,10 +967,7 @@ public partial class SalesController
 
     private async Task PopulatePreSaleLookupsAsync(PreSaleCreateViewModel model)
     {
-        ViewBag.Customers = new SelectList(
-            await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
-                .Select(c => new { c.Id, c.Name }).Take(LookupLimit).ToListAsync(),
-            "Id", "Name", model.CustomerId > 0 ? model.CustomerId : null);
+        await PopulateBuyerLookupAsync(model.BuyerKey);
 
         ViewBag.Products = new SelectList(
             await _db.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Name)

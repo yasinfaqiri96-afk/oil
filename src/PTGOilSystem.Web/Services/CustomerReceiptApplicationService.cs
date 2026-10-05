@@ -259,6 +259,13 @@ public sealed class CustomerReceiptApplicationService(ApplicationDbContext db)
                     $"فروش {sale.InvoiceNumber} لغو شده و تطبیق نمی‌پذیرد.");
             }
 
+            if (sale.SupplierId.HasValue)
+            {
+                throw new BusinessRuleException(
+                    "CUSTOMER_APPLICATION_SUPPLIER_SALE",
+                    $"فروش {sale.InvoiceNumber} به تأمین‌کننده ثبت شده و دریافت مشتری روی آن قابل تطبیق نیست.");
+            }
+
             if (sale.CustomerId != payment.CustomerId)
             {
                 throw new BusinessRuleException(

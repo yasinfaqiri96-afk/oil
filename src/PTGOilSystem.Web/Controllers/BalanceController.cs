@@ -516,13 +516,13 @@ public partial class BalanceController : Controller
 
         var salesQuery = _db.SalesTransactions
             .AsNoTracking()
-            .Where(s => !s.IsCancelled && customerIds.Contains(s.CustomerId));
+            .Where(s => !s.IsCancelled && s.CustomerId.HasValue && customerIds.Contains(s.CustomerId.Value));
         if (filter.FromDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate <= filter.ToDate.Value);
         var salesSummary = customerIds.Count == 0
             ? new Dictionary<int, decimal>()
             : await salesQuery
-            .GroupBy(s => s.CustomerId)
+            .GroupBy(s => s.CustomerId!.Value)
             .Select(g => new
             {
                 CustomerId = g.Key,

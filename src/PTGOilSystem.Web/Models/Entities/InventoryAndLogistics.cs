@@ -168,6 +168,8 @@ public class InventoryMovement : BaseEntity
 
 public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchable
 {
+    public bool IsCancelled { get; set; }
+    public bool IsArchived { get; set; }
     /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
     public long Version { get; set; } = 1;
 
@@ -197,6 +199,10 @@ public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchabl
     [MaxLength(200)] public string? LogisticsCompanyName { get; set; }
     [MaxLength(200)] public string? ConsigneeName { get; set; }
     [MaxLength(200)] public string? DestinationName { get; set; }
+    // مشخصات اختیاری حمل هر سطر بارگیری (فقط ثبت/نمایش).
+    [MaxLength(100)] public string? TransitNumber { get; set; }
+    [MaxLength(200)] public string? DriverName { get; set; }
+    [MaxLength(50)] public string? DriverPhone { get; set; }
     public decimal? PlattsUsd { get; set; }
     public decimal? LoadingPriceUsd { get; set; }
     public decimal? FreightRateUsdPerMt { get; set; }
@@ -238,6 +244,7 @@ public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchabl
 
 public class LoadingReceipt : BaseEntity
 {
+    public bool IsArchived { get; set; }
     public int LoadingRegisterId { get; set; }
     public LoadingRegister? LoadingRegister { get; set; }
     public LoadingReceiptDestination ReceiptDestination { get; set; } = LoadingReceiptDestination.ToInventory;

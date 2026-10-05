@@ -88,7 +88,7 @@ public class ClientModuleProfileTests
         Assert.True(profile.SimplePurchaseEnabled);
         foreach (var hidden in new[]
                  {
-                     "Loading", "LoadingReceipts", "InventoryTransportLegs", "Transports", "Shipments",
+                     "Shipments",
                      "ShipmentPnl", "Dispatch", "CustomsDeclarations", "QualityInspections", "Wagons", "Vessels",
                      "Partners", "Sarrafs", "SarrafSettlements", "Employees", "Payroll", "OperationalAssets", "PlattsRates"
                  })
@@ -98,6 +98,8 @@ public class ClientModuleProfileTests
 
         foreach (var visible in new[]
                  {
+                     "Loading", "LoadingExcelImport", "LoadingReceipts", "InventoryTransportLegs",
+                     "InventoryTransportReceipts", "InventoryLineage", "Transports",
                      "Home", "Contracts", "Inventory", "InventoryReports", "StorageTanks", "Sales", "Payments",
                      "PartySettlements", "PartyStatements", "Customers", "Suppliers", "ServiceProviders", "Drivers",
                      "Trucks", "Expenses", "LossEvents", "Reports", "Products", "Units", "Currencies", "DailyFxRates",
@@ -111,10 +113,22 @@ public class ClientModuleProfileTests
     [Fact]
     public async Task Hidden_Module_Direct_Url_Is_Blocked_Even_For_Admin()
     {
-        var context = await RunFilterAsync(FarjadProfile(), "Loading", SignedInUser(AuthRoles.Admin));
+        var context = await RunFilterAsync(FarjadProfile(), "Shipments", SignedInUser(AuthRoles.Admin));
 
         var redirect = Assert.IsType<RedirectToActionResult>(context.Result);
         Assert.Equal("AccessDenied", redirect.ActionName);
+    }
+
+    [Theory]
+    [InlineData("Loading")]
+    [InlineData("LoadingReceipts")]
+    [InlineData("InventoryTransportLegs")]
+    [InlineData("InventoryTransportReceipts")]
+    [InlineData("Transports")]
+    public async Task Farjad_Operational_Controllers_Are_Open_For_Admin(string controller)
+    {
+        var context = await RunFilterAsync(FarjadProfile(), controller, SignedInUser(AuthRoles.Admin));
+        Assert.Null(context.Result);
     }
 
     [Fact]

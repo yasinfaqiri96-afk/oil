@@ -43,20 +43,24 @@ public sealed class SaleCorrectionWorkflowTests
                 new ActionDescriptor())),
         };
 
-    private static async Task<ApplicationDbContext> SeedPostedSaleAsync(DbContextOptions<ApplicationDbContext> options)
+    private static async Task<ApplicationDbContext> SeedPostedSaleAsync(
+        DbContextOptions<ApplicationDbContext> options,
+        bool supplierBuyer = false)
     {
         var db = new ApplicationDbContext(options);
 
         db.Currencies.Add(new Currency { Id = 1, Code = "USD", Name = "US Dollar", Symbol = "$", IsActive = true });
         db.Companies.Add(new Company { Id = 1, Code = "PTG", Name = "PTG" });
         db.Customers.Add(new Customer { Id = 1, Name = "Herat Market" });
+        db.Suppliers.Add(new Supplier { Id = 2, Name = "Supplier Buyer" });
         db.Products.Add(new Product { Id = 1, Code = "GO", Name = "Gas Oil" });
 
         var sale = new SalesTransaction
         {
             Id = SaleId,
             CompanyId = 1,
-            CustomerId = 1,
+            CustomerId = supplierBuyer ? null : 1,
+            SupplierId = supplierBuyer ? 2 : null,
             ProductId = 1,
             SaleStage = SaleStage.InTransit,
             InvoiceNumber = "INV-501",
@@ -87,6 +91,7 @@ public sealed class SaleCorrectionWorkflowTests
             Description = "ثبت فروش",
             Reference = sale.InvoiceNumber,
             CustomerId = sale.CustomerId,
+            SupplierId = sale.SupplierId,
         });
         await db.SaveChangesAsync();
 
@@ -169,6 +174,29 @@ public sealed class SaleCorrectionWorkflowTests
         Assert.Single(ledgers, l => l.Side == LedgerSide.Credit);
         Assert.Single(ledgers, l => l.Side == LedgerSide.Debit);
         Assert.Equal(0m, ledgers.Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd));
+    }
+
+    [Fact]
+    public async Task Supplier_Correction_Reverses_The_Same_Supplier_And_Prefills_Replacement()
+    {
+        var options = NewDbOptions();
+        await using var db = await SeedPostedSaleAsync(options, supplierBuyer: true);
+        var controller = BuildController(db);
+
+        await controller.Cancel(SaleId, cancelReason: "Supplier correction", createReplacement: true);
+
+        var ledgers = await db.LedgerEntries.AsNoTracking()
+            .Where(l => l.SourceType == "Sale" && l.SourceId == SaleId)
+            .ToListAsync();
+        Assert.Equal(2, ledgers.Count);
+        Assert.All(ledgers, l => Assert.Equal(2, l.SupplierId));
+        Assert.All(ledgers, l => Assert.Null(l.CustomerId));
+        Assert.Equal(0m, ledgers.Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd));
+
+        var view = Assert.IsType<ViewResult>(await controller.Create(correctedFromSaleId: SaleId));
+        var model = Assert.IsType<SalesCreateViewModel>(view.Model);
+        Assert.Equal(2, model.SupplierId);
+        Assert.Null(model.CustomerId);
     }
 
     [Fact]

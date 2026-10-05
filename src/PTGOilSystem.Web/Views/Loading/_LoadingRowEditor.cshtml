@@ -272,6 +272,12 @@
 
         <td><input name="@($"{prefix}.DestinationName")" value="@Model.Row.DestinationName" class="ak-input" /></td>
 
+        <td><input name="@($"{prefix}.TransitNumber")" value="@Model.Row.TransitNumber" class="ak-input text-center" maxlength="100" aria-label="نمبر ترانزیت" /></td>
+
+        <td><input name="@($"{prefix}.DriverName")" value="@Model.Row.DriverName" class="ak-input" maxlength="200" aria-label="نام راننده" /></td>
+
+        <td><input name="@($"{prefix}.DriverPhone")" value="@Model.Row.DriverPhone" type="tel" dir="ltr" class="ak-input text-center" maxlength="50" aria-label="شماره تماس راننده" /></td>
+
         <td class="ak-col-actions">
             <button type="button" class="ak-row-menu-btn" data-loading-row-remove aria-label="حذف سطر" title="حذف سطر">
                 <i class="bi bi-trash-fill"></i>

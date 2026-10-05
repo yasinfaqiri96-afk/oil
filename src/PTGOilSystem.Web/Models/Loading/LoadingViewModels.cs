@@ -136,6 +136,18 @@ public sealed class LoadingCreateRowViewModel
     [StringLength(200)]
     public string? DestinationName { get; set; }
 
+    [Display(Name = "نمبر ترانزیت")]
+    [StringLength(100)]
+    public string? TransitNumber { get; set; }
+
+    [Display(Name = "نام راننده")]
+    [StringLength(200)]
+    public string? DriverName { get; set; }
+
+    [Display(Name = "شماره تماس راننده")]
+    [StringLength(50)]
+    public string? DriverPhone { get; set; }
+
     [Display(Name = "مقدار بارگیری‌شده (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مقدار بارگیری باید بزرگ‌تر از صفر باشد.")]
     public decimal LoadedQuantityMt { get; set; }
@@ -225,6 +237,7 @@ public sealed class LoadingCreateRowEditorViewModel
 
 public sealed class LoadingListItemViewModel
 {
+    public bool IsCancelled { get; init; }
     public int Id { get; init; }
     public int ContractId { get; init; }
     public DateTime LoadingDate { get; init; }
@@ -306,6 +319,9 @@ public sealed class LoadingDetailsViewModel
     public string? LogisticsCompanyName { get; init; }
     public string? ConsigneeName { get; init; }
     public string? DestinationName { get; init; }
+    public string? TransitNumber { get; init; }
+    public string? DriverName { get; init; }
+    public string? DriverPhone { get; init; }
     public decimal? PlattsUsd { get; init; }
     public decimal? LoadingPriceUsd { get; init; }
     public decimal? LoadingValueUsd { get; init; }
@@ -554,6 +570,18 @@ public sealed class LoadingEditViewModel
     [StringLength(200)]
     public string? DestinationName { get; set; }
 
+    [Display(Name = "نمبر ترانزیت")]
+    [StringLength(100)]
+    public string? TransitNumber { get; set; }
+
+    [Display(Name = "نام راننده")]
+    [StringLength(200)]
+    public string? DriverName { get; set; }
+
+    [Display(Name = "شماره تماس راننده")]
+    [StringLength(50)]
+    public string? DriverPhone { get; set; }
+
     [Display(Name = "نام شرکت لجستیک (دستی)")]
     [StringLength(200)]
     public string? LogisticsCompanyName { get; set; }
@@ -690,6 +718,13 @@ public sealed class LoadingReceiptCreateViewModel
 
     [Display(Name = "مشتری فروش مستقیم")]
     public int? SaleCustomerId { get; set; }
+    public int? SaleSupplierId { get; set; }
+    [Display(Name = "خریدار فروش مستقیم")]
+    public string? SaleBuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(SaleCustomerId, SaleSupplierId);
+        set => (SaleCustomerId, SaleSupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
 
     [Display(Name = "تاریخ فروش مستقیم")]
     [DataType(DataType.Date)]
@@ -884,6 +919,13 @@ public sealed class LoadingReceiptBulkLineInput
     // فروش مستقیم
     [Display(Name = "مشتری فروش مستقیم")]
     public int? SaleCustomerId { get; set; }
+    public int? SaleSupplierId { get; set; }
+    [Display(Name = "خریدار فروش مستقیم")]
+    public string? SaleBuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(SaleCustomerId, SaleSupplierId);
+        set => (SaleCustomerId, SaleSupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
 
     [Display(Name = "تاریخ فروش مستقیم")]
     [DataType(DataType.Date)]
@@ -989,6 +1031,13 @@ public sealed class LoadingReceiptAllocationLineInput
 
     [Display(Name = "مشتری فروش مستقیم")]
     public int? SaleCustomerId { get; set; }
+    public int? SaleSupplierId { get; set; }
+    [Display(Name = "خریدار فروش مستقیم")]
+    public string? SaleBuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(SaleCustomerId, SaleSupplierId);
+        set => (SaleCustomerId, SaleSupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
 
     [Display(Name = "تاریخ فروش مستقیم")]
     [DataType(DataType.Date)]

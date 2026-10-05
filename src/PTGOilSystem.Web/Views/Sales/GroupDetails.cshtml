@@ -13,7 +13,7 @@
     var liveTotalUsd = activeLines.Sum(l => l.TotalUsd);
     var cancelledCount = Model.Lines.Count - activeLines.Count;
     var openLines = activeLines.Where(l => l.OpenReceivableUsd > 0m).ToList();
-    var canApplyReceipt = !Model.IsCancelled && Model.ApplicableReceipts.Count > 0 && openLines.Count > 0;
+    var canApplyReceipt = !Model.IsSupplierBuyer && !Model.IsCancelled && Model.ApplicableReceipts.Count > 0 && openLines.Count > 0;
     var firstReceipt = Model.ApplicableReceipts.FirstOrDefault();
 
     ViewData["AkHeaderStatus"] = Model.IsCancelled ? T("لغو شده", "Cancelled") : T("فعال", "Active");
@@ -51,7 +51,7 @@
 
     var identityItems = new List<AkInfoItem>
     {
-        new() { Label = T("مشتری", "Customer"), Value = Model.CustomerName },
+        new() { Label = T("خریدار", "Buyer"), Value = Model.CustomerName },
         new() { Label = T("تاریخ فروش", "Sale date"), Value = Model.SaleDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("ارز", "Currency"), Value = Model.Currency },
         new() { Label = T("نرخ هر تن", "Unit price"), Value = Model.UnitPriceInCurrency.ToString("N2"), Unit = Model.Currency, IsNumeric = true },

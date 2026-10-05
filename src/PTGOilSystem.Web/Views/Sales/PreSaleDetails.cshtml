@@ -22,7 +22,7 @@
     };
     var isOpenOrder = Model.Status != PreSaleOrderStatus.Cancelled && Model.Status != PreSaleOrderStatus.Closed;
     var canRecordDelivery = Model.CanDeliver && Model.RemainingMt > 0m;
-    var canAllocatePayment = Model.AllocatablePayments.Count > 0 && Model.UnallocatedOrderUsd > 0m;
+    var canAllocatePayment = !Model.IsSupplierBuyer && Model.AllocatablePayments.Count > 0 && Model.UnallocatedOrderUsd > 0m;
 
     ViewData["AkHeaderStatus"] = statusText;
     ViewData["AkHeaderStatusState"] = statusState;
@@ -64,7 +64,7 @@
 
     var identityItems = new List<AkInfoItem>
     {
-        new() { Label = T("مشتری", "Customer"), Value = Model.CustomerName },
+        new() { Label = T("خریدار", "Buyer"), Value = Model.CustomerName },
         new() { Label = T("کالا", "Product"), Value = Model.ProductName },
         new() { Label = T("تاریخ سفارش", "Order date"), Value = Model.OrderDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("ارز", "Currency"), Value = Model.Currency },

@@ -95,6 +95,24 @@
                 </div>
 
                 <div class="ak-field">
+                    <label asp-for="TransitNumber" class="ak-label"></label>
+                    <input asp-for="TransitNumber" class="ak-input" placeholder="اختیاری" />
+                    <span asp-validation-for="TransitNumber" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field">
+                    <label asp-for="DriverName" class="ak-label"></label>
+                    <input asp-for="DriverName" class="ak-input" placeholder="اختیاری" />
+                    <span asp-validation-for="DriverName" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field">
+                    <label asp-for="DriverPhone" class="ak-label"></label>
+                    <input asp-for="DriverPhone" type="tel" dir="ltr" class="ak-input" placeholder="اختیاری" />
+                    <span asp-validation-for="DriverPhone" class="ak-field-error"></span>
+                </div>
+
+                <div class="ak-field">
                     <label asp-for="LogisticsCompanyName" class="ak-label"></label>
                     <input asp-for="LogisticsCompanyName" class="ak-input" placeholder="نام شرکت لجستیک (در صورت نبود در لیست)" />
                     <div class="form-text">فقط در صورتی که شرکت لجستیک از طریق لیست انتخاب نشده باشد قابل ویرایش است.</div>

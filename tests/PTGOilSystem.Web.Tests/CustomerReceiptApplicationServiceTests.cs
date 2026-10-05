@@ -174,6 +174,38 @@ public class CustomerReceiptApplicationServiceTests
     }
 
     [Fact]
+    public async Task A_Customer_Receipt_Cannot_Be_Applied_To_A_Supplier_Sale()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        db.Suppliers.Add(new Supplier { Id = 7, Name = "Supplier Buyer" });
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = 1,
+            InvoiceNumber = "INV-SUP-1",
+            SupplierId = 7,
+            ProductId = 1,
+            SaleDate = new DateTime(2026, 5, 1),
+            QuantityMt = 20m,
+            Currency = "USD",
+            UnitPriceInCurrency = 50m,
+            AppliedFxRateToUsd = 1m,
+            UnitPriceUsd = 50m,
+            TotalInCurrency = 1_000m,
+            TotalUsd = 1_000m
+        });
+        AddReceipt(db, id: 1, amount: 1_000m);
+        await db.SaveChangesAsync();
+
+        var service = new CustomerReceiptApplicationService(db);
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.ApplyAsync(
+            new CustomerReceiptApplyRequest(1, [new CustomerReceiptApplicationLine(1, 1_000m)])));
+
+        Assert.Equal("CUSTOMER_APPLICATION_SUPPLIER_SALE", ex.Code);
+        Assert.Empty(db.CustomerPaymentAllocationApplications);
+    }
+
+    [Fact]
     public async Task An_Advance_Receipt_Keeps_Using_The_PreSale_Allocation_Path()
     {
         await using var db = NewDb();

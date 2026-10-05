@@ -307,7 +307,7 @@ public partial class ContractJourneyController : Controller
             .Include(l => l.Vessel)
             .Include(l => l.Truck)
             .AsNoTracking()
-            .Where(l => l.ContractId == contractId)
+            .Where(l => l.ContractId == contractId && !l.IsArchived && !l.IsCancelled)
             .OrderBy(l => l.LoadingDate)
             .ThenBy(l => l.Id)
             .ToListAsync();

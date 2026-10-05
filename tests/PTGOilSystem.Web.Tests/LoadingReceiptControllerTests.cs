@@ -776,7 +776,7 @@ public class LoadingReceiptControllerTests
         var view = Assert.IsType<ViewResult>(result);
         Assert.IsType<LoadingReceiptCreateViewModel>(view.Model);
         Assert.False(controller.ModelState.IsValid);
-        Assert.Contains(controller.ModelState.Keys, key => key.Contains(nameof(LoadingReceiptCreateViewModel.SaleCustomerId)));
+        Assert.Contains(controller.ModelState.Keys, key => key.Contains(nameof(LoadingReceiptCreateViewModel.SaleBuyerKey)));
         Assert.Contains(controller.ModelState.Keys, key => key.Contains(nameof(LoadingReceiptCreateViewModel.SaleUnitPriceInCurrency)));
         Assert.Contains(controller.ModelState.Keys, key => key.Contains(nameof(LoadingReceiptCreateViewModel.SaleInvoiceNumber)));
         Assert.Equal(0, await db.LoadingReceipts.CountAsync());

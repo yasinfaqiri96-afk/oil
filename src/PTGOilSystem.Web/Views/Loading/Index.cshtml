@@ -170,16 +170,17 @@
                                 <span class="ak-num">@(item.LoadingValueUsd.HasValue ? NumberDisplay.Money(item.LoadingValueUsd.Value, "USD") : "-")</span>
                             </td>
                             <td>
-                                <span class="ak-status @(item.IsPricePending ?"is-inactive" : "is-active")">@(item.IsPricePending ? UiText.T(Context,"نرخ معطل","Price pending") : UiText.T(Context,"تکمیل","Complete"))</span>
+                                <span class="ak-status @(item.IsCancelled || item.IsPricePending ?"is-inactive" : "is-active")">@(item.IsCancelled ? UiText.T(Context,"لغوشده","Cancelled") : item.IsPricePending ? UiText.T(Context,"نرخ معطل","Price pending") : UiText.T(Context,"تکمیل","Complete"))</span>
                             </td>
                             <td class="ak-col-actions">
-                                <div class="dropdown ak-row-menu">
+                                <div class="dropdown ak-row-menu" data-ak-static-row-menu="true">
                                     <button type="button"
                                             class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false"
                                             aria-label="@UiText.T(Context,"عملیات","Actions")">
                                         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><partial name="_LifecycleActionForms" model="@(("Loading", item.Id, item.IsCancelled, currentUrl))" /></li>
                                         <li><a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@currentUrl" class="dropdown-item"><i class="bi bi-eye"></i> @UiText.T(Context,"جزئیات","Details")</a></li>
                                         <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#loadingIndexExpensesModal" data-loading-expense-trigger="true" data-expense-url="@Url.Action("EditExpenses", "Loading", new { id = item.Id, returnUrl = currentUrl, modal = true })"><i class="bi bi-receipt"></i> @UiText.T(Context,"مصارف","Expenses")</button></li>
                                     </ul>

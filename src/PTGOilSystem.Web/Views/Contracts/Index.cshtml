@@ -129,12 +129,19 @@
                             <td>@productText</td>
                             <td><span class="ak-status @ContractStatusToneClass(item)">@CardStatusText(item)</span></td>
                             <td class="ak-col-actions no-print">
-                                <div class="ak-row-menu dropdown">
+                                <div class="ak-row-menu dropdown" data-ak-static-row-menu="true">
                                     <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@item.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true"><i class="bi bi-eye"></i> @T("جزئیات", "Details")</a></li>
                                         <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil"></i> @T("ویرایش", "Edit")</a></li>
                                         <li><a class="dropdown-item" asp-action="EditPricing" asp-route-id="@item.Id" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-size="compact" data-page-modal-title="@T("وارد کردن قیمت قرارداد", "Enter contract price")"><i class="bi bi-cash-coin"></i> @T("وارد کردن قیمت قرارداد", "Enter contract price")</a></li>
+                                        @if (PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User))
+                                        {
+                                            <li><hr class="dropdown-divider" /></li>
+                                            <li>
+                                                <partial name="_LifecycleActionForms" model="@(("Contracts", item.Id, item.Status == ContractStatus.Cancelled, currentReturnUrl))" />
+                                            </li>
+                                        }
                                     </ul>
                                 </div>
                             </td>

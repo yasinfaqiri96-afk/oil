@@ -612,6 +612,9 @@ public partial class LoadingController : Controller
             ("LogisticsCompanyName", loading.LogisticsCompanyName),
             ("ConsigneeName", loading.ConsigneeName),
             ("DestinationName", loading.DestinationName),
+            ("TransitNumber", loading.TransitNumber),
+            ("DriverName", loading.DriverName),
+            ("DriverPhone", loading.DriverPhone),
             ("PlattsUsd", loading.PlattsUsd),
             ("LoadingPriceUsd", loading.LoadingPriceUsd),
             ("SettlementCurrencyCode", loading.SettlementCurrencyCode),
@@ -724,11 +727,18 @@ public partial class LoadingController : Controller
                 .OrderBy(c => c.Name)
                 .Select(c => new LookupOption(c.Id, c.Name))
                 .ToListAsync());
-        ViewBag.SaleCustomers = new SelectList(
-            customerLookups,
-            "Id",
-            "Name",
-            model.SaleCustomerId);
+        var supplierLookups = await GetCachedLookupAsync(
+            "loading:receipt:suppliers:v1",
+            () => _db.Suppliers
+                .AsNoTracking()
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .Select(s => new LookupOption(s.Id, s.Name))
+                .ToListAsync());
+        ViewBag.SaleBuyers = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.BuildOptions(
+            customerLookups.Select(c => (c.Id, c.Name)),
+            supplierLookups.Select(s => (s.Id, s.Name)),
+            model.SaleBuyerKey);
 
         var truckLookups = await GetCachedLookupAsync(
             "loading:receipt:trucks:v1",
@@ -799,7 +809,7 @@ public partial class LoadingController : Controller
             FromDate = fromDate,
             ToDate = toDate
         };
-        var query = LoadingListFilter.Apply(_db.LoadingRegisters.AsNoTracking(), filterCriteria);
+        var query = LoadingListFilter.Apply(_db.LoadingRegisters.AsNoTracking().Where(l => !l.IsArchived), filterCriteria);
 
         string? contractNumber = null;
         if (singleContractId.HasValue)
@@ -819,10 +829,10 @@ public partial class LoadingController : Controller
             .Select(g => new
             {
                 TotalCount = g.Count(),
-                SumQuantity = g.Sum(l => l.LoadedQuantityMt),
-                SumValue = g.Sum(l => l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m)),
+                SumQuantity = g.Sum(l => l.IsCancelled ? 0m : l.LoadedQuantityMt),
+                SumValue = g.Sum(l => l.IsCancelled ? 0m : l.LoadedQuantityMt * (l.LoadingPriceUsd ?? 0m)),
                 SumReceivedQuantity = g.Sum(l => l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m),
-                PricePendingCount = g.Count(l => l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m)
+                PricePendingCount = g.Count(l => !l.IsCancelled && (l.LoadingPriceUsd == null || l.LoadingPriceUsd <= 0m))
             })
             .FirstOrDefaultAsync();
 
@@ -840,6 +850,7 @@ public partial class LoadingController : Controller
                 l.Id,
                 l.ContractId,
                 l.LoadingDate,
+                l.IsCancelled,
                 l.TransportType,
                 l.VesselId,
                 l.TruckId,
@@ -890,6 +901,7 @@ public partial class LoadingController : Controller
                     Id = l.Id,
                     ContractId = l.ContractId,
                     LoadingDate = l.LoadingDate,
+                    IsCancelled = l.IsCancelled,
                     TransportType = transportType,
                     TransportTypeLabel = GetTransportTypeLabel(transportType),
                     ContractName = l.ContractName,
@@ -1821,6 +1833,9 @@ public partial class LoadingController : Controller
                         LogisticsCompanyName = row.LogisticsCompanyName,
                         ConsigneeName = row.ConsigneeName,
                         DestinationName = row.DestinationName,
+                        TransitNumber = row.TransitNumber,
+                        DriverName = row.DriverName,
+                        DriverPhone = row.DriverPhone,
                         PlattsUsd = row.PlattsUsd,
                         LoadingPriceUsd = row.LoadingPriceUsd,
                         FreightRateUsdPerMt = row.FreightRateUsdPerMt,
@@ -1956,10 +1971,24 @@ public partial class LoadingController : Controller
             TempData["err"] = "این بارگیری قبلاً ثبت شده است و دوباره ثبت نشد.";
             return RedirectToAction(nameof(Index));
         }
+        catch (Exception ex) when (ex is BusinessRuleException
+            or LedgerPostingValidationException
+            or ExpenseSettlementValidationException
+            or PTGOilSystem.Web.Services.Accounting.AccountingValidationException)
+        {
+            // پیام این استثناها برای کاربر نوشته شده است؛ علت واقعی نشان داده می‌شود نه پیام عمومی.
+            _logger.LogWarning(ex, "Loading register create was rejected by a business rule.");
+            ModelState.AddModelError(string.Empty, $"ثبت بارگیری انجام نشد: {ex.Message}");
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create loading register.");
-            ModelState.AddModelError(string.Empty, "ثبت loading report انجام نشد. دوباره تلاش کنید.");
+            var traceId = HttpContext?.TraceIdentifier;
+            _logger.LogError(ex, "Failed to create loading register. TraceId: {TraceId}", traceId);
+            ModelState.AddModelError(
+                string.Empty,
+                string.IsNullOrWhiteSpace(traceId)
+                    ? "ثبت بارگیری به‌دلیل خطای غیرمنتظره انجام نشد. دوباره تلاش کنید."
+                    : $"ثبت بارگیری به‌دلیل خطای غیرمنتظره انجام نشد. دوباره تلاش کنید. کد پیگیری: {traceId}");
         }
 
         await PopulateLookupsAsync(model);
@@ -2126,6 +2155,9 @@ public partial class LoadingController : Controller
             LogisticsCompanyName = loading.LogisticsServiceProvider?.Name ?? loading.LogisticsCompanyName,
             ConsigneeName = loading.ConsigneeName,
             DestinationName = loading.DestinationName,
+            TransitNumber = loading.TransitNumber,
+            DriverName = loading.DriverName,
+            DriverPhone = loading.DriverPhone,
             PlattsUsd = loading.PlattsUsd,
             LoadingPriceUsd = loading.LoadingPriceUsd,
             LoadingValueUsd = CalculateLoadingValueUsd(loading.LoadedQuantityMt, loading.LoadingPriceUsd),
@@ -2381,6 +2413,9 @@ public partial class LoadingController : Controller
             RouteDescription = loading.RouteDescription,
             ConsigneeName = loading.ConsigneeName,
             DestinationName = loading.DestinationName,
+            TransitNumber = loading.TransitNumber,
+            DriverName = loading.DriverName,
+            DriverPhone = loading.DriverPhone,
             LogisticsCompanyName = loading.LogisticsServiceProvider?.Name ?? loading.LogisticsCompanyName,
             Notes = loading.Notes,
             ReturnUrl = returnUrl
@@ -2424,6 +2459,9 @@ public partial class LoadingController : Controller
         model.RouteDescription = NormalizeNullable(model.RouteDescription);
         model.ConsigneeName = NormalizeNullable(model.ConsigneeName);
         model.DestinationName = NormalizeNullable(model.DestinationName);
+        model.TransitNumber = NormalizeNullable(model.TransitNumber);
+        model.DriverName = NormalizeNullable(model.DriverName);
+        model.DriverPhone = NormalizeNullable(model.DriverPhone);
         model.LogisticsCompanyName = NormalizeNullable(model.LogisticsCompanyName);
         model.Notes = NormalizeNullable(model.Notes);
         model.LoadingPriceUsd = NormalizePositiveDecimal(model.LoadingPriceUsd);
@@ -2473,6 +2511,9 @@ public partial class LoadingController : Controller
             ("RouteDescription", loading.RouteDescription, model.RouteDescription),
             ("ConsigneeName", loading.ConsigneeName, model.ConsigneeName),
             ("DestinationName", loading.DestinationName, model.DestinationName),
+            ("TransitNumber", loading.TransitNumber, model.TransitNumber),
+            ("DriverName", loading.DriverName, model.DriverName),
+            ("DriverPhone", loading.DriverPhone, model.DriverPhone),
             ("LogisticsCompanyName", loading.LogisticsCompanyName, model.LogisticsCompanyName),
             ("Notes", loading.Notes, model.Notes));
 
@@ -2485,6 +2526,9 @@ public partial class LoadingController : Controller
         loading.RouteDescription = model.RouteDescription;
         loading.ConsigneeName = model.ConsigneeName;
         loading.DestinationName = model.DestinationName;
+        loading.TransitNumber = model.TransitNumber;
+        loading.DriverName = model.DriverName;
+        loading.DriverPhone = model.DriverPhone;
         if (loading.LogisticsServiceProviderId is null)
         {
             loading.LogisticsCompanyName = model.LogisticsCompanyName;
@@ -4649,6 +4693,9 @@ public partial class LoadingController : Controller
         if (row.OperationalAssetId <= 0) row.OperationalAssetId = null;
         row.ConsigneeName = NormalizeNullable(row.ConsigneeName);
         row.DestinationName = NormalizeNullable(row.DestinationName);
+        row.TransitNumber = NormalizeNullable(row.TransitNumber);
+        row.DriverName = NormalizeNullable(row.DriverName);
+        row.DriverPhone = NormalizeNullable(row.DriverPhone);
         if (row.PlattsUsd <= 0) row.PlattsUsd = null;
         if (row.LoadingPriceUsd <= 0) row.LoadingPriceUsd = null;
         if (row.FreightRateUsdPerMt <= 0) row.FreightRateUsdPerMt = null;

@@ -681,6 +681,10 @@ public class ShellViewStructureTests
         Assert.Contains("class=\"ak-col-grow\"", view);
         Assert.Contains(">@item.DisplayLabel</a>", view);
         Assert.DoesNotContain("<div class=\"ak-muted\" dir=\"ltr\">@item.ContractNumber</div>", view);
+        Assert.Contains("<form asp-action=\"Delete\" asp-route-id=\"@item.Id\" method=\"post\" data-no-spa=\"true\"", view);
+        Assert.Contains("@Html.AntiForgeryToken()", view);
+        Assert.Contains("data-ptg-confirm-title=\"@T(\"حذف کامل قرارداد\", \"Permanently delete contract\")\"", view);
+        Assert.Contains("class=\"dropdown-item ak-danger\"", view);
     }
 
     [Fact]

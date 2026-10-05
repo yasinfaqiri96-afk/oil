@@ -45,7 +45,7 @@ public static class LedgerEntryOwnership
     /// فروش؛ هرگز از راهِ قرارداد خرید به تأمین‌کننده نمی‌چسبد. SaleLedgerFactory روی سطرِ فروش
     /// ContractId قراردادِ منبع (خرید) را می‌گذارد؛ سطرِ قدیمیِ بدون CustomerId با شرط (۲) مالِ
     /// تأمین‌کنندهٔ همان قرارداد می‌شد، در حالی که مالکِ قطعی‌اش مشتریِ سند فروش است
-    /// (SalesTransaction.CustomerId الزامی است) و از همان راه به مشتری هم می‌رسید — یعنی یک فروش
+    /// (SalesTransaction buyer الزامی است) و از همان راه به طرف حساب هم می‌رسید — یعنی یک فروش
     /// در دو حساب.
     /// </summary>
     public const string SaleSourceType = "Sale";

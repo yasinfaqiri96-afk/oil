@@ -46,6 +46,9 @@
         new() { Label = referenceLabel, Value = Model.BillOfLadingNumber, IsNumeric = true },
         new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
         new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
+        new() { Label = T("نمبر ترانزیت", "Transit no."), Value = Model.TransitNumber, IsNumeric = true },
+        new() { Label = T("نام راننده", "Driver name"), Value = Model.DriverName },
+        new() { Label = T("تماس راننده", "Driver phone"), Value = Model.DriverPhone, IsNumeric = true },
         new() { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
                 Href = Model.LogisticsServiceProviderId.HasValue
                     ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })

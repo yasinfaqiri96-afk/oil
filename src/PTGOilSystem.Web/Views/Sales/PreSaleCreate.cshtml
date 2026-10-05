@@ -30,11 +30,11 @@
                      model="@(("اطلاعات فروش", (string?)"مشخصات خریدار و سند تعهد فروش را وارد کنید."))" />
             <div class="ak-form-grid">
                 <div class="ak-field">
-                    <label asp-for="CustomerId" class="ak-label">خریدار <span class="ak-req">*</span></label>
-                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                    <label asp-for="BuyerKey" class="ak-label">خریدار <span class="ak-req">*</span></label>
+                    <select asp-for="BuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
                         <option value="">انتخاب خریدار</option>
                     </select>
-                    <span asp-validation-for="CustomerId" class="ak-field-error"></span>
+                    <span asp-validation-for="BuyerKey" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="OrderDate" class="ak-label">تاریخ فروش <span class="ak-req">*</span></label>

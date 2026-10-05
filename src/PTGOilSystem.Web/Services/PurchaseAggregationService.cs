@@ -118,7 +118,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
     {
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
-            .Where(lr => lr.ContractId == contractId)
+            .Where(lr => lr.ContractId == contractId && !lr.IsCancelled)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
                 lr.ContractId,
@@ -149,7 +149,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
 
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
-            .Where(lr => contractIds.Contains(lr.ContractId))
+            .Where(lr => contractIds.Contains(lr.ContractId) && !lr.IsCancelled)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
                 lr.ContractId,
@@ -187,6 +187,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
     {
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
+            .Where(lr => !lr.IsCancelled)
             .GroupBy(lr => lr.ContractId)
             .Select(g => new { ContractId = g.Key, Quantity = g.Sum(lr => lr.LoadedQuantityMt) })
             .ToListAsync(ct);
@@ -204,7 +205,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         ArgumentNullException.ThrowIfNull(loadingRegisters);
 
         var projected = loadingRegisters
-            .Where(lr => lr.ContractId == contractId)
+            .Where(lr => lr.ContractId == contractId && !lr.IsCancelled)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
                 lr.ContractId,

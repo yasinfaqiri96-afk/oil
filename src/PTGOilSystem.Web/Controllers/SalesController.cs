@@ -104,6 +104,13 @@ public partial class SalesController : Controller
         DateTime ContractDate,
         decimal AvailableMt);
 
+    private sealed record TerminalStockAvailabilityDiagnostic(
+        decimal SellableMt,
+        decimal PhysicalAsOfSaleDateMt,
+        decimal CurrentPhysicalMt,
+        decimal OtherCompaniesMt,
+        decimal UnallocatedToPurchaseContractMt);
+
     private readonly IAfghanistanBusinessClock _businessClock;
 
     [ActivatorUtilitiesConstructor]
@@ -265,6 +272,11 @@ public partial class SalesController : Controller
             "Id",
             "Name",
             createModel?.CustomerId ?? filter?.CustomerId.Only());
+
+        if (createModel is not null)
+        {
+            await PopulateBuyerLookupAsync(createModel.BuyerKey);
+        }
 
         var productLookups = await GetCachedLookupAsync(
             "sales:lookups:products:v1",
@@ -479,6 +491,35 @@ public partial class SalesController : Controller
             createModel?.Loss.Stage ?? ResolveDefaultLossStage(createModel?.SaleStage ?? SaleStage.TerminalStock));
     }
 
+    private async Task PopulateBuyerLookupAsync(string? selectedKey)
+    {
+        var customers = await _db.Customers.AsNoTracking().Where(c => c.IsActive)
+            .OrderBy(c => c.Name).Select(c => new { c.Id, c.Name }).ToListAsync();
+        var suppliers = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive)
+            .OrderBy(s => s.Name).Select(s => new { s.Id, s.Name }).ToListAsync();
+        ViewBag.Buyers = SaleBuyerKey.BuildOptions(
+            customers.Select(c => (c.Id, c.Name)),
+            suppliers.Select(s => (s.Id, s.Name)),
+            selectedKey);
+    }
+
+    private async Task ValidateBuyerAsync(int? customerId, int? supplierId, string modelKey = "BuyerKey")
+    {
+        if (customerId.HasValue == supplierId.HasValue)
+        {
+            ModelState.AddModelError(modelKey, "دقیقاً یک خریدار (مشتری یا تأمین‌کننده) باید انتخاب شود.");
+            return;
+        }
+
+        var valid = customerId.HasValue
+            ? await _db.Customers.AsNoTracking().AnyAsync(c => c.Id == customerId.Value && c.IsActive)
+            : await _db.Suppliers.AsNoTracking().AnyAsync(s => s.Id == supplierId!.Value && s.IsActive);
+        if (!valid)
+        {
+            ModelState.AddModelError(modelKey, "خریدار انتخاب‌شده معتبر یا فعال نیست.");
+        }
+    }
+
     private async Task<StorageTank?> LockStorageTankAsync(int storageTankId)
     {
         if (_db.Database.IsRelational()
@@ -536,9 +577,16 @@ public partial class SalesController : Controller
         var available = eligibleBalances.Sum(b => b.AvailableMt);
         if (available < quantityMt)
         {
+            var diagnostic = await BuildTerminalStockAvailabilityDiagnosticAsync(
+                productId,
+                terminalId,
+                storageTankId,
+                saleDate,
+                companyId,
+                balances);
             throw new BusinessRuleException(
                 "SALE_TERMINAL_STOCK_INSUFFICIENT",
-                $"موجودی کافی در مخزن انتخابی وجود ندارد. موجودی فعلی: {available:N4} MT، درخواست: {quantityMt:N4} MT.");
+                BuildTerminalStockInsufficientMessage(diagnostic, quantityMt));
         }
 
         var remaining = quantityMt;
@@ -561,6 +609,83 @@ public partial class SalesController : Controller
         }
 
         return allocations;
+    }
+
+    private async Task<TerminalStockAvailabilityDiagnostic> BuildTerminalStockAvailabilityDiagnosticAsync(
+        int productId,
+        int terminalId,
+        int storageTankId,
+        DateTime saleDate,
+        int companyId,
+        IReadOnlyList<TerminalStockSourceBalance> balances)
+    {
+        var movementTotals = await _db.InventoryMovements
+            .AsNoTracking()
+            .Where(m => m.ProductId == productId
+                && m.TerminalId == terminalId
+                && m.StorageTankId == storageTankId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                PhysicalAsOfSaleDateMt = g.Sum(m => m.MovementDate <= saleDate
+                    ? m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                        ? m.QuantityMt
+                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                            ? -m.QuantityMt
+                            : 0m
+                    : 0m),
+                CurrentPhysicalMt = g.Sum(m =>
+                    m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                        ? m.QuantityMt
+                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                            ? -m.QuantityMt
+                            : 0m)
+            })
+            .SingleOrDefaultAsync();
+        var physicalAsOfSaleDateMt = movementTotals?.PhysicalAsOfSaleDateMt ?? 0m;
+        var currentPhysicalMt = movementTotals?.CurrentPhysicalMt ?? 0m;
+        var sellableMt = balances
+            .Where(b => b.CompanyId == companyId && b.AvailableMt > 0m)
+            .Sum(b => b.AvailableMt);
+        var purchaseContractMt = balances
+            .Where(b => b.AvailableMt > 0m)
+            .Sum(b => b.AvailableMt);
+        var otherCompaniesMt = balances
+            .Where(b => b.CompanyId != companyId && b.AvailableMt > 0m)
+            .Sum(b => b.AvailableMt);
+
+        return new TerminalStockAvailabilityDiagnostic(
+            sellableMt,
+            physicalAsOfSaleDateMt,
+            currentPhysicalMt,
+            otherCompaniesMt,
+            Math.Max(0m, physicalAsOfSaleDateMt - purchaseContractMt));
+    }
+
+    private static string BuildTerminalStockInsufficientMessage(
+        TerminalStockAvailabilityDiagnostic diagnostic,
+        decimal requestedMt)
+    {
+        var message =
+            $"موجودی قابل‌فروش شرکت انتخابی در این مخزن {diagnostic.SellableMt:N4} MT است و برای درخواست {requestedMt:N4} MT کافی نیست. " +
+            $"کل موجودی فیزیکی مخزن تا تاریخ فروش: {diagnostic.PhysicalAsOfSaleDateMt:N4} MT.";
+
+        if (diagnostic.CurrentPhysicalMt != diagnostic.PhysicalAsOfSaleDateMt)
+        {
+            message += $" موجودی فعلی مخزن بدون محدودیت تاریخ: {diagnostic.CurrentPhysicalMt:N4} MT.";
+        }
+
+        if (diagnostic.OtherCompaniesMt > 0m)
+        {
+            message += $" از این مقدار، {diagnostic.OtherCompaniesMt:N4} MT متعلق به قراردادهای خرید شرکت‌های دیگر است.";
+        }
+
+        if (diagnostic.UnallocatedToPurchaseContractMt > 0m)
+        {
+            message += $" همچنین {diagnostic.UnallocatedToPurchaseContractMt:N4} MT به قرارداد خرید معتبر قابل تخصیص نیست.";
+        }
+
+        return message + " شرکت، قرارداد خرید منبع و تاریخ فروش را بررسی کنید.";
     }
 
     private async Task<IReadOnlyList<TerminalStockSourceBalance>> GetTerminalStockSourceBalancesAsync(
@@ -691,7 +816,7 @@ public partial class SalesController : Controller
         if (filter.CustomerId.Length > 0)
         {
             var customerIds = filter.CustomerId;
-            query = query.Where(s => customerIds.Contains(s.CustomerId));
+            query = query.Where(s => s.CustomerId.HasValue && customerIds.Contains(s.CustomerId.Value));
         }
         if (filter.ProductId.Length > 0)
         {
@@ -729,7 +854,7 @@ public partial class SalesController : Controller
                 CompanyName = s.CompanyId == null
                     ? SalesContractText.MultiLicense
                     : (s.Company != null ? s.Company.Name : ""),
-                CustomerName = s.Customer != null ? s.Customer.Name : "",
+                CustomerName = s.Customer != null ? s.Customer.Name : (s.Supplier != null ? s.Supplier.Name : ""),
                 ProductName = s.Product != null ? s.Product.Name : "",
                 DestinationName = s.DestinationLocation != null ? s.DestinationLocation.Name : null,
                 // نمبر وسیله برای فروش‌هایی که مستقیماً از موتر انجام شده‌اند.
@@ -779,6 +904,7 @@ public partial class SalesController : Controller
         var sale = await _db.SalesTransactions
             .AsNoTracking()
             .Include(s => s.Customer)
+            .Include(s => s.Supplier)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (sale is null)
@@ -798,7 +924,7 @@ public partial class SalesController : Controller
             Version = sale.Version,
             InvoiceNumber = sale.InvoiceNumber,
             SaleDate = sale.SaleDate,
-            CustomerName = sale.Customer?.Name ?? "",
+            CustomerName = sale.Customer?.Name ?? sale.Supplier?.Name ?? "",
             QuantityMt = sale.QuantityMt,
             Currency = sale.Currency,
             TotalInCurrency = sale.TotalInCurrency,
@@ -1006,6 +1132,7 @@ public partial class SalesController : Controller
             model.ContractId = original.ContractId;
             model.CompanyId = original.CompanyId ?? 0;
             model.CustomerId = original.CustomerId;
+            model.SupplierId = original.SupplierId;
             model.ProductId = original.ProductId;
             model.DestinationLocationId = original.DestinationLocationId;
             model.ShipmentId = original.ShipmentId;
@@ -1103,6 +1230,7 @@ public partial class SalesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateFromShipment(ShipmentFlowSaleCreateViewModel model)
     {
+        await ValidateBuyerAsync(model.CustomerId, model.SupplierId);
         var context = await BuildShipmentFlowSaleContextAsync(model.ShipmentId);
         if (context is null)
         {
@@ -1253,6 +1381,7 @@ public partial class SalesController : Controller
                 CompanyId = latestSourceContract?.CompanyId
                     ?? (latestContext.CompanyId > 0 ? latestContext.CompanyId : null),
                 CustomerId = model.CustomerId,
+                SupplierId = model.SupplierId,
                 ProductId = latestSourceContract?.ProductId ?? latestContext.ProductId,
                 DestinationLocationId = model.DestinationLocationId ?? latestContext.DestinationLocationId,
                 ShipmentId = model.ShipmentId,
@@ -1284,6 +1413,7 @@ public partial class SalesController : Controller
                 diff: AuditDiffFormatter.ForCreate(
                     ("CompanyId", sale.CompanyId),
                     ("CustomerId", sale.CustomerId),
+                    ("SupplierId", sale.SupplierId),
                     ("ProductId", sale.ProductId),
                     ("ShipmentId", sale.ShipmentId),
                     ("SourcePurchaseContractId", sale.SourcePurchaseContractId),
@@ -1365,6 +1495,7 @@ public partial class SalesController : Controller
             // فروش‌های چندجوازیِ محموله جواز واحد ندارند؛ فرم ویرایش انتخاب جواز را اجباری می‌کند.
             CompanyId = sale.CompanyId ?? 0,
             CustomerId = sale.CustomerId,
+            SupplierId = sale.SupplierId,
             ProductId = sale.ProductId,
             DestinationLocationId = sale.DestinationLocationId,
             ShipmentId = sale.ShipmentId,
@@ -1411,6 +1542,7 @@ public partial class SalesController : Controller
 
         if (model.CompanyId != sale.CompanyId
             || model.CustomerId != sale.CustomerId
+            || model.SupplierId != sale.SupplierId
             || model.ProductId != sale.ProductId
             || model.ContractId != sale.ContractId
             || model.DestinationLocationId != sale.DestinationLocationId
@@ -1588,11 +1720,7 @@ public partial class SalesController : Controller
             ModelState.AddModelError(nameof(model.CompanyId), "شرکت انتخاب‌شده معتبر نیست.");
         }
 
-        var customer = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == model.CustomerId && c.IsActive);
-        if (customer is null)
-        {
-            ModelState.AddModelError(nameof(model.CustomerId), "مشتری انتخاب‌شده معتبر نیست.");
-        }
+        await ValidateBuyerAsync(model.CustomerId, model.SupplierId);
 
         var product = await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == model.ProductId && p.IsActive);
         if (product is null)
@@ -1873,6 +2001,7 @@ public partial class SalesController : Controller
             ContractId = model.ContractId,
             CompanyId = model.CompanyId,
             CustomerId = model.CustomerId,
+            SupplierId = model.SupplierId,
             ProductId = model.ProductId,
             DestinationLocationId = model.DestinationLocationId,
             ShipmentId = model.ShipmentId,
@@ -2059,6 +2188,7 @@ public partial class SalesController : Controller
                         ("ContractId", sale.ContractId),
                         ("CompanyId", sale.CompanyId),
                         ("CustomerId", sale.CustomerId),
+                        ("SupplierId", sale.SupplierId),
                         ("ProductId", sale.ProductId),
                         ("DestinationLocationId", sale.DestinationLocationId),
                         ("ShipmentId", sale.ShipmentId),
@@ -2155,6 +2285,7 @@ public partial class SalesController : Controller
             .Include(s => s.Contract)
             .Include(s => s.Company)
             .Include(s => s.Customer)
+            .Include(s => s.Supplier)
             .Include(s => s.Product)
             .Include(s => s.DestinationLocation)
             .Include(s => s.Shipment)
@@ -2234,9 +2365,9 @@ public partial class SalesController : Controller
         var openReceivableUsd = settlement.OpenReceivableUsd(sale.TotalUsd);
 
         // دریافت‌های آزادِ همین مشتری، تا مانده این فروش بدون ساختن ساختار موازی تطبیق شود.
-        var applicableReceipts = sale.IsCancelled || openReceivableUsd <= 0m || sale.CustomerId <= 0
+        var applicableReceipts = sale.IsCancelled || sale.SupplierId.HasValue || openReceivableUsd <= 0m || sale.CustomerId <= 0
             ? []
-            : await LoadApplicableReceiptsAsync(sale.CustomerId, sale.Id);
+            : await LoadApplicableReceiptsAsync(sale.CustomerId!.Value, sale.Id);
 
         var stockOutMovements = await _db.InventoryMovements
             .Include(m => m.Contract)
@@ -2293,6 +2424,7 @@ public partial class SalesController : Controller
         {
             Id = sale.Id,
             CustomerId = sale.CustomerId,
+            IsSupplierBuyer = sale.SupplierId.HasValue,
             ContractId = sale.ContractId,
             ShipmentId = sale.ShipmentId,
             PreSaleOrderId = sale.PreSaleOrderId,
@@ -2306,7 +2438,7 @@ public partial class SalesController : Controller
             SaleStage = sale.SaleStage,
             ContractNumber = sale.Contract?.DisplayLabel ?? SalesContractText.WithoutSalesContract,
             CompanyName = sale.CompanyId is null ? SalesContractText.MultiLicense : (sale.Company?.Name ?? ""),
-            CustomerName = sale.Customer?.Name ?? "",
+            CustomerName = sale.Customer?.Name ?? sale.Supplier?.Name ?? "",
             ProductName = sale.Product?.Name ?? "",
             DestinationName = sale.DestinationLocation?.Name,
             ShipmentCode = sale.Shipment?.ShipmentCode,
@@ -2369,6 +2501,7 @@ public partial class SalesController : Controller
             .Include(s => s.Contract)
                 .ThenInclude(c => c!.DestinationLocation)
             .Include(s => s.Customer)
+            .Include(s => s.Supplier)
             .Include(s => s.Product)
             .Include(s => s.DestinationLocation)
             .AsNoTracking()
@@ -2692,9 +2825,7 @@ public partial class SalesController : Controller
 
     private async Task PopulateShipmentFlowSaleLookupsAsync(ShipmentFlowSaleCreateViewModel model)
     {
-        ViewBag.Customers = new SelectList(
-            await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync(),
-            "Id", "Name", model.CustomerId);
+        await PopulateBuyerLookupAsync(model.BuyerKey);
         ViewBag.Currencies = new SelectList(
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code).ToListAsync(),
             "Code", "Code", model.Currency);

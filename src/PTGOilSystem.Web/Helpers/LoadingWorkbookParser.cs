@@ -59,6 +59,15 @@ public static class LoadingWorkbookParser
     private static readonly string[] LogisticsAliases = ["transportationcompany", "transportcompany", "logisticscompany"];
     private static readonly string[] DestinationAliases = ["destination", "distination"];
 
+    // مشخصات اختیاری حمل؛ در هر دو فایل موتر و واگن خوانده می‌شوند.
+    private static readonly string[] TransitNumberAliases =
+        ["transitno", "transitnumber", "transit", NormalizeHeader("نمبر ترانزیت"), NormalizeHeader("شماره ترانزیت"), NormalizeHeader("ترانزیت")];
+    private static readonly string[] DriverNameAliases =
+        ["driver", "drivername", NormalizeHeader("نام راننده"), NormalizeHeader("راننده")];
+    private static readonly string[] DriverPhoneAliases =
+        ["driverphone", "driverphoneno", "driverphonenumber", "drivercontact", "drivermobile", "drivertel",
+         NormalizeHeader("شماره تماس راننده"), NormalizeHeader("تماس راننده"), NormalizeHeader("تلفن راننده"), NormalizeHeader("موبایل راننده")];
+
     private static readonly string[] TruckReferenceAliases = ["cmr", "cmrno", "referenceno"];
     private static readonly string[] TruckTransportAliases = ["trucks", "truck", "trucknumber", "platenumber", NormalizeHeader("نمبردموتر"), NormalizeHeader("نمبرموتر")];
     private static readonly string[] TruckDestinationAliases = ["belongto", "destination", NormalizeHeader("مقصد")];
@@ -345,6 +354,7 @@ public static class LoadingWorkbookParser
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.ConsigneeName), column, normalizedHeader, ConsigneeAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.LogisticsCompanyName), column, normalizedHeader, LogisticsAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.DestinationName), column, normalizedHeader, DestinationAliases);
+            AssignTransitDriverColumns(columns, column, normalizedHeader);
         }
 
         AssignRubTotalColumnByLayout(columns, headers);
@@ -381,6 +391,7 @@ public static class LoadingWorkbookParser
             AssignColumn(columns, "LoadingAmount", column, normalizedHeader, TruckLoadingAmountAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.DestinationName), column, normalizedHeader, TruckDestinationAliases);
             AssignColumn(columns, nameof(LoadingCreateRowViewModel.ConsigneeName), column, normalizedHeader, ConsigneeAliases);
+            AssignTransitDriverColumns(columns, column, normalizedHeader);
 
             if (!columns.ContainsKey("TruckExpenseFallback")
                 && TruckExpenseRateAliases.Contains(normalizedHeader, StringComparer.Ordinal))
@@ -391,6 +402,24 @@ public static class LoadingWorkbookParser
 
         AssignRubTotalColumnByLayout(columns, headers);
         return columns;
+    }
+
+    private static void AssignTransitDriverColumns(IDictionary<string, string> columns, string column, string normalizedHeader)
+    {
+        AssignColumn(columns, nameof(LoadingCreateRowViewModel.TransitNumber), column, normalizedHeader, TransitNumberAliases);
+        AssignColumn(columns, nameof(LoadingCreateRowViewModel.DriverName), column, normalizedHeader, DriverNameAliases);
+        AssignColumn(columns, nameof(LoadingCreateRowViewModel.DriverPhone), column, normalizedHeader, DriverPhoneAliases);
+    }
+
+    private static void ApplyTransitDriverFields(
+        LoadingCreateRowViewModel row,
+        IReadOnlyDictionary<string, Cell> cells,
+        IReadOnlyDictionary<string, string> columns,
+        WorkbookPart workbookPart)
+    {
+        row.TransitNumber = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.TransitNumber), workbookPart);
+        row.DriverName = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.DriverName), workbookPart);
+        row.DriverPhone = ReadText(cells, columns, nameof(LoadingCreateRowViewModel.DriverPhone), workbookPart);
     }
 
     private static Dictionary<string, string> BuildTruckFreightColumnMap(Row headerRow, WorkbookPart workbookPart)
@@ -569,6 +598,7 @@ public static class LoadingWorkbookParser
         row.PlattsUsd = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.PlattsUsd), workbookPart);
         ApplyFileRubFigures(row, cells, columns, workbookPart);
         ApplyLoadingPrice(row, cells, columns, workbookPart);
+        ApplyTransitDriverFields(row, cells, columns, workbookPart);
 
         if (!string.IsNullOrWhiteSpace(row.BillOfLadingNumber)
             && !string.IsNullOrWhiteSpace(row.WagonNumber)
@@ -607,6 +637,7 @@ public static class LoadingWorkbookParser
         row.LoadedQuantityMt = TryReadDecimal(cells, columns, nameof(LoadingCreateRowViewModel.LoadedQuantityMt), workbookPart) ?? 0m;
         ApplyFileRubFigures(row, cells, columns, workbookPart);
         ApplyLoadingPrice(row, cells, columns, workbookPart);
+        ApplyTransitDriverFields(row, cells, columns, workbookPart);
 
         if (!string.IsNullOrWhiteSpace(billOfLadingNumber)
             && !string.IsNullOrWhiteSpace(importedTransportReference)

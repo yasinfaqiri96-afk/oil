@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PTGOilSystem.Web.Data;
@@ -11,9 +12,11 @@ using PTGOilSystem.Web.Data;
 namespace PTGOilSystem.Web.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005085505_AddLoadingTransitDriverFields")]
+    partial class AddLoadingTransitDriverFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1525,9 +1528,6 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
 
                     b.Property<decimal?>("ManualFinalPriceUsd")
                         .HasColumnType("numeric");
@@ -5669,9 +5669,6 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsCancelled")
                         .HasColumnType("boolean");
 
@@ -5896,12 +5893,6 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<string>("ImportUniqueKey")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsCancelled")
-                        .HasColumnType("boolean");
 
                     b.Property<decimal>("LoadedQuantityMt")
                         .HasColumnType("numeric(18,4)");
@@ -7304,7 +7295,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("USD");
 
-                    b.Property<int?>("CustomerId")
+                    b.Property<int>("CustomerId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("ExpectedDeliveryFrom")
@@ -7342,9 +7333,6 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("SupplierId")
-                        .HasColumnType("integer");
-
                     b.Property<decimal>("TotalInCurrency")
                         .HasColumnType("numeric(18,4)");
 
@@ -7371,14 +7359,9 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.HasIndex("SupplierId");
-
                     b.HasIndex("CustomerId", "Status");
 
-                    b.ToTable("PreSaleOrders", t =>
-                        {
-                            t.HasCheckConstraint("CK_PreSaleOrders_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)");
-                        });
+                    b.ToTable("PreSaleOrders");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ProcessedFormToken", b =>
@@ -7826,7 +7809,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("USD");
 
-                    b.Property<int?>("CustomerId")
+                    b.Property<int>("CustomerId")
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsCancelled")
@@ -7845,9 +7828,6 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<DateTime>("SaleDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("SupplierId")
-                        .HasColumnType("integer");
 
                     b.Property<decimal>("TotalInCurrency")
                         .HasColumnType("numeric(18,4)");
@@ -7873,12 +7853,7 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("SupplierId");
-
-                    b.ToTable("SalesBatches", t =>
-                        {
-                            t.HasCheckConstraint("CK_SalesBatches_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)");
-                        });
+                    b.ToTable("SalesBatches");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SalesCostConsumption", b =>
@@ -7975,7 +7950,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("USD");
 
-                    b.Property<int?>("CustomerId")
+                    b.Property<int>("CustomerId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("DestinationLocationId")
@@ -8021,9 +7996,6 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int?>("StockSourceType")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("SupplierId")
                         .HasColumnType("integer");
 
                     b.Property<string>("TicketSerialNumber")
@@ -8086,14 +8058,9 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasIndex("SourcePurchaseContractId");
 
-                    b.HasIndex("SupplierId");
-
                     b.HasIndex("TruckDispatchId");
 
-                    b.ToTable("SalesTransactions", t =>
-                        {
-                            t.HasCheckConstraint("CK_SalesTransactions_ExactlyOneBuyer", "(\"CustomerId\" IS NOT NULL) <> (\"SupplierId\" IS NOT NULL)");
-                        });
+                    b.ToTable("SalesTransactions");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SalesTransactionSourceAllocation", b =>
@@ -12322,7 +12289,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Product", "Product")
                         .WithMany()
@@ -12330,18 +12298,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Company");
 
                     b.Navigation("Customer");
 
                     b.Navigation("Product");
-
-                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Product", b =>
@@ -12442,16 +12403,10 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Customer", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Customer");
-
-                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.SalesCostConsumption", b =>
@@ -12477,7 +12432,9 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Customer", "Customer")
                         .WithMany()
-                        .HasForeignKey("CustomerId");
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Location", "DestinationLocation")
                         .WithMany()
@@ -12508,11 +12465,6 @@ namespace PTGOilSystem.Web.Migrations
                         .HasForeignKey("SourcePurchaseContractId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PTGOilSystem.Web.Models.Entities.TruckDispatch", "TruckDispatch")
                         .WithMany()
                         .HasForeignKey("TruckDispatchId")
@@ -12535,8 +12487,6 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Shipment");
 
                     b.Navigation("SourcePurchaseContract");
-
-                    b.Navigation("Supplier");
 
                     b.Navigation("TruckDispatch");
                 });

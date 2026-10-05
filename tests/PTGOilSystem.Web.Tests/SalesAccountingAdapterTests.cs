@@ -155,6 +155,36 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
     }
 
     [Fact]
+    public async Task Supplier_Sale_Debits_Payable_And_Reversal_Exactly_Undoes_It()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var sale = await AddSaleAsync(db, scope, quantityMt: 5m, totalUsd: 4_000m, configure: s =>
+        {
+            s.CustomerId = null;
+            s.SupplierId = scope.Supplier.Id;
+        });
+        var adapter = CreateAdapter(db, sale: true);
+
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostSaleAsync(sale)).Status);
+        var original = await LoadJournalAsync(db, SalesAccountingAdapter.BuildCreatedSourceEventId(sale.Id));
+        var partyLine = original.Lines.Single(x => x.Debit > 0m);
+        Assert.Equal(scope.Settings.AccountsPayableAccountId, partyLine.AccountId);
+        Assert.Equal(AccountingPartyType.Supplier, partyLine.PartyType);
+        Assert.Equal(scope.Supplier.Id, partyLine.PartyId);
+        Assert.DoesNotContain(original.Lines, x => x.AccountId == scope.Settings.AccountsReceivableAccountId);
+
+        sale.IsCancelled = true;
+        await db.SaveChangesAsync();
+        Assert.Equal(PaymentPostingStatus.Posted,
+            (await adapter.TryReverseSaleAsync(sale, SaleDate.AddDays(1))).Status);
+        var reversal = await LoadJournalAsync(db, SalesAccountingAdapter.BuildReversedSourceEventId(sale.Id));
+        Assert.Equal(0m, original.Lines.Sum(x => x.Debit - x.Credit)
+            + reversal.Lines.Sum(x => x.Debit - x.Credit));
+        Assert.Equal(4_000m, reversal.Lines.Single(x => x.AccountId == scope.Settings.AccountsPayableAccountId).Credit);
+    }
+
+    [Fact]
     public async Task Cogs_Values_What_Left_The_Tank_At_The_Moving_Average()
     {
         await using var db = fixture.CreateDbContext();

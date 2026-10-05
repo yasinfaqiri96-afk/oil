@@ -108,6 +108,39 @@ public class SalesControllerTests
     }
 
     [Fact]
+    public async Task Create_Post_To_Supplier_Persists_One_Supplier_Ledger_Effect()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Suppliers.Add(new Supplier { Id = 9, Name = "Supplier Buyer", IsActive = true });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.InTransit,
+            CompanyId = 1,
+            SupplierId = 9,
+            ProductId = 1,
+            DestinationLocationId = 1,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 2m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-SUPPLIER-001"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var sale = await db.SalesTransactions.SingleAsync();
+        Assert.Null(sale.CustomerId);
+        Assert.Equal(9, sale.SupplierId);
+        var ledger = Assert.Single(await db.LedgerEntries.Where(l => l.SourceType == "Sale" && l.SourceId == sale.Id).ToListAsync());
+        Assert.Null(ledger.CustomerId);
+        Assert.Equal(9, ledger.SupplierId);
+        Assert.Equal(LedgerSide.Credit, ledger.Side);
+    }
+
+    [Fact]
     public async Task Create_Post_Blocks_When_Free_Stock_Is_Insufficient()
     {
         var options = NewDbOptions();
@@ -141,6 +174,53 @@ public class SalesControllerTests
         Assert.IsType<SalesCreateViewModel>(view.Model);
         Assert.False(controller.ModelState.IsValid);
         Assert.NotEmpty(controller.ModelState[string.Empty]!.Errors);
+    }
+
+    [Fact]
+    public async Task Create_Post_Explains_When_Physical_Tank_Stock_Belongs_To_Another_Company()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Companies.Add(new Company { Id = 2, Code = "PTG2", Name = "PTG 2" });
+        SeedPurchaseContract(db, 2, companyId: 2);
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 100m,
+            ReferenceDocument = "GRN-OTHER-COMPANY"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
+        var result = await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 20m,
+            UnitPriceUsd = 450m,
+            InvoiceNumber = "INV-OTHER-COMPANY"
+        });
+
+        Assert.IsType<ViewResult>(result);
+        var error = Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage;
+        Assert.Contains("موجودی قابل‌فروش شرکت انتخابی", error);
+        Assert.Contains("کل موجودی فیزیکی مخزن تا تاریخ فروش", error);
+        Assert.Contains("متعلق به قراردادهای خرید شرکت‌های دیگر", error);
+        Assert.Empty(await db.SalesTransactions.ToListAsync());
+        Assert.Empty(await db.InventoryMovements.Where(m => m.Direction == MovementDirection.Out).ToListAsync());
     }
 
     [Fact]
@@ -1446,6 +1526,59 @@ public class SalesControllerTests
         Assert.Equal("Diesel", model.ProductType);
         Assert.Equal("Buyer Company", model.BuyerCompanyName);
         Assert.Equal("Buyer Rep", model.BuyerRepresentativeName);
+    }
+
+    [Fact]
+    public async Task Invoice_Maps_Supplier_As_The_Buyer()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Suppliers.Add(new Supplier
+        {
+            Id = 8,
+            Name = "Supplier Buyer",
+            ContactPerson = "Supplier Rep",
+            Phone = "+93 711 111 111",
+            Address = "Mazar"
+        });
+        SeedInvoiceSale(db);
+        var sale = db.SalesTransactions.Local.Single(s => s.Id == 1);
+        sale.CustomerId = null;
+        sale.SupplierId = 8;
+        await db.SaveChangesAsync();
+
+        var view = Assert.IsType<ViewResult>(await BuildController(db).Invoice(1, "faisal"));
+        var model = Assert.IsType<SalesInvoicePrintViewModel>(view.Model);
+        Assert.Equal("Supplier Buyer", model.BuyerCompanyName);
+        Assert.Equal("Supplier Rep", model.BuyerRepresentativeName);
+        Assert.Equal("+93 711 111 111", model.BuyerPhoneNumber);
+        Assert.Equal("Mazar", model.BuyerAddress);
+    }
+
+    [Fact]
+    public async Task PreSaleCreate_To_Supplier_Persists_Exactly_One_Buyer()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Suppliers.Add(new Supplier { Id = 9, Name = "Supplier Buyer", IsActive = true });
+        await db.SaveChangesAsync();
+
+        var result = await BuildController(db).PreSaleCreate(new PreSaleCreateViewModel
+        {
+            SupplierId = 9,
+            ProductId = 1,
+            OrderDate = new DateTime(2026, 5, 13),
+            QuantityMt = 10m,
+            Currency = "USD",
+            UnitPriceInCurrency = 450m
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var order = await db.PreSaleOrders.SingleAsync();
+        Assert.Null(order.CustomerId);
+        Assert.Equal(9, order.SupplierId);
     }
 
     [Fact]

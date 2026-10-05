@@ -11,11 +11,11 @@
     var contractText = SalesContractText.Display(Model.ContractNumber);
     var stageText = SaleStageLabels.ToPersian(Model.SaleStage);
     var customerText = string.IsNullOrWhiteSpace(Model.CustomerName)
-        ? T("مشتری نامشخص", "Unknown customer")
+        ? T("خریدار نامشخص", "Unknown buyer")
         : Model.CustomerName;
-    var canRegisterReceipt = !Model.IsCancelled && Model.CustomerId > 0 && Model.ReceivableBalanceUsd > 0m;
+    var canRegisterReceipt = !Model.IsSupplierBuyer && !Model.IsCancelled && Model.CustomerId > 0 && Model.ReceivableBalanceUsd > 0m;
     var directApplications = Model.Payments.Where(p => p.IsAdvanceApplication == false && p.ApplicationId != null).ToList();
-    var canApplyReceipt = !Model.IsCancelled && Model.ReceivableBalanceUsd > 0m && Model.ApplicableReceipts.Count > 0;
+    var canApplyReceipt = !Model.IsSupplierBuyer && !Model.IsCancelled && Model.ReceivableBalanceUsd > 0m && Model.ApplicableReceipts.Count > 0;
     var firstReceipt = Model.ApplicableReceipts.FirstOrDefault();
     var firstReceiptSuggestion = firstReceipt is null
         ? 0m
@@ -77,7 +77,7 @@
     // رنگ فقط روی مقادیر state‌دار (مرحله). هویت با وزن و اندازه برجسته می‌شود، نه با رنگ.
     var summaryItems = new List<AkInfoItem>
     {
-        new() { Label = T("مشتری", "Customer"), Value = customerText },
+        new() { Label = T("خریدار", "Buyer"), Value = customerText },
         new() { Label = T("تاریخ فروش", "Sale date"), Value = Model.SaleDate.ToDisplayDate(), IsNumeric = true },
         new() { Label = T("مرحله", "Stage"), Value = stageText, Tone = "info" },
         new() { Label = T("کالا", "Product"), Value = Model.ProductName },
@@ -248,7 +248,7 @@
         StatusState = Model.IsCancelled ? "is-danger" : "is-active",
         StripItems = new List<AkInfoItem>
         {
-            new() { Label = T("مشتری", "Customer"), Value = customerText },
+            new() { Label = T("خریدار", "Buyer"), Value = customerText },
             new() { Label = T("کالا", "Product"), Value = Model.ProductName },
             new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.QuantityMt)} MT", IsNumeric = true },
             new() { Label = T("تاریخ", "Date"), Value = Model.SaleDate.ToDisplayDate(), IsNumeric = true }

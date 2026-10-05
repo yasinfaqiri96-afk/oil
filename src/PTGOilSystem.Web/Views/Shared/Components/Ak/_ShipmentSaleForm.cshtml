@@ -108,11 +108,11 @@
             <h2 class="ak-form-group-title">@UiText.T(Context, "۲. اطلاعات فروش", "2. Sale Information")</h2>
             <div class="ak-form-grid">
                 <div class="ak-field fec-span-4">
-                    <label asp-for="CustomerId" class="ak-label"></label>
-                    <select asp-for="CustomerId" asp-items="ViewBag.Customers" class="ak-input">
-                        <option value="">@UiText.T(Context, "انتخاب مشتری", "Select customer")</option>
+                    <label asp-for="BuyerKey" class="ak-label"></label>
+                    <select asp-for="BuyerKey" asp-items="ViewBag.Buyers" class="ak-input">
+                        <option value="">@UiText.T(Context, "انتخاب خریدار", "Select buyer")</option>
                     </select>
-                    <span asp-validation-for="CustomerId" class="field-validation-error"></span>
+                    <span asp-validation-for="BuyerKey" class="field-validation-error"></span>
                 </div>
                 <div class="ak-field fec-span-4">
                     <label asp-for="QuantityMt" class="ak-label"></label>

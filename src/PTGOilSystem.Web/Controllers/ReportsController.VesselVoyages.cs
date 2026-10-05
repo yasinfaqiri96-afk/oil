@@ -238,7 +238,7 @@ public partial class ReportsController
         {
             var customerIds = filter.CustomerId;
             query = query.Where(s =>
-                _db.SalesTransactions.Any(t => t.ShipmentId == s.Id && !t.IsCancelled && customerIds.Contains(t.CustomerId))
+                _db.SalesTransactions.Any(t => t.ShipmentId == s.Id && !t.IsCancelled && t.CustomerId.HasValue && customerIds.Contains(t.CustomerId.Value))
                 || s.ShipmentContracts.Any(sc => sc.Contract!.CustomerId != null && customerIds.Contains(sc.Contract.CustomerId.Value))
                 || (s.Contract != null && s.Contract.CustomerId != null && customerIds.Contains(s.Contract.CustomerId.Value)));
         }

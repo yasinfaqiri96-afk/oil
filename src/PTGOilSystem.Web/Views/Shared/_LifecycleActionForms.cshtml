@@ -1,0 +1,28 @@
+@model (string Controller, int Id, bool IsCancelled, string ReturnUrl)
+@if (PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User))
+{
+    if (Model.IsCancelled)
+    {
+        <form asp-controller="@Model.Controller" asp-action="DeleteCancelled" method="post" data-no-spa="true"
+              data-ptg-confirm="true" data-ptg-confirm-title="حذف از فهرست"
+              data-ptg-confirm-message="این رکورد لغوشده از فهرست حذف شود؟ اسناد مالی و سوابق حفظ می‌شوند.">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-trash"></i> حذف از فهرست</button>
+        </form>
+    }
+    else
+    {
+        <form asp-controller="@Model.Controller" asp-action="Cancel" method="post" data-no-spa="true"
+              data-ptg-confirm="true" data-ptg-confirm-title="لغو رکورد"
+              data-ptg-confirm-message="این رکورد لغو و اثرهای مالی و موجودی آن از مسیر استاندارد برگردانده شود؟">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <label class="ak-label px-3" for="cancel-reason-@Model.Controller-@Model.Id">دلیل لغو</label>
+            <input id="cancel-reason-@Model.Controller-@Model.Id" type="text" name="reason" class="ak-input" required maxlength="1000" placeholder="دلیل لغو را بنویسید" />
+            <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-x-circle"></i> لغو</button>
+        </form>
+    }
+}

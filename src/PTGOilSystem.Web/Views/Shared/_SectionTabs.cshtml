@@ -70,12 +70,6 @@
         ("Expenses",               "Index", T("مصارف",               "Expenses"),            "nav-bill", null),
         ("LossEvents",             "Index", T("کسری",                "Loss Events"),         "nav-warning", null)
     };
-    if (ClientProfileOptionsAccessor.Value.SimplePurchaseEnabled)
-    {
-        operationTabs = operationTabs
-            .Where(tab => tab.Controller is not "Loading" and not "LoadingReceipts")
-            .ToArray();
-    }
     var inventoryProfitTabs = new (string Controller, string Action, string Label, string Icon, string? RouteKey)[]
     {
         ("Inventory",  "Index",        T("حرکت‌های موجودی", "Inventory Movements"), "bi-box-seam-fill",             null)

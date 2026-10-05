@@ -36,6 +36,8 @@ public static class SaleLedgerFactory
             Reference = sale.InvoiceNumber,
             ContractId = contractId,
             CustomerId = sale.CustomerId,
+            // فروش به تأمین‌کننده: همان سطر فروش به حساب تأمین‌کننده می‌نشیند و طلبش را کم می‌کند.
+            SupplierId = sale.SupplierId,
             ShipmentId = sale.ShipmentId
         };
 }

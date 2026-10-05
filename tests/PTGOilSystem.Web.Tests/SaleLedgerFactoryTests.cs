@@ -70,6 +70,23 @@ public class SaleLedgerFactoryTests
     }
 
     [Fact]
+    public void BuildSaleLedgerEntry_For_Supplier_Uses_Only_Supplier_Party()
+    {
+        var sale = SampleSale();
+        sale.CustomerId = null;
+        sale.SupplierId = 19;
+        var conversion = new CurrencyConversionResult(
+            "AFN", SystemCurrency.BaseCurrencyCode, 71m, new DateTime(2026, 3, 14), false, false, "x");
+
+        var entry = SaleLedgerFactory.BuildSaleLedgerEntry(sale, conversion, contractId: null);
+
+        Assert.Null(entry.CustomerId);
+        Assert.Equal(19, entry.SupplierId);
+        Assert.Equal(LedgerSide.Credit, entry.Side);
+        Assert.Equal("Sale", entry.SourceType);
+    }
+
+    [Fact]
     public void BuildDescription_Matches_Legacy_Format()
     {
         var sale = SampleSale();

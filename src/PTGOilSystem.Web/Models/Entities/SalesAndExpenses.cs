@@ -41,8 +41,12 @@ public class SalesTransaction : BaseEntity, IVersionedEntity
     public Company? Company { get; set; }
     public int? ContractId { get; set; }
     public Contract? Contract { get; set; }
-    public int CustomerId { get; set; }
+    // خریدار: دقیقاً یکی از مشتری یا تأمین‌کننده. فروش به تأمین‌کننده سطر لجرِ فروش را با
+    // SupplierId می‌نویسد و از طلبِ تأمین‌کننده کم می‌کند (فروش همیشه «برد» است).
+    public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }
+    public int? SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
     public int ProductId { get; set; }
     public Product? Product { get; set; }
     public int? DestinationLocationId { get; set; }
@@ -141,8 +145,10 @@ public class PreSaleOrder : BaseEntity
 {
     [MaxLength(64)] public string OrderNumber { get; set; } = "";
 
-    public int CustomerId { get; set; }
+    public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }
+    public int? SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
     public int ProductId { get; set; }
     public Product? Product { get; set; }
     // جوازِ تعهد (nullable مثل SalesTransaction؛ اگر منابع تحویل چند شرکتی باشند null می‌ماند).
@@ -193,8 +199,11 @@ public enum GroupSaleSourceKind
 public class SalesBatch : BaseEntity
 {
     [MaxLength(64)] public string BatchNumber { get; set; } = "";
-    public int CustomerId { get; set; }
+    // خریدار: دقیقاً یکی از مشتری یا تأمین‌کننده (همان قاعدهٔ SalesTransaction).
+    public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }
+    public int? SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
     public DateTime SaleDate { get; set; }
     [MaxLength(10)] public string Currency { get; set; } = "USD";
     public decimal? AppliedFxRateToUsd { get; set; }

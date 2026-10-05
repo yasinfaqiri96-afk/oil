@@ -278,11 +278,11 @@
             @* --- فروش مستقیم --- *@
             <div class="ak-form-grid @(currentScenario =="sale" ? "" : "d-none")" data-scenario-panel="sale">
                 <div class="ak-field">
-                    <label asp-for="SaleCustomerId">@T("مشتری", "Customer")</label>
-                    <select asp-for="SaleCustomerId" asp-items="ViewBag.SaleCustomers" class="ak-input">
+                    <label asp-for="SaleBuyerKey">@T("خریدار", "Buyer")</label>
+                    <select asp-for="SaleBuyerKey" asp-items="ViewBag.SaleBuyers" class="ak-input">
                         <option value="">@T("انتخاب کنید", "Select")</option>
                     </select>
-                    <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
+                    <span asp-validation-for="SaleBuyerKey" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field">
                     <label asp-for="SaleDate">@T("تاریخ فروش", "Sale date")</label>

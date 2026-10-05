@@ -233,6 +233,7 @@ public partial class ContractsController : Controller
         // Where روی همان navigation کار می‌کند و به Include نیاز ندارد. با حذف تنها Includeِ
         // مجموعه‌ای، دیگر split query هم لازم نیست و یک رفت‌وبرگشت کم می‌شود.
         var query = _db.Contracts
+            .Where(c => !c.IsArchived)
             .Include(c => c.Product)
             .Include(c => c.Unit)
             .Include(c => c.Supplier)

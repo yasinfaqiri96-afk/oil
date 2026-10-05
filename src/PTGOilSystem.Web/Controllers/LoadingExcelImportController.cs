@@ -31,8 +31,8 @@ public sealed class LoadingExcelImportController : Controller
             var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
             var sheetData = new SheetData();
             worksheetPart.Worksheet = new Worksheet(sheetData);
-            sheetData.Append(CreateSampleRow(1, "Date", "CMR", "Trucks", "Loaded quantity (MT)", "Consignee", "Destination"));
-            sheetData.Append(CreateSampleRow(2, DateTime.UtcNow.ToString("yyyy-MM-dd"), "CMR-001", "ABC-123", "25.5", "نمونه گیرنده", "نمونه مقصد"));
+            sheetData.Append(CreateSampleRow(1, "Date", "CMR", "Trucks", "Loaded quantity (MT)", "Consignee", "Destination", "Transit No", "Driver name", "Driver phone"));
+            sheetData.Append(CreateSampleRow(2, DateTime.UtcNow.ToString("yyyy-MM-dd"), "CMR-001", "ABC-123", "25.5", "نمونه گیرنده", "نمونه مقصد", "TR-001", "نمونه راننده", "0700000000"));
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
             sheets.Append(new Sheet { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Loading" });
             workbookPart.Workbook.Save();

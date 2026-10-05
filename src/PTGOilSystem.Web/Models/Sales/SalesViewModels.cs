@@ -63,9 +63,18 @@ public sealed class SalesCreateViewModel
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب شرکت الزامی است.")]
     public int CompanyId { get; set; }
 
-    [Display(Name = "مشتری")]
-    [Range(1, int.MaxValue, ErrorMessage = "انتخاب مشتری الزامی است.")]
-    public int CustomerId { get; set; }
+    // خریدار: مشتری یا تأمین‌کننده (SaleBuyerKey). دقیقاً یکی از دو شناسه مقدار دارد.
+    [Display(Name = "خریدار")]
+    [Required(ErrorMessage = "انتخاب خریدار الزامی است.")]
+    public string? BuyerKey
+    {
+        get => SaleBuyerKey.Build(CustomerId, SupplierId);
+        set => (CustomerId, SupplierId) = SaleBuyerKey.Parse(value);
+    }
+
+    public int? CustomerId { get; set; }
+
+    public int? SupplierId { get; set; }
 
     [Display(Name = "جنس")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب جنس الزامی است.")]
@@ -152,9 +161,15 @@ public sealed class ShipmentFlowSaleCreateViewModel
     public decimal PreviousSalesQuantityMt { get; set; }
     public decimal AvailableQuantityMt { get; set; }
 
-    [Display(Name = "مشتری")]
-    [Range(1, int.MaxValue, ErrorMessage = "انتخاب مشتری الزامی است.")]
-    public int CustomerId { get; set; }
+    [Display(Name = "خریدار")]
+    [Required(ErrorMessage = "انتخاب خریدار الزامی است.")]
+    public string? BuyerKey
+    {
+        get => SaleBuyerKey.Build(CustomerId, SupplierId);
+        set => (CustomerId, SupplierId) = SaleBuyerKey.Parse(value);
+    }
+    public int? CustomerId { get; set; }
+    public int? SupplierId { get; set; }
 
     [Display(Name = "مقدار فروش (تن)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مقدار فروش باید بزرگ‌تر از صفر باشد.")]
@@ -282,7 +297,8 @@ public sealed class SalesIndexViewModel
 public sealed class SalesDetailsViewModel
 {
     public int Id { get; init; }
-    public int CustomerId { get; init; }
+    public int? CustomerId { get; init; }
+    public bool IsSupplierBuyer { get; init; }
     public int? ContractId { get; init; }
     public int? ShipmentId { get; init; }
     public int? PreSaleOrderId { get; init; }

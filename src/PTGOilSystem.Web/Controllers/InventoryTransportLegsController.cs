@@ -1808,6 +1808,7 @@ public partial class InventoryTransportLegsController : Controller
                 break;
             case InventoryTransportReceiptDestination.DirectSale:
                 perModel.SaleCustomerId = model.SaleCustomerId;
+                perModel.SaleSupplierId = model.SaleSupplierId;
                 perModel.SaleCurrency = model.SaleCurrency;
                 perModel.SaleUnitPriceInCurrency = model.SaleUnitPriceInCurrency;
                 perModel.SaleAppliedFxRateToUsd = model.SaleAppliedFxRateToUsd;
@@ -1890,9 +1891,12 @@ public partial class InventoryTransportLegsController : Controller
         ViewBag.DestinationStorageTankTerminalMap = destinationTanks
             .Select(t => new { id = t.Id, code = t.Display, terminalId = t.TerminalId })
             .ToList();
-        ViewBag.Customers = new SelectList(
-            await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name).ToListAsync(),
-            "Id", "Name", model.SaleCustomerId);
+        var saleCustomers = await _db.Customers.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name }).ToListAsync();
+        var saleSuppliers = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).OrderBy(s => s.Name)
+            .Select(s => new { s.Id, s.Name }).ToListAsync();
+        ViewBag.Buyers = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.BuildOptions(
+            saleCustomers.Select(c => (c.Id, c.Name)), saleSuppliers.Select(s => (s.Id, s.Name)), model.SaleBuyerKey);
         ViewBag.Trucks = new SelectList(
             await _db.Trucks.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.PlateNumber).ToListAsync(),
             "Id", "PlateNumber");

@@ -945,6 +945,16 @@ public sealed class InventoryTransportReceiptCreateViewModel
     [Display(Name = "Customer")]
     public int? SaleCustomerId { get; set; }
 
+    // فقط فروش گروهی به تأمین‌کننده این را پر می‌کند؛ با SaleCustomerId هم‌زمان مقدار نمی‌گیرد.
+    public int? SaleSupplierId { get; set; }
+
+    [Display(Name = "Buyer")]
+    public string? SaleBuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(SaleCustomerId, SaleSupplierId);
+        set => (SaleCustomerId, SaleSupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
+
     [Display(Name = "Invoice Number")]
     [StringLength(50)]
     public string? SaleInvoiceNumber { get; set; }
@@ -1175,6 +1185,13 @@ public sealed class InventoryTransportGroupOperationViewModel
     // مشترک — فروش مستقیم
     [Display(Name = "مشتری")]
     public int? SaleCustomerId { get; set; }
+    public int? SaleSupplierId { get; set; }
+    [Display(Name = "خریدار")]
+    public string? SaleBuyerKey
+    {
+        get => PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Build(SaleCustomerId, SaleSupplierId);
+        set => (SaleCustomerId, SaleSupplierId) = PTGOilSystem.Web.Models.Sales.SaleBuyerKey.Parse(value);
+    }
 
     [Display(Name = "ارز فروش")]
     [StringLength(10)]

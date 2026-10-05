@@ -15,6 +15,7 @@ public enum RubSettlementRatePolicy { NotApplicable = 0, FixedContractRate = 1, 
 
 public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
 {
+    public bool IsArchived { get; set; }
     /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
     public long Version { get; set; } = 1;
 
