@@ -24,10 +24,26 @@
         : Model.LedgerReference.Split('|')[0].Trim();
 
     // Kebab keeps the side route only; the record's own action lives in the strip.
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var headerKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("مصرف جدید", "New expense"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
+    // لغو کنار ویرایش: سند مالی برعکس می‌شود و مصرف لغوشده از فهرست مصارف کنار می‌رود.
+    // مصرفِ اعلامیهٔ گمرکی از همان اعلامیه لغو می‌شود، پس اینجا دکمه ندارد.
+    if (!Model.IsCancelled && !Model.CustomsDeclarationId.HasValue)
+    {
+        headerKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("لغو مصرف", "Cancel expense"),
+            PostUrl = Url.Action("Cancel", new { id = Model.Id, returnUrl = backUrl }),
+            Icon = "bi-x-circle",
+            IsDestructive = true,
+            ConfirmTitle = T("لغو مصرف", "Cancel expense"),
+            ConfirmMessage = T("این مصرف لغو و سند مالی آن برگردانده می‌شود و از فهرست مصارف حذف می‌شود. ادامه می‌دهید؟",
+                "The expense is cancelled, its ledger entry reversed and it leaves the expense list. Continue?")
+        });
+    }
+    ViewData["AkHeaderKebab"] = headerKebab;
 
     var amountMetrics = new List<AkKpiItem>
     {

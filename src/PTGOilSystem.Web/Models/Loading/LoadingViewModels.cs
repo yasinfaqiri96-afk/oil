@@ -85,6 +85,8 @@ public sealed class LoadingCreateViewModel
     public List<LoadingCreateRowViewModel> Rows { get; set; } = [];
 }
 
+public sealed record LoadingDriverOption(int Id, string FullName, string? Phone);
+
 public sealed class LoadingCreateRowViewModel
 {
     public string RowKey { get; set; } = "";
@@ -147,6 +149,14 @@ public sealed class LoadingCreateRowViewModel
     [Display(Name = "شماره تماس راننده")]
     [StringLength(50)]
     public string? DriverPhone { get; set; }
+
+    // «راننده آزاد»: همان فیلد نوعیت ترانسپورت (owned / free / driver). فقط حالت driver روی
+    // سرور معنا دارد؛ دو حالت دیگر مثل قبل از LogisticsServiceProviderId / OperationalAssetId خوانده می‌شوند.
+    [StringLength(20)]
+    public string? LogisticsMode { get; set; }
+
+    [Display(Name = "راننده")]
+    public int? DriverId { get; set; }
 
     [Display(Name = "مقدار بارگیری‌شده (MT)")]
     [Range(typeof(decimal), "0.0001", "79228162514264337593543950335", ErrorMessage = "مقدار بارگیری باید بزرگ‌تر از صفر باشد.")]
@@ -364,6 +374,30 @@ public sealed class LoadingDetailsViewModel
     public decimal CustomsTotalUsd { get; set; }
     public decimal ChargeableLossTotalMt { get; set; }
     public decimal LoadingCostsGrandTotalUsd { get; set; }
+
+    // کرایه: مسئول، حالت ترانسپورت و طرف‌حساب واقعی هر سند (نه یک نام عمومی برای همهٔ سطرها).
+    public CostResponsibility? FreightCostResponsibility { get; init; }
+    public string? FreightTransportModeLabel { get; set; }
+    public int? DriverId { get; init; }
+    public IReadOnlyList<LoadingFreightPartyItem> FreightParties { get; set; } = [];
+}
+
+/// <summary>
+/// یک سطر «طرف‌حساب کرایه» در جزئیات بارگیری. سند مصرف رسمی ⇒ طلب طرف‌حساب در دفتر کل؛
+/// کرایهٔ داخلی دارایی ملکی ⇒ فقط گزارش مدیریتی، بدون بدهی بیرونی.
+/// </summary>
+public sealed class LoadingFreightPartyItem
+{
+    public string PartyKindLabel { get; init; } = "";
+    public string PartyName { get; init; } = "";
+    public int? ServiceProviderId { get; init; }
+    public int? DriverId { get; init; }
+    public int? ExpenseTransactionId { get; init; }
+    public string ExpenseTypeName { get; init; } = "";
+    public decimal? QuantityMt { get; init; }
+    public decimal? RateUsdPerMt { get; init; }
+    public decimal AmountUsd { get; init; }
+    public bool IsInternal { get; init; }
 }
 
 public sealed class LoadingRubleRateEditViewModel
@@ -585,6 +619,31 @@ public sealed class LoadingEditViewModel
     [Display(Name = "نام شرکت لجستیک (دستی)")]
     [StringLength(200)]
     public string? LogisticsCompanyName { get; set; }
+
+    // کرایه — تغییر هرکدام سند مصرف کرایهٔ همین بارگیری را هماهنگ می‌کند (لغو + ثبت دوباره).
+    [Display(Name = "مسئول کرایه")]
+    public CostResponsibility? FreightCostResponsibility { get; set; }
+
+    [Display(Name = "کرایه فی تن (USD/MT)")]
+    [Range(typeof(decimal), "0", "79228162514264337593543950335", ErrorMessage = "کرایه فی تن نمی‌تواند منفی باشد.")]
+    public decimal? FreightRateUsdPerMt { get; set; }
+
+    [Display(Name = "شرکت خدماتی طرف‌حساب کرایه")]
+    public int? LogisticsServiceProviderId { get; set; }
+
+    /// <summary>
+    /// نوعیت ترانسپورت: free (شرکت خدماتی) / driver (راننده آزاد) / owned (ترانسپورت شخصی شرکت) /
+    /// none. خالی (فرم قدیمی) ⇒ همان نوعیت فعلی بارگیری حفظ می‌شود.
+    /// </summary>
+    [Display(Name = "نوعیت ترانسپورت")]
+    [StringLength(20)]
+    public string? LogisticsMode { get; set; }
+
+    [Display(Name = "دارایی ملکی (ترانسپورت شخصی)")]
+    public int? OperationalAssetId { get; set; }
+
+    /// <summary>مصارف این بارگیری از «ثبت مصارف» (ردیفی) مدیریت می‌شود؛ فیلدهای کرایه اینجا اعمال نمی‌شوند.</summary>
+    public bool HasExpenseLines { get; set; }
 
     [Display(Name = "یادداشت")]
     [StringLength(1000)]

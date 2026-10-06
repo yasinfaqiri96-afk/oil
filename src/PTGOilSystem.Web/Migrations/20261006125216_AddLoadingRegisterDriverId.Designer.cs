@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PTGOilSystem.Web.Data;
@@ -11,9 +12,11 @@ using PTGOilSystem.Web.Data;
 namespace PTGOilSystem.Web.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006125216_AddLoadingRegisterDriverId")]
+    partial class AddLoadingRegisterDriverId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4754,9 +4757,6 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<int?>("InventoryTransportBatchId")
                         .HasColumnType("integer");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsFreightSettled")
                         .HasColumnType("boolean");

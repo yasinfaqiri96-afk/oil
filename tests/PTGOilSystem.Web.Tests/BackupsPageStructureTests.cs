@@ -25,12 +25,20 @@ public class BackupsPageStructureTests
     {
         Assert.Equal(4, CountOccurrences(LiveView, "<vc:stat-card"));
         Assert.Contains("class=\"ak-stat-grid\"", LiveView, StringComparison.Ordinal);
+        Assert.DoesNotContain("unit=", LiveView, StringComparison.Ordinal);
         Assert.DoesNotContain("bk-card", LiveView, StringComparison.Ordinal);
         Assert.DoesNotContain("bk-card", Styles, StringComparison.Ordinal);
 
         // ناحیهٔ زنده باید ریتم عمودی داشته باشد، وگرنه لیست به کارت‌ها می‌چسبد.
         Assert.Contains(".bk-page [data-backup-live]", Styles, StringComparison.Ordinal);
         Assert.Contains(".bk-page .ak-stat-grid", Styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_Persian_Page_Title_Uses_Backup_Wording()
+    {
+        Assert.Contains("UiText.T(Context, \"بکاپ‌گیری\", \"Backups\")", IndexView, StringComparison.Ordinal);
+        Assert.Contains("UiText.T(Context, \"وضعیت بکاپ‌گیری\", \"Backup status\")", LiveView, StringComparison.Ordinal);
     }
 
     [Fact]

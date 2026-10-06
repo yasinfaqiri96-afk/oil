@@ -30,6 +30,7 @@ public sealed partial class ClientModuleProfile
         ArgumentNullException.ThrowIfNull(options);
         Name = string.IsNullOrWhiteSpace(options.Name) ? null : options.Name.Trim();
         SimplePurchaseEnabled = options.SimplePurchaseEnabled;
+        TruckOnlyEnabled = options.TruckOnlyEnabled;
         _hiddenModules = Normalize(options.HiddenModules);
         _hiddenModules.Remove(RoleNavigationKeys.Dashboard);
         _hiddenControllers = Normalize(options.HiddenControllers);
@@ -39,6 +40,8 @@ public sealed partial class ClientModuleProfile
     public string? Name { get; }
 
     public bool SimplePurchaseEnabled { get; }
+
+    public bool TruckOnlyEnabled { get; }
 
     public bool HasRestrictions => _hiddenModules.Count > 0 || _hiddenControllers.Count > 0;
 

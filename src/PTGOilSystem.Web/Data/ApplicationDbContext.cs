@@ -235,6 +235,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<InventoryTransportBatch>().ToTable("InventoryTransportBatches");
         modelBuilder.Entity<InventoryTransportLegAllocation>().ToTable("InventoryTransportLegAllocations");
         modelBuilder.Entity<LoadingRegister>().HasIndex(l => l.LogisticsServiceProviderId);
+        modelBuilder.Entity<LoadingRegister>().HasIndex(l => l.DriverId);
         // گارد نهایی ضد ثبت تکراری بارگیری. کلید خودش ContractId را در بر دارد، پس یکتایی
         // فقط داخل همان قرارداد اعمال می‌شود. مقدار null (بارگیری بدون شمارهٔ سند و بدون شمارهٔ
         // حمل، و همهٔ رکوردهای قبلی) در PostgreSQL از یکتایی معاف است و دست‌نخورده می‌ماند.
@@ -1426,6 +1427,12 @@ public class ApplicationDbContext : DbContext
             .HasOne(l => l.LogisticsServiceProvider)
             .WithMany()
             .HasForeignKey(l => l.LogisticsServiceProviderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<LoadingRegister>()
+            .HasOne(l => l.Driver)
+            .WithMany()
+            .HasForeignKey(l => l.DriverId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<ExpenseTransaction>()

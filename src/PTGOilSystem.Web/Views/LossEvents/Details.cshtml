@@ -15,10 +15,25 @@
     var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentReturnUrl });
 
     // Kebab keeps the side route only; the record's own action lives in the strip.
-    ViewData["AkHeaderKebab"] = new List<AkHeaderMenuItem>
+    var headerKebab = new List<AkHeaderMenuItem>
     {
         new() { Label = T("کسری جدید", "New loss"), Href = Url.Action("Create", new { returnUrl = backUrl }), Icon = "bi-plus-lg" }
     };
+    // لغو کنار ویرایش: اثر موجودی و سند مالی کسری برمی‌گردد و از فهرست کسری کنار می‌رود.
+    if (!Model.IsCancelled)
+    {
+        headerKebab.Add(new AkHeaderMenuItem
+        {
+            Label = T("لغو کسری", "Cancel loss"),
+            PostUrl = Url.Action("Cancel", new { id = Model.Id, returnUrl = backUrl }),
+            Icon = "bi-x-circle",
+            IsDestructive = true,
+            ConfirmTitle = T("لغو کسری", "Cancel loss"),
+            ConfirmMessage = T("این کسری لغو می‌شود؛ اثر آن بر موجودی و سند مالی برگردانده می‌شود و از فهرست کسری حذف می‌شود. ادامه می‌دهید؟",
+                "The loss is cancelled, its stock and ledger effects reversed and it leaves the loss list. Continue?")
+        });
+    }
+    ViewData["AkHeaderKebab"] = headerKebab;
 
     // اعداد تصمیم‌ساز کسری در یک کارت؛ حد تحمل و کسری مجاز عدد پشتیبان‌اند و
     // در کارت اندازه‌گیری کنار همان مقایسه می‌مانند.

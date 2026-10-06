@@ -325,6 +325,11 @@ public sealed class InventoryMovementWriter : IInventoryMovementWriter
             await _stock.EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement, ct);
         }
 
+        if (direction is MovementDirection.In or MovementDirection.Adjustment)
+        {
+            await EnsureTankCapacityAsync([movement], ct);
+        }
+
         _db.InventoryMovements.Add(movement);
         await _db.SaveChangesAsync(ct);
         return movement;
@@ -402,9 +407,66 @@ public sealed class InventoryMovementWriter : IInventoryMovementWriter
             }
         }
 
+        if (direction == MovementDirection.In)
+        {
+            await EnsureTankCapacityAsync(prepared, ct);
+        }
+
         _db.InventoryMovements.AddRange(prepared);
         await _db.SaveChangesAsync(ct);
         return prepared;
+    }
+
+    /// <summary>
+    /// موجودی فعلیِ مخزن به‌اضافهٔ ورودی‌های این ثبت نباید از ظرفیت مخزن بیشتر شود.
+    /// ظرفیت صفر یا منفی یعنی «بدون محدودیت» (رفتار پیشین حفظ می‌شود). خط زمانی آینده سنجیده نمی‌شود.
+    /// </summary>
+    private async Task EnsureTankCapacityAsync(
+        IReadOnlyCollection<InventoryMovement> movements,
+        CancellationToken ct)
+    {
+        foreach (var group in movements
+                     .Where(m => m.StorageTankId.HasValue)
+                     .GroupBy(m => m.StorageTankId!.Value)
+                     .OrderBy(g => g.Key))
+        {
+            var tankId = group.Key;
+            var capacityMt = await _db.StorageTanks
+                .AsNoTracking()
+                .Where(t => t.Id == tankId)
+                .Select(t => (decimal?)t.CapacityMt)
+                .FirstOrDefaultAsync(ct);
+            if (capacityMt is not > 0m)
+            {
+                continue;
+            }
+
+            // قفل ردیف مخزن پیش از خواندن موجودی، تا دو ورودی هم‌زمان هر دو از چک عبور نکنند.
+            var sample = group.First();
+            await _stock.AcquireStockMutationLockAsync(
+                new InventoryMovement { ProductId = sample.ProductId, StorageTankId = tankId },
+                ct);
+
+            var currentMt = await _db.InventoryMovements
+                .AsNoTracking()
+                .Where(m => m.StorageTankId == tankId)
+                .Select(m => (decimal?)(
+                    m.Direction == MovementDirection.In || m.Direction == MovementDirection.Adjustment
+                        ? m.QuantityMt
+                        : m.Direction == MovementDirection.Out || m.Direction == MovementDirection.Transfer
+                            ? -m.QuantityMt
+                            : 0m))
+                .SumAsync(ct) ?? 0m;
+            var incomingMt = group.Sum(m => m.QuantityMt);
+
+            if (currentMt + incomingMt > capacityMt.Value)
+            {
+                var freeMt = Math.Max(capacityMt.Value - currentMt, 0m);
+                throw new BusinessRuleException(
+                    "STOCK_TANK_CAPACITY_EXCEEDED",
+                    $"ظرفیت مخزن مقصد کافی نیست. ظرفیت مخزن: {capacityMt.Value:N4} MT، موجودی فعلی: {currentMt:N4} MT، فضای خالی: {freeMt:N4} MT، مقدار ورودی: {incomingMt:N4} MT.");
+            }
+        }
     }
 
     private static void ValidateMovement(decimal quantityMt, string? referenceDocument)

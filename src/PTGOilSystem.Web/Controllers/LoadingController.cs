@@ -265,6 +265,13 @@ public partial class LoadingController : Controller
             .ThenBy(a => a.Name)
             .Select(a => new SelectListItem(a.AssetCode + " - " + a.Name, a.Id.ToString()))
             .ToListAsync();
+        // «راننده آزاد» — فهرست راننده‌ها یک‌بار در صفحه (datalist)، نه برای هر سطر.
+        ViewBag.LoadingDriverOptions = await _db.Drivers
+            .AsNoTracking()
+            .Where(d => d.IsActive)
+            .OrderBy(d => d.FullName)
+            .Select(d => new LoadingDriverOption(d.Id, d.FullName, d.Phone))
+            .ToListAsync();
     }
 
     private async Task<Contract?> LockPurchaseContractAsync(int contractId)
@@ -615,6 +622,7 @@ public partial class LoadingController : Controller
             ("TransitNumber", loading.TransitNumber),
             ("DriverName", loading.DriverName),
             ("DriverPhone", loading.DriverPhone),
+            ("DriverId", loading.DriverId),
             ("PlattsUsd", loading.PlattsUsd),
             ("LoadingPriceUsd", loading.LoadingPriceUsd),
             ("SettlementCurrencyCode", loading.SettlementCurrencyCode),
@@ -1524,12 +1532,36 @@ public partial class LoadingController : Controller
                 .ToList();
         }
 
+        var freightResponsibilityErrorAdded = false;
         foreach (var row in model.Rows)
         {
+            // NormalizeRow فقط حالت «راننده آزاد» را نگه می‌دارد؛ «ترانسپورت آزاد» برای اعتبارسنجی پایین لازم است.
+            var postedFreeTransportMode = string.Equals(row.LogisticsMode?.Trim(), "free", StringComparison.OrdinalIgnoreCase);
             NormalizeRow(row, model.TransportType, model.LoadingDate);
             if (!model.RecordFreight)
             {
                 ClearFreightSnapshot(row);
+            }
+
+            // ترانسپورت بیرونی + ثبت کرایه ⇒ مسئول کرایه باید صریح انتخاب شود؛ خالی دیگر «بدوش خریدار» نیست.
+            if (model.RecordFreight
+                && model.FreightCostResponsibility is null
+                && (postedFreeTransportMode || IsFreeDriverMode(row) || row.LogisticsServiceProviderId.HasValue)
+                && !freightResponsibilityErrorAdded)
+            {
+                ModelState.AddModelError(nameof(model.FreightCostResponsibility), FreightResponsibilityRequiredMessage);
+                freightResponsibilityErrorAdded = true;
+            }
+
+            // کرایه بدوش شرکت ما (خریدار) + ترانسپورت بیرونی ⇒ طرف‌حسابِ طلبکار باید معلوم باشد.
+            if (model.RecordFreight
+                && model.FreightCostResponsibility == CostResponsibility.Buyer
+                && postedFreeTransportMode
+                && !row.LogisticsServiceProviderId.HasValue)
+            {
+                ModelState.AddModelError(
+                    RowField(row.RowKey, nameof(row.LogisticsServiceProviderId)),
+                    "کرایه بدوش شرکت ما است؛ برای «ترانسپورت آزاد» شرکت خدماتی طرف‌حساب کرایه را انتخاب کنید.");
             }
 
             var effectiveContractId = ResolveEffectiveRowContractId(model, row, useRowContracts);
@@ -1568,6 +1600,11 @@ public partial class LoadingController : Controller
             if (row.LogisticsServiceProviderId.HasValue && row.OperationalAssetId.HasValue)
             {
                 ModelState.AddModelError(RowField(row.RowKey, nameof(row.OperationalAssetId)), "برای هر ردیف بارگیری فقط یکی از شرکت خدماتی بیرونی یا دارایی عملیاتی ملکی را انتخاب کنید.");
+            }
+
+            if (IsFreeDriverMode(row) && !row.DriverId.HasValue && string.IsNullOrWhiteSpace(row.DriverName))
+            {
+                ModelState.AddModelError(RowField(row.RowKey, nameof(row.DriverName)), "برای «راننده آزاد» راننده را انتخاب یا نام راننده جدید را وارد کنید.");
             }
 
             if (model.RecordFreight)
@@ -1882,11 +1919,37 @@ public partial class LoadingController : Controller
                     return View(model);
                 }
 
+                // «راننده آزاد» — رانندهٔ انتخاب‌شده یا پروفایلِ تازه (بدون تکرار) به همان سطر وصل می‌شود.
+                var autoCreatedDrivers = await AttachFreeDriversAsync(createdRows.Select(row => (row.Row, row.Loading)).ToList());
+                if (!ModelState.IsValid)
+                {
+                    if (transaction is not null)
+                    {
+                        await transaction.RollbackAsync();
+                    }
+
+                    await PopulateLookupsAsync(model);
+                    PrepareRowsForFastPreview(model);
+                    return View(model);
+                }
+
                 // PTG-P0-01 — توکن با همان SaveChanges و همان Transaction مصرف می‌شود.
                 _formTokens.Stamp(formToken, "Loading.Create", nameof(LoadingRegister));
 
                 _db.LoadingRegisters.AddRange(createdRows.Select(row => row.Loading));
                 await _db.SaveChangesAsync();
+
+                foreach (var createdDriver in autoCreatedDrivers)
+                {
+                    await _audit.LogAsync(
+                        nameof(Driver),
+                        createdDriver.Id,
+                        AuditAction.Insert,
+                        diff: AuditDiffFormatter.ForCreate(
+                            ("FullName", createdDriver.FullName),
+                            ("Phone", createdDriver.Phone),
+                            ("Source", "Loading.Create")));
+                }
 
                 foreach (var createdRow in createdRows)
                 {
@@ -2191,12 +2254,21 @@ public partial class LoadingController : Controller
             ExpenseEditor = BuildLoadingExpenseEditModel(loading, returnUrl),
             ReceiptItems = receiptItems,
             LossItems = lossItems,
-            CustomsItems = customsItems
+            CustomsItems = customsItems,
+            FreightCostResponsibility = loading.FreightCostResponsibility,
+            DriverId = loading.DriverId
         };
 
+        await PopulateLoadingFreightPartiesAsync(model, loading);
         await PopulateLoadingExpenseLinesAsync(model.ExpenseEditor, loading);
         model.LoadingExpenseTotalUsd = model.ExpenseEditor.Lines.Count > 0
             ? model.ExpenseEditor.Lines.Sum(line => line.AmountUsd)
+                + (await _db.ExpenseTransactions
+                    .Where(e => e.LoadingRegisterId == loading.Id
+                        && !e.IsCancelled
+                        && !e.CustomsDeclarationId.HasValue
+                        && e.DriverId.HasValue)
+                    .SumAsync(e => (decimal?)e.AmountUsd) ?? 0m)
             : (model.TransportExpenseUsd ?? 0m)
               + (model.WarehouseExpenseUsd ?? 0m)
               + (model.OtherExpenseUsd ?? 0m)
@@ -2205,6 +2277,54 @@ public partial class LoadingController : Controller
         model.ChargeableLossTotalMt = model.LossItems.Sum(item => item.ChargeableLossMt);
         model.LoadingCostsGrandTotalUsd = model.LoadingExpenseTotalUsd + model.CustomsTotalUsd;
         return View(model);
+    }
+
+    // طرف‌حساب کرایه از خودِ اسناد خوانده می‌شود: مصرف رسمی (شرکت خدماتی/راننده) و کرایهٔ
+    // داخلی دارایی ملکی. اسناد لغوشده و مصرف گمرکی جزو کرایه نیستند.
+    private async Task PopulateLoadingFreightPartiesAsync(LoadingDetailsViewModel model, LoadingRegister loading)
+    {
+        var expenseParties = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => e.LoadingRegisterId == loading.Id
+                && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue)
+            .OrderBy(e => e.Id)
+            .Select(e => new LoadingFreightPartyItem
+            {
+                PartyKindLabel = e.ServiceProviderId.HasValue ? "شرکت خدماتی" : e.DriverId.HasValue ? "راننده آزاد" : "بدون طرف‌حساب",
+                PartyName = e.ServiceProvider != null ? e.ServiceProvider.Name : e.Driver != null ? e.Driver.FullName : "-",
+                ServiceProviderId = e.ServiceProviderId,
+                DriverId = e.DriverId,
+                ExpenseTransactionId = e.Id,
+                ExpenseTypeName = e.ExpenseType != null ? (e.ExpenseType.NamePersian ?? e.ExpenseType.Name) : "",
+                AmountUsd = e.AmountUsd
+            })
+            .ToListAsync();
+
+        var internalRents = await _db.AssetRentTransactions
+            .AsNoTracking()
+            .Where(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled)
+            .OrderBy(r => r.Id)
+            .Select(r => new LoadingFreightPartyItem
+            {
+                PartyKindLabel = "ترانسپورت شخصی شرکت",
+                PartyName = r.OperationalAsset != null ? r.OperationalAsset.Name : "-",
+                ExpenseTypeName = "کرایه/مصرف داخلی ترانسپورت",
+                QuantityMt = r.QuantityMt,
+                RateUsdPerMt = r.Rate,
+                AmountUsd = r.AmountUsd,
+                IsInternal = true
+            })
+            .ToListAsync();
+
+        model.FreightParties = [.. expenseParties, .. internalRents];
+        model.FreightTransportModeLabel = loading.LogisticsServiceProviderId.HasValue
+            ? "ترانسپورت آزاد (شرکت خدماتی)"
+            : loading.DriverId.HasValue
+                ? "راننده آزاد"
+                : internalRents.Count > 0
+                    ? "ترانسپورت شخصی شرکت"
+                    : null;
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -2272,6 +2392,7 @@ public partial class LoadingController : Controller
 
         // 1) Per-row validation + amount normalization (no DB writes yet).
         var validLines = NormalizeLoadingExpenseLines(model, loading);
+        await GuardLoadingExpenseDuplicatesAsync(model, loading, validLines);
 
         if (!ModelState.IsValid)
         {
@@ -2417,11 +2538,69 @@ public partial class LoadingController : Controller
             DriverName = loading.DriverName,
             DriverPhone = loading.DriverPhone,
             LogisticsCompanyName = loading.LogisticsServiceProvider?.Name ?? loading.LogisticsCompanyName,
+            FreightCostResponsibility = loading.FreightCostResponsibility,
+            FreightRateUsdPerMt = loading.FreightRateUsdPerMt,
+            LogisticsServiceProviderId = loading.LogisticsServiceProviderId,
+            HasExpenseLines = await _db.LoadingExpenseLines.AnyAsync(l => l.LoadingRegisterId == loading.Id),
             Notes = loading.Notes,
             ReturnUrl = returnUrl
         };
 
+        var activeRentAssetId = await ActiveLoadingRentAssetIdAsync(loading.Id);
+        model.OperationalAssetId = activeRentAssetId;
+        model.LogisticsMode = CurrentLoadingLogisticsMode(loading, activeRentAssetId);
+
+        await PopulateLoadingEditFreightLookupsAsync(model);
         return View(model);
+    }
+
+    private Task<int?> ActiveLoadingRentAssetIdAsync(int loadingId)
+        => _db.AssetRentTransactions
+            .AsNoTracking()
+            .Where(r => r.LoadingRegisterId == loadingId && !r.IsCancelled)
+            .OrderByDescending(r => r.Id)
+            .Select(r => (int?)r.OperationalAssetId)
+            .FirstOrDefaultAsync();
+
+    // همان سه حالت فرم ثبت: شرکت خدماتی، راننده آزاد، دارایی ملکی؛ هیچ‌کدام ⇒ none.
+    private static string CurrentLoadingLogisticsMode(LoadingRegister loading, int? activeRentAssetId)
+        => loading.LogisticsServiceProviderId.HasValue ? "free"
+            : loading.DriverId.HasValue ? FreeDriverLogisticsMode
+            : activeRentAssetId.HasValue ? "owned"
+            : "none";
+
+    private static string? NormalizeEditLogisticsMode(string? mode)
+        => mode?.Trim().ToLowerInvariant() switch
+        {
+            "free" => "free",
+            "driver" => FreeDriverLogisticsMode,
+            "owned" => "owned",
+            "none" => "none",
+            _ => null
+        };
+
+    private async Task PopulateLoadingEditFreightLookupsAsync(LoadingEditViewModel model)
+    {
+        var selectedId = model.LogisticsServiceProviderId;
+        ViewBag.EditServiceProviders = await _db.ServiceProviders
+            .AsNoTracking()
+            .Where(p => p.IsActive || p.Id == selectedId)
+            .OrderBy(p => p.Name)
+            .Select(p => new SelectListItem(p.Name, p.Id.ToString()))
+            .ToListAsync();
+        var selectedAssetId = model.OperationalAssetId;
+        ViewBag.EditOperationalAssets = await _db.OperationalAssets
+            .AsNoTracking()
+            .Where(a => a.IsActive || a.Id == selectedAssetId)
+            .OrderBy(a => a.AssetCode)
+            .Select(a => new SelectListItem(a.AssetCode + " - " + a.Name, a.Id.ToString()))
+            .ToListAsync();
+        ViewBag.LoadingDriverOptions = await _db.Drivers
+            .AsNoTracking()
+            .Where(d => d.IsActive)
+            .OrderBy(d => d.FullName)
+            .Select(d => new LoadingDriverOption(d.Id, d.FullName, d.Phone))
+            .ToListAsync();
     }
 
     [Authorize(Policy = AuthPolicies.ManageData)]
@@ -2496,12 +2675,117 @@ public partial class LoadingController : Controller
             }
         }
 
+        // کرایه: بارگیریِ دارای ردیف‌های «ثبت مصارف» از همان‌جا مدیریت می‌شود و اینجا دست نمی‌خورد.
+        model.HasExpenseLines = await _db.LoadingExpenseLines.AnyAsync(l => l.LoadingRegisterId == loading.Id);
+        model.FreightRateUsdPerMt = NormalizePositiveDecimal(model.FreightRateUsdPerMt);
+        model.LogisticsServiceProviderId = NormalizePositiveInt(model.LogisticsServiceProviderId);
+        model.OperationalAssetId = NormalizePositiveInt(model.OperationalAssetId);
+
+        // نوعیت ترانسپورت: فرم قدیمی (بدون این فیلد) نوعیت فعلی را نگه می‌دارد.
+        var previousRentAssetId = await ActiveLoadingRentAssetIdAsync(loading.Id);
+        var previousMode = CurrentLoadingLogisticsMode(loading, previousRentAssetId);
+        var editMode = NormalizeEditLogisticsMode(model.LogisticsMode) ?? previousMode;
+        model.LogisticsMode = editMode;
+        var isDriverMode = editMode == FreeDriverLogisticsMode;
+
+        ServiceProviderEntity? editProvider = null;
+        OperationalAsset? editAsset = null;
+        List<AssetOwnershipShare> editAssetShares = [];
+        if (!model.HasExpenseLines)
+        {
+            if (editMode == "free" && model.LogisticsServiceProviderId.HasValue)
+            {
+                editProvider = await _db.ServiceProviders
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == model.LogisticsServiceProviderId.Value
+                        && (p.IsActive || p.Id == loading.LogisticsServiceProviderId));
+                if (editProvider is null)
+                {
+                    ModelState.AddModelError(nameof(model.LogisticsServiceProviderId), "شرکت خدماتی انتخاب‌شده معتبر یا فعال نیست.");
+                }
+            }
+
+            if (editMode == "owned")
+            {
+                var assetId = model.OperationalAssetId ?? previousRentAssetId;
+                editAsset = assetId.HasValue
+                    ? await _db.OperationalAssets
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(a => a.Id == assetId.Value && (a.IsActive || a.Id == previousRentAssetId))
+                    : null;
+                if (editAsset is null)
+                {
+                    ModelState.AddModelError(nameof(model.OperationalAssetId), "برای «ترانسپورت شخصی شرکت» دارایی ملکی معتبر را انتخاب کنید.");
+                }
+                else
+                {
+                    editAssetShares = await GetActiveAssetOwnershipSharesAsync(editAsset.Id, model.LoadingDate);
+                    var shareTotal = editAssetShares.Sum(s => s.SharePercent);
+                    if (editAssetShares.Count == 0
+                        || Math.Abs(decimal.Round(shareTotal, 4, MidpointRounding.AwayFromZero) - 100m) > PercentTolerance)
+                    {
+                        ModelState.AddModelError(nameof(model.OperationalAssetId), "برای کرایه داخلی دارایی، مجموع سهم مالکیت فعال در تاریخ بارگیری باید 100٪ باشد.");
+                    }
+                }
+            }
+
+            var freightActive = model.FreightRateUsdPerMt.HasValue
+                || (!loading.FreightRateUsdPerMt.HasValue && (loading.TransportExpenseUsd > 0m || loading.RailwayExpenseUsd > 0m));
+            if (freightActive && (editMode == "free" || isDriverMode) && model.FreightCostResponsibility is null)
+            {
+                ModelState.AddModelError(nameof(model.FreightCostResponsibility), FreightResponsibilityRequiredMessage);
+            }
+            else if (freightActive
+                && editMode == "free"
+                && model.FreightCostResponsibility == CostResponsibility.Buyer
+                && !model.LogisticsServiceProviderId.HasValue)
+            {
+                ModelState.AddModelError(nameof(model.LogisticsServiceProviderId), "کرایه بدوش شرکت ما است؛ برای «ترانسپورت آزاد» شرکت خدماتی طرف‌حساب کرایه را انتخاب کنید.");
+            }
+
+            if (isDriverMode && string.IsNullOrWhiteSpace(model.DriverName))
+            {
+                ModelState.AddModelError(nameof(model.DriverName), "برای «راننده آزاد» راننده را انتخاب یا نام راننده جدید را وارد کنید.");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
+            await PopulateLoadingEditFreightLookupsAsync(model);
             return View(model);
         }
 
+        // «راننده آزاد»: پیوند راننده فقط وقتی دوباره تطبیق می‌شود که نام/تماس عوض شده یا بارگیری
+        // تازه به «راننده آزاد» تغییر کرده؛ ذخیرهٔ دوبارهٔ همان مقادیر هرگز پروفایل تازه نمی‌سازد.
+        var previousDriverId = loading.DriverId;
+        Driver? editCreatedDriver = null;
+        var driverDetailsChanged = !string.Equals(loading.DriverName, model.DriverName, StringComparison.Ordinal)
+            || !string.Equals(loading.DriverPhone, model.DriverPhone, StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(model.DriverName)
+            && (isDriverMode || model.HasExpenseLines)
+            && ((loading.DriverId.HasValue && driverDetailsChanged)
+                || (!model.HasExpenseLines && !loading.DriverId.HasValue)))
+        {
+            var candidates = await _db.Drivers
+                .AsNoTracking()
+                .OrderBy(d => d.Id)
+                .Select(d => new LoadingDriverCandidate(d.Id, d.FullName, d.Phone, d.IsActive))
+                .ToListAsync();
+            var match = FindExistingDriver(candidates, model.DriverName, model.DriverPhone);
+            if (match is not null)
+            {
+                loading.DriverId = match.Id;
+            }
+            else
+            {
+                editCreatedDriver = new Driver { FullName = model.DriverName!, Phone = model.DriverPhone, IsActive = true };
+                _db.Drivers.Add(editCreatedDriver);
+                loading.Driver = editCreatedDriver;
+            }
+        }
+
         var diff = AuditDiffFormatter.ForUpdate(
+            ("DriverId", previousDriverId, editCreatedDriver is null ? (object?)loading.DriverId : "new: " + editCreatedDriver.FullName),
             ("LoadingDate", loading.LoadingDate, model.LoadingDate),
             ("LoadedQuantityMt", loading.LoadedQuantityMt, model.LoadedQuantityMt),
             ("LoadingPriceUsd", loading.LoadingPriceUsd, model.LoadingPriceUsd),
@@ -2515,7 +2799,21 @@ public partial class LoadingController : Controller
             ("DriverName", loading.DriverName, model.DriverName),
             ("DriverPhone", loading.DriverPhone, model.DriverPhone),
             ("LogisticsCompanyName", loading.LogisticsCompanyName, model.LogisticsCompanyName),
+            ("FreightCostResponsibility", loading.FreightCostResponsibility, model.HasExpenseLines ? loading.FreightCostResponsibility : model.FreightCostResponsibility),
+            ("FreightRateUsdPerMt", loading.FreightRateUsdPerMt, model.HasExpenseLines ? loading.FreightRateUsdPerMt : model.FreightRateUsdPerMt),
+            ("LogisticsServiceProviderId", loading.LogisticsServiceProviderId, model.HasExpenseLines ? loading.LogisticsServiceProviderId : model.LogisticsServiceProviderId),
             ("Notes", loading.Notes, model.Notes));
+
+        // وضعیت کرایهٔ پیش از ویرایش؛ فقط تغییرِ همین‌ها سند مصرف کرایه را هماهنگ می‌کند تا ذخیرهٔ
+        // یک یادداشت یا شماره سند هیچ اثر مالی نداشته باشد.
+        var freightBefore = (
+            loading.LoadingDate,
+            loading.LoadedQuantityMt,
+            loading.FreightRateUsdPerMt,
+            loading.FreightCostResponsibility,
+            loading.LogisticsServiceProviderId,
+            loading.TransportExpenseUsd,
+            loading.RailwayExpenseUsd);
 
         loading.LoadingDate = model.LoadingDate;
         loading.LoadedQuantityMt = model.LoadedQuantityMt;
@@ -2535,10 +2833,73 @@ public partial class LoadingController : Controller
         }
         loading.Notes = model.Notes;
 
+        int? targetRentAssetId = previousRentAssetId;
+        if (!model.HasExpenseLines)
+        {
+            // سه حالت انحصاری‌اند، مثل فرم ثبت: شرکت خدماتی، راننده آزاد یا دارایی ملکی.
+            if (!isDriverMode)
+            {
+                loading.DriverId = null;
+                loading.Driver = null;
+            }
+
+            ApplyLoadingEditFreight(loading, model, editMode == "free" ? editProvider : null, transportType, freightBefore.LoadedQuantityMt);
+            if (editAsset is not null)
+            {
+                loading.LogisticsCompanyName = editAsset.Name;
+            }
+            else if ((isDriverMode || editMode == "none") && editMode != previousMode)
+            {
+                // نام شرکت/دارایی قبلی دیگر طرف این بار نیست.
+                loading.LogisticsCompanyName = null;
+            }
+
+            targetRentAssetId = editAsset?.Id;
+        }
+
+        var freightChanged = !model.HasExpenseLines
+            && (editCreatedDriver is not null
+                || loading.DriverId != previousDriverId
+                || targetRentAssetId != previousRentAssetId
+                || freightBefore != (
+                    loading.LoadingDate,
+                    loading.LoadedQuantityMt,
+                    loading.FreightRateUsdPerMt,
+                    loading.FreightCostResponsibility,
+                    loading.LogisticsServiceProviderId,
+                    loading.TransportExpenseUsd,
+                    loading.RailwayExpenseUsd));
+
+        await using var transaction = await BeginTransactionIfSupportedAsync();
+
         await _audit.LogAndSaveAsync(nameof(LoadingRegister), loading.Id, AuditAction.Update, diff: diff);
+
+        if (editCreatedDriver is not null)
+        {
+            await _audit.LogAndSaveAsync(
+                nameof(Driver),
+                editCreatedDriver.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("FullName", editCreatedDriver.FullName),
+                    ("Phone", editCreatedDriver.Phone),
+                    ("Source", "Loading.Edit")));
+        }
 
         // مقدار یا قیمت عوض شده؛ سطر دفترِ بدهی تأمین‌کننده با همان snapshot جدید هماهنگ می‌شود.
         await PostSupplierLoadingLedgerIfReadyAsync(loading, loading.Contract);
+
+        if (freightChanged)
+        {
+            // سند مصرف کرایه (شرکت خدماتی / راننده) و کرایهٔ داخلیِ دارایی ملکی با وضعیت تازه.
+            await ReconcileLoadingFreightExpensesAsync(loading);
+            await ReconcileLoadingInternalFreightRentAsync(loading, editAsset, editAssetShares);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
 
         TempData["ok"] = "اطلاعات بارگیری با موفقیت ویرایش شد.";
 
@@ -3038,7 +3399,8 @@ public partial class LoadingController : Controller
             .OrderBy(e => e.Id)
             .ToListAsync();
 
-        foreach (var expense in expenses)
+        // کرایهٔ خودکار «راننده آزاد» در فرم ردیف ندارد؛ نوع مصرف تکراری هنگام ذخیره رد می‌شود.
+        foreach (var expense in expenses.Where(e => !e.DriverId.HasValue))
         {
             seeds.Add(new LoadingExpenseLineInputModel
             {
@@ -3188,6 +3550,48 @@ public partial class LoadingController : Controller
         }
 
         return valid;
+    }
+
+    /// <summary>
+    /// یک هزینه نباید هم خودکار (از بارگیری) و هم دستی با همان نوع مصرف ثبت شود.
+    /// دو ردیف با همان نوع مصرف و همان طرف‌حساب نیز یک هزینه را دوبار ثبت می‌کنند.
+    /// </summary>
+    private async Task GuardLoadingExpenseDuplicatesAsync(
+        LoadingExpenseEditViewModel model,
+        LoadingRegister loading,
+        IReadOnlyCollection<LoadingExpenseLineInputModel> validLines)
+    {
+        var automaticDriverExpenseTypeIds = await _db.ExpenseTransactions
+            .Where(e => e.LoadingRegisterId == loading.Id
+                && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
+                && e.DriverId.HasValue)
+            .Select(e => e.ExpenseTypeId)
+            .Distinct()
+            .ToListAsync();
+        if (validLines.Any(line => automaticDriverExpenseTypeIds.Contains(line.ExpenseTypeId)))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "کرایهٔ این بارگیری به‌صورت خودکار برای «راننده آزاد» ثبت شده است. برای تغییر آن از «ویرایش بارگیری» استفاده کنید؛ ثبت دستی همین کرایه آن را دو بار حساب می‌کند.");
+        }
+
+        var seen = new HashSet<(int TypeId, LoadingExpensePartyType Party, int? ProviderId, int? AssetId)>();
+        for (var i = 0; i < model.Lines.Count; i++)
+        {
+            var line = model.Lines[i];
+            if (!validLines.Contains(line))
+            {
+                continue;
+            }
+
+            if (!seen.Add((line.ExpenseTypeId, line.PartyType, line.ServiceProviderId, line.OperationalAssetId)))
+            {
+                ModelState.AddModelError(
+                    $"Lines[{i}].ExpenseTypeId",
+                    "این ردیف همان نوع مصرف و همان طرف‌حساب ردیف دیگری را تکرار می‌کند؛ یک هزینه دو بار ثبت نمی‌شود. مبلغ را در همان ردیف جمع کنید.");
+            }
+        }
     }
 
     private async Task<Dictionary<int, ExpenseType>> ResolveLoadingExpenseTypesAsync(
@@ -3347,7 +3751,18 @@ public partial class LoadingController : Controller
 
         await _db.SaveChangesAsync();
 
-        MirrorLoadingExpenseLinesToLoading(loading, entities, typesById, providersById, assetsById);
+        var automaticDriverExpenses = await _db.ExpenseTransactions
+            .Where(e => e.LoadingRegisterId == loading.Id
+                && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
+                && e.DriverId.HasValue)
+            .Select(e => new { Code = e.ExpenseType!.Code, e.AmountUsd })
+            .ToListAsync();
+        var automaticDriverExpenseAmounts = automaticDriverExpenses
+            .GroupBy(e => e.Code, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Sum(e => e.AmountUsd), StringComparer.OrdinalIgnoreCase);
+
+        MirrorLoadingExpenseLinesToLoading(loading, entities, typesById, providersById, assetsById, automaticDriverExpenseAmounts);
 
         var diff = AuditDiffFormatter.ForUpdate(
             ("LogisticsServiceProviderId", beforeSpId, loading.LogisticsServiceProviderId),
@@ -3364,7 +3779,8 @@ public partial class LoadingController : Controller
         IEnumerable<LoadingExpenseLine> lines,
         IReadOnlyDictionary<int, ExpenseType> typesById,
         IReadOnlyDictionary<int, ServiceProviderEntity> providersById,
-        IReadOnlyDictionary<int, OperationalAsset> assetsById)
+        IReadOnlyDictionary<int, OperationalAsset> assetsById,
+        IReadOnlyDictionary<string, decimal> automaticDriverExpenseAmounts)
     {
         decimal transport = 0m, warehouse = 0m, railway = 0m, other = 0m;
         var materialized = lines.ToList();
@@ -3386,6 +3802,10 @@ public partial class LoadingController : Controller
             }
         }
 
+        transport += automaticDriverExpenseAmounts.GetValueOrDefault(LoadingTransportExpenseCode);
+        warehouse += automaticDriverExpenseAmounts.GetValueOrDefault(LoadingStorageExpenseCode);
+        railway += automaticDriverExpenseAmounts.GetValueOrDefault(LoadingWagonRentExpenseCode);
+        other += automaticDriverExpenseAmounts.GetValueOrDefault(LoadingOtherExpenseCode);
         loading.TransportExpenseUsd = transport > 0m ? transport : null;
         loading.WarehouseExpenseUsd = warehouse > 0m ? warehouse : null;
         loading.RailwayExpenseUsd = railway > 0m ? railway : null;
@@ -3716,130 +4136,286 @@ public partial class LoadingController : Controller
         line.AssetRentTransactionId = rent.Id;
     }
 
-    private async Task SyncLoadingServiceExpensesAsync(
+    /// <summary>
+    /// قاعدهٔ واحدِ «کرایه بدهی شرکت ما می‌سازد؟» برای شرکت خدماتی و راننده آزاد.
+    /// بدوش خریدار (شرکت ما در قرارداد خرید) ⇒ بله. خالی ⇒ بله، همان رفتار قدیمیِ فرم که مسئول
+    /// را اختیاری می‌گذارد. بدوش فروشنده / مشترک / نامشخص ⇒ خیر؛ برای «مشترک» سهم شرکت تعریف
+    /// نشده و بدهی کامل خودکار ساخته نمی‌شود.
+    /// </summary>
+    private static bool IsCompanyPayableFreight(CostResponsibility? responsibility)
+        => responsibility == CostResponsibility.Buyer;
+
+    private const string FreightResponsibilityRequiredMessage =
+        "کرایه با ترانسپورت بیرونی (ترانسپورت آزاد یا راننده آزاد) ثبت می‌شود؛ «مسئول کرایه» را انتخاب کنید.";
+
+    /// <summary>
+    /// فیلدهای کرایهٔ فرم ویرایش را روی بارگیری می‌نشاند؛ همان محاسبهٔ <see cref="ApplyLogisticsFreightSnapshot"/>.
+    /// نرخ خالی روی بارگیری‌ای که قبلاً نرخ داشت یعنی «ثبت کرایه خاموش». بارگیریِ قدیمیِ بدون نرخ
+    /// (مبلغ کرایه از فایل) دست نمی‌خورد.
+    /// </summary>
+    private static void ApplyLoadingEditFreight(
         LoadingRegister loading,
-        LoadingExpenseEditViewModel model,
-        ServiceProviderEntity? serviceProvider)
+        LoadingEditViewModel model,
+        ServiceProviderEntity? provider,
+        LoadingTransportType transportType,
+        decimal previousLoadedQuantityMt)
     {
-        var components = BuildLoadingServiceExpenseComponents(model);
+        loading.FreightCostResponsibility = model.FreightCostResponsibility;
+
+        if (provider is not null)
+        {
+            loading.LogisticsServiceProviderId = provider.Id;
+            loading.LogisticsCompanyName = provider.Name;
+        }
+        else if (loading.LogisticsServiceProviderId.HasValue)
+        {
+            loading.LogisticsServiceProviderId = null;
+            loading.LogisticsCompanyName = model.LogisticsCompanyName;
+        }
+
+        var rate = model.FreightRateUsdPerMt;
+        if (!rate.HasValue)
+        {
+            if (loading.FreightRateUsdPerMt.HasValue)
+            {
+                loading.FreightRateUsdPerMt = null;
+                loading.TransportExpenseUsd = null;
+                loading.RailwayRateUsd = null;
+                loading.RailwayExpenseUsd = null;
+                loading.ChargeableQuantityMt = null;
+            }
+
+            return;
+        }
+
+        if (rate == loading.FreightRateUsdPerMt && loading.LoadedQuantityMt == previousLoadedQuantityMt)
+        {
+            return;
+        }
+
+        loading.FreightRateUsdPerMt = rate;
+        if (transportType == LoadingTransportType.Wagon)
+        {
+            // مقدار قابل‌محاسبهٔ دستی می‌ماند؛ اگر همان وزن بارگیری بود، با وزن تازه جلو می‌رود.
+            var chargeableQuantityMt = loading.ChargeableQuantityMt is > 0m && loading.ChargeableQuantityMt != previousLoadedQuantityMt
+                ? loading.ChargeableQuantityMt.Value
+                : loading.LoadedQuantityMt;
+            loading.ChargeableQuantityMt = chargeableQuantityMt;
+            loading.RailwayRateUsd = rate;
+            loading.RailwayExpenseUsd = FreightShortageMath.GrossFreightUsd(chargeableQuantityMt, rate.Value);
+            loading.TransportExpenseUsd = null;
+            return;
+        }
+
+        loading.TransportExpenseUsd = FreightShortageMath.GrossFreightUsd(loading.LoadedQuantityMt, rate.Value);
+        loading.ChargeableQuantityMt = null;
+        loading.RailwayRateUsd = null;
+        loading.RailwayExpenseUsd = null;
+    }
+
+    /// <summary>
+    /// کرایهٔ داخلیِ دارایی ملکیِ همین بارگیری (بدون Ledger طرف‌حساب) با وضعیت تازه هماهنگ می‌شود:
+    /// ترانسپورت شخصی ⇒ ساخت/به‌روزرسانی با همان دارایی؛ هر نوعیت دیگر یا کرایهٔ خاموش ⇒ لغو.
+    /// همان SyncLoadingAssetRentAsync موجود.
+    /// </summary>
+    private async Task ReconcileLoadingInternalFreightRentAsync(
+        LoadingRegister loading,
+        OperationalAsset? asset,
+        IReadOnlyList<AssetOwnershipShare> shares)
+    {
+        if (asset is null
+            && !await _db.AssetRentTransactions.AnyAsync(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled))
+        {
+            return;
+        }
+
+        await SyncLoadingAssetRentAsync(loading, BuildLoadingExpenseEditModel(loading, returnUrl: null), asset, shares);
+    }
+
+    /// <summary>
+    /// اسناد مصرف کرایهٔ خودکارِ بارگیری (شرکت خدماتی / راننده آزاد) را با وضعیت فعلی بارگیری
+    /// هماهنگ می‌کند. سند یکسان ⇒ هیچ کاری (ذخیرهٔ دوباره Posting تکراری نمی‌سازد). هر تفاوتی
+    /// در طرف‌حساب، مبلغ، تاریخ یا قرارداد ⇒ سند قبلی با همان مسیر لغو موجود (برگشت دفتر کل و
+    /// دفتر حسابداری) لغو و سند تازه ثبت می‌شود؛ چون adapter حسابداری فقط ثبت و برگشت دارد،
+    /// ویرایش درجا دفتر جدید را ناهماهنگ می‌گذاشت. بارگیریِ دارای ردیف‌های «ثبت مصارف» را لمس
+    /// نمی‌کند؛ آن ردیف‌ها مالک اسناد خودشان‌اند.
+    /// </summary>
+    private async Task ReconcileLoadingFreightExpensesAsync(LoadingRegister loading)
+    {
+        if (await _db.LoadingExpenseLines.AnyAsync(l => l.LoadingRegisterId == loading.Id))
+        {
+            return;
+        }
+
+        int? providerId = null;
+        int? driverId = null;
+        string? partyName = null;
+        if (IsCompanyPayableFreight(loading.FreightCostResponsibility))
+        {
+            if (loading.LogisticsServiceProviderId.HasValue)
+            {
+                var provider = await _db.ServiceProviders
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == loading.LogisticsServiceProviderId.Value);
+                if (provider is not null)
+                {
+                    providerId = provider.Id;
+                    partyName = provider.Name;
+                }
+            }
+            else if (loading.DriverId.HasValue)
+            {
+                driverId = loading.DriverId;
+                partyName = loading.Driver?.FullName ?? loading.DriverName ?? $"راننده #{loading.DriverId}";
+            }
+        }
+
+        var components = BuildLoadingServiceExpenseComponents(BuildLoadingExpenseEditModel(loading, returnUrl: null));
         var componentCodes = components.Select(c => c.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var existingExpenses = await _db.ExpenseTransactions
+        var activeExpenses = await _db.ExpenseTransactions
             .Include(e => e.ExpenseType)
             .Where(e => e.LoadingRegisterId == loading.Id
+                && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
                 && e.ExpenseType != null
                 && componentCodes.Contains(e.ExpenseType.Code))
+            .OrderByDescending(e => e.Id)
             .ToListAsync();
 
+        var expenseDate = ToUtcDate(loading.LoadingDate);
         foreach (var component in components)
         {
-            var existing = existingExpenses
+            var matches = activeExpenses
                 .Where(e => string.Equals(e.ExpenseType?.Code, component.Code, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(e => e.Id)
-                .FirstOrDefault(e => !e.IsCancelled);
+                .ToList();
+            var hasParty = providerId.HasValue || driverId.HasValue;
+            var keep = hasParty && component.AmountUsd > 0m
+                ? matches.FirstOrDefault(e => e.ServiceProviderId == providerId
+                    && e.DriverId == driverId
+                    && e.ContractId == loading.ContractId
+                    && e.AmountUsd == component.AmountUsd
+                    && e.ExpenseDate == expenseDate)
+                : null;
 
-            if (serviceProvider is null || component.AmountUsd <= 0m)
+            foreach (var stale in matches.Where(e => !ReferenceEquals(e, keep)))
             {
-                if (existing is not null)
-                {
-                    await CancelLoadingServiceExpenseAsync(existing);
-                }
+                await CancelLoadingServiceExpenseAsync(stale);
+            }
 
+            if (keep is not null || !hasParty || component.AmountUsd <= 0m)
+            {
                 continue;
             }
 
             var expenseType = await EnsureLoadingServiceExpenseTypeAsync(component);
-            var description = BuildLoadingServiceExpenseDescription(loading, component, serviceProvider.Name);
-
-            if (existing is null)
+            var expense = new ExpenseTransaction
             {
-                var expense = new ExpenseTransaction
-                {
-                    ExpenseTypeId = expenseType.Id,
-                    ContractId = loading.ContractId,
-                    LoadingRegisterId = loading.Id,
-                    ServiceProviderId = serviceProvider.Id,
-                    ExpenseDate = ToUtcDate(loading.LoadingDate),
-                    Amount = component.AmountUsd,
-                    Currency = SystemCurrency.BaseCurrencyCode,
-                    AppliedFxRateToUsd = 1m,
-                    AmountUsd = component.AmountUsd,
-                    Description = description
-                };
+                ExpenseTypeId = expenseType.Id,
+                ContractId = loading.ContractId,
+                LoadingRegisterId = loading.Id,
+                ServiceProviderId = providerId,
+                DriverId = driverId,
+                ExpenseDate = expenseDate,
+                Amount = component.AmountUsd,
+                Currency = SystemCurrency.BaseCurrencyCode,
+                AppliedFxRateToUsd = 1m,
+                AmountUsd = component.AmountUsd,
+                Description = BuildLoadingServiceExpenseDescription(loading, component, partyName!)
+            };
 
-                // PTG-P1-04 — هویت تسویه: بالاتر ثابت شد شرکت خدماتی هست (وگرنه continue
-                // شده بود) ⇒ بدهی به همان شرکت.
-                ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
-                _settlementValidator.Validate(expense);
+            // PTG-P1-04 — هویت تسویه: شرکت خدماتی یا رانندهٔ همین بارگیری ⇒ بدهی به او.
+            ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
+            _settlementValidator.Validate(expense);
 
-                _db.ExpenseTransactions.Add(expense);
-                await _db.SaveChangesAsync();
+            _db.ExpenseTransactions.Add(expense);
+            await _db.SaveChangesAsync();
 
-                var newLedger = ExpenseLedger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
-                await _db.SaveChangesAsync();
+            var ledger = ExpenseLedger.Post(BuildLoadingServiceExpenseLedger(expenseType, expense, loading));
+            await _db.SaveChangesAsync();
 
-                // مرحله ۵ — Dual-write داخل همان Transaction قدیمی.
-                if (_expenseAccounting is not null)
-                {
-                    await _expenseAccounting.TryPostExpenseAsync(expense);
-                }
+            if (_expenseAccounting is not null)
+            {
+                await _expenseAccounting.TryPostExpenseAsync(expense);
+            }
 
-                await _audit.LogAndSaveAsync(
-                    nameof(ExpenseTransaction),
-                    expense.Id,
-                    AuditAction.Insert,
-                    diff: AuditDiffFormatter.ForCreate(
-                        ("ExpenseTypeId", expense.ExpenseTypeId),
-                        ("ContractId", expense.ContractId),
-                        ("LoadingRegisterId", expense.LoadingRegisterId),
-                        ("ServiceProviderId", expense.ServiceProviderId),
-                        ("ExpenseDate", expense.ExpenseDate),
-                        ("Amount", expense.Amount),
-                        ("Currency", expense.Currency),
-                        ("AmountUsd", expense.AmountUsd),
-                        ("Description", expense.Description),
-                        ("LedgerReference", newLedger.Reference)));
+            await _audit.LogAndSaveAsync(
+                nameof(ExpenseTransaction),
+                expense.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("ExpenseTypeId", expense.ExpenseTypeId),
+                    ("ContractId", expense.ContractId),
+                    ("LoadingRegisterId", expense.LoadingRegisterId),
+                    ("ServiceProviderId", expense.ServiceProviderId),
+                    ("DriverId", expense.DriverId),
+                    ("ExpenseDate", expense.ExpenseDate),
+                    ("AmountUsd", expense.AmountUsd),
+                    ("Description", expense.Description),
+                    ("LedgerReference", ledger.Reference),
+                    ("Source", "Loading.Edit")));
+        }
+    }
+
+    /// <summary>
+    /// تعمیر یک‌بارهٔ دادهٔ قدیمی (CLI <c>--repair-loading-freight</c>): بارگیری‌های یک قرارداد که
+    /// کرایه‌شان «بدوش خریدار» ثبت شده ولی طرف‌حساب کرایه نداشتند، به شرکت خدماتی داده‌شده وصل
+    /// می‌شوند و سند مصرف کرایه با همان <see cref="ReconcileLoadingFreightExpensesAsync"/> ویرایش ساخته
+    /// می‌شود. وزن، نرخ و مبلغ کرایه دست نمی‌خورد. فقط بارگیریِ ناقص انتخاب می‌شود (بدون شرکت خدماتی،
+    /// راننده، دارایی ملکی، ردیف «ثبت مصارف» یا سند کرایهٔ فعال)، پس اجرای دوباره کاری نمی‌کند.
+    /// </summary>
+    internal async Task<IReadOnlyList<(int LoadingId, decimal FreightUsd)>> RepairLegacyFreightPartyAsync(
+        int contractId,
+        ServiceProviderEntity provider,
+        bool dryRun)
+    {
+        var candidates = await _db.LoadingRegisters
+            .Include(l => l.Contract)
+            .Where(l => l.ContractId == contractId
+                && !l.IsCancelled
+                && l.FreightCostResponsibility == CostResponsibility.Buyer
+                && l.LogisticsServiceProviderId == null
+                && l.DriverId == null
+                && ((l.TransportExpenseUsd ?? 0m) > 0m || (l.RailwayExpenseUsd ?? 0m) > 0m)
+                && !_db.LoadingExpenseLines.Any(x => x.LoadingRegisterId == l.Id)
+                && !_db.AssetRentTransactions.Any(r => r.LoadingRegisterId == l.Id && !r.IsCancelled)
+                && !_db.ExpenseTransactions.Any(e => e.LoadingRegisterId == l.Id
+                    && !e.IsCancelled
+                    && (e.ServiceProviderId != null || e.DriverId != null)))
+            .OrderBy(l => l.Id)
+            .ToListAsync();
+
+        var repaired = new List<(int LoadingId, decimal FreightUsd)>(candidates.Count);
+        foreach (var loading in candidates)
+        {
+            repaired.Add((loading.Id, (loading.TransportExpenseUsd ?? 0m) + (loading.RailwayExpenseUsd ?? 0m)));
+            if (dryRun)
+            {
                 continue;
             }
 
-            var previousAmount = existing.Amount;
-            var previousAmountUsd = existing.AmountUsd;
-            var previousServiceProviderId = existing.ServiceProviderId;
-            var previousDescription = existing.Description;
-            var previousExpenseDate = existing.ExpenseDate;
+            await using var transaction = await BeginTransactionIfSupportedAsync();
 
-            existing.ExpenseTypeId = expenseType.Id;
-            existing.ContractId = loading.ContractId;
-            existing.LoadingRegisterId = loading.Id;
-            existing.ServiceProviderId = serviceProvider.Id;
-            existing.ExpenseDate = ToUtcDate(loading.LoadingDate);
-            existing.Amount = component.AmountUsd;
-            existing.Currency = SystemCurrency.BaseCurrencyCode;
-            existing.AppliedFxRateToUsd = 1m;
-            existing.AmountUsd = component.AmountUsd;
-            existing.Description = description;
-
-            var ledger = await _db.LedgerEntries
-                .Where(l => l.SourceType == "Expense" && l.SourceId == existing.Id)
-                .OrderByDescending(l => l.Id)
-                .FirstOrDefaultAsync();
-
-            var serviceExpenseRequest = BuildLoadingServiceExpenseLedger(expenseType, existing, loading);
-            ledger = ledger is null
-                ? ExpenseLedger.Post(serviceExpenseRequest)
-                : ExpenseLedger.Apply(ledger, serviceExpenseRequest);
-
-            await _audit.LogAsync(
-                nameof(ExpenseTransaction),
-                existing.Id,
+            var previousCompanyName = loading.LogisticsCompanyName;
+            loading.LogisticsServiceProviderId = provider.Id;
+            loading.LogisticsCompanyName = provider.Name;
+            await _audit.LogAndSaveAsync(
+                nameof(LoadingRegister),
+                loading.Id,
                 AuditAction.Update,
                 diff: AuditDiffFormatter.ForUpdate(
-                    ("ServiceProviderId", previousServiceProviderId, existing.ServiceProviderId),
-                    ("ExpenseDate", previousExpenseDate, existing.ExpenseDate),
-                    ("Amount", previousAmount, existing.Amount),
-                    ("AmountUsd", previousAmountUsd, existing.AmountUsd),
-                    ("Description", previousDescription, existing.Description)));
-            await _db.SaveChangesAsync();
+                    ("LogisticsServiceProviderId", null, provider.Id),
+                    ("LogisticsCompanyName", previousCompanyName, provider.Name),
+                    ("Source", null, "Repair.LegacyFreightParty")));
+
+            await ReconcileLoadingFreightExpensesAsync(loading);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
         }
+
+        return repaired;
     }
 
     private async Task SyncLoadingAssetRentAsync(
@@ -4130,12 +4706,32 @@ public partial class LoadingController : Controller
         IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading, Contract Contract)> createdRows,
         IReadOnlyDictionary<int, ServiceProviderEntity> logisticsServiceProvidersById)
     {
-        var pending = new List<(LoadingRegister Loading, LoadingServiceExpenseComponent Component, ServiceProviderEntity Provider)>();
+        var pending = new List<(LoadingRegister Loading, LoadingServiceExpenseComponent Component, int? ProviderId, int? DriverId, string PartyName)>();
         foreach (var createdRow in createdRows)
         {
             var loading = createdRow.Loading;
-            if (!loading.LogisticsServiceProviderId.HasValue
-                || !logisticsServiceProvidersById.TryGetValue(loading.LogisticsServiceProviderId.Value, out var provider))
+            int? providerId = null;
+            int? driverId = null;
+            string partyName;
+            if (!IsCompanyPayableFreight(loading.FreightCostResponsibility))
+            {
+                // بدوش فروشنده/مشترک/نامشخص ⇒ هیچ بدهی تازه‌ای برای شرکت ما ساخته نمی‌شود.
+                continue;
+            }
+
+            if (loading.LogisticsServiceProviderId.HasValue
+                && logisticsServiceProvidersById.TryGetValue(loading.LogisticsServiceProviderId.Value, out var provider))
+            {
+                providerId = provider.Id;
+                partyName = provider.Name;
+            }
+            else if (loading.DriverId.HasValue)
+            {
+                // «راننده آزاد» ⇒ همان مصرف رسمی، طلبکار خودِ راننده.
+                driverId = loading.DriverId;
+                partyName = loading.Driver?.FullName ?? loading.DriverName ?? $"راننده #{loading.DriverId}";
+            }
+            else
             {
                 continue;
             }
@@ -4143,7 +4739,7 @@ public partial class LoadingController : Controller
             var expenseModel = BuildLoadingExpenseEditModel(loading, returnUrl: null);
             foreach (var component in BuildLoadingServiceExpenseComponents(expenseModel).Where(c => c.AmountUsd > 0m))
             {
-                pending.Add((loading, component, provider));
+                pending.Add((loading, component, providerId, driverId, partyName));
             }
         }
 
@@ -4156,7 +4752,7 @@ public partial class LoadingController : Controller
             pending.Select(item => item.Component).ToList());
 
         var expenses = new List<(ExpenseTransaction Expense, ExpenseType Type, LoadingRegister Loading)>(pending.Count);
-        foreach (var (loading, component, provider) in pending)
+        foreach (var (loading, component, providerId, driverId, partyName) in pending)
         {
             var expenseType = expenseTypesByCode[component.Code];
             var expense = new ExpenseTransaction
@@ -4164,16 +4760,17 @@ public partial class LoadingController : Controller
                 ExpenseTypeId = expenseType.Id,
                 ContractId = loading.ContractId,
                 LoadingRegisterId = loading.Id,
-                ServiceProviderId = provider.Id,
+                ServiceProviderId = providerId,
+                DriverId = driverId,
                 ExpenseDate = ToUtcDate(loading.LoadingDate),
                 Amount = component.AmountUsd,
                 Currency = SystemCurrency.BaseCurrencyCode,
                 AppliedFxRateToUsd = 1m,
                 AmountUsd = component.AmountUsd,
-                Description = BuildLoadingServiceExpenseDescription(loading, component, provider.Name)
+                Description = BuildLoadingServiceExpenseDescription(loading, component, partyName)
             };
 
-            // PTG-P1-04 — هویت تسویه: شرکتِ لوجستیکِ همین بارگیری ⇒ بدهی به او.
+            // PTG-P1-04 — هویت تسویه: شرکتِ لوجستیک یا رانندهٔ همین بارگیری ⇒ بدهی به او.
             ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
             _settlementValidator.Validate(expense);
 
@@ -4213,6 +4810,7 @@ public partial class LoadingController : Controller
                     ("ContractId", expense.ContractId),
                     ("LoadingRegisterId", expense.LoadingRegisterId),
                     ("ServiceProviderId", expense.ServiceProviderId),
+                    ("DriverId", expense.DriverId),
                     ("ExpenseDate", expense.ExpenseDate),
                     ("Amount", expense.Amount),
                     ("Currency", expense.Currency),
@@ -4428,7 +5026,8 @@ public partial class LoadingController : Controller
         => new()
         {
             Expense = expense,
-            Description = $"ثبت مصرف خدماتی بارگیری - {expenseType.NamePersian ?? expenseType.Name} - {expense.Description}",
+            // شمارهٔ بارگیری اول می‌آید: صورت‌حساب طرف‌حساب شرح را به ۶۰ نویسه کوتاه می‌کند.
+            Description = $"بارگیری #{loading.Id} - مصرف خدماتی {expenseType.NamePersian ?? expenseType.Name} - {expense.Description}",
             Reference = BuildLoadingServiceExpenseReference(expenseType, expense),
             FxRateDate = ToUtcDate(loading.LoadingDate),
             FxRateSource = "USD base currency"
@@ -4529,10 +5128,152 @@ public partial class LoadingController : Controller
         row.RailwayExpenseUsd = null;
     }
 
+    private const string FreeDriverLogisticsMode = "driver";
+
+    private static bool IsFreeDriverMode(LoadingCreateRowViewModel row)
+        => string.Equals(row.LogisticsMode?.Trim(), FreeDriverLogisticsMode, StringComparison.OrdinalIgnoreCase);
+
+    private sealed record LoadingDriverCandidate(int Id, string FullName, string? Phone, bool IsActive);
+
+    private static string DriverPhoneKey(string? phone)
+        => new((phone ?? "").Where(char.IsDigit).ToArray());
+
+    private static string DriverNameKey(string? name)
+        => string.Join(' ', (name ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+
+    /// <summary>
+    /// «راننده آزاد»: سطر یا رانندهٔ موجود را انتخاب کرده (DriverId) یا نام رانندهٔ جدید دارد.
+    /// پیش از ساختن پروفایل تازه، اول شماره تماس و بعد نام با راننده‌های موجود تطبیق داده می‌شود؛
+    /// همان نام با شماره‌ای متفاوت راننده‌ای دیگر حساب می‌شود. پروفایل تازه فقط نام و تماس دارد —
+    /// نمبر ترانزیت متعلق به همین بار است و روی پروفایل راننده نمی‌نشیند.
+    /// </summary>
+    private async Task<List<Driver>> AttachFreeDriversAsync(
+        IReadOnlyList<(LoadingCreateRowViewModel Row, LoadingRegister Loading)> rows)
+    {
+        var created = new List<Driver>();
+        var driverRows = rows.Where(r => IsFreeDriverMode(r.Row)).ToList();
+        if (driverRows.Count == 0)
+        {
+            return created;
+        }
+
+        var candidates = await _db.Drivers
+            .AsNoTracking()
+            .OrderBy(d => d.Id)
+            .Select(d => new LoadingDriverCandidate(d.Id, d.FullName, d.Phone, d.IsActive))
+            .ToListAsync();
+        var candidatesById = candidates.ToDictionary(d => d.Id);
+        var createdByPhone = new Dictionary<string, Driver>(StringComparer.Ordinal);
+        var createdByName = new Dictionary<string, Driver>(StringComparer.Ordinal);
+
+        foreach (var (row, loading) in driverRows)
+        {
+            if (row.DriverId.HasValue)
+            {
+                if (!candidatesById.TryGetValue(row.DriverId.Value, out var selected))
+                {
+                    ModelState.AddModelError(RowField(row.RowKey, nameof(row.DriverName)), "راننده انتخاب‌شده معتبر نیست.");
+                    continue;
+                }
+
+                ApplyDriverToLoading(row, loading, selected.Id, selected.FullName, selected.Phone);
+                continue;
+            }
+
+            var match = FindExistingDriver(candidates, row.DriverName, row.DriverPhone);
+            if (match is not null)
+            {
+                ApplyDriverToLoading(row, loading, match.Id, match.FullName, match.Phone);
+                continue;
+            }
+
+            var phoneKey = DriverPhoneKey(row.DriverPhone);
+            var nameKey = DriverNameKey(row.DriverName);
+            // چند سطرِ همین ثبت با یک رانندهٔ تازه ⇒ یک پروفایل.
+            if ((phoneKey.Length > 0 && createdByPhone.TryGetValue(phoneKey, out var pending))
+                || (createdByName.TryGetValue(nameKey, out pending)
+                    && (phoneKey.Length == 0 || DriverPhoneKey(pending.Phone).Length == 0)))
+            {
+                loading.Driver = pending;
+                loading.DriverName ??= pending.FullName;
+                loading.DriverPhone ??= pending.Phone;
+                continue;
+            }
+
+            var driver = new Driver
+            {
+                FullName = row.DriverName!,
+                Phone = row.DriverPhone,
+                IsActive = true
+            };
+            _db.Drivers.Add(driver);
+            created.Add(driver);
+            loading.Driver = driver;
+            if (phoneKey.Length > 0)
+            {
+                createdByPhone[phoneKey] = driver;
+            }
+            createdByName.TryAdd(nameKey, driver);
+        }
+
+        return created;
+    }
+
+    private static LoadingDriverCandidate? FindExistingDriver(
+        IReadOnlyList<LoadingDriverCandidate> candidates,
+        string? name,
+        string? phone)
+    {
+        var phoneKey = DriverPhoneKey(phone);
+        if (phoneKey.Length > 0)
+        {
+            var byPhone = candidates
+                .Where(d => DriverPhoneKey(d.Phone) == phoneKey)
+                .OrderByDescending(d => d.IsActive)
+                .ThenBy(d => d.Id)
+                .FirstOrDefault();
+            if (byPhone is not null)
+            {
+                return byPhone;
+            }
+        }
+
+        var nameKey = DriverNameKey(name);
+        if (nameKey.Length == 0)
+        {
+            return null;
+        }
+
+        // همان نام فقط وقتی همان راننده است که یکی از دو طرف شماره نداشته باشد.
+        return candidates
+            .Where(d => DriverNameKey(d.FullName) == nameKey
+                && (phoneKey.Length == 0 || DriverPhoneKey(d.Phone).Length == 0))
+            .OrderByDescending(d => d.IsActive)
+            .ThenBy(d => d.Id)
+            .FirstOrDefault();
+    }
+
+    private static void ApplyDriverToLoading(
+        LoadingCreateRowViewModel row,
+        LoadingRegister loading,
+        int driverId,
+        string fullName,
+        string? phone)
+    {
+        row.DriverId = driverId;
+        loading.DriverId = driverId;
+        loading.DriverName ??= fullName;
+        loading.DriverPhone ??= phone;
+        row.DriverName ??= loading.DriverName;
+        row.DriverPhone ??= loading.DriverPhone;
+    }
+
     private static void ClearFreightSnapshot(LoadingCreateRowViewModel row)
     {
         row.LogisticsServiceProviderId = null;
         row.OperationalAssetId = null;
+        row.LogisticsMode = null;
+        row.DriverId = null;
         row.LogisticsCompanyName = null;
         row.FreightRateUsdPerMt = null;
         row.TransportExpenseUsd = null;
@@ -4696,6 +5437,19 @@ public partial class LoadingController : Controller
         row.TransitNumber = NormalizeNullable(row.TransitNumber);
         row.DriverName = NormalizeNullable(row.DriverName);
         row.DriverPhone = NormalizeNullable(row.DriverPhone);
+        if (IsFreeDriverMode(row))
+        {
+            // راننده آزاد جای شرکت خدماتی / دارایی ملکی را می‌گیرد، نه کنار آن‌ها.
+            row.LogisticsMode = FreeDriverLogisticsMode;
+            row.LogisticsServiceProviderId = null;
+            row.OperationalAssetId = null;
+            if (row.DriverId <= 0) row.DriverId = null;
+        }
+        else
+        {
+            row.LogisticsMode = null;
+            row.DriverId = null;
+        }
         if (row.PlattsUsd <= 0) row.PlattsUsd = null;
         if (row.LoadingPriceUsd <= 0) row.LoadingPriceUsd = null;
         if (row.FreightRateUsdPerMt <= 0) row.FreightRateUsdPerMt = null;

@@ -219,6 +219,7 @@ public sealed class LossEventIndexViewModel
 public sealed class LossEventDetailsViewModel
 {
     public int Id { get; init; }
+    public bool IsCancelled { get; init; }
     public DateTime EventDate { get; init; }
     public LossEventStage Stage { get; init; }
     public string ProductName { get; init; } = string.Empty;

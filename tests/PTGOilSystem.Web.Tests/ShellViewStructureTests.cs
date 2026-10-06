@@ -100,16 +100,29 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Sidebar_Exposes_Users_And_Backups_As_Independent_Primary_Items()
+    public void Sidebar_Groups_Users_And_Backups_Under_Settings()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
         Assert.Contains("if (canManageUsers)", layout);
-        Assert.Contains("NavNode(\"Users\", \"Index\", T(\"کاربران\", \"Users\"), \"nav-users\"", layout);
+        Assert.Contains("settingsItems.Add((\"Users\", \"Index\", T(\"کاربران\", \"Users\"), \"nav-users\"))", layout);
         Assert.Contains("if (canManageBackups)", layout);
-        Assert.Contains("NavNode(\"Backups\", \"Index\", T(\"پشتیبان‌گیری\", \"Backups\"), \"nav-settings\"", layout);
-        Assert.DoesNotContain("T(\"مدیریت\", \"Administration\")", layout);
-        Assert.DoesNotContain("children: adminSettingItems", layout);
+        Assert.Contains("settingsItems.Add((\"Backups\", \"Index\", T(\"بکاپ‌گیری\", \"Backups\"), \"nav-settings\"))", layout);
+        Assert.Contains("T(\"تنظیمات\", \"Settings\")", layout);
+        Assert.Contains("children: settingsItems.ToArray()", layout);
+        Assert.DoesNotContain("navSource.Add(NavNode(\"Users\"", layout);
+        Assert.DoesNotContain("navSource.Add(NavNode(\"Backups\"", layout);
+    }
+
+    [Fact]
+    public void Sidebar_Uses_Mashal_Brand_And_Settings_Starts_Collapsed()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+
+        Assert.Contains("~/images/mashal-sidebar-white.webp", layout);
+        Assert.Contains("alt=\"مشعل — سیستم مدیریت تجارت نفت و گاز\"", layout);
+        Assert.DoesNotContain("~/images/saddiqi-sidebar-wordmark.webp", layout);
+        Assert.Contains("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);
     }
 
     [Fact]
@@ -126,7 +139,7 @@ public class ShellViewStructureTests
         Assert.True(
             layout.LastIndexOf("~/css/ptg/70-page-frame.css", StringComparison.Ordinal)
             > layout.LastIndexOf("~/css/ptg/61-finance-workspace.css", StringComparison.Ordinal));
-        Assert.Contains("--layout-content-max: 1200px", tokensCss);
+        Assert.Contains("--layout-content-max: 1280px", tokensCss);
 
         // One form width for the whole system: the reference form
         // («ثبت دریافت / پرداخت») set it, and 76-form-system.css now applies it to
@@ -138,6 +151,11 @@ public class ShellViewStructureTests
 
         Assert.Contains("padding-inline: var(--layout-gutter-desktop)", pageFrameCss);
         Assert.Contains("max-inline-size: var(--layout-content-max)", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1400px", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1480px", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1560px", pageFrameCss);
+        Assert.Contains("@media (min-width: 1200px) and (max-width: 1599.98px)", pageFrameCss);
+        Assert.Contains("padding-inline: var(--layout-gutter-compact)", pageFrameCss);
         Assert.Contains("@media (min-width: 768px) and (max-width: 1199.98px)", pageFrameCss);
         Assert.DoesNotContain(".ptg-page > .boltz-content-body", akauntingCss);
 
@@ -737,8 +755,8 @@ public class ShellViewStructureTests
         Assert.Contains(".ak-page-header:not(.ak-detail-header) .ak-page-title", pageHeaderCss);
         Assert.DoesNotContain("display: none !important", pageHeaderCss);
 
-        Assert.Contains("data-loading-expense-prefetch=\"false\"", loadingDetails);
-        Assert.Contains("data-receipt-remote-modal", loadingDetails);
+        Assert.DoesNotContain("data-loading-expense-prefetch=\"false\"", loadingDetails);
+        Assert.DoesNotContain("data-receipt-remote-modal", loadingDetails);
         Assert.DoesNotContain("<partial name=\"_LoadingExpenseEditor\"", loadingDetails);
         Assert.DoesNotContain("<partial name=\"~/Views/LoadingReceipts/_ReceiptCreateForm.cshtml\"", loadingDetails);
         Assert.Contains("Model.TotalCount, 20", loadingIndex);

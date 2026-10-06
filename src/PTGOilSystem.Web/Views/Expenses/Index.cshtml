@@ -1,5 +1,8 @@
 ﻿@model PTGOilSystem.Web.Models.Expenses.ExpenseIndexViewModel
 @{
+    // ویرایش و لغو ردیف فقط برای نقشی که حق مدیریت داده دارد (همان قاعدهٔ اکشن‌ها).
+    var canManageRows = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+    var rowReturnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     ViewData["Title"] = UiText.T(Context,"مصارف","Expenses");
     var query = Context.Request.Query;
     bool HasQ(string key) => !string.IsNullOrWhiteSpace(query[key]);
@@ -121,6 +124,22 @@
                             <td class="col-actions">
                                 <div class="ak-row-menu">
                                     <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-light ak-secondary-action" title="@UiText.T(Context,"مشاهده","View")" aria-label="@UiText.T(Context,"مشاهده","View")"><i class="bi bi-eye" aria-hidden="true"></i></a>
+                                    @if (canManageRows)
+                                    {
+                                        <a asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@rowReturnUrl" class="btn btn-light ak-secondary-action" title="@UiText.T(Context,"ویرایش","Edit")" aria-label="@UiText.T(Context,"ویرایش","Edit")"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                        @* مصرفِ اعلامیهٔ گمرکی از همان اعلامیه لغو می‌شود. مصرف لغوشده از این فهرست کنار می‌رود. *@
+                                        @if (!item.CustomsDeclarationId.HasValue)
+                                        {
+                                    <form asp-action="Cancel" method="post" class="d-inline" data-no-spa="true"
+                                          data-ptg-confirm="true" data-ptg-confirm-title="لغو مصرف"
+                                          data-ptg-confirm-message="این مصرف لغو و سند مالی آن برگردانده می‌شود و از فهرست حذف می‌شود. ادامه می‌دهید؟">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <input type="hidden" name="returnUrl" value="@rowReturnUrl" />
+                                        <button type="submit" class="btn btn-light ak-secondary-action" title="لغو" aria-label="لغو"><i class="bi bi-x-circle" aria-hidden="true"></i></button>
+                                    </form>
+                                        }
+                                    }
                                 </div>
                             </td>
                         </tr>

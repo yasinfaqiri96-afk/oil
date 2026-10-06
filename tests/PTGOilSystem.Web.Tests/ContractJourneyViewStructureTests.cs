@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -621,12 +621,16 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("Model.TransportType == LoadingTransportType.Wagon", view);
         Assert.Contains("Model.TransportType == LoadingTransportType.Vessel", view);
         // The page states its identity in one horizontal strip, then a two-by-two card grid
-        // (main information, route/status, expenses, cargo). The shared overview strip is not
+        // (main information, vehicle visual, expenses, cargo). The shared overview strip is not
         // used here, and the secondary material sits in one native <details> so no record,
         // activity row or history entry is dropped from the page.
         Assert.Contains("ptg-record-detail", view);
         Assert.Contains("AkDetailCardsModel", view);
-        Assert.Contains("Steps = routeSteps", view);
+        Assert.Contains("VisualAvatar = transportVisualAvatar", view);
+        Assert.Contains("Steps = transportVisualAvatar is null ? routeSteps : []", view);
+        // Source and destination show for every vehicle type; the vehicle visual moved
+        // into the cargo band, so it no longer hides the route.
+        Assert.DoesNotContain("RouteNodes = transportVisualAvatar is null", view);
         Assert.Contains("RouteNodes = new List<AkInfoItem>", view);
         Assert.DoesNotContain("_DetailOverview.cshtml", view);
         Assert.DoesNotContain("<vc:stat-card", view);
@@ -1251,12 +1255,10 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("var effectiveReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : loadingListReturnUrl;", view);
         Assert.Contains("var currentPageReturnUrl = Context.Request.Path + Context.Request.QueryString;", view);
         Assert.Contains("(string?)effectiveReturnUrl", view);
-        Assert.Contains("ModalTarget = \"loadingReceiptModal\"", view);
-        Assert.Contains("id=\"loadingReceiptModal\"", view);
-        // فرم رسید به‌صورت remote داخل مودال بارگذاری می‌شود (partial درون‌خطی حذف شده است).
-        Assert.Contains("data-receipt-remote-modal", view);
-        Assert.Contains("data-receipt-url=\"@receiptEditorUrl\"", view);
-        Assert.Contains("Url.Action(\"Create\", \"LoadingReceipts\", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })", view);
+        Assert.Contains("Href = receiptEditorUrl", view);
+        Assert.DoesNotContain("loadingReceiptModal", view);
+        Assert.DoesNotContain("data-receipt-remote-modal", view);
+        Assert.Contains("Url.Action(\"Create\", \"LoadingReceipts\", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl })", view);
         Assert.Contains("ak-linear-detail", view);
         Assert.Contains("ptg-record-detail", view);
         Assert.Contains("_AkPageHeader", view);
@@ -1350,8 +1352,8 @@ public class ContractJourneyViewStructureTests
         // Every loading action now lives in one header group: the next step is primary,
         // one companion remains visible and secondary operations use the kebab.
         Assert.DoesNotContain("headerPrimaryModal", view);
-        Assert.Contains("Label = T(\"ثبت مصارف\", \"Register expenses\"), ModalTarget = \"loadingExpensesModal\"", view);
-        Assert.Contains("Label = T(\"ثبت رسید\", \"Register receipt\"), ModalTarget = \"loadingReceiptModal\"", view);
+        Assert.Contains("Label = T(\"ثبت مصارف\", \"Register expenses\"), Href = expenseEditorUrl", view);
+        Assert.Contains("Label = T(\"ثبت رسید\", \"Register receipt\"), Href = receiptEditorUrl", view);
         Assert.Contains("ViewData[\"AkHeaderCompanionAction\"]", view);
         Assert.DoesNotContain("NextActions =", view);
         Assert.DoesNotContain("PrimaryLabel =", view);
@@ -1594,8 +1596,9 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("RailwayExpenseUsd", rowEditor);
         Assert.DoesNotContain("data-loading-expense-panel", rowEditor);
         Assert.Contains("_LoadingExpenseEditor", editExpenses);
-        Assert.Contains("loadingExpensesModal", details);
-        Assert.Contains("ModalTarget = \"loadingExpensesModal\"", details);
+        Assert.DoesNotContain("loadingExpensesModal", details);
+        Assert.Contains("ModalTarget = \"loadingIndexExpensesModal\"", index);
+        Assert.Contains("Href = expenseEditorUrl", details);
         Assert.Contains("data-bs-toggle=\"modal\"", detailActionBar);
         Assert.Contains("loadingIndexExpensesModal", index);
         Assert.Contains("data-loading-expense-trigger=\"true\"", index);

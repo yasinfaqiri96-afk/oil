@@ -155,7 +155,7 @@ Border ضخیم، radius بزرگ، glow، shadow سنگین و elevation تود
 | Sidebar rail | `88px` |
 | Mobile navigation | `304px` |
 | Header desktop/mobile | `56px / 52px` |
-| Content max | `1200px` |
+| Content max | `1280px` (progressive up to `1560px` on wide monitors) |
 | Form max | `860px` |
 | Wide form max | `1080px` |
 | Gutter desktop/laptop/compact/mobile | `40 / 32 / 24 / 16px` |
@@ -344,4 +344,3 @@ Breakpointهای canonical Bootstrap:
 - RTL، responsive، focus و contrast رعایت شده است.
 - هیچ token، framework، CSS یا JS موازی ساخته نشده است.
 - build/test متناسب با ریسک اجرا شده است.
-

@@ -66,10 +66,13 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
 
             if (!dropFixedFields)
             {
-                transport += row.TransportExpenseUsd ?? 0m;
+                // کرایه (حمل/خط‌آهن) فقط وقتی هزینهٔ شرکت است که بدوش ما باشد. ردیف‌های دستیِ
+                // «ثبت مصارف» انتخاب صریح کاربرند و همیشه شمرده می‌شوند.
+                var countFreight = isLineBased || IsCompanyFreightCost(row.FreightCostResponsibility);
+                transport += countFreight ? row.TransportExpenseUsd ?? 0m : 0m;
                 warehouse += row.WarehouseExpenseUsd ?? 0m;
                 other += row.OtherExpenseUsd ?? 0m;
-                railway += row.RailwayExpenseUsd ?? 0m;
+                railway += countFreight ? row.RailwayExpenseUsd ?? 0m : 0m;
                 if (isLineBased)
                 {
                     railwayFromLines += row.RailwayExpenseUsd ?? 0m;
@@ -127,7 +130,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
                 lr.TransportExpenseUsd,
                 lr.WarehouseExpenseUsd,
                 lr.OtherExpenseUsd,
-                lr.RailwayExpenseUsd))
+                lr.RailwayExpenseUsd,
+                lr.FreightCostResponsibility))
             .ToListAsync(ct);
 
         var loadingIds = rows.Select(r => r.Id).ToList();
@@ -158,7 +162,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
                 lr.TransportExpenseUsd,
                 lr.WarehouseExpenseUsd,
                 lr.OtherExpenseUsd,
-                lr.RailwayExpenseUsd))
+                lr.RailwayExpenseUsd,
+                lr.FreightCostResponsibility))
             .ToListAsync(ct);
 
         var loadingIds = rows.Select(r => r.Id).ToList();
@@ -214,7 +219,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
                 lr.TransportExpenseUsd,
                 lr.WarehouseExpenseUsd,
                 lr.OtherExpenseUsd,
-                lr.RailwayExpenseUsd));
+                lr.RailwayExpenseUsd,
+                lr.FreightCostResponsibility));
 
         return BuildSnapshot(
             contractId,
@@ -276,5 +282,13 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         decimal? TransportExpenseUsd,
         decimal? WarehouseExpenseUsd,
         decimal? OtherExpenseUsd,
-        decimal? RailwayExpenseUsd);
+        decimal? RailwayExpenseUsd,
+        CostResponsibility? FreightCostResponsibility);
+
+    /// <summary>
+    /// کرایهٔ بدوش فروشنده/مشترک/نامشخص هزینهٔ شرکت ما نیست (مشترک: سهم شرکت هنوز تعریف نشده)
+    /// و فقط معلومات بارگیری است. خالی = بارگیری قدیمی یا ترانسپورت داخلی ⇒ مثل قبل هزینه.
+    /// </summary>
+    private static bool IsCompanyFreightCost(CostResponsibility? responsibility)
+        => responsibility is null or CostResponsibility.Buyer;
 }

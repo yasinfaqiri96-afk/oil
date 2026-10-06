@@ -11,9 +11,9 @@
     var effectiveReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) ? returnUrl : loadingListReturnUrl;
     var currentPageReturnUrl = Context.Request.Path + Context.Request.QueryString;
     var contractUrl = Url.Action("Index", "ContractJourney", new { contractId = Model.ContractId }) ?? "#";
-    var expenseEditorUrl = Url.Action("EditExpenses", "Loading", new { id = Model.Id, returnUrl = currentPageReturnUrl, modal = true });
+    var expenseEditorUrl = Url.Action("EditExpenses", "Loading", new { id = Model.Id, returnUrl = currentPageReturnUrl });
     var receiptEditorUrl = Model.CanRegisterReceipt
-        ? Url.Action("Create", "LoadingReceipts", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl, modal = true })
+        ? Url.Action("Create", "LoadingReceipts", new { loadingId = Model.Id, returnUrl = currentPageReturnUrl })
         : null;
 
     var loadingComplete = Model.RemainingToReceiveMt <= 0m;
@@ -25,9 +25,10 @@
     var showRubRateForm = isRubSettlement
         && Model.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Pending;
 
+    // قیمت ثابت همان «قیمت فی تن» است؛ مبنا فقط وقتی Platts باشد سطر جدا می‌گیرد.
     var pricingMethod = Model.PlattsUsd.HasValue
         ? $"Platts {Model.PlattsUsd.Value:N2}"
-        : Model.LoadingPriceUsd.HasValue ? T("قیمت ثابت", "Fixed price") : null;
+        : null;
 
     var referenceLabel = Model.TransportType switch
     {
@@ -36,20 +37,44 @@
         PTGOilSystem.Web.Models.Entities.LoadingTransportType.Wagon => T("شماره RWB", "RWB no."),
         _ => T("شماره سند", "Document no.")
     };
+    var transportVisualAvatar = Model.TransportType switch
+    {
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Truck => "transported",
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Wagon => "wagon",
+        _ => null
+    };
+    var transportVisualTitle = Model.TransportType switch
+    {
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Truck => T("تانکر مواد نفتی", "Petroleum tanker truck"),
+        PTGOilSystem.Web.Models.Entities.LoadingTransportType.Wagon => T("واگن نفتی", "Rail tank wagon"),
+        _ => null
+    };
 
-    // کارت اول هویت بارگیری است، کارت سوم قیمت‌گذاری و ارقام روبلی. هر fact که
-    // مقدار نداشته باشد خودکار حذف می‌شود، پس ترتیب کارت‌ها هرگز جابه‌جا نمی‌شود.
+    // هر fact فقط یک بار در صفحه می‌آید. هر fact که مقدار نداشته باشد خودکار حذف
+    // می‌شود، پس ترتیب کارت‌ها هرگز جابه‌جا نمی‌شود.
+    // مسیر بالای کارت اصلی: مبدأ و مقصد کنار هم.
+    var routeNodes = new List<AkInfoItem>
+    {
+        new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
+        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName }
+    };
+
+    // نوع حمل و نمبر وسیله زیر تصویر وسیله در کارت مقادیر نوشته می‌شوند؛ فقط وقتی
+    // تصویری نیست (کشتی) اینجا تکرار می‌شوند تا هیچ داده‌ای گم نشود.
+    var hasTransportVisual = transportVisualAvatar is not null;
+    // شرکت خدماتی‌ای که سند کرایه دارد با مبلغش در کارت کرایه می‌آید.
+    var serviceProviderIsFreightParty = Model.LogisticsServiceProviderId.HasValue
+        && Model.FreightParties.Any(p => !p.IsInternal && p.ServiceProviderId == Model.LogisticsServiceProviderId);
     var mainItems = new List<AkInfoItem>
     {
-        new() { Label = T("نوع حمل", "Transport type"), Value = Model.TransportTypeLabel },
-        new() { Label = T("نمبر وسیله", "Vehicle no."), Value = Model.VehicleSummary, IsNumeric = true },
+        new() { Label = T("نوع حمل", "Transport type"), Value = hasTransportVisual ? null : Model.TransportTypeLabel },
+        new() { Label = T("نمبر وسیله", "Vehicle no."), Value = hasTransportVisual ? null : Model.VehicleSummary, IsNumeric = true },
         new() { Label = referenceLabel, Value = Model.BillOfLadingNumber, IsNumeric = true },
-        new() { Label = T("ترمینل / مبدأ", "Terminal / origin"), Value = Model.OriginLocationName },
-        new() { Label = T("مقصد", "Destination"), Value = Model.DestinationName },
         new() { Label = T("نمبر ترانزیت", "Transit no."), Value = Model.TransitNumber, IsNumeric = true },
-        new() { Label = T("نام راننده", "Driver name"), Value = Model.DriverName },
+        new() { Label = T("راننده", "Driver"), Value = Model.DriverName,
+                Href = Model.DriverId.HasValue ? Url.Action("Details", "Drivers", new { id = Model.DriverId.Value }) : null },
         new() { Label = T("تماس راننده", "Driver phone"), Value = Model.DriverPhone, IsNumeric = true },
-        new() { Label = T("شرکت خدماتی", "Service provider"), Value = Model.LogisticsCompanyName,
+        new() { Label = T("شرکت خدماتی", "Service provider"), Value = serviceProviderIsFreightParty ? null : Model.LogisticsCompanyName,
                 Href = Model.LogisticsServiceProviderId.HasValue
                     ? Url.Action("Details", "ServiceProviders", new { id = Model.LogisticsServiceProviderId.Value, returnUrl = currentPageReturnUrl })
                     : null }
@@ -63,10 +88,9 @@
 
     var pricingItems = new List<AkInfoItem>
     {
-        new() { Label = T("مبنای قیمت‌گذاری", "Pricing basis"), Value = pricingMethod },
+        new() { Label = T("مبنای قیمت", "Pricing basis"), Value = pricingMethod },
         new() { Label = T("قیمت فی تن", "Unit price"), Value = Model.LoadingPriceUsd?.ToString("N2"), Unit = "USD/MT", IsNumeric = true },
         new() { Label = T("ارزش بارگیری", "Loading value"), Value = Model.LoadingValueUsd?.ToString("N2"), Unit = "USD", IsNumeric = true },
-        new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true },
         new() { Label = T("مجموع مصارف", "Total expenses"), Value = loadingCostsGrandTotal.ToString("N2"), Unit = "USD", IsNumeric = true }
     };
 
@@ -116,9 +140,11 @@
         });
     }
 
+    // آواتارهای این صفحه عمداً با صفحهٔ جزئیات حمل فرق دارند تا کاربر از نگاه اول
+    // بفهمد کجاست: پرکردن وسیله ← رسید سند ← کسری وزن ← باقی در مخزن.
     var quantityMetrics = new List<AkKpiItem>
     {
-        new() { Title = T("بارگیری", "Loaded"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-weight-mt" },
+        new() { Title = T("بارگیری", "Loaded"), Value = NumberDisplay.Quantity(Model.LoadedQuantityMt), Unit = "MT", State = "accent", Avatar = "flow-nozzle" },
         new()
         {
             Title = T("رسید", "Received"),
@@ -127,10 +153,10 @@
                 : T("به حمل تبدیل شده", "Converted to transport"),
             Unit = transportDetailsUrl is null ? "MT" : null,
             State = transportDetailsUrl is null ? null : "success",
-            Avatar = transportDetailsUrl is null ? "flow-stock-in" : "flow-truck",
+            Avatar = transportDetailsUrl is null ? "flow-receipt-check" : "flow-truck",
             Href = transportDetailsUrl
         },
-        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null, Avatar = "flow-warning" },
+        new() { Title = T("کسری", "Shortage"), Value = NumberDisplay.Quantity(shortageTotal), Unit = "MT", State = shortageTotal > 0m ? "warning" : null, Avatar = "flow-weight-minus" },
         new() { Title = T("باقی", "Remaining"), Value = NumberDisplay.Quantity(Model.RemainingToReceiveMt), Unit = "MT", Avatar = "flow-tank-gauge" }
     };
 
@@ -159,11 +185,11 @@
     }));
 
     var editUrl = Url.Action("Edit", new { id = Model.Id, returnUrl = currentPageReturnUrl });
-    var receiptAction = new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), ModalTarget = "loadingReceiptModal", Icon = "bi-box-arrow-in-down" };
+    var receiptAction = new AkHeaderMenuItem { Label = T("ثبت رسید", "Register receipt"), Href = receiptEditorUrl, Icon = "bi-box-arrow-in-down" };
     var transportAction = new AkHeaderMenuItem { Label = T("تبدیل به حمل", "Convert to transport"), Href = Url.Action("FromLoading", "Transports", new { loadingRegisterId = Model.Id }), Icon = "bi-truck" };
     var customsAction = new AkHeaderMenuItem { Label = T("ثبت گمرک", "Register customs"), Href = Url.Action("Create", "CustomsDeclarations", new { loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-shield-check" };
     var editAction = new AkHeaderMenuItem { Label = T("ویرایش", "Edit"), Href = editUrl, Icon = "bi-pencil-square" };
-    var expenseAction = new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), ModalTarget = "loadingExpensesModal", Icon = "bi-receipt-cutoff" };
+    var expenseAction = new AkHeaderMenuItem { Label = T("ثبت مصارف", "Register expenses"), Href = expenseEditorUrl, Icon = "bi-receipt-cutoff" };
     var lossAction = new AkHeaderMenuItem { Label = T("ثبت کسری", "Register shortage"), Href = Url.Action("Create", "LossEvents", new { contractId = Model.ContractId, loadingRegisterId = Model.Id, returnUrl = currentPageReturnUrl }), Icon = "bi-exclamation-diamond" };
 
     // تمام عملیات صفحه در هدر جمع می‌شوند: گام بعدی واضح است، یک اکشن مستقیم
@@ -189,6 +215,54 @@
     }
     ViewData["AkHeaderKebab"] = headerMenu;
 
+    // کرایه: مسئول، حالت ترانسپورت و طرف‌حساب واقعیِ هر سند. چند طرف‌حساب ⇒ هرکدام سطر خودش را دارد.
+    var freightResponsibilityText = Model.FreightCostResponsibility switch
+    {
+        PTGOilSystem.Web.Models.Entities.CostResponsibility.Buyer => T("بدوش خریدار (شرکت ما)", "Buyer (our company)"),
+        PTGOilSystem.Web.Models.Entities.CostResponsibility.Seller => T("بدوش فروشنده", "Seller"),
+        PTGOilSystem.Web.Models.Entities.CostResponsibility.Shared => T("مشترک", "Shared"),
+        PTGOilSystem.Web.Models.Entities.CostResponsibility.Unspecified => T("نامشخص", "Unspecified"),
+        _ => null
+    };
+    var freightTotalUsd = Model.FreightParties.Sum(p => p.AmountUsd);
+    var freightItems = new List<AkInfoItem>
+    {
+        // نرخ و مجموع یک خط، مسئول و اثر مالی خط بعد؛ هر خط دو خانهٔ کامل.
+        new() { Label = T("کرایه فی تن", "Freight rate"), Value = NumberDisplay.UnitPrice(Model.FreightRateUsdPerMt, "USD/MT"), IsNumeric = true },
+        new() { Label = T("مجموع کرایه", "Freight total"), Value = Model.FreightParties.Count > 0 ? freightTotalUsd.ToString("N2") : null, Unit = "USD", IsNumeric = true },
+        new() { Label = T("کرایه بدوش", "Freight paid by"), Value = freightResponsibilityText, Tone = "info" },
+        new()
+        {
+            // جملهٔ کوتاه و ساده برای کاربر؛ معنای مالی همان قبلی است.
+            Label = T("اثر برای شرکت", "Effect on company"),
+            Value = Model.FreightCostResponsibility switch
+            {
+                PTGOilSystem.Web.Models.Entities.CostResponsibility.Seller
+                    => T("فقط جهت اطلاع؛ بدهی و هزینه ندارد", "Info only; no payable, no cost"),
+                PTGOilSystem.Web.Models.Entities.CostResponsibility.Shared or PTGOilSystem.Web.Models.Entities.CostResponsibility.Unspecified
+                    => T("سهم شرکت ثبت نشده؛ فعلاً بدهی و هزینه ندارد", "Company share not set; no payable, no cost yet"),
+                _ => null
+            },
+            Tone = Model.FreightCostResponsibility == PTGOilSystem.Web.Models.Entities.CostResponsibility.Seller ? "info" : "warning"
+        }
+    };
+    // نوع ترانسپورت و راننده آزاد جدا تکرار نمی‌شوند: طرف‌حساب هر سند (شرکت خدماتی،
+    // راننده یا وسیلهٔ داخلی شرکت) همین‌جا با مبلغش و راننده در کارت اصلی آمده است.
+    freightItems.AddRange(Model.FreightParties.Select(party => new AkInfoItem
+    {
+        Label = party.IsInternal
+            ? $"{party.PartyKindLabel} ({T("داخلی، بدون بدهی", "internal, no payable")})"
+            : party.PartyKindLabel,
+        Value = $"{party.PartyName} · {party.AmountUsd:N2} USD",
+        Tone = party.IsInternal ? null : "primary",
+        IsWide = true,
+        Href = party.ServiceProviderId.HasValue
+            ? Url.Action("Details", "ServiceProviders", new { id = party.ServiceProviderId.Value, returnUrl = currentPageReturnUrl })
+            : party.DriverId.HasValue
+                ? Url.Action("Details", "Drivers", new { id = party.DriverId.Value })
+                : null
+    }));
+
     var cardsModel = new AkDetailCardsModel
     {
         Code = $"LD-{Model.Id:0000}",
@@ -199,14 +273,25 @@
         {
             new() { Label = T("قرارداد", "Contract"), Value = Model.ContractNumber, Href = contractUrl, IsNumeric = true },
             new() { Label = T("محصول", "Product"), Value = Model.ProductName },
-            new() { Label = T("مقدار", "Quantity"), Value = $"{NumberDisplay.Quantity(Model.LoadedQuantityMt)} MT", IsNumeric = true },
             new() { Label = T("تاریخ", "Date"), Value = Model.LoadingDate.ToDisplayDate(), IsNumeric = true }
         },
+        // ترتیب خواندن: وضعیت بار (چقدر بار شد، رسید، ماند) ← وسیله و مسیر ← پول ← کرایه.
+        // مقدار بارگیری فقط در کارت مقادیر می‌آید، نه در نوار بالا.
         Cards = new List<AkDetailCard>
         {
-            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", Rows = mainItems },
-            new() { Title = T("مقادیر", "Quantities"), Icon = "bi-rulers", Metrics = quantityMetrics },
-            new() { Title = T("قیمت‌گذاری و ارزش", "Pricing & value"), Icon = "bi-cash-coin", Rows = pricingItems },
+            new()
+            {
+                Title = T("وضعیت بارگیری", "Loading status"),
+                Icon = "bi-rulers",
+                Metrics = quantityMetrics,
+                VisualAvatar = transportVisualAvatar,
+                VisualTitle = transportVisualTitle,
+                VisualMeta = Model.VehicleSummary,
+                IsWide = true
+            },
+            new() { Title = T("اطلاعات اصلی", "Main information"), Icon = "bi-info-circle", RouteNodes = routeNodes, Rows = mainItems },
+            new() { Title = T("ارزش و مصارف", "Value & expenses"), Icon = "bi-cash-coin", Rows = pricingItems },
+            new() { Title = T("کرایه حمل", "Freight"), Icon = "bi-truck", Rows = freightItems },
             new() { Title = T("یادداشت", "Notes"), Icon = "bi-journal-text", Text = Model.Notes, IsWide = true }
         }
     };
@@ -239,42 +324,6 @@
 
     <partial name="~/Views/Shared/Partials/_DetailCards.cshtml" model="@cardsModel" />
     <partial name="~/Views/Shared/Partials/_DetailMore.cshtml" model="@moreModel" />
-
-    <div class="modal fade" id="loadingExpensesModal" tabindex="-1" aria-labelledby="loadingExpensesModalLabel" aria-hidden="true"
-         data-loading-expense-remote-modal="true" data-loading-expense-url="@expenseEditorUrl" data-loading-expense-prefetch="false">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="loadingExpensesModalLabel">@T("مصارف بارگیری", "Loading expenses") #@Model.Id</h2>
-                    <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
-                </div>
-                <div class="modal-body" data-loading-expense-remote-body>
-                    <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @if (Model.CanRegisterReceipt)
-    {
-        <div class="modal fade" id="loadingReceiptModal" tabindex="-1" aria-labelledby="loadingReceiptModalLabel" aria-hidden="true"
-             data-receipt-remote-modal data-receipt-url="@receiptEditorUrl">
-            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
-                            <h2 class="modal-title" id="loadingReceiptModalLabel">@T("ثبت رسید بارگیری", "Register loading receipt") #@Model.Id</h2>
-                            <p class="ak-section-desc">@Model.ContractNumber · @Model.ProductName · @T("باقی‌مانده", "Remaining") @NumberDisplay.Quantity(Model.RemainingToReceiveMt) MT</p>
-                        </div>
-                        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="@T("بستن", "Close")"></button>
-                    </div>
-                    <div class="modal-body" data-receipt-remote-body>
-                        <div class="ak-empty"><span>@T("فرم هنگام باز کردن بارگذاری می‌شود.", "The form loads when opened.")</span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
 
     @if (showRubRateForm)
     {
@@ -318,33 +367,4 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        (function () {
-            var receiptModal = document.querySelector('[data-receipt-remote-modal]');
-            if (!receiptModal) { return; }
-            receiptModal.addEventListener('show.bs.modal', async function () {
-                var body = receiptModal.querySelector('[data-receipt-remote-body]');
-                var url = receiptModal.getAttribute('data-receipt-url');
-                if (!body || !url || receiptModal.dataset.loaded === 'true' || receiptModal.dataset.loading === 'true') { return; }
-                receiptModal.dataset.loading = 'true';
-                body.innerHTML = '<div class="ak-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>@T("در حال بارگذاری فرم رسید...", "Loading receipt form...")</span></div>';
-                try {
-                    var response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    if (!response.ok) { throw new Error('receipt-form'); }
-                    body.innerHTML = await response.text();
-                    if (window.PTG && typeof window.PTG.initializeModalDesignSystem === 'function') {
-                        window.PTG.initializeModalDesignSystem(body);
-                    }
-                    if (window.jQuery && window.jQuery.validator && window.jQuery.validator.unobtrusive) {
-                        window.jQuery.validator.unobtrusive.parse(body);
-                    }
-                    receiptModal.dataset.loaded = 'true';
-                } catch (_) {
-                    body.innerHTML = '<div class="alert alert-danger mb-0">@T("بارگذاری فرم رسید انجام نشد.", "Could not load the receipt form.") <a class="alert-link" href="' + url + '">@T("باز کردن صفحه", "Open page")</a></div>';
-                } finally {
-                    delete receiptModal.dataset.loading;
-                }
-            });
-        })();
-    </script>
 }

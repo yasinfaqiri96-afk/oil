@@ -113,8 +113,9 @@ public sealed class AkDetailV2StructureTests
         Assert.DoesNotContain("ak-detail-tabbed-sections", loading);
 
         var transport = ReadView("InventoryTransportLegs");
-        Assert.Contains("مسیر و وضعیت", transport);
-        Assert.Contains("Steps = routeSteps", transport);
+        Assert.Contains("مسیر و وسیله", transport);
+        Assert.Contains("VisualAvatar = transportVisualAvatar", transport);
+        Assert.Contains("Steps = transportVisualAvatar is null ? routeSteps : []", transport);
         Assert.Contains("if (Model.TransportType == LoadingTransportType.Truck)", transport);
         Assert.Contains("else if (Model.TransportType == LoadingTransportType.Wagon)", transport);
         Assert.Contains("else if (Model.TransportType == LoadingTransportType.Vessel)", transport);

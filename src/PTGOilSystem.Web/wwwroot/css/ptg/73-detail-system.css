@@ -1871,6 +1871,44 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     line-height: 1;
 }
 
+.ptg-record-detail .ptg-td-card-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    inline-size: 100%;
+    margin: 12px 0 0;
+    padding-block-start: 12px;
+    border-block-start: 1px solid var(--ptg-td-border);
+    text-align: center;
+}
+
+.ptg-record-detail .ptg-td-card-visual > img {
+    inline-size: min(100%, 360px);
+    block-size: 176px;
+    object-fit: contain;
+    object-position: center;
+}
+
+.ptg-record-detail .ptg-td-card-visual figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 8px;
+    min-inline-size: 0;
+}
+
+.ptg-record-detail .ptg-td-card-visual figcaption strong {
+    color: var(--ptg-text);
+    font-size: 15px;
+}
+
+.ptg-record-detail .ptg-td-card-visual figcaption span {
+    color: var(--ptg-muted);
+    font-size: 13px;
+}
+
 /* --- label / value rows, divider between rows only --- */
 .ptg-record-detail .ptg-td-rows {
     margin: 0;
@@ -2361,6 +2399,10 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 @media (max-width: 575.98px) {
+    .ptg-record-detail .ptg-td-card-visual > img {
+        block-size: 144px;
+    }
+
     .ptg-record-detail .ptg-td-strip-cell {
         padding-inline: 0;
         border-inline-start: 0;
@@ -2419,5 +2461,175 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 @media (prefers-reduced-motion: reduce) {
     .ptg-record-detail .ptg-td-more > summary i {
         transition: none;
+    }
+}
+
+/* ==========================================================================
+   Loading & Transport Details (Loading/Details, InventoryTransportLegs/Details)
+   One full-width cargo band (figure chain beside the vehicle visual), then the
+   fact cards side by side. Facts read as label-over-value tiles on a two-column
+   board instead of one divided line each, so every card shows its whole story
+   in a short block. Scoped to the two pages; other record pages keep the shared
+   composition above. Only the loading page runs three cards per line.
+   ========================================================================== */
+/* Three fact cards share one line on wide screens, two below 1400px, one on
+   phones. Wide cards (cargo band, notes) always span the full line. */
+[data-loading-details] .ptg-td-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1399.98px) {
+    [data-loading-details] .ptg-td-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    [data-loading-details] .ptg-td-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card {
+    padding: 18px 20px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card-head {
+    margin: 0;
+    padding-block-end: 12px;
+    border-block-end: 1px solid var(--ptg-td-border);
+    font-size: 15px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card-head i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 8px;
+    background: var(--ptg-primary-soft);
+    font-size: 14px;
+}
+
+/* --- fact board: label over value, two tiles per line, no row dividers --- */
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 20px;
+    margin-block-start: 16px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row,
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row:last-child {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    min-inline-size: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row.is-wide {
+    grid-column: 1 / -1;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row dt {
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row dd {
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+/* .ak-num runs LTR for digit order, so its own `end` is the RTL start edge:
+   the number sits right under its label instead of drifting to the far side. */
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row dd.ak-num {
+    text-align: end;
+}
+
+/* --- route: origin and destination as one soft panel --- */
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route {
+    margin-block-start: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--ptg-surface-soft);
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route-node {
+    flex: 1 1 0;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route-node span {
+    font-size: 12.5px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route-node strong {
+    font-size: 15px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route + .ptg-td-rows {
+    margin-block-start: 18px;
+}
+
+/* --- cargo band: the chain fills the row, the vehicle sits at its end --- */
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 28px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) > .ptg-td-card-head {
+    grid-column: 1 / -1;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) > .ptg-td-flow {
+    margin-block: 18px 4px;
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) > .ptg-td-card-visual {
+    inline-size: 280px;
+    margin: 18px 0 0;
+    padding-block-start: 0;
+    padding-inline-start: 28px;
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--ptg-td-border);
+}
+
+.ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) > .ptg-td-card-visual > img {
+    block-size: 140px;
+}
+
+@media (min-width: 768px) {
+    .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow {
+        --ptg-flow-size: 84px;
+    }
+
+    .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-label {
+        font-size: 13px;
+    }
+
+    .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-node dd {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card.is-wide:has(> .ptg-td-flow) > .ptg-td-card-visual {
+        inline-size: 100%;
+        margin-block-start: 16px;
+        padding-block-start: 14px;
+        padding-inline-start: 0;
+        border-block-start: 1px solid var(--ptg-td-border);
+        border-inline-start: 0;
     }
 }

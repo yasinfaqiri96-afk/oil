@@ -53,6 +53,27 @@ public sealed class OperationLifecycleTests
         Assert.False((await db.LoadingReceipts.SingleAsync()).IsArchived);
     }
 
+    [Fact]
+    public async Task Only_Cancelled_Transport_Leg_Is_Archived_And_Row_Is_Kept()
+    {
+        await using var db = NewDb();
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg { Id = 1, SourcePurchaseContractId = 1, ProductId = 1,
+            QuantityMt = 20, Status = InventoryTransportLegStatus.InTransit });
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg { Id = 2, SourcePurchaseContractId = 1, ProductId = 1,
+            QuantityMt = 20, Status = InventoryTransportLegStatus.Cancelled });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => service.ArchiveAsync("InventoryTransportLeg", 1, null));
+        await service.ArchiveAsync("InventoryTransportLeg", 2, null);
+
+        var legs = await db.InventoryTransportLegs.OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, legs.Count);
+        Assert.False(legs[0].IsArchived);
+        Assert.True(legs[1].IsArchived);
+        Assert.Equal(InventoryTransportLegStatus.Cancelled, legs[1].Status);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

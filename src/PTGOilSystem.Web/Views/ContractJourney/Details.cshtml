@@ -1276,7 +1276,7 @@
                                 <tfoot>
                                     <tr>
                                         <td class="no-print"></td>
-                                        <td class="ak-col-grow">@T("مجموع", "Total")</td>
+                                        <td class="ak-col-grow">@T("مجموع اسناد مصرف", "Expense documents total")</td>
                                         <td class="ak-num">@filteredExpenseItems.Count.ToString("N0")</td>
                                         <td></td>
                                         <td class="ak-num">@filteredExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
@@ -1293,6 +1293,52 @@
                         @T("مصارف جریان حمل بار", "Cargo flow expenses"): @inventoryTransportExpenseTotalUsd.ToString("N2") @UnitUsd()
                     </p>
                 </section>
+
+                @if (Model.InternalTransportCostItems.Any())
+                {
+                    <section class="ak-form-section ak-detail-section" data-journey-internal-transport-costs>
+                        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                                 model="@((T("کرایه/مصرف داخلی ترانسپورت", "Internal transport cost"), (string?)T("ترانسپورت شخصی شرکت؛ بدون بدهی بیرونی و بدون Ledger. همین مبلغ یک‌بار در کارت «مجموع مصارف» بالای این تب و در مفاد قرارداد حساب شده است؛ در جدول اسناد مصرف بالا نیست چون سند مصرف ندارد.", "Company-owned transport; no external payable or ledger. Counted once in the Total expenses card above and in contract P&L; not in the expense documents table because it has no expense document.")))" />
+                        <div class="ak-table-wrap">
+                            <table class="ak-table ak-detail-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ak-col-grow">@T("دارایی / وسیله", "Asset")</th>
+                                        <th>@T("بارگیری", "Loading")</th>
+                                        <th>@T("تاریخ", "Date")</th>
+                                        <th class="ak-col-num">@T("مقدار", "Quantity")</th>
+                                        <th class="ak-col-num">@T("نرخ", "Rate")</th>
+                                        <th class="ak-col-num">@T("مبلغ", "Amount")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var rent in Model.InternalTransportCostItems)
+                                {
+                                    <tr>
+                                        <td class="ak-col-grow"><span class="ak-name">@(string.IsNullOrWhiteSpace(rent.AssetName) ? "-" : rent.AssetName)</span></td>
+                                        <td>
+                                            @if (rent.LoadingRegisterId.HasValue)
+                                            {
+                                                <a asp-controller="Loading" asp-action="Details" asp-route-id="@rent.LoadingRegisterId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)">LD-@rent.LoadingRegisterId.Value.ToString("0000")</a>
+                                            }
+                                        </td>
+                                        <td>@rent.RentDate.ToDisplayDate()</td>
+                                        <td class="ak-num">@(rent.QuantityMt.HasValue ? $"{NumberDisplay.Quantity(rent.QuantityMt.Value)} {UnitMt()}" : "-")</td>
+                                        <td class="ak-num">@(rent.RateUsdPerMt.HasValue ? $"{rent.RateUsdPerMt.Value:N2} {UnitUsd()}/{UnitMt()}" : "-")</td>
+                                        <td class="ak-num">@rent.AmountUsd.ToString("N2") @UnitUsd()</td>
+                                    </tr>
+                                }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td class="ak-col-grow" colspan="5">@T("مجموع", "Total")</td>
+                                        <td class="ak-num">@Model.InternalTransportCostItems.Sum(r => r.AmountUsd).ToString("N2") @UnitUsd()</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </section>
+                }
 
                 <section class="ak-form-section ak-detail-section">
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"

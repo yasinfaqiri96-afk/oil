@@ -111,6 +111,7 @@ public partial class InventoryTransportLegsController : Controller
         ViewData["DefaultPageSize"] = 5;
         var exportAll = page <= 0;
 
+        // حمل لغوشده‌ای که از فهرست حذف شده (IsArchived) در لیست، آمار و خروجی نمی‌آید.
         var query = _db.InventoryTransportLegs
             .AsNoTracking()
             .Include(l => l.SourcePurchaseContract)
@@ -118,6 +119,7 @@ public partial class InventoryTransportLegsController : Controller
             .Include(l => l.Product)
             .Include(l => l.SourceTerminal)
             .Include(l => l.SourceStorageTank)
+            .Where(l => !l.IsArchived)
             .AsQueryable();
 
         // Apply filters

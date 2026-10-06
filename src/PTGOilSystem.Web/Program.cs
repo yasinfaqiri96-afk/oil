@@ -45,6 +45,14 @@ if (!string.IsNullOrWhiteSpace(clientProfileName))
     builder.Configuration.AddCommandLine(args);
 }
 
+// Explicit per-instance CORS allowlist; an unconfigured instance keeps its existing behavior.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+if (allowedOrigins.Length > 0)
+{
+    builder.Services.AddCors(options => options.AddPolicy("InstanceOrigins", policy =>
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+}
+
 // ---- Database ---------------------------------------------------------------
 // Connection string is read from DATABASE_URL first, then DefaultConnection.
 // DATABASE_URL is converted from the URL form
@@ -587,6 +595,22 @@ if (args.Contains("--repair-loading-prices", StringComparer.OrdinalIgnoreCase))
     return exitCode;
 }
 
+// ---- Loading freight party repair (CLI) -------------------------------------
+// `dotnet run -- --repair-loading-freight --contract-id=N --provider-name="..." [--dry-run]` تعمیرِ
+// یک‌بارهٔ دادهٔ قدیمی است: بارگیری‌های همان یک قرارداد که کرایهٔ «بدوش خریدار» بدون طرف‌حساب
+// داشتند، به شرکت خدماتی (یافتن با نام دقیق، یا ساخت با نوع شرکت ترانسپورتی) وصل می‌شوند و سند
+// مصرف کرایه با همان مسیر ویرایش بارگیری (LoadingController) ساخته می‌شود؛ پس بدهی طرف‌حساب و سند
+// حسابداری مثل ذخیرهٔ فرم ثبت می‌شوند. بارگیریِ کامل دست نمی‌خورد و اجرای دوباره بی‌اثر است.
+if (args.Contains("--repair-loading-freight", StringComparer.OrdinalIgnoreCase))
+{
+    var exitCode = await RunLoadingFreightPartyRepairAsync(
+        app,
+        int.TryParse(CliArgValue(args, "--contract-id"), out var repairContractId) ? repairContractId : 0,
+        CliArgValue(args, "--provider-name"),
+        args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase));
+    return exitCode;
+}
+
 // `dotnet run -- --partner-reconciliation` prints, per partnership contract and partner, what the
 // partnership statement says, what the ledger's partner current account holds, and the named
 // reason for any difference. Read-only.
@@ -683,6 +707,10 @@ app.UseStaticFiles(new StaticFileOptions
 // فقط /api: خطا و پاسخ خالیِ 401/403/404 به ProblemDetails؛ صفحات وب دست نمی‌خورند.
 app.UseMiddleware<ApiErrorMiddleware>();
 app.UseRouting();
+if (allowedOrigins.Length > 0)
+{
+    app.UseCors("InstanceOrigins");
+}
 app.UseAuthentication();
 // پس از UseAuthentication تا تفکیک بر اساس کاربر واردشده انجام شود، نه فقط IP.
 app.UseRateLimiter();
@@ -820,6 +848,104 @@ static async Task<int> RunLoadingPriceRepairAsync(WebApplication app, bool dryRu
     Console.WriteLine($"Errors: {errors}");
 
     return errors == 0 ? 0 : 1;
+}
+
+static string? CliArgValue(string[] args, string name)
+{
+    for (var i = 0; i < args.Length; i++)
+    {
+        if (args[i].StartsWith(name + "=", StringComparison.OrdinalIgnoreCase))
+            return args[i][(name.Length + 1)..].Trim();
+        if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            return args[i + 1].Trim();
+    }
+
+    return null;
+}
+
+static async Task<int> RunLoadingFreightPartyRepairAsync(WebApplication app, int contractId, string? providerName, bool dryRun)
+{
+    if (contractId <= 0 || string.IsNullOrWhiteSpace(providerName))
+    {
+        Console.WriteLine("Usage: --repair-loading-freight --contract-id=N --provider-name=\"...\" [--dry-run]");
+        return 2;
+    }
+
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var contract = await db.Contracts.AsNoTracking().SingleOrDefaultAsync(c => c.Id == contractId);
+    if (contract is null)
+    {
+        Console.WriteLine($"Contract {contractId} not found.");
+        return 2;
+    }
+
+    Console.WriteLine(dryRun ? "== Loading freight party repair - DRY RUN ==" : "== Loading freight party repair ==");
+    Console.WriteLine($"Contract: {contract.Id} {contract.ContractNumber} (CompanyId {contract.CompanyId})");
+
+    var providers = await db.ServiceProviders.Where(p => p.Name == providerName).ToListAsync();
+    if (providers.Count > 1)
+    {
+        Console.WriteLine($"ERROR: {providers.Count} service providers named '{providerName}'.");
+        return 1;
+    }
+
+    var provider = providers.SingleOrDefault();
+    if (provider is null && !dryRun)
+    {
+        provider = new PTGOilSystem.Web.Models.Entities.ServiceProvider
+        {
+            Name = providerName,
+            ProviderType = ServiceProviderType.TransportCompany,
+            IsActive = true
+        };
+        db.ServiceProviders.Add(provider);
+        await db.SaveChangesAsync();
+        await scope.ServiceProvider.GetRequiredService<IAuditService>().LogAndSaveAsync(
+            nameof(PTGOilSystem.Web.Models.Entities.ServiceProvider),
+            provider.Id,
+            AuditAction.Insert,
+            diff: PTGOilSystem.Web.Services.Audit.AuditDiffFormatter.ForCreate(
+                ("Name", provider.Name),
+                ("ProviderType", provider.ProviderType),
+                ("Source", "Repair.LegacyFreightParty")));
+        Console.WriteLine($"Created service provider {provider.Id} '{provider.Name}'.");
+    }
+    else
+    {
+        Console.WriteLine(provider is null
+            ? $"Service provider '{providerName}' would be created."
+            : $"Service provider: {provider.Id} '{provider.Name}'.");
+    }
+
+    var controller = ActivatorUtilities.CreateInstance<LoadingController>(scope.ServiceProvider);
+    controller.TempData = new TempDataDictionary(new DefaultHttpContext(), new MaintenanceTempDataProvider());
+    var repaired = await controller.RepairLegacyFreightPartyAsync(
+        contractId,
+        provider ?? new PTGOilSystem.Web.Models.Entities.ServiceProvider { Name = providerName },
+        dryRun);
+
+    Console.WriteLine($"Incomplete loadings {(dryRun ? "to repair" : "repaired")}: {repaired.Count}, freight {repaired.Sum(r => r.FreightUsd):N2} USD");
+    foreach (var (loadingId, freightUsd) in repaired)
+        Console.WriteLine($"  loading {loadingId}: {freightUsd:N2}");
+
+    if (!dryRun && provider is not null)
+    {
+        var verifyDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        verifyDb.ChangeTracker.Clear();
+        var expenses = await verifyDb.ExpenseTransactions.AsNoTracking()
+            .Where(e => e.ContractId == contractId && e.ServiceProviderId == provider.Id && !e.IsCancelled)
+            .Select(e => e.AmountUsd)
+            .ToListAsync();
+        var owed = await verifyDb.LedgerEntries.AsNoTracking()
+            .Where(l => l.ServiceProviderId == provider.Id)
+            .SumAsync(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd);
+        Console.WriteLine("-- After --");
+        Console.WriteLine($"Active freight expenses for provider on contract: {expenses.Count}, {expenses.Sum():N2} USD");
+        Console.WriteLine($"Provider ledger balance (credit - debit): {owed:N2} USD");
+    }
+
+    return 0;
 }
 
 // کلید تفکیک محدودسازی نرخ: کاربر واردشده، و در نبود آن IP مبدأ.

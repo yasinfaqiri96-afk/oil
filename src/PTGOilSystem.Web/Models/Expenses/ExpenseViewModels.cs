@@ -257,6 +257,8 @@ public sealed class ExpenseListItemViewModel
     // PTG-P1-04 — وضعیت تسویه. Unknown یعنی ردیفِ پیش از فاز ۱ که هرگز حدس زده نشده.
     public PTGOilSystem.Web.Models.Entities.ExpenseSettlementMode SettlementMode { get; init; }
     public string? CashAccountName { get; init; }
+    // مصرفِ اعلامیهٔ گمرکی دکمهٔ لغو ردیف ندارد؛ از همان اعلامیه لغو می‌شود.
+    public int? CustomsDeclarationId { get; init; }
 }
 
 public sealed class ExpenseIndexViewModel
@@ -297,4 +299,7 @@ public sealed class ExpenseDetailsViewModel
     // مصرف گروهی — اگر این مصرف سهمِ یک ثبت گروهی باشد.
     public int? ExpenseBatchId { get; init; }
     public string? ExpenseBatchNumber { get; init; }
+    // لغو: مصرفِ ساخته‌شده از اعلامیهٔ گمرکی فقط از همان اعلامیه لغو می‌شود.
+    public bool IsCancelled { get; init; }
+    public int? CustomsDeclarationId { get; init; }
 }

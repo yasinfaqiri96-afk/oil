@@ -952,6 +952,7 @@ public partial class LossEventsController : Controller
         return View(new LossEventDetailsViewModel
         {
             Id = item.Id,
+            IsCancelled = item.IsCancelled,
             EventDate = item.EventDate,
             Stage = item.Stage,
             ProductName = item.Product?.Name ?? "",

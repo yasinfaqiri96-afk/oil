@@ -3348,7 +3348,14 @@ select.ak-input {
    forced horizontal scroll on every screen. */
 .loading-import-workbook .ak-table {
     table-layout: fixed;
-    min-width: 1540px;
+    min-width: 2100px;
+}
+
+/* Wagon freight adds three operational columns. Keep their readable widths and
+   let the existing table wrapper own horizontal scrolling instead of squeezing
+   headings and controls into the viewport. */
+.loading-import-workbook .ak-table:has([data-loading-wagon-freight-column]:not(.d-none)) {
+    min-width: 2660px;
 }
 
 .loading-import-workbook .ak-table > thead > tr > th,
@@ -3356,11 +3363,12 @@ select.ak-input {
     padding: 6px 8px;
 }
 
-/* Transport labels are dynamic and long («Bill of Lading / بارنامه کشتی»); the
-   header wraps instead of dictating the column width. */
+/* Headers stay on one readable line. The table is intentionally wider than its
+   viewport, so breaking Persian labels letter-by-letter only harms scanning. */
 .loading-import-workbook .ak-table > thead > tr > th {
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    line-height: 1.5;
 }
 
 .loading-import-workbook .ak-table > tbody > tr > td {
@@ -3377,7 +3385,8 @@ select.ak-input {
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(126px, .85fr) minmax(164px, 1.15fr);
     gap: 6px;
 }
 
@@ -3386,62 +3395,69 @@ select.ak-input {
     min-width: 0;
 }
 
-/* Per-column widths, ordered as the header row: #, قرارداد, تاریخ, مرجع,
-   وسیله حمل, مقدار, فی تن, ارزش, روبل فی تن, ارزش روبلی, نرخ روبل,
-   معادل روبلی, ترانسپورت, کرایه فی تن, گیرنده, مقصد, actions. */
+/* Per-column widths, ordered as the current 22-column row contract: #, contract,
+   date, reference, vehicle, loaded, purchase rate, value, chargeable, file RUB
+   rate/value, FX rate/value, transport company, freight rate, railway total,
+   consignee, destination, transit, driver, phone, actions. */
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(2),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(2) { width: 132px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(2) { width: 150px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(3),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(3) { width: 104px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(3) { width: 112px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(4),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(4) { width: 116px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(4) { width: 138px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(5),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(5) { width: 116px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(5) { width: 144px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(6),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(6) { width: 84px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(6) { width: 116px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(7),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(7) { width: 84px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(7) { width: 128px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(8),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(8) { width: 106px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(8) { width: 126px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(9),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(9) { width: 100px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(9) { width: 162px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(10),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(10) { width: 110px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(10) { width: 116px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(11),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(11) { width: 92px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(11) { width: 126px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(12),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(12) { width: 110px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(12) { width: 112px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(13),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(13) { width: 248px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(13) { width: 126px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(14),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(14) { width: 92px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(14) { width: 318px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(15),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(15) { width: 128px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(15) { width: 146px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(16),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(16) { width: 116px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(16) { width: 154px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(17),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(17) { width: 116px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(17) { width: 164px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(18),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(18) { width: 128px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(18) { width: 146px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:nth-child(19),
-.loading-import-workbook .ak-table > tbody > tr > td:nth-child(19) { width: 116px; }
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(19) { width: 126px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(20),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(20) { width: 154px; }
+
+.loading-import-workbook .ak-table > thead > tr > th:nth-child(21),
+.loading-import-workbook .ak-table > tbody > tr > td:nth-child(21) { width: 142px; }
 
 .loading-import-workbook .ak-table > thead > tr > th:first-child,
 .loading-import-workbook .ak-table > tbody > tr > td:first-child {

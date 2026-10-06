@@ -191,6 +191,43 @@ public class LoadingControllerTests
     }
 
     [Fact]
+    public void Loading_Create_Wagon_Editor_Exposes_Railway_Fields_And_Summary()
+    {
+        var createViewPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "PTGOilSystem.Web", "Views", "Loading", "Create.cshtml"));
+        var rowViewPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "PTGOilSystem.Web", "Views", "Loading", "_LoadingRowEditor.cshtml"));
+
+        var createView = File.ReadAllText(createViewPath);
+        var rowView = File.ReadAllText(rowViewPath);
+        var componentsCssPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "50-ak-components.css"));
+        var componentsCss = File.ReadAllText(componentsCssPath);
+
+        Assert.Contains("data-loading-wagon-freight-column", createView);
+        Assert.Contains("data-loading-wagon-summary", createView);
+        Assert.Contains("data-loading-wagon-count", createView);
+        Assert.Contains("data-loading-wagon-chargeable", createView);
+        Assert.Contains("data-loading-wagon-expense", createView);
+        Assert.Contains("enteredChargeableQuantity", createView);
+        Assert.Contains("const total = effectiveQuantity * rate", createView);
+        Assert.Contains("name=\"@($\"{prefix}.ChargeableQuantityMt\")\"", rowView);
+        Assert.Contains("name=\"@($\"{prefix}.LogisticsCompanyName\")\"", rowView);
+        Assert.Contains("aria-label=\"شرکت ترانسپورتی\"", rowView);
+        Assert.Contains("data-row-railway-expense-text", rowView);
+        Assert.Contains("min-width: 2660px", componentsCss);
+        Assert.Contains("grid-template-columns: minmax(126px, .85fr) minmax(164px, 1.15fr)", componentsCss);
+        Assert.Contains("th:nth-child(21)", componentsCss);
+        Assert.Contains("white-space: nowrap", componentsCss);
+    }
+
+    [Fact]
     public void Loading_EditExpenses_Actions_Require_ManageData_Policy()
     {
         var actions = typeof(LoadingController)
@@ -1332,6 +1369,10 @@ public class LoadingControllerTests
         Assert.Equal("Favad Coltd", model.Rows[0].ConsigneeName);
         Assert.Equal("Oxus", model.Rows[0].LogisticsCompanyName);
         Assert.Equal("Akina", model.Rows[0].DestinationName);
+        Assert.Equal(40m, model.Rows[0].ChargeableQuantityMt);
+        Assert.Equal(3m, model.Rows[0].RailwayRateUsd);
+        Assert.Equal(3m, model.Rows[0].FreightRateUsdPerMt);
+        Assert.Equal(120m, model.Rows[0].RailwayExpenseUsd);
         Assert.Equal(638.06m, model.Rows[1].PlattsUsd);
         Assert.Equal(468.06m, model.Rows[1].LoadingPriceUsd);
         // فایل بدون ستون روبلی است؛ رفتار قبلی نباید بشکند و ارقام روبلی باید null بمانند.
@@ -2356,6 +2397,7 @@ public class LoadingControllerTests
             ProductId = 1,
             TransportType = LoadingTransportType.Truck,
             RecordFreight = true,
+            FreightCostResponsibility = CostResponsibility.Buyer,
             Rows =
             [
                 new LoadingCreateRowViewModel
@@ -2501,9 +2543,19 @@ public class LoadingControllerTests
         Assert.Equal(97.5m, share.ShareAmountUsd);
     }
 
-    [Fact]
-    public async Task Create_Post_Uses_ServiceProvider_And_FreightRate_For_Wagon_Railway_Cost()
+    [Theory]
+    [InlineData(null, "35.88", "107.64")]
+    [InlineData("40", "40", "120")]
+    public async Task Create_Post_Uses_Chargeable_Quantity_Or_Loaded_Fallback_For_Wagon_Railway_Cost(
+        string? chargeableQuantityText,
+        string expectedChargeableQuantityText,
+        string expectedRailwayExpenseText)
     {
+        var chargeableQuantity = string.IsNullOrWhiteSpace(chargeableQuantityText)
+            ? (decimal?)null
+            : decimal.Parse(chargeableQuantityText, CultureInfo.InvariantCulture);
+        var expectedChargeableQuantity = decimal.Parse(expectedChargeableQuantityText, CultureInfo.InvariantCulture);
+        var expectedRailwayExpense = decimal.Parse(expectedRailwayExpenseText, CultureInfo.InvariantCulture);
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
@@ -2545,6 +2597,7 @@ public class LoadingControllerTests
             ProductId = 1,
             TransportType = LoadingTransportType.Wagon,
             RecordFreight = true,
+            FreightCostResponsibility = CostResponsibility.Buyer,
             Rows =
             [
                 new LoadingCreateRowViewModel
@@ -2552,6 +2605,7 @@ public class LoadingControllerTests
                     LoadingDate = new DateTime(2026, 4, 23),
                     WagonNumber = "67-50825769",
                     LoadedQuantityMt = 35.88m,
+                    ChargeableQuantityMt = chargeableQuantity,
                     LogisticsServiceProviderId = 1,
                     FreightRateUsdPerMt = 3m
                 }
@@ -2563,9 +2617,9 @@ public class LoadingControllerTests
         Assert.Equal(1, loading.LogisticsServiceProviderId);
         Assert.Equal("Railway Services", loading.LogisticsCompanyName);
         Assert.Equal(3m, loading.FreightRateUsdPerMt);
-        Assert.Equal(35.88m, loading.ChargeableQuantityMt);
+        Assert.Equal(expectedChargeableQuantity, loading.ChargeableQuantityMt);
         Assert.Equal(3m, loading.RailwayRateUsd);
-        Assert.Equal(107.64m, loading.RailwayExpenseUsd);
+        Assert.Equal(expectedRailwayExpense, loading.RailwayExpenseUsd);
         Assert.Null(loading.TransportExpenseUsd);
 
         var expense = await db.ExpenseTransactions
@@ -2574,19 +2628,19 @@ public class LoadingControllerTests
         Assert.Equal(1, expense.LoadingRegisterId);
         Assert.Equal(1, expense.ServiceProviderId);
         Assert.Equal(1, expense.ContractId);
-        Assert.Equal(107.64m, expense.AmountUsd);
+        Assert.Equal(expectedRailwayExpense, expense.AmountUsd);
         Assert.Equal("LOAD-WAGON-RENT", expense.ExpenseType?.Code);
         Assert.False(expense.IsCancelled);
 
         var ledger = await db.LedgerEntries.SingleAsync(l => l.SourceType == "Expense" && l.SourceId == expense.Id);
         Assert.Equal(LedgerSide.Credit, ledger.Side);
         Assert.Equal(1, ledger.ServiceProviderId);
-        Assert.Equal(107.64m, ledger.AmountUsd);
+        Assert.Equal(expectedRailwayExpense, ledger.AmountUsd);
 
         var providerProfile = Assert.IsType<ViewResult>(await new ServiceProvidersController(db).Details(1));
         var profileModel = Assert.IsType<PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel>(providerProfile.Model);
-        Assert.Equal(107.64m, profileModel.TotalExpensesUsd);
-        Assert.Equal(-107.64m, profileModel.LedgerBalanceUsd);
+        Assert.Equal(expectedRailwayExpense, profileModel.TotalExpensesUsd);
+        Assert.Equal(-expectedRailwayExpense, profileModel.LedgerBalanceUsd);
     }
 
     [Fact]
@@ -3432,12 +3486,39 @@ public class LoadingControllerTests
 
             worksheetPart.Worksheet = new Worksheet(sheetData);
 
+            var railwayWorksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+            railwayWorksheetPart.Worksheet = new Worksheet(new SheetData(
+                BuildTextRow(1,
+                    ("A", "RWB No"),
+                    ("B", "Wagon No"),
+                    ("C", "Chargeable quantity"),
+                    ("D", "Railway rate"),
+                    ("E", "Railway expense")),
+                BuildMixedRow(2,
+                    ("A", "74207656"),
+                    ("B", "67-50825769"),
+                    ("C", 40m),
+                    ("D", 3m),
+                    ("E", 120m)),
+                BuildMixedRow(3,
+                    ("A", "74207657"),
+                    ("B", "67-57877854"),
+                    ("C", 36m),
+                    ("D", 4m),
+                    ("E", 144m))));
+
             var sheets = workbookPart.Workbook.AppendChild(new Sheets());
             sheets.Append(new Sheet
             {
                 Id = workbookPart.GetIdOfPart(worksheetPart),
                 SheetId = 1,
                 Name = "loading"
+            });
+            sheets.Append(new Sheet
+            {
+                Id = workbookPart.GetIdOfPart(railwayWorksheetPart),
+                SheetId = 2,
+                Name = "railway"
             });
 
             workbookPart.Workbook.Save();

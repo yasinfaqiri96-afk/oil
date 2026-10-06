@@ -197,6 +197,8 @@ public sealed class ContractJourneyDetailsViewModel
     public IReadOnlyList<ContractJourneySaleItemViewModel> SalesItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyPreSaleItemViewModel> PreSaleItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyExpenseItemViewModel> ExpenseItems { get; init; } = [];
+    /// <summary>کرایهٔ داخلی ترانسپورت شخصی شرکت — فقط گزارش مدیریتی؛ در دفتر کل و جمع مصارف بالا نیست.</summary>
+    public IReadOnlyList<ContractJourneyInternalTransportCostItemViewModel> InternalTransportCostItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyLossItemViewModel> LossItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyPaymentItemViewModel> PaymentItems { get; init; } = [];
     public IReadOnlyList<ContractJourneySarrafSettlementItemViewModel> SarrafSettlementItems { get; init; } = [];
@@ -728,6 +730,17 @@ public sealed class ContractJourneyExpenseItemViewModel
     /// <summary>نمبر وسیلهٔ مرتبط با این مصرف: پلاک موتر ارسال یا شمارهٔ واگن حمل.</summary>
     public string? VehicleNumber { get; init; }
     public string TraceKind { get; init; } = string.Empty;
+}
+
+public sealed class ContractJourneyInternalTransportCostItemViewModel
+{
+    public int AssetRentTransactionId { get; init; }
+    public int? LoadingRegisterId { get; init; }
+    public DateTime RentDate { get; init; }
+    public string AssetName { get; init; } = string.Empty;
+    public decimal? QuantityMt { get; init; }
+    public decimal? RateUsdPerMt { get; init; }
+    public decimal AmountUsd { get; init; }
 }
 
 public sealed class ContractJourneyTransportLegExpenseAllocationViewModel

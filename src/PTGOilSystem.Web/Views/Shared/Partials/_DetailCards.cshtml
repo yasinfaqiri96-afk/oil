@@ -88,6 +88,9 @@
             var rows = card.Rows.Where(item => item.HasValue).ToList();
             var routeNodes = card.RouteNodes.Where(item => item.HasValue).ToList();
             var footer = card.Footer.Where(item => item.HasValue).ToList();
+            var visualPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(card.VisualAvatar);
+            var hasVisual = !string.IsNullOrWhiteSpace(visualPath)
+                && !string.IsNullOrWhiteSpace(card.VisualTitle);
             <section class="ptg-td-card@(card.IsWide ? " is-wide" : string.Empty)">
                 <h2 class="ptg-td-card-head">
                     <i class="bi @card.Icon" aria-hidden="true"></i><span>@card.Title</span>
@@ -213,6 +216,20 @@
                             </div>
                         }
                     </dl>
+                }
+                @if (hasVisual)
+                {
+                    <figure class="ptg-td-card-visual">
+                        <img src="@visualPath" alt="@card.VisualTitle" width="360" height="176"
+                             loading="eager" decoding="async" />
+                        <figcaption>
+                            <strong>@card.VisualTitle</strong>
+                            @if (!string.IsNullOrWhiteSpace(card.VisualMeta))
+                            {
+                                <span>@card.VisualMeta</span>
+                            }
+                        </figcaption>
+                    </figure>
                 }
                 @if (footer.Count > 0)
                 {

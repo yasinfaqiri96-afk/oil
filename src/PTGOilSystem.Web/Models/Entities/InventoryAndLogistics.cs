@@ -203,6 +203,9 @@ public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchabl
     [MaxLength(100)] public string? TransitNumber { get; set; }
     [MaxLength(200)] public string? DriverName { get; set; }
     [MaxLength(50)] public string? DriverPhone { get; set; }
+    // «راننده آزاد» — پروفایل رانندهٔ همین بار (nullable). نمبر ترانزیت روی خودِ بارگیری می‌ماند.
+    public int? DriverId { get; set; }
+    public Driver? Driver { get; set; }
     public decimal? PlattsUsd { get; set; }
     public decimal? LoadingPriceUsd { get; set; }
     public decimal? FreightRateUsdPerMt { get; set; }
@@ -314,6 +317,9 @@ public class InventoryTransportLeg : BaseEntity, IVersionedEntity
 {
     /// <summary>PTG-P1-05 — نشانهٔ هم‌زمانی. ببینید <see cref="IVersionedEntity"/>.</summary>
     public long Version { get; set; } = 1;
+
+    /// <summary>حمل لغوشده‌ای که کاربر از فهرست حذف کرده؛ فقط دیده‌شدن در لیست تغییر می‌کند.</summary>
+    public bool IsArchived { get; set; }
 
     public int? InventoryTransportBatchId { get; set; }
     public InventoryTransportBatch? InventoryTransportBatch { get; set; }

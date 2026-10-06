@@ -102,7 +102,14 @@
 
                 <div class="ak-field">
                     <label asp-for="DriverName" class="ak-label"></label>
-                    <input asp-for="DriverName" class="ak-input" placeholder="اختیاری" />
+                    <input asp-for="DriverName" class="ak-input" placeholder="اختیاری" list="loading-edit-driver-options" autocomplete="off" />
+                    <datalist id="loading-edit-driver-options">
+                        @foreach (var driver in ViewBag.LoadingDriverOptions as IReadOnlyList<PTGOilSystem.Web.Models.Loading.LoadingDriverOption> ?? Array.Empty<PTGOilSystem.Web.Models.Loading.LoadingDriverOption>())
+                        {
+                            <option value="@driver.FullName">@driver.Phone</option>
+                        }
+                    </datalist>
+                    <div class="form-text">برای «راننده آزاد»: رانندهٔ موجود از روی نام و تماس پیدا می‌شود؛ نام تازه پروفایل راننده می‌سازد.</div>
                     <span asp-validation-for="DriverName" class="ak-field-error"></span>
                 </div>
 
@@ -125,6 +132,67 @@
                     <span asp-validation-for="Notes" class="ak-field-error"></span>
                 </div>
             </div>
+        </section>
+
+        <section class="ak-form-section" data-loading-edit-freight>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(("کرایه", (string?)(Model.HasExpenseLines
+                         ? "مصارف این بارگیری از «ثبت مصارف» در صفحهٔ جزئیات مدیریت می‌شود؛ این بخش اینجا قابل ویرایش نیست."
+                         : "تغییر این بخش، راننده یا وزن، سند مصرف کرایه و طلب طرف‌حساب را خودکار هماهنگ می‌کند.")))" />
+            @if (!Model.HasExpenseLines)
+            {
+                var providerOptions = ViewBag.EditServiceProviders as IReadOnlyList<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                    ?? Array.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+                var assetOptions = ViewBag.EditOperationalAssets as IReadOnlyList<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                    ?? Array.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label asp-for="LogisticsMode" class="ak-label"></label>
+                        <select asp-for="LogisticsMode" class="ak-input">
+                            <option value="none">بدون ترانسپورت مشخص</option>
+                            <option value="free">ترانسپورت آزاد (شرکت خدماتی)</option>
+                            <option value="driver">راننده آزاد</option>
+                            <option value="owned">ترانسپورت شخصی شرکت</option>
+                        </select>
+                        <div class="form-text">تغییر نوعیت، سند کرایهٔ قبلی را لغو و در صورت نیاز سند تازه ثبت می‌کند.</div>
+                        <span asp-validation-for="LogisticsMode" class="ak-field-error"></span>
+                    </div>
+
+                    <div class="ak-field">
+                        <label asp-for="OperationalAssetId" class="ak-label"></label>
+                        <select asp-for="OperationalAssetId" asp-items="assetOptions" class="ak-input">
+                            <option value=""></option>
+                        </select>
+                        <div class="form-text">فقط برای «ترانسپورت شخصی شرکت»؛ مصرف داخلی است و بدهی بیرونی نمی‌سازد.</div>
+                        <span asp-validation-for="OperationalAssetId" class="ak-field-error"></span>
+                    </div>
+
+                    <div class="ak-field">
+                        <label asp-for="FreightCostResponsibility" class="ak-label"></label>
+                        <select asp-for="FreightCostResponsibility" class="ak-input">
+                            <option value=""></option><option value="1">بدوش خریدار</option><option value="2">بدوش فروشنده</option><option value="3">مشترک</option>
+                        </select>
+                        <div class="form-text">برای ترانسپورت بیرونی اجباری است. فقط «بدوش خریدار» بدهی و هزینهٔ کرایه برای شرکت ما می‌سازد؛ «بدوش فروشنده» و «مشترک» فقط اطلاعاتی‌اند.</div>
+                        <span asp-validation-for="FreightCostResponsibility" class="ak-field-error"></span>
+                    </div>
+
+                    <div class="ak-field">
+                        <label asp-for="FreightRateUsdPerMt" class="ak-label"></label>
+                        <input asp-for="FreightRateUsdPerMt" class="ak-input ak-num" type="number" min="0" step="0.0001" />
+                        <div class="form-text">خالی‌کردن نرخ، ثبت کرایه را خاموش و سند کرایه را لغو می‌کند.</div>
+                        <span asp-validation-for="FreightRateUsdPerMt" class="ak-field-error"></span>
+                    </div>
+
+                    <div class="ak-field">
+                        <label asp-for="LogisticsServiceProviderId" class="ak-label"></label>
+                        <select asp-for="LogisticsServiceProviderId" asp-items="providerOptions" class="ak-input">
+                            <option value=""></option>
+                        </select>
+                        <div class="form-text">فقط برای «ترانسپورت آزاد». «راننده آزاد» از نام و تماس راننده خوانده می‌شود.</div>
+                        <span asp-validation-for="LogisticsServiceProviderId" class="ak-field-error"></span>
+                    </div>
+                </div>
+            }
         </section>
         <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml" model="@(("ذخیره تغییرات", backUrl, "انصراف"))" />
     </form>

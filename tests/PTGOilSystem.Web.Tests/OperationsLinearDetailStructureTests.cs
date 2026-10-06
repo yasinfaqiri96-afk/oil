@@ -87,6 +87,57 @@ public sealed class OperationsLinearDetailStructureTests
         Assert.Contains("shipmentActivityRows", view);
     }
 
+    [Fact]
+    public void Loading_And_Transport_Details_Show_The_Vehicle_Type_Visual()
+    {
+        var loading = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
+        var transport = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml");
+        var cards = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/Partials/_DetailCards.cshtml");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/73-detail-system.css");
+
+        foreach (var view in new[] { loading, transport })
+        {
+            Assert.Contains("LoadingTransportType.Truck => \"transported\"", view);
+            Assert.Contains("LoadingTransportType.Wagon => \"wagon\"", view);
+            Assert.Contains("T(\"تانکر مواد نفتی\", \"Petroleum tanker truck\")", view);
+            Assert.Contains("T(\"واگن نفتی\", \"Rail tank wagon\")", view);
+            Assert.Contains("VisualAvatar = transportVisualAvatar", view);
+            Assert.Contains("VisualTitle = transportVisualTitle", view);
+        }
+
+        Assert.Contains("Metrics = quantityMetrics", loading);
+        Assert.Contains("VisualMeta = Model.VehicleSummary", loading);
+        Assert.Contains("Title = T(\"مسیر و وسیله\", \"Route & vehicle\")", transport);
+        Assert.Contains("Steps = transportVisualAvatar is null ? routeSteps : []", transport);
+        Assert.Contains("StatCardAvatarRegistry.ResolvePath(card.VisualAvatar)", cards);
+        Assert.Contains("class=\"ptg-td-card-visual\"", cards);
+        Assert.Contains("alt=\"@card.VisualTitle\"", cards);
+        Assert.Contains(".ptg-record-detail .ptg-td-card-visual", css);
+        Assert.Contains("inline-size: min(100%, 360px)", css);
+    }
+
+    [Fact]
+    public void Loading_Main_Information_Fits_Content_And_Transport_Expense_Rows_Stay_Aligned()
+    {
+        var loading = ReadRepoFile("src/PTGOilSystem.Web/Views/Loading/Details.cshtml");
+        var transport = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/Details.cshtml");
+        var editor = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/_TransportExpenseEditor.cshtml");
+        var row = ReadRepoFile("src/PTGOilSystem.Web/Views/InventoryTransportLegs/_TransportExpenseLineRow.cshtml");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/76-form-system.css");
+
+        Assert.Contains("data-loading-details", loading);
+        Assert.Contains("transport-expense-dialog", transport);
+        Assert.Contains("transport-expense-lines", editor);
+        Assert.Contains("transport-expense-grid-head", editor);
+        Assert.Contains("ak-form-grid transport-expense-grid", row);
+        Assert.Contains("form.ak-form .transport-expense-grid > .ak-field", css);
+        Assert.Contains("grid-column: span 1", css);
+        Assert.Contains("min-inline-size: 1080px", css);
+        Assert.Contains("max-inline-size: min(1320px, calc(100dvi - 32px))", css);
+        Assert.Contains("[data-loading-details] .ptg-td-grid", css);
+        Assert.Contains("align-items: start", css);
+    }
+
     private static string ReadRepoFile(string relativePath, [CallerFilePath] string sourceFilePath = "")
     {
         var normalizedPath = relativePath.Replace('/', Path.DirectorySeparatorChar);

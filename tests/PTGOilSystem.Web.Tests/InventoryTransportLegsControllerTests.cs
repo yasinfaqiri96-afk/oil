@@ -887,6 +887,8 @@ public class InventoryTransportLegsControllerTests
             DifferenceQuantityMt = 34m,
             ChargeableLossMt = 34m
         });
+        // مخزن مقصد باید جای 4,110 MT را داشته باشد (نگهبان ظرفیت مخزن).
+        (await db.StorageTanks.SingleAsync(t => t.Id == 2)).CapacityMt = 10_000m;
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 

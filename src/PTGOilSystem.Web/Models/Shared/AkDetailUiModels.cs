@@ -370,6 +370,13 @@ public sealed class AkDetailCard
     /// <summary>Numeric columns, label over value.</summary>
     public IReadOnlyList<AkKpiItem> Metrics { get; init; } = [];
 
+    /// <summary>Optional semantic illustration rendered after the card metrics.</summary>
+    public string? VisualAvatar { get; init; }
+
+    public string? VisualTitle { get; init; }
+
+    public string? VisualMeta { get; init; }
+
     /// <summary>Compact meta line at the bottom of the card (dates, references).</summary>
     public IReadOnlyList<AkInfoItem> Footer { get; init; } = [];
 
@@ -384,6 +391,7 @@ public sealed class AkDetailCard
         || RouteNodes.Any(item => item.HasValue)
         || Steps.Count > 0
         || Metrics.Count > 0
+        || (!string.IsNullOrWhiteSpace(VisualAvatar) && !string.IsNullOrWhiteSpace(VisualTitle))
         || Footer.Any(item => item.HasValue)
         || !string.IsNullOrWhiteSpace(Text);
 }

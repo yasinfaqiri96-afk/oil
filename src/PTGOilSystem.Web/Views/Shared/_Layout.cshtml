@@ -256,18 +256,29 @@
         NavNode("Trucks", "Index", T("وسایط و راننده‌ها", "Vehicles & Drivers"), "nav-truck", active: transportControllers),
         NavNode("Currencies", "Index", T("تعاریف پایه", "Base Definitions"), "nav-settings", active: coreDataControllers)
     };
+    var settingsItems = new List<(string Controller, string Action, string Label, string Icon)>();
     if (canManageUsers)
     {
-        navSource.Add(NavNode("Users", "Index", T("کاربران", "Users"), "nav-users", active: userManagementControllers));
+        settingsItems.Add(("Users", "Index", T("کاربران", "Users"), "nav-users"));
     }
     if (canManageBackups)
     {
-        navSource.Add(NavNode("Backups", "Index", T("پشتیبان‌گیری", "Backups"), "nav-settings", active: backupManagementControllers));
+        settingsItems.Add(("Backups", "Index", T("بکاپ‌گیری", "Backups"), "nav-settings"));
     }
     // «تنظیمات سیستم» (نوع تقویم) فقط برای مدیر سیستم؛ کنترلر هم AdminOnly است.
     if (isAdmin)
     {
-        navSource.Add(NavNode("SystemSettings", "Index", T("تنظیمات سیستم", "System settings"), "nav-settings"));
+        settingsItems.Add(("SystemSettings", "Index", T("تنظیمات سیستم", "System settings"), "nav-settings"));
+    }
+    if (settingsItems.Count > 0)
+    {
+        navSource.Add(NavNode(
+            "SystemSettings",
+            "Index",
+            T("تنظیمات", "Settings"),
+            "nav-settings",
+            active: userManagementControllers.Concat(backupManagementControllers).Append("SystemSettings").ToArray(),
+            children: settingsItems.ToArray()));
     }
 
     // Access filtering: keep visible children; keep node if it (or any child) is reachable.
@@ -502,7 +513,7 @@
                 <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/saddiqi-sidebar-wordmark.webp" asp-append-version="true" alt="Saddiqi Group" width="1226" height="355" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/mashal-sidebar-white.webp" asp-append-version="true" alt="مشعل — سیستم مدیریت تجارت نفت و گاز" width="2289" height="1143" decoding="async" />
                         </span>
                     </a>
 
@@ -516,7 +527,8 @@
                                 {
                                     var childControllersUnique = node.Children.Select(c => c.Controller).Distinct(StringComparer.OrdinalIgnoreCase).Count() == node.Children.Length;
                                     var anyChildActive = node.Children.Any(child => NavChildIsActive(child, childControllersUnique));
-                                    var groupOpen = nodeActive || anyChildActive;
+                                    var groupOpen = (nodeActive || anyChildActive)
+                                        && !string.Equals(node.Controller, "SystemSettings", StringComparison.OrdinalIgnoreCase);
                                     <li class="boltz-nav-item ptg-has-sub @(groupOpen ? "is-open" : null)" data-nav-group data-nav-item="@node.Controller">
                                         <button type="button"
                                                 class="boltz-nav-link boltz-nav-group-toggle ptg-sidebar-link @(groupOpen ? "is-active" : null)"
@@ -849,6 +861,10 @@
                مستقل صورت‌حساب باید روی صفحهٔ پروفایل هم بارگذاری شود. *@
             <script src="~/js/party-statement.js" asp-append-version="true" defer data-ptg-page-asset="party-statement-script"></script>
         }
+    }
+    @if (ClientModules.TruckOnlyEnabled)
+    {
+        <script src="~/js/client-truck-only.js" asp-append-version="true" defer></script>
     }
     <div id="ptg-page-scripts">
         @await RenderSectionAsync("Scripts", required: false)

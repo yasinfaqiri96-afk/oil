@@ -248,6 +248,58 @@ form.ak-form .ak-form-grid--5 > label {
     grid-column: span 1;
 }
 
+/* Transport expense editor: the heading and every editable expense stay on
+   the same eight-column track. The shared form grid otherwise assigns each
+   .ak-field four of twelve columns and breaks a single expense into rows. */
+.modal-dialog.transport-expense-dialog {
+    max-inline-size: min(1320px, calc(100dvi - 32px));
+}
+
+form.ak-form .transport-expense-lines {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+form.ak-form .transport-expense-grid {
+    grid-template-columns:
+        minmax(150px, 1.6fr)
+        minmax(118px, 1fr)
+        minmax(82px, .75fr)
+        minmax(88px, .8fr)
+        minmax(104px, .9fr)
+        minmax(132px, 1fr)
+        minmax(150px, 1.35fr)
+        36px;
+    min-inline-size: 1080px;
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: end;
+}
+
+form.ak-form .transport-expense-grid > .ak-field {
+    grid-column: span 1;
+    min-inline-size: 0;
+}
+
+form.ak-form .transport-expense-grid-head {
+    align-items: end;
+    margin-block-end: 6px;
+}
+
+form.ak-form .transport-expense-grid-head > span {
+    color: var(--chk-label);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+/* The quantities card can be taller because it contains the vehicle visual.
+   Keep the loading identity card content-sized instead of stretching it and
+   leaving a large empty band after the last available fact (often CMR). */
+[data-loading-details] .ptg-td-grid {
+    align-items: start;
+}
+
 /* ---- Label + control ---------------------------------------------- */
 
 form.ak-form .ak-field,

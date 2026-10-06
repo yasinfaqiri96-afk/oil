@@ -44,6 +44,8 @@
         .ToList();
     var recordFreight = Model.RecordFreight;
     var freightColumnCss = recordFreight ? "" : "d-none";
+    var isWagon = Model.TransportType == LoadingTransportType.Wagon;
+    var wagonFreightColumnCss = recordFreight && isWagon ? "" : "d-none";
     var logisticsServiceProviderOptions = ViewBag.LogisticsServiceProviders as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
     var hasLocalReturnUrl = !string.IsNullOrWhiteSpace(Model.ReturnUrl) && Url.IsLocalUrl(Model.ReturnUrl);
     var cancelUrl = hasLocalReturnUrl ? Model.ReturnUrl : Url.Action("Index");
@@ -75,6 +77,11 @@
     var hasFileRub = Model.Rows.Any(row => row.SettlementValueRub.HasValue || row.SettlementUnitPriceRub.HasValue);
     var frubColumnCss = hasFileRub ? "" : "d-none";
     var initialAverageRub = hasFileRub && initialTotalQuantityMt > 0m ? initialFileRubValue / initialTotalQuantityMt : 0m;
+    var initialWagonCount = Model.Rows.Count(row => !string.IsNullOrWhiteSpace(row.WagonNumber));
+    var initialChargeableQuantityMt = Model.Rows.Sum(row =>
+        row.ChargeableQuantityMt
+        ?? ((row.RailwayRateUsd ?? row.FreightRateUsdPerMt) is > 0m ? row.LoadedQuantityMt : 0m));
+    var initialRailwayExpenseUsd = Model.Rows.Sum(row => row.RailwayExpenseUsd ?? 0m);
     // کارت آماری واحد پول را در بخش unit خودش نشان می‌دهد، پس مقدار بدون نماد ارز ساخته می‌شود.
     var initialRubSummaryText = hasFileRub
         ? NumberDisplay.Money(initialFileRubValue)
@@ -218,6 +225,7 @@
                         <select asp-for="FreightCostResponsibility" class="ak-input">
                             <option value=""></option><option value="1">بدوش خریدار</option><option value="2">بدوش فروشنده</option><option value="3">مشترک</option>
                         </select>
+                        <span asp-validation-for="FreightCostResponsibility" class="ak-field-error"></span>
                     </div>
                     <input asp-for="Notes" type="hidden" />
             </div>
@@ -271,12 +279,14 @@
                         <th>#</th>
                         <th class="@(showRowContractSelector ?"" : "d-none")" data-loading-contract-column>قرارداد</th>
                         <th>تاریخ</th><th data-loading-column-reference>مرجع</th><th data-loading-column-transport>وسیله حمل</th>
-                        <th class="ak-col-num">مقدار</th><th class="ak-col-num">فی تن</th><th class="ak-col-num">ارزش</th>
+                        <th class="ak-col-num">وزن بارگیری</th><th class="ak-col-num">قیمت خرید فی تن</th><th class="ak-col-num">ارزش بار</th>
+                        <th class="ak-col-num @wagonFreightColumnCss" data-loading-freight-column data-loading-wagon-freight-column>وزن قابل حساب خط آهن</th>
                         <th class="ak-col-num @frubColumnCss" data-loading-frub-column>روبل فی تن</th><th class="ak-col-num @frubColumnCss" data-loading-frub-column>ارزش روبلی</th>
                         <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>نرخ روبل</th>
                         <th class="ak-col-num @(hasFileRub ?"d-none" : "")" data-loading-rub-column>معادل روبلی</th>
-                        <th class="@freightColumnCss" data-loading-freight-column>ترانسپورت</th>
-                        <th class="ak-col-num @freightColumnCss" data-loading-freight-column>کرایه فی تن</th>
+                        <th class="@freightColumnCss" data-loading-freight-column data-loading-logistics-heading>ترانسپورت</th>
+                        <th class="ak-col-num @freightColumnCss" data-loading-freight-column data-loading-freight-rate-heading>کرایه فی تن</th>
+                        <th class="ak-col-num @wagonFreightColumnCss" data-loading-freight-column data-loading-wagon-freight-column>مجموع کرایه خط آهن</th>
                         <th>گیرنده</th><th>مقصد</th>
                         <th>نمبر ترانزیت</th><th>نام راننده</th><th>تماس راننده</th>
                         <th class="ak-col-actions"></th>
@@ -289,6 +299,24 @@
                     </tbody>
                 </table>
             </div>
+            <section class="ak-summary mt-3 @(isWagon ? "" : "d-none")" data-loading-wagon-summary aria-label="خلاصه واگن‌ها" aria-live="polite">
+                <article class="ak-field">
+                    <span>تعداد واگن</span>
+                    <strong><bdi data-loading-wagon-count>@initialWagonCount</bdi></strong>
+                </article>
+                <article class="ak-field">
+                    <span>مجموع وزن بارگیری</span>
+                    <strong><bdi data-loading-wagon-loaded>@NumberDisplay.Quantity(initialTotalQuantityMt)</bdi> MT</strong>
+                </article>
+                <article class="ak-field">
+                    <span>مجموع وزن قابل حساب</span>
+                    <strong><bdi data-loading-wagon-chargeable>@NumberDisplay.Quantity(initialChargeableQuantityMt)</bdi> MT</strong>
+                </article>
+                <article class="ak-field is-primary">
+                    <span>مجموع کرایه خط آهن</span>
+                    <strong><bdi data-loading-wagon-expense>@NumberDisplay.Money(initialRailwayExpenseUsd)</bdi> USD</strong>
+                </article>
+            </section>
             <div class="lic-pagination" data-lic-pagination hidden>
                 <button type="button" class="lic-page-btn" data-lic-prev>‹ قبلی</button>
                 <span class="lic-page-info" data-lic-page-info></span>
@@ -319,6 +347,17 @@
         @foreach (var opt in truckOptions)
         {
             <option value="@opt.Text"></option>
+        }
+    </datalist>
+
+    @{
+        var driverOptions = ViewBag.LoadingDriverOptions as IReadOnlyList<PTGOilSystem.Web.Models.Loading.LoadingDriverOption> ?? Array.Empty<PTGOilSystem.Web.Models.Loading.LoadingDriverOption>();
+    }
+    @* «راننده آزاد» — راننده‌های ثبت‌شده، یک‌بار در صفحه؛ فیلد نام راننده در همین حالت به آن وصل می‌شود. *@
+    <datalist id="loading-driver-options">
+        @foreach (var driver in driverOptions)
+        {
+            <option value="@driver.FullName" label="@driver.Phone" data-driver-id="@driver.Id" data-driver-phone="@driver.Phone"></option>
         }
     </datalist>
 
@@ -534,6 +573,7 @@
             const contractColumn = document.querySelector('[data-loading-contract-column]');
             const freightToggle = document.querySelector('[data-loading-freight-toggle]');
             const freightToggleText = document.querySelector('[data-loading-freight-toggle-text]');
+            const wagonSummary = document.querySelector('[data-loading-wagon-summary]');
             const suggestedPricingUrl = '@Url.Action("SuggestedPricing", "Loading")';
             const dateOverlay = document.querySelector('[data-loading-date-overlay]');
             const dateYearLabel = document.querySelector('[data-loading-date-year]');
@@ -854,7 +894,7 @@
             function getRowLogisticsMode(row) {
                 const typeInput = row.querySelector('[data-row-logistics-type]');
                 if (typeInput) {
-                    return typeInput.value === 'owned' || typeInput.value === 'free' ? typeInput.value : '';
+                    return typeInput.value === 'owned' || typeInput.value === 'free' || typeInput.value === 'driver' ? typeInput.value : '';
                 }
 
                 const assetSelect = row.querySelector('[data-row-operational-asset]');
@@ -978,12 +1018,76 @@
                 itemSelect.value = selectedValue || '';
             }
 
+            // «راننده آزاد»: فیلد نام راننده همان سطر به فهرست راننده‌ها وصل می‌شود. نام موجود ⇒ DriverId
+            // و تماس پر می‌شود؛ نام تازه ⇒ DriverId خالی و سرور هنگام ذخیره پروفایل راننده را می‌سازد.
+            const driverCatalog = document.getElementById('loading-driver-options');
+
+            function syncRowDriverSelection(row) {
+                const nameInput = row.querySelector('[data-row-driver-name]');
+                const idInput = row.querySelector('[data-row-driver-id]');
+                const phoneInput = row.querySelector('[data-row-driver-phone]');
+                if (!nameInput || !idInput) {
+                    return;
+                }
+
+                if (getRowLogisticsMode(row) !== 'driver') {
+                    idInput.value = '';
+                    return;
+                }
+
+                const name = nameInput.value.trim();
+                const phoneAutofilled = phoneInput?.dataset.driverAutofill === '1';
+                const phone = phoneInput && !phoneAutofilled ? phoneInput.value.trim() : '';
+                const options = driverCatalog && name
+                    ? Array.from(driverCatalog.options).filter(option => option.value === name)
+                    : [];
+                const match = options.find(option => phone && (option.dataset.driverPhone || '') === phone)
+                    || options[0]
+                    || null;
+
+                idInput.value = match ? (match.dataset.driverId || '') : '';
+                if (phoneInput && (phoneAutofilled || !phoneInput.value.trim())) {
+                    phoneInput.value = match ? (match.dataset.driverPhone || '') : '';
+                    phoneInput.dataset.driverAutofill = match && phoneInput.value ? '1' : '';
+                }
+            }
+
+            function syncRowDriverField(row, mode) {
+                const nameInput = row.querySelector('[data-row-driver-name]');
+                if (nameInput) {
+                    if (mode === 'driver') {
+                        nameInput.setAttribute('list', 'loading-driver-options');
+                    } else {
+                        nameInput.removeAttribute('list');
+                    }
+                }
+
+                syncRowDriverSelection(row);
+            }
+
             function syncRowLogisticsMode(row) {
                 const providerSelect = row.querySelector('[data-row-logistics-provider]');
                 const assetSelect = row.querySelector('[data-row-operational-asset]');
                 const itemSelect = row.querySelector('[data-row-logistics-display]');
                 const itemField = row.querySelector('[data-loading-logistics-item-field]');
                 const mode = getRowLogisticsMode(row);
+                syncRowDriverField(row, mode);
+                if (mode === 'driver') {
+                    // راننده جای شرکت خدماتی / دارایی را می‌گیرد؛ لیست دوم لازم نیست.
+                    replaceLogisticsItemOptions(itemSelect, '', '');
+                    if (itemField) {
+                        itemField.hidden = true;
+                    }
+                    [providerSelect, assetSelect].forEach(select => {
+                        if (select) {
+                            select.value = '';
+                            select.disabled = true;
+                        }
+                    });
+                    row.dataset.logisticsMode = mode;
+                    return mode;
+                }
+
                 const previousMode = row.dataset.logisticsMode || '';
                 const modeChanged = !!previousMode && previousMode !== mode;
                 const rowSourceSelect = mode === 'owned' ? assetSelect : mode === 'free' ? providerSelect : null;
@@ -1039,8 +1143,8 @@
                 const assetSelect = row.querySelector('[data-row-operational-asset]');
                 const nameInput = row.querySelector('[data-row-logistics-name]');
                 const activeSelect = mode === 'owned' ? assetSelect : providerSelect;
-                if (!mode || !activeSelect || !nameInput) {
-                    if (nameInput) {
+                if (!mode || mode === 'driver' || !activeSelect || !nameInput) {
+                    if (nameInput && getTransportConfig().field !== 'Wagon') {
                         nameInput.value = '';
                     }
                     return;
@@ -1236,6 +1340,22 @@
                 if (transportColumn) {
                     transportColumn.textContent = config.label;
                 }
+
+                document.querySelectorAll('[data-loading-freight-rate-heading]').forEach(heading => {
+                    heading.textContent = config.field === 'Wagon' ? 'کرایه خط آهن فی تن' : 'کرایه فی تن';
+                });
+                document.querySelectorAll('[data-loading-logistics-heading]').forEach(heading => {
+                    heading.textContent = config.field === 'Wagon' ? 'شرکت ترانسپورتی' : 'ترانسپورت';
+                });
+
+                const showWagonFreight = config.field === 'Wagon' && (!freightToggle || freightToggle.checked);
+                document.querySelectorAll('[data-loading-wagon-freight-column]').forEach(column => {
+                    column.classList.toggle('d-none', !showWagonFreight);
+                });
+
+                if (wagonSummary) {
+                    wagonSummary.classList.toggle('d-none', config.field !== 'Wagon');
+                }
             }
 
             function updateSummaryTotals() {
@@ -1246,6 +1366,9 @@
                 let expenses = 0;
                 let fileRubValue = 0;
                 let hasFileRub = false;
+                let wagonCount = 0;
+                let chargeableQuantity = 0;
+                let railwayExpense = 0;
 
                 rowsHost.querySelectorAll('[data-loading-row]').forEach(row => {
                     const rowQuantity = parseDecimal(row.querySelector('[data-row-quantity]'));
@@ -1260,6 +1383,19 @@
                     expenses += parseDecimal(row.querySelector('[data-row-warehouse-expense]'));
                     expenses += parseDecimal(row.querySelector('[data-row-railway-expense]'));
                     expenses += parseDecimal(row.querySelector('[data-row-other-expense]'));
+
+                    if (row.querySelector('input[name$=".WagonNumber"]')?.value.trim()) {
+                        wagonCount += 1;
+                    }
+                    const rowRailwayRate = readOptionalDecimal(row.querySelector('[data-row-railway-rate]'))
+                        ?? readOptionalDecimal(row.querySelector('[data-row-freight-rate]'));
+                    const rowChargeableQuantity = readOptionalDecimal(row.querySelector('[data-row-chargeable-quantity]'));
+                    if (rowChargeableQuantity !== null && rowChargeableQuantity > 0) {
+                        chargeableQuantity += rowChargeableQuantity;
+                    } else if (rowRailwayRate !== null && rowRailwayRate > 0) {
+                        chargeableQuantity += rowQuantity;
+                    }
+                    railwayExpense += parseDecimal(row.querySelector('[data-row-railway-expense]'));
 
                     const rowRubValue = parseDecimal(row.querySelector('[data-row-rub-amount-hidden]'));
                     const rubStatus = readHiddenValue(row, '[data-row-rub-status]');
@@ -1292,6 +1428,10 @@
                 window.licWriteStat('lic-stat-average', formatMoneyNumber(average));
                 window.licWriteStat('lic-stat-rub', formattedRub);
                 window.licWriteStat('lic-stat-expense', formatMoneyNumber(expenses));
+                document.querySelector('[data-loading-wagon-count]')?.replaceChildren(String(wagonCount));
+                document.querySelector('[data-loading-wagon-loaded]')?.replaceChildren(formatQuantityNumber(quantity));
+                document.querySelector('[data-loading-wagon-chargeable]')?.replaceChildren(formatQuantityNumber(chargeableQuantity));
+                document.querySelector('[data-loading-wagon-expense]')?.replaceChildren(formatMoneyNumber(railwayExpense));
                 document.querySelectorAll('[data-loading-frub-column]').forEach(col => col.classList.toggle('d-none', !hasFileRub));
                 refreshRubColumnsVisible();
             }
@@ -1303,26 +1443,39 @@
                 const railwayExpense = row.querySelector('[data-row-railway-expense]');
                 const railwayRate = row.querySelector('[data-row-railway-rate]');
                 const chargeableQuantity = row.querySelector('[data-row-chargeable-quantity]');
+                const railwayExpenseText = row.querySelector('[data-row-railway-expense-text]');
+                const config = getTransportConfig();
 
                 if (rate === null) {
+                    if (config.field === 'Wagon') {
+                        setHiddenDecimal(freightExpense, 0);
+                        setHiddenDecimal(railwayExpense, 0);
+                        setHiddenDecimal(railwayRate, 0);
+                        if (railwayExpenseText) railwayExpenseText.textContent = '-';
+                    }
                     return;
                 }
 
-                if (rate <= 0 || quantity <= 0) {
+                const enteredChargeableQuantity = readOptionalDecimal(chargeableQuantity);
+                const effectiveQuantity = config.field === 'Wagon'
+                    ? (enteredChargeableQuantity !== null && enteredChargeableQuantity > 0 ? enteredChargeableQuantity : quantity)
+                    : quantity;
+
+                if (rate <= 0 || effectiveQuantity <= 0) {
                     setHiddenDecimal(freightExpense, 0);
                     setHiddenDecimal(railwayExpense, 0);
                     setHiddenDecimal(railwayRate, 0);
-                    setHiddenDecimal(chargeableQuantity, 0);
+                    if (config.field !== 'Wagon') setHiddenDecimal(chargeableQuantity, 0);
+                    if (railwayExpenseText) railwayExpenseText.textContent = '-';
                     return;
                 }
 
-                const total = quantity * rate;
-                const config = getTransportConfig();
+                const total = effectiveQuantity * rate;
                 if (config.field === 'Wagon') {
                     setHiddenDecimal(freightExpense, 0);
                     setHiddenDecimal(railwayExpense, total);
                     setHiddenDecimal(railwayRate, rate);
-                    setHiddenDecimal(chargeableQuantity, quantity);
+                    if (railwayExpenseText) railwayExpenseText.textContent = `$ ${formatMoneyNumber(total)}`;
                     return;
                 }
 
@@ -1330,6 +1483,7 @@
                 setHiddenDecimal(railwayExpense, 0);
                 setHiddenDecimal(railwayRate, 0);
                 setHiddenDecimal(chargeableQuantity, 0);
+                if (railwayExpenseText) railwayExpenseText.textContent = '-';
             }
 
             // ستون‌های «روبل فی تن» و «ارزش روبلی» فقط در سرور از روی مدل نوشته می‌شدند.
@@ -1693,7 +1847,8 @@
                 '[data-row-freight-expense]',
                 '[data-row-railway-expense]',
                 '[data-row-railway-rate]',
-                '[data-row-chargeable-quantity]'
+                '[data-row-chargeable-quantity]',
+                '[data-row-driver-id]'
             ].join(',');
 
             function applyFreightVisibility() {
@@ -1701,7 +1856,10 @@
 
                 document
                     .querySelectorAll('[data-loading-freight-column]')
-                    .forEach(cell => cell.classList.toggle('d-none', !on));
+                    .forEach(cell => {
+                        const wagonOnly = cell.hasAttribute('data-loading-wagon-freight-column');
+                        cell.classList.toggle('d-none', !on || (wagonOnly && getTransportConfig().field !== 'Wagon'));
+                    });
 
                 document
                     .querySelectorAll('.lic-stat-expense, [data-loading-freight-responsibility]')
@@ -2133,6 +2291,14 @@
                     return;
                 }
 
+                if (event.target.matches('[data-row-driver-phone]')) {
+                    event.target.dataset.driverAutofill = '';
+                }
+
+                if (event.target.matches('[data-row-driver-name], [data-row-driver-phone]')) {
+                    syncRowDriverSelection(row);
+                }
+
                 if (event.target.matches('[data-row-platts]')) {
                     setAutofilled(event.target, false);
                     applyPricingToRow(row);
@@ -2234,7 +2400,8 @@
                 'freightRateUsdPerMt', 'transportExpenseUsd', 'warehouseExpenseUsd',
                 'otherExpenseUsd', 'chargeableQuantityMt', 'railwayRateUsd',
                 'railwayExpenseUsd', 'rubPerUsdRate', 'amountUsdAtRubLock',
-                'amountRubAtRubLock', 'settlementUnitPriceRub', 'settlementValueRub'
+                'amountRubAtRubLock', 'settlementUnitPriceRub', 'settlementValueRub',
+                'driverId'
             ]);
             const editableFields = [
                 'contractId', 'loadingDate', 'importedTransportReference',
@@ -2247,7 +2414,8 @@
                 'railwayRateUsd', 'railwayExpenseUsd', 'settlementCurrencyCode',
                 'rubRateStatus', 'rubRatePolicy', 'rubPerUsdRate', 'rubRateDate',
                 'rubRateSource', 'amountUsdAtRubLock', 'amountRubAtRubLock',
-                'settlementUnitPriceRub', 'settlementValueRub'
+                'settlementUnitPriceRub', 'settlementValueRub',
+                'logisticsMode', 'driverId'
             ];
 
             function rows() {
@@ -2339,7 +2507,9 @@
             function hydrateLogistics(row, data) {
                 const providerId = data.logisticsServiceProviderId;
                 const assetId = data.operationalAssetId;
-                const mode = assetId ? 'owned' : providerId ? 'free' : '';
+                const mode = assetId ? 'owned'
+                    : providerId ? 'free'
+                    : (data.logisticsMode === 'driver' || data.driverId) ? 'driver' : '';
                 const typeSelect = row.querySelector('[data-row-logistics-type]');
                 const displaySelect = row.querySelector('[data-row-logistics-display]');
                 const selectedValue = assetId || providerId || '';
@@ -2347,6 +2517,10 @@
                 if (typeSelect) typeSelect.value = mode;
                 ensureSelectOption(displaySelect, selectedValue, catalog);
                 if (displaySelect) displaySelect.value = selectedValue ? String(selectedValue) : '';
+                const itemField = row.querySelector('[data-loading-logistics-item-field]');
+                if (itemField && mode === 'driver') itemField.hidden = true;
+                const driverNameInput = row.querySelector('[data-row-driver-name]');
+                if (driverNameInput && mode === 'driver') driverNameInput.setAttribute('list', 'loading-driver-options');
                 row.dataset.logisticsMode = mode;
             }
 
@@ -2519,6 +2693,9 @@
                 let pendingRub = 0;
                 let fileRubValue = 0;
                 let hasFileRub = false;
+                let wagonCount = 0;
+                let chargeableQuantity = 0;
+                let railwayExpense = 0;
 
                 virtualRows.forEach(row => {
                     const qty = parseNumber(row.loadedQuantityMt) || 0;
@@ -2529,6 +2706,12 @@
                     expenses += parseNumber(row.warehouseExpenseUsd) || 0;
                     expenses += parseNumber(row.railwayExpenseUsd) || 0;
                     expenses += parseNumber(row.otherExpenseUsd) || 0;
+                    if (String(row.wagonNumber || '').trim()) wagonCount += 1;
+                    const railRate = parseNumber(row.railwayRateUsd) ?? parseNumber(row.freightRateUsdPerMt);
+                    const chargeable = parseNumber(row.chargeableQuantityMt);
+                    if (chargeable !== null && chargeable > 0) chargeableQuantity += chargeable;
+                    else if (railRate !== null && railRate > 0) chargeableQuantity += qty;
+                    railwayExpense += parseNumber(row.railwayExpenseUsd) || 0;
 
                     const lockedRub = parseNumber(row.amountRubAtRubLock);
                     if (lockedRub && lockedRub > 0) rubValue += lockedRub;
@@ -2559,6 +2742,10 @@
                 window.licWriteStat('lic-stat-average', money(quantity > 0 ? value / quantity : 0));
                 window.licWriteStat('lic-stat-expense', money(expenses));
                 window.licWriteStat('lic-stat-rub', rubText);
+                document.querySelector('[data-loading-wagon-count]')?.replaceChildren(String(wagonCount));
+                document.querySelector('[data-loading-wagon-loaded]')?.replaceChildren(new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(quantity));
+                document.querySelector('[data-loading-wagon-chargeable]')?.replaceChildren(new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(chargeableQuantity));
+                document.querySelector('[data-loading-wagon-expense]')?.replaceChildren(money(railwayExpense));
             }
 
             function renderVirtual() {
@@ -2788,6 +2975,8 @@
                         virtualRows.forEach(row => {
                             row.logisticsServiceProviderId = null;
                             row.operationalAssetId = null;
+                            row.logisticsMode = null;
+                            row.driverId = null;
                             row.logisticsCompanyName = null;
                             row.freightRateUsdPerMt = null;
                             row.transportExpenseUsd = null;

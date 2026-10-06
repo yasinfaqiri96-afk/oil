@@ -7,14 +7,6 @@
     پس هیچ چیزِ خارج از این قطعه (Accordionها و مودال خطا) با Poll از بین نمی‌رود.
 *@
 @{
-    string ScheduleLabel(BackupSchedule schedule) => schedule switch
-    {
-        BackupSchedule.Every6Hours => UiText.T(Context, "هر ۶ ساعت", "Every 6 hours"),
-        BackupSchedule.Weekly => UiText.T(Context, "هفتگی", "Weekly"),
-        BackupSchedule.Monthly => UiText.T(Context, "ماهانه", "Monthly"),
-        _ => UiText.T(Context, "روزانه", "Daily")
-    };
-
     string StorageLabel(BackupStorageTarget target) => target switch
     {
         BackupStorageTarget.GoogleDrive => "Google Drive",
@@ -94,28 +86,24 @@
 
     @* کارت‌های آماری از همان کامپوننت مشترک سیستم (vc:stat-card / ak-stat-grid) ساخته
        می‌شوند تا طراحی‌شان با بقیهٔ صفحه‌ها یکی باشد. *@
-    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "وضعیت پشتیبان‌گیری", "Backup status")">
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "وضعیت بکاپ‌گیری", "Backup status")">
         <vc:stat-card title="@UiText.T(Context, "وضعیت بکاپ", "Backup status")"
                       value="@stateLabel"
-                      unit="@($"{ScheduleLabel(Model.Settings.Schedule)} · {StorageLabel(Model.Settings.StorageTarget)}")"
                       avatar="rules-checklist"
                       state="@(latestStatus == BackupRunStatus.Failed ? "warning" : null)"></vc:stat-card>
 
         <vc:stat-card title="@UiText.T(Context, "آخرین بکاپ موفق", "Last successful backup")"
                       value="@(Model.LastBackup is null ? string.Empty : Model.LastBackup.StartedAtUtc.ToDisplayDateTime())"
-                      unit="@(Model.LastBackup is null ? UiText.T(Context, "هنوز بکاپ موفقی وجود ندارد", "No successful backup yet") : SizeLabel(Model.LastBackup.SizeBytes))"
                       avatar="documents"
                       state="@(Model.LastBackup is null ? "empty" : null)"></vc:stat-card>
 
         <vc:stat-card title="@UiText.T(Context, "بکاپ بعدی", "Next backup")"
                       value="@(Model.NextRunAtUtc is null ? string.Empty : Model.NextRunAtUtc.ToDisplayDateTime())"
-                      unit="@(Model.NextRunAtUtc is null ? UiText.T(Context, "زمان‌بندی خودکار خاموش است", "Automatic schedule is off") : Model.TimeZoneId)"
                       avatar="reports"
                       state="@(Model.NextRunAtUtc is null ? "empty" : null)"></vc:stat-card>
 
         <vc:stat-card title="Google Drive"
                       value="@(Model.Drive.IsConnected ? UiText.T(Context, "متصل", "Connected") : UiText.T(Context, "متصل نیست", "Not connected"))"
-                      unit="@Model.Drive.AccountEmail"
                       avatar="security"></vc:stat-card>
     </section>
 

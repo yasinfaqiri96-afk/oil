@@ -16,6 +16,9 @@ public sealed class ClientProfileOptions
 
     public bool SimplePurchaseEnabled { get; set; }
 
+    // UI-only, opt-in per instance. Existing operational services remain enabled.
+    public bool TruckOnlyEnabled { get; set; }
+
     /// <summary>کلیدهای ناوبری (<see cref="Security.RoleNavigationKeys"/>) که برای این مشتری کلاً مخفی‌اند.</summary>
     public string[] HiddenModules { get; set; } = [];
 

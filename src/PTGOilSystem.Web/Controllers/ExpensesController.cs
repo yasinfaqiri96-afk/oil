@@ -556,6 +556,7 @@ public partial class ExpensesController : Controller
             .Select(e => new ExpenseListItemViewModel
             {
                 Id = e.Id,
+                CustomsDeclarationId = e.CustomsDeclarationId,
                 ExpenseDate = e.ExpenseDate,
                 ExpenseTypeName = e.ExpenseType != null ? e.ExpenseType.NamePersian ?? e.ExpenseType.Name : string.Empty,
                 SettlementMode = e.SettlementMode,
@@ -627,6 +628,14 @@ public partial class ExpensesController : Controller
             TempData["ok"] = "این هزینه قبلاً لغو شده است.";
             if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
                 return Redirect(returnUrl);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        // مصرفِ اعلامیهٔ گمرکی مالکِ جدا دارد: لغو از خود اعلامیه انجام می‌شود تا
+        // اعلامیه و مصارفش باهم برگردند (CustomsDeclarationExpenseSync).
+        if (expense.CustomsDeclarationId.HasValue)
+        {
+            TempData["err"] = "این مصرف از اعلامیهٔ گمرکی ساخته شده است؛ لغو را از همان اعلامیه انجام دهید.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -2264,6 +2273,8 @@ public partial class ExpensesController : Controller
         return View(new ExpenseDetailsViewModel
         {
             Id = expense.Id,
+            IsCancelled = expense.IsCancelled,
+            CustomsDeclarationId = expense.CustomsDeclarationId,
             ExpenseDate = expense.ExpenseDate,
             ExpenseTypeName = expense.ExpenseType?.NamePersian ?? expense.ExpenseType?.Name ?? string.Empty,
             ContractId = expense.ContractId,

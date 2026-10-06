@@ -1,6 +1,8 @@
 ﻿@model PTGOilSystem.Web.Models.Sales.SalesIndexViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
+    // ویرایش و لغو ردیف فقط برای نقشی که حق مدیریت داده دارد (همان قاعدهٔ اکشن‌ها).
+    var canManageRows = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
     ViewData["Title"] = UiText.T(Context, "فاکتورهای فروش", "Sales invoices");
     var items = Model.Items.ToList();
     var hasAdvancedFilter =
@@ -110,6 +112,12 @@
                             <td class="col-actions">
                                 <div class="ak-row-menu">
                                     <a asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" class="btn btn-light ak-secondary-action" title="@UiText.T(Context, "مشاهده", "View")" aria-label="@UiText.T(Context, "مشاهده", "View")"><i class="bi bi-eye" aria-hidden="true"></i></a>
+                                    @if (canManageRows)
+                                    {
+                                        <a asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" class="btn btn-light ak-secondary-action" title="@UiText.T(Context, "ویرایش", "Edit")" aria-label="@UiText.T(Context, "ویرایش", "Edit")"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                        @* ابطال فروش دلیل اجباری دارد، پس به همان صفحهٔ «ابطال / اصلاح فروش» می‌رود. *@
+                                        <a asp-action="Correct" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" class="btn btn-light ak-secondary-action" title="@UiText.T(Context, "لغو", "Cancel")" aria-label="@UiText.T(Context, "لغو", "Cancel")"><i class="bi bi-x-circle" aria-hidden="true"></i></a>
+                                    }
                                 </div>
                             </td>
                         </tr>

@@ -6,6 +6,7 @@
     var freightColumnCss = Model.RecordFreight ? "" : "d-none";
     var vesselCss = Model.TransportType == LoadingTransportType.Vessel ? "" : "d-none";
     var wagonCss = Model.TransportType == LoadingTransportType.Wagon ? "" : "d-none";
+    var wagonFreightCss = Model.RecordFreight && Model.TransportType == LoadingTransportType.Wagon ? "" : "d-none";
     var truckCss = Model.TransportType == LoadingTransportType.Truck ? "" : "d-none";
     var referenceLabel = Model.TransportType switch
     {
@@ -20,9 +21,12 @@
     var selectedLogisticsServiceProviderValue = Model.Row.LogisticsServiceProviderId?.ToString() ?? "";
     var operationalAssetOptions = ViewBag.LoadingOperationalAssets as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
     var selectedOperationalAssetValue = Model.Row.OperationalAssetId?.ToString() ?? "";
+    var isFreeDriverMode = Model.Row.DriverId.HasValue
+        || string.Equals(Model.Row.LogisticsMode, "driver", StringComparison.OrdinalIgnoreCase);
     var logisticsMode = !string.IsNullOrEmpty(selectedOperationalAssetValue)
         ? "owned"
-        : !string.IsNullOrEmpty(selectedLogisticsServiceProviderValue) ? "free" : "";
+        : !string.IsNullOrEmpty(selectedLogisticsServiceProviderValue) ? "free"
+        : isFreeDriverMode ? "driver" : "";
     // Only this row's own selection is rendered; the full provider/asset catalogues live
     // once per page (#loading-provider-catalog / #loading-asset-catalog) and the script
     // copies them into a row on demand. Emitting them per row made a few thousand
@@ -81,9 +85,7 @@
         <input type="hidden" name="@($"{prefix}.TransportExpenseUsd")" value="@Model.Row.TransportExpenseUsd" data-row-freight-expense />
         <input type="hidden" name="@($"{prefix}.PlattsUsd")" value="@Model.Row.PlattsUsd" data-row-platts />
         <input type="hidden" name="@($"{prefix}.WarehouseExpenseUsd")" value="@Model.Row.WarehouseExpenseUsd" data-row-warehouse-expense />
-        <input type="hidden" name="@($"{prefix}.ChargeableQuantityMt")" value="@Model.Row.ChargeableQuantityMt" data-row-chargeable-quantity />
         <input type="hidden" name="@($"{prefix}.RailwayRateUsd")" value="@Model.Row.RailwayRateUsd" data-row-railway-rate />
-        <input type="hidden" name="@($"{prefix}.RailwayExpenseUsd")" value="@Model.Row.RailwayExpenseUsd" data-row-railway-expense />
         <input type="hidden" name="@($"{prefix}.SettlementCurrencyCode")" value="@Model.Row.SettlementCurrencyCode" data-row-settlement-currency />
         <input type="hidden" name="@($"{prefix}.RubRatePolicy")" value="@Model.Row.RubRatePolicy" data-row-rub-policy />
         <input type="hidden" name="@($"{prefix}.RubRateStatus")" value="@Model.Row.RubRateStatus" data-row-rub-status />
@@ -93,7 +95,6 @@
         <input type="hidden" name="@($"{prefix}.AmountRubAtRubLock")" value="@Model.Row.AmountRubAtRubLock" data-row-rub-amount-hidden />
         <input type="hidden" name="@($"{prefix}.SettlementUnitPriceRub")" value="@Model.Row.SettlementUnitPriceRub" data-row-frub-rate-hidden />
         <input type="hidden" name="@($"{prefix}.SettlementValueRub")" value="@Model.Row.SettlementValueRub" data-row-frub-amount-hidden />
-        <input type="hidden" name="@($"{prefix}.LogisticsCompanyName")" value="@Model.Row.LogisticsCompanyName" data-row-logistics-name />
         <input type="hidden" name="@($"{prefix}.RouteDescription")" value="@Model.Row.RouteDescription" />
         <input type="hidden" name="@($"{prefix}.Loss.Enabled")" value="false" />
         <input type="hidden" name="@($"{prefix}.Loss.Stage")" value="@Model.Row.Loss.Stage" />
@@ -190,6 +191,17 @@
             <span data-row-loading-value>@(Model.Row.LoadingPriceUsd.HasValue ? $"$ {NumberDisplay.Money(loadingValue)}" : "در انتظار نرخ")</span>
         </td>
 
+        <td class="ak-col-num @wagonFreightCss" data-loading-freight-column data-loading-wagon-freight-column>
+            <input name="@($"{prefix}.ChargeableQuantityMt")"
+                   value="@(Model.Row.ChargeableQuantityMt > 0 ? Model.Row.ChargeableQuantityMt.Value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture) : null)"
+                   class="ak-input ak-num"
+                   inputmode="decimal"
+                   min="0"
+                   step="0.0001"
+                   aria-label="وزن قابل حساب خط آهن"
+                   data-row-chargeable-quantity />
+        </td>
+
         <td class="ak-col-num" data-loading-frub-column>
             <span data-row-frub-rate-text>@(Model.Row.SettlementUnitPriceRub.HasValue ? $"₽ {NumberDisplay.Money(Model.Row.SettlementUnitPriceRub.Value)}" : "-")</span>
         </td>
@@ -215,15 +227,17 @@
             <div data-row-logistics-editor>
                 <div data-loading-logistics-pair>
                     <div data-loading-logistics-type-field>
-                        <select class="ak-input"
+                        <select name="@($"{prefix}.LogisticsMode")"
+                                class="ak-input"
                                 data-row-logistics-type
                                 aria-label="نوعیت ترانسپورت">
                             <option value=""></option>
                             <option value="owned" selected="@(logisticsMode == "owned" ? "selected" : null)">ترانسپورت شخصی شرکت</option>
                             <option value="free" selected="@(logisticsMode == "free" ? "selected" : null)">ترانسپورت آزاد</option>
+                            <option value="driver" selected="@(logisticsMode == "driver" ? "selected" : null)">راننده آزاد</option>
                         </select>
                     </div>
-                    <div data-loading-logistics-item-field>
+                    <div data-loading-logistics-item-field hidden="@(logisticsMode == "driver" ? "hidden" : null)">
                         <select class="ak-input"
                                 data-row-logistics-display
                                 aria-label="انتخاب ترانسپورت">
@@ -257,6 +271,12 @@
                         <option value="@selectedOperationalAssetValue" selected="selected">@selectedOperationalAssetText</option>
                     }
                 </select>
+                <input name="@($"{prefix}.LogisticsCompanyName")"
+                       value="@Model.Row.LogisticsCompanyName"
+                       class="ak-input mt-2 @wagonCss"
+                       maxlength="200"
+                       aria-label="شرکت ترانسپورتی"
+                       data-row-logistics-name />
             </div>
         </td>
 
@@ -264,8 +284,16 @@
             <input name="@($"{prefix}.FreightRateUsdPerMt")"
                    value="@(freightRateUsdPerMt > 0 ? freightRateUsdPerMt : null)"
                    class="ak-input ak-num"
+                   inputmode="decimal"
+                   min="0"
+                   step="0.0001"
                    data-row-freight-rate
                    />
+        </td>
+
+        <td class="ak-col-num fw-bold @wagonFreightCss" data-loading-freight-column data-loading-wagon-freight-column>
+            <input type="hidden" name="@($"{prefix}.RailwayExpenseUsd")" value="@Model.Row.RailwayExpenseUsd" data-row-railway-expense />
+            <span data-row-railway-expense-text>@(Model.Row.RailwayExpenseUsd.HasValue ? $"$ {NumberDisplay.Money(Model.Row.RailwayExpenseUsd.Value)}" : "-")</span>
         </td>
 
         <td><input name="@($"{prefix}.ConsigneeName")" value="@Model.Row.ConsigneeName" class="ak-input" /></td>
@@ -274,9 +302,13 @@
 
         <td><input name="@($"{prefix}.TransitNumber")" value="@Model.Row.TransitNumber" class="ak-input text-center" maxlength="100" aria-label="نمبر ترانزیت" /></td>
 
-        <td><input name="@($"{prefix}.DriverName")" value="@Model.Row.DriverName" class="ak-input" maxlength="200" aria-label="نام راننده" /></td>
+        <td>
+            @* «راننده آزاد»: همین فیلد نام راننده با datalist هم جستجو/انتخاب راننده‌های ثبت‌شده است و هم نام راننده جدید. *@
+            <input type="hidden" name="@($"{prefix}.DriverId")" value="@Model.Row.DriverId" data-row-driver-id />
+            <input name="@($"{prefix}.DriverName")" value="@Model.Row.DriverName" class="ak-input" maxlength="200" aria-label="نام راننده" autocomplete="off" list="@(logisticsMode == "driver" ? "loading-driver-options" : null)" data-row-driver-name />
+        </td>
 
-        <td><input name="@($"{prefix}.DriverPhone")" value="@Model.Row.DriverPhone" type="tel" dir="ltr" class="ak-input text-center" maxlength="50" aria-label="شماره تماس راننده" /></td>
+        <td><input name="@($"{prefix}.DriverPhone")" value="@Model.Row.DriverPhone" type="tel" dir="ltr" class="ak-input text-center" maxlength="50" aria-label="شماره تماس راننده" data-row-driver-phone /></td>
 
         <td class="ak-col-actions">
             <button type="button" class="ak-row-menu-btn" data-loading-row-remove aria-label="حذف سطر" title="حذف سطر">

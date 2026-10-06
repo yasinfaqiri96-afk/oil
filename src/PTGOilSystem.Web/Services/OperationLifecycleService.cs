@@ -130,6 +130,13 @@ public sealed class OperationLifecycleService(
             if (item.IsArchived) return;
             item.IsArchived = true;
         }
+        else if (kind == "InventoryTransportLeg")
+        {
+            var item = await db.InventoryTransportLegs.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw Rule("حمل پیدا نشد.");
+            if (item.Status != InventoryTransportLegStatus.Cancelled) throw Rule("ابتدا حمل را لغو کنید.");
+            if (item.IsArchived) return;
+            item.IsArchived = true;
+        }
         else throw Rule("نوع رکورد معتبر نیست.");
         await audit.LogAndSaveAsync(kind, id, AuditAction.Delete,
             diff: AuditDiffFormatter.ForUpdate(("IsArchived", false, true)), actorUserId: actorId, ct: ct);

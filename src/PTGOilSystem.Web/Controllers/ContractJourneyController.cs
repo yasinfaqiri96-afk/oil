@@ -1388,6 +1388,29 @@ public partial class ContractJourneyController : Controller
                 };
             })
             .ToList();
+        // کرایهٔ داخلیِ ترانسپورت شخصی شرکت برای بارگیری‌های همین قرارداد: AssetRentTransaction
+        // بدون Ledger. فقط برای گزارش مدیریتی نمایش داده می‌شود و به ExpenseItems/جمع مصارف اضافه
+        // نمی‌شود، چون همان مبلغ از قبل در فیلد درون‌خطیِ کرایهٔ بارگیری شمرده شده است.
+        var internalTransportCostItems = hasLoadingIds
+            ? await _db.AssetRentTransactions
+                .AsNoTracking()
+                .Where(r => !r.IsCancelled
+                    && r.LoadingRegisterId.HasValue
+                    && loadingIds.Contains(r.LoadingRegisterId.Value))
+                .OrderByDescending(r => r.RentDate)
+                .ThenByDescending(r => r.Id)
+                .Select(r => new ContractJourneyInternalTransportCostItemViewModel
+                {
+                    AssetRentTransactionId = r.Id,
+                    LoadingRegisterId = r.LoadingRegisterId,
+                    RentDate = r.RentDate,
+                    AssetName = r.OperationalAsset != null ? r.OperationalAsset.Name : string.Empty,
+                    QuantityMt = r.QuantityMt,
+                    RateUsdPerMt = r.Rate,
+                    AmountUsd = r.AmountUsd
+                })
+                .ToListAsync()
+            : [];
         var inventoryTransportExpenseTotalByLegId = inventoryTransportExpenseGroups
             .ToDictionary(g => g.Key, g => g.Value.Sum(e => e.AmountUsd));
         var inventoryTransportCustomsTotalByLegId = customsDeclarations
@@ -1713,6 +1736,7 @@ public partial class ContractJourneyController : Controller
                 activeTab,
                 lockContract,
                 expenseItems: expenseItems,
+                internalTransportCostItems: internalTransportCostItems,
                 lossItems: lossItems,
                 inventoryTransportExpenseAllocations: inventoryTransportExpenseAllocations,
                 loadingDifferenceLossMt: loadingDifferenceLossMt,
@@ -2080,6 +2104,7 @@ public partial class ContractJourneyController : Controller
             SalesItems = saleItems,
             PreSaleItems = preSaleItems,
             ExpenseItems = expenseItems,
+            InternalTransportCostItems = internalTransportCostItems,
             LossItems = lossItems,
             PaymentItems = paymentItems,
             SarrafSettlementItems = sarrafSettlementItems,
@@ -2109,6 +2134,7 @@ public partial class ContractJourneyController : Controller
         IReadOnlyList<ContractJourneyShipmentScenarioViewModel>? shipmentScenarios = null,
         IReadOnlyList<ContractJourneyExpenseItemViewModel>? expenseItems = null,
         IReadOnlyList<ContractJourneyLossItemViewModel>? lossItems = null,
+        IReadOnlyList<ContractJourneyInternalTransportCostItemViewModel>? internalTransportCostItems = null,
         IReadOnlyList<ContractJourneyTransportLegExpenseAllocationViewModel>? inventoryTransportExpenseAllocations = null,
         decimal loadingDifferenceLossMt = 0m,
         decimal receiptShortageLossMt = 0m,
@@ -2160,6 +2186,7 @@ public partial class ContractJourneyController : Controller
             PreSaleItems = preSaleItems ?? [],
             ShipmentScenarios = shipmentScenarios ?? [],
             ExpenseItems = expenseItems ?? [],
+            InternalTransportCostItems = internalTransportCostItems ?? [],
             LossItems = lossItems ?? [],
             InventoryTransportExpenseAllocations = inventoryTransportExpenseAllocations ?? [],
             LoadingDifferenceLossMt = loadingDifferenceLossMt,

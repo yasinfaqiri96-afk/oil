@@ -133,6 +133,11 @@
                                 <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@UiText.T(Context, "عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a asp-action="Details" asp-route-id="@item.Id" class="dropdown-item"><i class="bi bi-eye"></i> @(string.IsNullOrWhiteSpace(item.NextActionText) ? UiText.T(Context, "جزئیات", "Details") : item.NextActionText)</a></li>
+                                    @* لغو حمل مسیر خودش را در صفحهٔ جزئیات دارد؛ اینجا فقط حمل لغوشده از فهرست حذف می‌شود. *@
+                                    @if (item.Status == InventoryTransportLegStatus.Cancelled)
+                                    {
+                                        <li><partial name="_LifecycleActionForms" model="@(("InventoryTransportLegs", item.Id, true, Context.Request.Path.ToString() + Context.Request.QueryString.ToString()))" /></li>
+                                    }
                                 </ul>
                             </div>
                         </td>
