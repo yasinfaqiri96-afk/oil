@@ -42,7 +42,7 @@ public sealed class RepairWorker(IServiceProvider provider, IConfiguration confi
             Status = result.Status.ToString(), result.Journal.Id, CostUsd = 98000m,
             TotalCogsUsd = pnl.CostOfGoodsSoldUsd, GrossProfitUsd = pnl.GrossProfitUsd, pnl.UncostedSaleCount
         }));
-        lifetime.StopApplication();
+        lifetime.ApplicationStarted.Register(lifetime.StopApplication);
     }
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }
