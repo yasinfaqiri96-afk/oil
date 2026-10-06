@@ -707,11 +707,12 @@
             RealisedUncostedWarning = Model.MiniPnl.Realised.HasUncostedSales
                 ? $"{Model.MiniPnl.Realised.UncostedSaleCount} فروش بدون بهای تمام‌شدهٔ فعال؛ سود این بخش قطعی نیست."
                 : null,
-            RealisedVarianceText = Model.MiniPnl.HasOperationalVsRealisedVariance
-                ? $"{Model.MiniPnl.OperationalVsRealisedVarianceUsd:N2} {UnitUsd()}"
+            RealisedVarianceText = Math.Abs(pnlOperationalMarginUsd - Model.MiniPnl.Realised.GrossProfitUsd) > 0.01m
+                ? $"{pnlOperationalMarginUsd - Model.MiniPnl.Realised.GrossProfitUsd:N2} {UnitUsd()}"
                 : null,
-            RealisedVarianceReason = Model.MiniPnl.HasOperationalVsRealisedVariance
-                ? Model.MiniPnl.OperationalVsRealisedVarianceReasonFa
+            RealisedVarianceReason = Math.Abs(pnlOperationalMarginUsd - Model.MiniPnl.Realised.GrossProfitUsd) > 0.01m
+                ? (Model.MiniPnl.Realised.HasUncostedSales ? Model.MiniPnl.OperationalVsRealisedVarianceReasonFa
+                    : T("مفاد ناخالص فروش پیش از مصارف و ضایعات است؛ مفاد خالص قرارداد این موارد را هم حساب می‌کند.", "Sales gross profit is before expenses and losses; net contract profit includes them."))
                 : null,
             Note = LocalizeDisplay(Model.MiniPnl.Note)
         },

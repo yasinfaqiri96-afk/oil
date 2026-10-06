@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using PTGOilSystem.Web.Services.Accounting;
 using PTGOilSystem.Web.Models.ContractJourney;
 
 [assembly: HostingStartup(typeof(PTG.ContractReportingRepair.ReportingHostingStartup))]
@@ -11,6 +12,8 @@ public sealed class ReportingHostingStartup : IHostingStartup
 {
     public void Configure(IWebHostBuilder builder) => builder.ConfigureServices(services =>
     {
+        // The installed registration is redirected by the narrowly verified deployment tool.
+        services.AddScoped<SalesAccountingAdapter>();
         services.AddScoped<ContractReportRepairService>();
         services.AddScoped<ContractReportRepairFilter>();
         services.AddControllersWithViews(options => options.Filters.AddService<ContractReportRepairFilter>())

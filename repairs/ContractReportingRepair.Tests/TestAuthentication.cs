@@ -12,6 +12,7 @@ public sealed class TestHostingStartup : IHostingStartup {
     public void Configure(IWebHostBuilder builder) => builder.ConfigureServices((context, services) => {
         if (!context.Configuration.GetConnectionString("DefaultConnection")!.Contains("Database=zuri_p002_repair_test;", StringComparison.Ordinal))
             throw new InvalidOperationException("Test authentication must only use the isolated test database.");
+        services.AddHostedService<DirectCogsRegressionWorker>();
         services.AddAuthentication().AddScheme<AuthenticationSchemeOptions, TestHandler>("ReportingTests", _ => {});
         services.PostConfigure<AuthenticationOptions>(options => {
             options.DefaultAuthenticateScheme = "ReportingTests";

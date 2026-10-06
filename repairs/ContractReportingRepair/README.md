@@ -58,3 +58,19 @@ apply completed-profit reconciliation. Original transport row details remain unc
 
 Remove the hosting startup environment entry and switch back to the saved original release
 to roll back. Backup and rollback scripts are kept in the server's P002 backup directory.
+
+## Direct transport sale COGS repair (2026-10-07)
+
+The installed ISalesAccountingAdapter is decorated, while its revenue, advances and inventory-sale logic remain unchanged. An active DirectSale receipt with no outbound stock movement and only direct LoadingRegister allocations is valued from the active, posted purchase journal of those loadings. The existing posting service enforces account ownership, currency and fiscal-period rules. COGS debits 5100 and credits 1310, not tank inventory. Journal and active SalesCostConsumption commit together under sale-row/event locks.
+
+SalesCostConsumption has a required int TerminalId but no terminal FK. This extension reserves 0 for an in-transit cost snapshot; it does NOT create a Terminal, InventoryMovement or InventoryAverageCost pool. The marker and receipt/loading provenance are retained in the canonical journal. The decorator recognises this marker on reversal, reverses the exact journal, marks the snapshot reversed, and never calls valuation.ReturnAsync. Other cost snapshots keep their existing terminal IDs and original adapter.
+
+Scope: provable, single-contract purchase-loading sources such as P002/INV003. Mixed-company, tank-origin, transferred-parent and other unprovable sources keep their warning rather than receive a guessed cost. Canonical ProfitAndLossService and reconciliation need no changes: they already read active SalesCostConsumption. Expenses are not capitalised or posted again. The finance variance now compares the displayed operational net and realised gross amounts and explains the expenses/losses difference.
+
+Deployment does not rebuild the main assembly from incomplete sources. A Mono.Cecil deployment tool changes exactly one existing AddScoped generic argument in Program to this decorator and regenerates its portable PDB. Semantic IL hashes verify every method: exactly one method has exactly that registration change, and embedded resource hashes remain identical. All other executable DLLs remain byte-for-byte unchanged; the complete original release is retained. Test authentication/controller are ONLY in the loopback test runtime and the one-shot maintenance assembly is NOT copied into the public release. Production is backfilled only for reviewed INV003 (98MT, USD98000); no global backfill.
+
+Rollback after posting: do not restore an older adapter while any active TerminalId=0 snapshot remains; that adapter would incorrectly return cost to a tank pool. First reverse affected direct COGS through this decorator and verify no active in-transit snapshot, or retain the decorator. The earlier reporting-only rollback is not valid after this accounting repair.
+
+The HostingStartup callback runs before Program and cannot itself override the final adapter registration. Hence the registration-only patch is necessary on this installed build. No framework-private reflection, alternate service-provider factory or request-service interception is used.
+
+Validation on the restored test database: 14 in-process checks passed through the actual application service provider, including canonical P&L, repeated posting, exact reversal, repeated reversal, unchanged inventory movements/pools and rollback. Registration verification covered 111,759 methods; only the AddScoped type argument in Program changed.

@@ -11,5 +11,6 @@
     <Reference Include="PTGOilSystem.Web"><HintPath>/runtime/PTGOilSystem.Web.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Microsoft.EntityFrameworkCore"><HintPath>/runtime/Microsoft.EntityFrameworkCore.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Microsoft.EntityFrameworkCore.Abstractions"><HintPath>/runtime/Microsoft.EntityFrameworkCore.Abstractions.dll</HintPath><Private>false</Private></Reference>
-  </ItemGroup>
+  <Reference Include="Microsoft.EntityFrameworkCore.Relational"><HintPath>/runtime/Microsoft.EntityFrameworkCore.Relational.dll</HintPath><Private>false</Private></Reference>
+</ItemGroup>
 </Project>
