@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AssemblyName>PTG.ContractReportingRepair.Tests</AssemblyName></PropertyGroup>
+<ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" />
+<Reference Include="PTG.ContractReportingRepair"><HintPath>../ContractReportingRepair/bin/Release/net8.0/PTG.ContractReportingRepair.dll</HintPath></Reference>
+</ItemGroup></Project>

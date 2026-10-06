@@ -1,0 +1,14 @@
+@using PTGOilSystem.Web
+@using PTGOilSystem.Web.Models
+@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.MasterData
+@using PTGOilSystem.Web.Models.OperationalAssets
+@using PTGOilSystem.Web.Models.Sarrafs
+@using PTGOilSystem.Web.Models.ServiceProviders
+@using PTGOilSystem.Web.Models.Shared
+@using PTGOilSystem.Web.Helpers
+@using PTGOilSystem.Web.Services.CompanyFlow
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, PTGOilSystem.Web
+@* تنها منبع «امروز» و «اکنون» در Viewها؛ هیچ صفحه‌ای نباید DateTime.Now سیستم‌عامل را بخواند. *@
+@inject PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock BusinessClock
