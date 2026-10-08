@@ -98,7 +98,7 @@
                 {
                     <div class="ak-field">
                         <label>محموله (اختیاری)</label>
-                        <select name="ShipmentId" class="ak-input" data-shipment-id>
+                        <select name="ShipmentId" class="ak-input" data-ak-entity-combobox data-shipment-id>
                             <option value="">— بدون محموله: از ترمینال / مخزن —</option>
                             @foreach (var item in shipmentOptions)
                             {
@@ -108,7 +108,7 @@
                     </div>
                     <div class="ak-field" data-terminal-field>
                         <label>ترمینال مبدأ</label>
-                        <select name="SourceTerminalId" class="ak-input" data-source-terminal required>
+                        <select name="SourceTerminalId" class="ak-input" data-ak-entity-combobox data-source-terminal required>
                             <option value="">انتخاب کنید</option>
                             @foreach (var item in terminals)
                             {
@@ -119,7 +119,7 @@
                 }
                 <div class="ak-field">
                     <label>محصول</label>
-                    <select name="ProductId" class="ak-input" data-source-product required>
+                    <select name="ProductId" class="ak-input" data-ak-entity-combobox data-source-product required>
                         <option value="">انتخاب کنید</option>
                         @foreach (var item in products)
                         {
@@ -131,7 +131,7 @@
                 {
                     <div class="ak-field" data-tank-field>
                         <label>مخزن مبدأ</label>
-                        <select name="SourceStorageTankId" class="ak-input" data-source-tank required>
+                        <select name="SourceStorageTankId" class="ak-input" data-ak-entity-combobox data-source-tank required>
                             <option value="">انتخاب کنید</option>
                             @foreach (var item in tanks)
                             {
@@ -194,7 +194,7 @@
                             <td><input class="ak-input" type="text" maxlength="200" list="itf-driver-list" name="Vehicles[@i].DriverNameInput" value="@vehicle.DriverNameInput" placeholder="انتخاب یا تایپ نام راننده" autocomplete="off" data-driver /></td>
                             <td><input class="ak-input" type="number" min="0" step="0.0001" name="Vehicles[@i].QuantityMt" value="@(vehicle.QuantityMt > 0 ? vehicle.QuantityMt.ToString(CultureInfo.InvariantCulture) : null)" data-vehicle-quantity /><div data-allocation-fields>@for (var allocationIndex = 0; allocationIndex < vehicle.Allocations.Count; allocationIndex++) { var allocation = vehicle.Allocations[allocationIndex]; <input type="hidden" name="Vehicles[@i].Allocations[@allocationIndex].SourceInventoryMovementId" value="@allocation.SourceInventoryMovementId" /><input type="hidden" name="Vehicles[@i].Allocations[@allocationIndex].QuantityMt" value="@allocation.QuantityMt.ToString(CultureInfo.InvariantCulture)" /> }</div></td>
                             <td><select class="ak-input" name="Vehicles[@i].CarrierType" data-carrier-type><option value="1" selected="@(vehicle.CarrierType == CarrierType.ServiceProvider ? "selected" : null)">شرکت خدماتی</option><option value="2" selected="@(vehicle.CarrierType == CarrierType.OperationalAsset ? "selected" : null)">دارایی عملیاتی</option><option value="3" selected="@(vehicle.CarrierType == CarrierType.PersonalCarrier ? "selected" : null)">حمل‌کنندهٔ شخصی</option></select></td>
-                            <td><select class="ak-input" name="Vehicles[@i].ServiceProviderId" data-provider><option value="">انتخاب شرکت</option>@foreach (var item in providers) { <option value="@item.Id" selected="@(vehicle.ServiceProviderId == item.Id ? "selected" : null)">@item.Name</option> }</select><select class="ak-input" name="Vehicles[@i].OperationalAssetId" data-asset><option value="">انتخاب دارایی</option>@foreach (var item in assets) { <option value="@item.Id" data-asset-type="@item.Type" data-capacity="@(item.CapacityMt.HasValue ? item.CapacityMt.Value.ToString(CultureInfo.InvariantCulture) : null)" selected="@(vehicle.OperationalAssetId == item.Id ? "selected" : null)">@item.Name</option> }</select></td>
+                            <td><select class="ak-input" name="Vehicles[@i].ServiceProviderId" data-provider data-ak-entity-combobox><option value="">انتخاب شرکت</option>@foreach (var item in providers) { <option value="@item.Id" selected="@(vehicle.ServiceProviderId == item.Id ? "selected" : null)">@item.Name</option> }</select><select class="ak-input" name="Vehicles[@i].OperationalAssetId" data-asset data-ak-entity-combobox><option value="">انتخاب دارایی</option>@foreach (var item in assets) { <option value="@item.Id" data-asset-type="@item.Type" data-capacity="@(item.CapacityMt.HasValue ? item.CapacityMt.Value.ToString(CultureInfo.InvariantCulture) : null)" selected="@(vehicle.OperationalAssetId == item.Id ? "selected" : null)">@item.Name</option> }</select></td>
                             <td><button type="button" class="ak-row-menu-btn" data-remove-vehicle aria-label="حذف ردیف">×</button></td>
                         </tr>
                     }
@@ -243,7 +243,7 @@
         <td><input class="ak-input" type="text" maxlength="200" list="itf-driver-list" name="Vehicles[__index__].DriverNameInput" placeholder="انتخاب یا تایپ نام راننده" autocomplete="off" data-driver /></td>
         <td><input class="ak-input" type="number" min="0" step="0.0001" name="Vehicles[__index__].QuantityMt" data-vehicle-quantity /><div data-allocation-fields></div></td>
         <td><select class="ak-input" name="Vehicles[__index__].CarrierType" data-carrier-type><option value="1">شرکت خدماتی</option><option value="2">دارایی عملیاتی</option><option value="3">حمل‌کنندهٔ شخصی</option></select></td>
-        <td><select class="ak-input" name="Vehicles[__index__].ServiceProviderId" data-provider><option value="">انتخاب شرکت</option>@foreach (var item in providers) { <option value="@item.Id">@item.Name</option> }</select><select class="ak-input" name="Vehicles[__index__].OperationalAssetId" data-asset><option value="">انتخاب دارایی</option>@foreach (var item in assets) { <option value="@item.Id" data-asset-type="@item.Type" data-capacity="@(item.CapacityMt.HasValue ? item.CapacityMt.Value.ToString(CultureInfo.InvariantCulture) : null)">@item.Name</option> }</select></td>
+        <td><select class="ak-input" name="Vehicles[__index__].ServiceProviderId" data-provider data-ak-entity-combobox><option value="">انتخاب شرکت</option>@foreach (var item in providers) { <option value="@item.Id">@item.Name</option> }</select><select class="ak-input" name="Vehicles[__index__].OperationalAssetId" data-asset data-ak-entity-combobox><option value="">انتخاب دارایی</option>@foreach (var item in assets) { <option value="@item.Id" data-asset-type="@item.Type" data-capacity="@(item.CapacityMt.HasValue ? item.CapacityMt.Value.ToString(CultureInfo.InvariantCulture) : null)">@item.Name</option> }</select></td>
         <td><button type="button" class="ak-row-menu-btn" data-remove-vehicle aria-label="حذف ردیف">×</button></td>
     </tr>
 </template>

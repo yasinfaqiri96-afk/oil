@@ -234,7 +234,7 @@
                     <h2>@T("اطلاعات فروش مستقیم", "Direct sale information")</h2>
                     <div class="ak-field">
                         <label>@T("مشتری", "Customer") <b>*</b></label>
-                        <select name="CustomerId" class="ak-input" asp-items="ViewBag.Customers" disabled>
+                        <select name="CustomerId" class="ak-input" data-ak-entity-combobox asp-items="ViewBag.Customers" disabled>
                             <option value="">@T("انتخاب مشتری", "Select customer")</option>
                         </select>
                     </div>
@@ -252,7 +252,7 @@
                     </div>
                     <div class="ak-field">
                         <label>@T("واحد پول", "Currency") <b>*</b></label>
-                        <select name="Currency" class="ak-input" asp-items="ViewBag.Currencies" data-sale-currency disabled></select>
+                        <select name="Currency" class="ak-input" data-ak-entity-combobox asp-items="ViewBag.Currencies" data-sale-currency disabled></select>
                     </div>
                     <div class="ak-field">
                         <label>@T("قیمت واحد", "Unit price") <b>*</b></label>

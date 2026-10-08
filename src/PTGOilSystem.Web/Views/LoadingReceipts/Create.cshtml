@@ -32,7 +32,7 @@
                     <div class="ak-form-grid">
                     <div class="ak-field ak-span-2">
                         <label>@UiText.T(Context, "انتخاب بارگیری", "Select Loading")</label>
-                        <select name="loadingId" class="ak-input" required>
+                        <select name="loadingId" class="ak-input" data-ak-entity-combobox required>
                             <option value="">@UiText.T(Context, "بارگیری قابل رسید را انتخاب کنید", "Select a loading with remaining quantity")</option>
                             @foreach (var option in loadingOptions)
                             {

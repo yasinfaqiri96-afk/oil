@@ -29,7 +29,7 @@ public sealed class ContractDisplayNameTests
     public void Migration_Backfills_Legacy_Contracts_Before_Making_Name_Required()
     {
         var migration = ReadRepoFile(
-            "src/PTGOilSystem.Web/Migrations/20260802133147_AddContractDisplayName.cs");
+            "src/PTGOilSystem.Migrations/Migrations/20260802133147_AddContractDisplayName.cs");
 
         Assert.Contains("nullable: true", migration);
         Assert.Contains("SET \"ContractName\" = \"ContractNumber\"", migration);

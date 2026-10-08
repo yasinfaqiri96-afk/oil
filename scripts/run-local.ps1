@@ -149,7 +149,8 @@ function Invoke-LocalEfDatabaseUpdate {
         [string]$ProjectPath
     )
 
-    $commandOutput = & dotnet ef database update --project $ProjectPath --startup-project $ProjectPath 2>&1
+    $migrationsProject = Join-Path (Split-Path (Split-Path $ProjectPath -Parent) -Parent) "PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj"
+    $commandOutput = & dotnet ef database update --project $migrationsProject --startup-project $ProjectPath 2>&1
     $exitCode = $LASTEXITCODE
 
     if ($null -ne $commandOutput) {
@@ -175,8 +176,19 @@ function Test-LocalBuildRequired {
         return $true
     }
 
+    # The runtime output must include both new assemblies, including on a
+    # checkout with old Web output from before the project split.
+    foreach ($assemblyName in @('PTGOilSystem.Persistence.dll', 'PTGOilSystem.Migrations.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path (Split-Path $OutputDllPath -Parent) $assemblyName))) {
+            return $true
+        }
+    }
+
     $outputTime = (Get-Item -LiteralPath $OutputDllPath).LastWriteTimeUtc
-    $buildInputs = Get-ChildItem -LiteralPath $ProjectDirectory -Recurse -File |
+    $sourceDirectories = @($ProjectDirectory,
+        (Join-Path (Split-Path $ProjectDirectory -Parent) 'PTGOilSystem.Persistence'),
+        (Join-Path (Split-Path $ProjectDirectory -Parent) 'PTGOilSystem.Migrations'))
+    $buildInputs = Get-ChildItem -LiteralPath $sourceDirectories -Recurse -File |
         Where-Object {
             $isSourceFile = $_.Extension -in @('.cs', '.cshtml', '.csproj', '.props', '.targets')
             $isGeneratedFile = $_.FullName -match '[\\/](bin|obj)[\\/]'
@@ -243,8 +255,13 @@ Write-Host "Project: $projectPath"
 Push-Location $repoRoot
 try {
     # restore فقط وقتی lock موجود نیست؛ بعد از آن --no-restore راه‌اندازی را سریع می‌کند
-    $assetsFile = Join-Path (Split-Path $projectPath -Parent) "obj\project.assets.json"
-    if (-not (Test-Path -LiteralPath $assetsFile)) {
+    $projectDirectories = @($projectDirectory,
+        (Join-Path (Split-Path $projectDirectory -Parent) 'PTGOilSystem.Persistence'),
+        (Join-Path (Split-Path $projectDirectory -Parent) 'PTGOilSystem.Migrations'))
+    $missingAssets = @($projectDirectories | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $_ 'obj/project.assets.json'))
+    })
+    if ($missingAssets.Count -gt 0) {
         Write-Host "First run: restoring NuGet packages once..."
         & dotnet restore $projectPath
     }

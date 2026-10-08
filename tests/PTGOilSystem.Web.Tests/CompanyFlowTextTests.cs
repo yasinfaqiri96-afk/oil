@@ -312,7 +312,14 @@ public sealed class CompanyFlowTextTests
         }
 
         Assert.Contains("بیلانس", text, StringComparison.Ordinal);
-        if (!relativePath.EndsWith("_SupplierContractStatement.cshtml", StringComparison.Ordinal))
+        if (text.Contains("PartyStatementPresentation.ColumnsFor", StringComparison.Ordinal))
+        {
+            // صورت‌حساب تجارتی: ستون‌ها با واژه‌های ساده (مبلغ فروش/خرید، دریافت، پرداخت) از
+            // منبع واحد PartyStatementPresentation می‌آیند، نه برچسبِ رسیدگی/بردگی.
+            Assert.Contains("labels.Received(", text, StringComparison.Ordinal);
+            Assert.Contains("labels.Paid(", text, StringComparison.Ordinal);
+        }
+        else if (!relativePath.EndsWith("_SupplierContractStatement.cshtml", StringComparison.Ordinal))
         {
             Assert.Contains("رسیدگی", text, StringComparison.Ordinal);
             Assert.Contains("بردگی", text, StringComparison.Ordinal);

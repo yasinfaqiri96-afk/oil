@@ -18,7 +18,8 @@ public sealed class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Ap
         DatabaseSafetyGuard.EnsureMigrationAllowed(databaseName);
 
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        optionsBuilder.UseNpgsql(connectionString,
+            npgsql => npgsql.MigrationsAssembly(ApplicationDbContext.MigrationsAssemblyName));
         return new ApplicationDbContext(optionsBuilder.Options);
     }
 

@@ -1093,7 +1093,7 @@
                             </div>
                             <div class="ak-field" data-shortage-field="contract">
                                 <label class="ak-label fw-semibold" for="shipmentLossContract">@T("قرارداد مربوطه", "Related contract")</label>
-                                <select id="shipmentLossContract" name="ContractId" class="ak-input">
+                                <select id="shipmentLossContract" name="ContractId" class="ak-input" data-ak-entity-combobox data-ak-placeholder="@T("تقسیم نسبتی بین قراردادها", "Proportional by contracts")">
                                     <option value="" data-unit-cost="@MoneyInput(Model.AverageCostPerMtUsd)">@T("تقسیم نسبتی بین قراردادها", "Proportional by contracts")</option>
                                     @foreach (var line in Model.ContractLines)
                                     {

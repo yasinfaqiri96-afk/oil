@@ -41,15 +41,14 @@ public sealed class CompanyFinancialOverviewViewModel
     public decimal ExpenseUsd { get; init; }
 
     /// <summary>
-    /// مصارفِ درون‌خطیِ بارگیری (حمل، گدام، سایر، خط‌آهن). این‌ها روی خودِ
-    /// <c>LoadingRegister</c> ذخیره می‌شوند و برای سطرهای بدون طرف‌حساب هیچ
-    /// <c>ExpenseTransaction</c> نمی‌سازند، پس در <see cref="ExpenseUsd"/> نیستند و
-    /// جمعشان با آن همپوشانی ندارد.
+    /// فقط برای اطلاع: مصارفِ درون‌خطیِ بارگیری (حمل، گدام، سایر، خط‌آهن) در چرخهٔ کامل قراردادهای
+    /// همین فیلتر. در <see cref="NetProfitUsd"/> جمع نمی‌شود؛ در مفاد دوره، کرایهٔ بی‌سند از راه بهای
+    /// فروش و گدام/سایرِ بی‌سند در <see cref="ExpenseUsd"/> آمده است.
     /// </summary>
     public decimal LoadingOperationalCostUsd { get; init; }
 
     /// <summary>
-    /// ارزش دالریِ ضایعاتِ قابل شارژ. سطرِ مصرف ندارد و در <see cref="ExpenseUsd"/> نمی‌آید.
+    /// فقط برای اطلاع: ارزش دالریِ ضایعاتِ قابل شارژ قراردادهای همین فیلتر؛ در <see cref="NetProfitUsd"/> جمع نمی‌شود.
     /// </summary>
     public decimal LossCostUsd { get; init; }
 
@@ -74,10 +73,10 @@ public sealed class CompanyFinancialOverviewViewModel
     /// </summary>
     public decimal CashOnHandUsd { get; init; }
 
-    /// <summary>بزرگ‌ترین طلبات شرکت (مانده مثبت) در بازهٔ فیلترشده.</summary>
+    /// <summary>همهٔ طلبات شرکت (مانده مثبت)، از بزرگ به کوچک، در بازهٔ فیلترشده.</summary>
     public IReadOnlyList<ReceivablePayableRowViewModel> TopReceivables { get; init; } = [];
 
-    /// <summary>بزرگ‌ترین بدهی‌های شرکت (مانده منفی) در بازهٔ فیلترشده.</summary>
+    /// <summary>همهٔ بدهی‌های شرکت (مانده منفی)، از بزرگ به کوچک، در بازهٔ فیلترشده.</summary>
     public IReadOnlyList<ReceivablePayableRowViewModel> TopPayables { get; init; } = [];
 
     /// <summary>جمع بدهی شرکت به تأمین‌کننده، شرکت خدماتی و هر طرف‌حساب دیگر با مانده منفی.</summary>
@@ -96,20 +95,30 @@ public sealed class CompanyFinancialOverviewViewModel
     public DateTime AsOfDate { get; init; }
 
     public decimal GrossProfitUsd => PnlMath.GrossProfit(RevenueUsd, PurchaseCostUsd);
+
+    /// <summary>همان فرمول موتور عملکرد دوره (CompanyPeriodPerformanceSnapshot.NetProfitUsd).</summary>
     public decimal NetProfitUsd => PnlMath.NetProfit(
         RevenueUsd,
         PurchaseCostUsd,
-        ExpenseUsd + LoadingOperationalCostUsd + LossCostUsd,
+        ExpenseUsd,
         ExchangeGainUsd,
         ExchangeLossUsd);
 
     /// <summary>
-    /// سود فقط وقتی عدد قطعی است که بهای تمام‌شدهٔ همهٔ فروش‌های این بازه ثبت شده باشد.
-    /// تا وقتی <see cref="UncostedSaleCount"/> بزرگ‌تر از صفر است، COGS آن فروش‌ها صفر
+    /// سود فقط وقتی منتشر می‌شود که همهٔ فروش‌های این بازه بها داشته باشند (Pool ثبت‌شده یا بهای
+    /// قرارداد خرید). تا وقتی <see cref="UncostedSaleCount"/> بزرگ‌تر از صفر است، COGS آن فروش‌ها صفر
     /// خوانده می‌شود و سود بیش از واقع درمی‌آید؛ در آن حالت هیچ صفحه/خروجی نباید این
     /// عدد را به‌عنوان سود واقعی منتشر کند.
     /// </summary>
-    public bool IsProfitPublishable => UncostedSaleCount == 0 && PnlConfidence == PnlConfidence.Verified;
+    public bool IsProfitPublishable => UncostedSaleCount == 0 && PnlConfidence != PnlConfidence.NeedsReview;
+
+    /// <summary>عنوان و توضیحِ بخشِ مصارف بارگیری و ضایعات؛ صفحه و خروجی از همین متن می‌خوانند.</summary>
+    public const string OperationalIndicatorsTitleFa = "شاخص‌های عملیاتی دوره";
+    public const string OperationalIndicatorsTitleEn = "Period operational indicators";
+    public const string OperationalIndicatorsNoteFa =
+        "این ارقام برای کنترول عملیاتی نمایش داده می‌شوند و مستقیماً در مفاد خالص بالا دوباره کسر نشده‌اند.";
+    public const string OperationalIndicatorsNoteEn =
+        "These figures are shown for operational control and are not deducted again from the net profit above.";
 
     public string ProfitUnavailableNoteFa =>
         $"بهای تمام‌شدهٔ فروش تکمیل نشده ({UncostedSaleCount:N0} فروش)؛ سود نهایی قابل محاسبه نیست.";
@@ -204,6 +213,12 @@ public sealed class ReceivablePayableRowViewModel
     /// </summary>
     public decimal FxAdjustmentUsd { get; init; }
     public decimal BalanceUsd => OpeningBalanceUsd + PeriodMovementUsd + FxAdjustmentUsd;
+
+    /// <summary>
+    /// همان مانده از دید شرکت: مثبت = طلب شرکت، منفی = بدهی شرکت. علامتِ <see cref="BalanceUsd"/> قاعدهٔ
+    /// صورت‌حساب همان طرف‌حساب است و فقط برای شریک برعکس است (مثبت = شریک طلبکار).
+    /// </summary>
+    public decimal CompanyClaimUsd => PartyType == nameof(PartyStatementPartyType.Partner) ? -BalanceUsd : BalanceUsd;
     public string BalanceKind { get; init; } = "";
     public DateTime? LastEntryDate { get; init; }
     public string? DetailsController { get; init; }
@@ -227,11 +242,11 @@ public sealed class ReceivablesPayablesReportViewModel
     /// <summary>تاریخ مبنای گزارش؛ سنِ سکوتِ هر حساب نسبت به همین تاریخ سنجیده می‌شود.</summary>
     public DateTime AsOfDate { get; init; } = DateTime.Today;
 
-    /// <summary>جمع مانده‌های مثبت همهٔ طرف‌حساب‌ها — آنچه شرکت طلبکار است.</summary>
-    public decimal TotalReceivableUsd => Rows.Where(r => r.BalanceUsd > 0m).Sum(r => r.BalanceUsd);
+    /// <summary>جمع طلب‌های شرکت از همهٔ طرف‌حساب‌ها (<see cref="ReceivablePayableRowViewModel.CompanyClaimUsd"/> مثبت).</summary>
+    public decimal TotalReceivableUsd => Rows.Where(r => r.CompanyClaimUsd > 0m).Sum(r => r.CompanyClaimUsd);
 
-    /// <summary>جمع مانده‌های منفی همهٔ طرف‌حساب‌ها — آنچه شرکت بدهکار است (مثبت نمایش می‌شود).</summary>
-    public decimal TotalPayableUsd => -Rows.Where(r => r.BalanceUsd < 0m).Sum(r => r.BalanceUsd);
+    /// <summary>جمع بدهی‌های شرکت به همهٔ طرف‌حساب‌ها (مثبت نمایش می‌شود).</summary>
+    public decimal TotalPayableUsd => -Rows.Where(r => r.CompanyClaimUsd < 0m).Sum(r => r.CompanyClaimUsd);
 
     /// <summary>خالص وضعیت: طلب منهای بدهی. مثبت یعنی شرکت در مجموع طلبکار است.</summary>
     public decimal NetBalanceUsd => TotalReceivableUsd - TotalPayableUsd;
@@ -241,10 +256,10 @@ public sealed class ReceivablesPayablesReportViewModel
     /// این عدد فقط از همین ردیف‌ها خوانده می‌شود و هیچ مانده‌ای را دوباره محاسبه نمی‌کند.
     /// </summary>
     public decimal StaleReceivableUsd => Rows
-        .Where(r => r.BalanceUsd > 0m
+        .Where(r => r.CompanyClaimUsd > 0m
             && (r.LastEntryDate is null
                 || (AsOfDate.Date - r.LastEntryDate.Value.Date).TotalDays > StaleAfterDays))
-        .Sum(r => r.BalanceUsd);
+        .Sum(r => r.CompanyClaimUsd);
 }
 
 public sealed class InventoryOperationsRowViewModel

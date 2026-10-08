@@ -397,13 +397,15 @@ public sealed class TabularExportServiceTests
         foreach (var token in new[]
                  {
                      "PdfDesignSystem.ComposeReportHeader",
-                     "PdfDesignSystem.HeaderCell",
-                     "PdfDesignSystem.ComposeFooter"
+                     "PdfDesignSystem.HeaderCell"
                  })
         {
             Assert.Contains(token, generic);
             Assert.Contains(token, official);
         }
+
+        // صورت‌حساب رسمی فوتر ویژهٔ خود را دارد (MASHAL | مشعل و «X / Y»)؛ خروجی‌های عمومی فوتر مشترک.
+        Assert.Contains("PdfDesignSystem.ComposeFooter", generic);
     }
 
     private static PartyStatementResult BuildPartyStatement()

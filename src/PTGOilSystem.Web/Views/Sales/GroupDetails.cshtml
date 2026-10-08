@@ -255,7 +255,7 @@
                     <div class="ak-form-grid">
                         <div class="ak-field">
                             <label class="ak-label" for="group-apply-receipt">@T("دریافت با مانده تطبیق‌نشده", "Receipt with unapplied balance")</label>
-                            <select id="group-apply-receipt" name="paymentTransactionId" class="ak-input" data-group-apply-receipt>
+                            <select id="group-apply-receipt" name="paymentTransactionId" class="ak-input" data-ak-entity-combobox data-group-apply-receipt>
                                 @foreach (var r in Model.ApplicableReceipts)
                                 {
                                     <option value="@r.PaymentTransactionId" data-unapplied-usd="@r.UnappliedAmountUsd.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)">

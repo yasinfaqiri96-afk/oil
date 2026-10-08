@@ -95,24 +95,37 @@ public partial class CustomsDeclarationsController : Controller
     /// <summary>
     /// PTG-P1-04 — همان قاعدهٔ اعتبارسنجِ مصرف، ولی پیش از ساختنِ سند: حالتِ «نقد» حساب
     /// نقدی می‌خواهد و حالتِ «بدهی» طرف‌حساب. گروهی که مبلغ ندارد اصلاً تسویه لازم ندارد.
+    /// سندِ نقدی به ارزِ صندوق ثبت می‌شود، پس ردیفِ بی‌نرخ (که معادلِ دیگرش معلوم نیست) در گروهِ
+    /// «نقد پرداخت شد» سندِ ناقص می‌ساخت و رد می‌شود.
     /// </summary>
-    private void ValidateSettlementSelection(CustomsDeclarationCreateViewModel model)
+    private async Task ValidateSettlementSelectionAsync(CustomsDeclarationCreateViewModel model)
     {
-        var (dutyUsd, serviceUsd) = Services.Customs.CustomsDeclarationExpenseSync.SplitUsd(
-            model.Items
-                .Where(i => i.Amount > 0)
-                .Select(i =>
+        var items = model.Items
+            .Where(i => i.Amount > 0)
+            .Select(i =>
+            {
+                var (amountAfn, amountUsd) = ConvertItemAmounts(i.Currency, i.Amount, i.Rate);
+                return new CustomsDeclarationItem
                 {
-                    var (_, amountUsd) = ConvertItemAmounts(i.Currency, i.Amount, i.Rate);
-                    return new CustomsDeclarationItem
-                    {
-                        ComponentType = i.ComponentType,
-                        AmountUsd = amountUsd
-                    };
-                })
-                .ToList());
+                    ComponentType = i.ComponentType,
+                    AmountAfn = amountAfn,
+                    AmountUsd = amountUsd
+                };
+            })
+            .ToList();
+        var (dutyUsd, serviceUsd) = Services.Customs.CustomsDeclarationExpenseSync.SplitUsd(items);
+
+        var cashAccountIds = new[] { model.DutyCashAccountId, model.ServiceCashAccountId }
+            .Where(id => id is > 0)
+            .Select(id => id!.Value)
+            .ToList();
+        var cashCurrencies = await _db.CashAccounts
+            .AsNoTracking()
+            .Where(a => cashAccountIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.Currency);
 
         Check(
+            Services.Customs.CustomsComponentGroup.GovernmentDuty,
             dutyUsd,
             model.DutySettlementMode,
             model.DutyCashAccountId,
@@ -121,6 +134,7 @@ public partial class CustomsDeclarationsController : Controller
             nameof(model.DutyServiceProviderId));
 
         Check(
+            Services.Customs.CustomsComponentGroup.ThirdPartyService,
             serviceUsd,
             model.ServiceSettlementMode,
             model.ServiceCashAccountId,
@@ -129,6 +143,7 @@ public partial class CustomsDeclarationsController : Controller
             nameof(model.ServiceProviderId));
 
         void Check(
+            Services.Customs.CustomsComponentGroup group,
             decimal amountUsd,
             ExpenseSettlementMode mode,
             int? cashAccountId,
@@ -136,6 +151,14 @@ public partial class CustomsDeclarationsController : Controller
             string cashField,
             string partyField)
         {
+            if (mode == ExpenseSettlementMode.PaidImmediately
+                && items.Any(i => (i.AmountUsd ?? 0m) <= 0m
+                    && Services.Customs.CustomsComponentGroupMap.Resolve(i.ComponentType) == group))
+            {
+                ModelState.AddModelError(cashField, "پرداخت نقدی: برای ردیف‌های افغانیِ این گروه نرخ تبدیل را وارد کنید؛ بدون نرخ معادل دالری معلوم نیست و سند ناقص ثبت می‌شود.");
+                return;
+            }
+
             if (amountUsd <= 0m)
             {
                 return;
@@ -144,6 +167,19 @@ public partial class CustomsDeclarationsController : Controller
             if (mode == ExpenseSettlementMode.PaidImmediately && cashAccountId is not > 0)
             {
                 ModelState.AddModelError(cashField, "مصرفِ پرداخت‌شده باید حساب نقدی (صندوق یا بانک) داشته باشد.");
+            }
+
+            if (mode == ExpenseSettlementMode.PaidImmediately
+                && cashAccountId is > 0
+                && cashCurrencies.TryGetValue(cashAccountId.Value, out var cashCurrency)
+                && Services.Customs.CustomsDeclarationExpenseSync.ResolveCashAmount(
+                    cashCurrency,
+                    amountUsd,
+                    Services.Customs.CustomsDeclarationExpenseSync.GroupAfn(items, group)) is null)
+            {
+                ModelState.AddModelError(cashField, Services.SystemCurrency.Normalize(cashCurrency) == CustomsCurrency.Afn
+                    ? "پرداخت از صندوق افغانی: معادل افغانیِ همهٔ ردیف‌های این گروه لازم است؛ برای ردیف‌های دالری نرخ تبدیل را وارد کنید."
+                    : "مصارف گمرکی فقط از صندوق یا بانکِ افغانی یا دالری نقد پرداخت می‌شود.");
             }
 
             if (mode == ExpenseSettlementMode.Payable && providerId is not > 0)
@@ -638,7 +674,7 @@ public partial class CustomsDeclarationsController : Controller
         }
 
         // PTG-P1-04 — هویتِ تسویه پیش از ساختنِ سند بررسی می‌شود.
-        ValidateSettlementSelection(model);
+        await ValidateSettlementSelectionAsync(model);
 
         if (!ModelState.IsValid)
         {
@@ -864,7 +900,7 @@ public partial class CustomsDeclarationsController : Controller
             : null;
 
         // PTG-P1-04 — هویتِ تسویه پیش از ذخیره بررسی می‌شود.
-        ValidateSettlementSelection(model);
+        await ValidateSettlementSelectionAsync(model);
 
         if (!ModelState.IsValid)
         {

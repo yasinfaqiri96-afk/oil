@@ -7,6 +7,8 @@ description: Use for any PTG UI/UX request — designing or changing a page, for
 
 ## Mandatory source order
 
+برای bug fix کوچک، اصلاح متن یا CSS/JS/View محدود در طراحی موجود، مسیر سبک مقدم است: فقط بخش مربوط و component/token موجود را بخوان؛ خواندن کامل ui-ux-pro-max، MASTER، override و دو صفحهٔ مرجع لازم نیست. ترتیب کامل زیر فقط برای طراحی صفحه/قابلیت جدید یا بازطراحی قابل توجه است. validation را یک بار با `scripts/dev-verify.ps1 -Ui -Paths ...` و تست ساختاری مرتبطِ لازم انجام بده؛ Graphify اجرا نشود. این استثنا بر الزام‌های عمومی بندهای ۱ تا ۴ و ۱۲ مقدم است و قواعد RTL، امنیت و حفظ رفتار همچنان برقرارند.
+
 `business workflow → existing runtime components/tokens → MASTER.md → page override → ui-ux-pro-max suggestions`
 
 پیشنهاد Skill که با RTL، Razor، Bootstrap، IRANSans، تراکم ERP یا هویت PTG ناسازگار باشد باید رد یا اصلاح شود.

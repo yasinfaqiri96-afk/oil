@@ -6,7 +6,7 @@ using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 
 namespace PTGOilSystem.Web.Data;
 
-public class ApplicationDbContext : DbContext
+public partial class ApplicationDbContext : DbContext
 {
     private readonly ICurrentUserContext? _currentUserContext;
 
@@ -396,7 +396,7 @@ public class ApplicationDbContext : DbContext
         ConfigureMoney<ExpenseRule>(modelBuilder, r => r.Amount);
         ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.Amount);
         ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.AmountUsd);
-        modelBuilder.Entity<ExpenseTransaction>().Property(e => e.AppliedFxRateToUsd).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<ExpenseTransaction>().Property(e => e.AppliedFxRateToUsd).HasColumnType("numeric(24,12)");
         modelBuilder.Entity<ExpenseTransaction>().Property(e => e.Currency).HasDefaultValue("USD");
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.LoadingRegisterId);
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.TransportLegId);
@@ -2814,7 +2814,7 @@ public class ApplicationDbContext : DbContext
             }
 
             throw new Services.OperationalPeriod.OperationalPeriodLockedException(
-                Services.OperationalPeriod.OperationalPeriodGuard.BuildMessage(
+                Services.OperationalPeriod.OperationalPeriodScope.BuildMessage(
                     Services.OperationalPeriod.OperationalPeriodScope.DescribeKind(candidate.Entity),
                     date,
                     closedThrough),

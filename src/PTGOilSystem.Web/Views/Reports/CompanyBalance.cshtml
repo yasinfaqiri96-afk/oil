@@ -1,0 +1,78 @@
+@model PTGOilSystem.Web.Models.Reports.CompanyBalanceReportViewModel
+@{
+    ViewData["Title"] = UiText.T(Context, "بیلانس کلی شرکت", "Company Balance Sheet");
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var from = Model.ReportFromDate.ToString("yyyy-MM-dd");
+    var to = Model.ReportToDate.ToString("yyyy-MM-dd");
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/ptg/64-company-balance.css" asp-append-version="true" data-ptg-page-asset="company-balance" />
+}
+
+<div class="ak-list-page cbr-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((T("بیلانس کلی شرکت", "Company Balance Sheet"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       T("گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    @* بیلانس تا «تا تاریخ»؛ عملکرد بین دو تاریخ. PDF همان پارامترها را می‌گیرد. *@
+    <form method="get" asp-action="CompanyBalance" class="cbr-params" aria-label="@T("پارامترهای گزارش", "Report parameters")">
+        <div class="ak-field">
+            <label class="ak-label" for="cbrFromDate">@T("از تاریخ", "From date")</label>
+            <input id="cbrFromDate" class="ak-input" name="FromDate" value="@from" type="date" />
+        </div>
+        <div class="ak-field">
+            <label class="ak-label" for="cbrToDate">@T("تا تاریخ", "To date")</label>
+            <input id="cbrToDate" class="ak-input" name="ToDate" value="@to" type="date" />
+        </div>
+        <div class="ak-field">
+            <label class="ak-label" for="cbrCurrency">@T("ارز گزارش", "Report currency")</label>
+            <select id="cbrCurrency" class="ak-input" data-ak-entity-combobox name="Currency">
+                @foreach (var option in Model.Currencies)
+                {
+                    <option value="@option.Code" selected="@(string.Equals(option.Code, Model.CurrencyCode, StringComparison.OrdinalIgnoreCase))">@option.Code — @option.Name</option>
+                }
+            </select>
+        </div>
+        <div class="cbr-params__actions">
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span>@T("نمایش گزارش", "Show report")</span>
+            </button>
+            <a class="btn btn-light ak-secondary-action" data-no-spa="true"
+               href="@Url.Action("CompanyBalancePdf", new { FromDate = from, ToDate = to, Currency = Model.CurrencyCode })">
+                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
+                <span>@T("چاپ / PDF", "Print / PDF")</span>
+            </a>
+        </div>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(Model.CurrencyErrorFa))
+    {
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            @Model.CurrencyErrorFa
+            <a asp-controller="DailyFxRates" asp-action="Index">@T("نرخ‌های روزانه", "Daily FX rates")</a>
+        </div>
+    }
+
+    @if (Model.LongTransitLoadCount > 0)
+    {
+        @* هشدار کیفیت داده فقط در وب؛ PDF یک پانویس کوتاه دارد. *@
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            تعدادی از بارهای در راه مدت طولانی بدون رسید ثبت‌شده باقی مانده‌اند و نیاز به بررسی دارند:
+            <bdi>@Model.LongTransitLoadCount.ToString("N0")</bdi> بارگیری،
+            <bdi>@PTGOilSystem.Web.Models.Reports.CompanyBalanceReportText.Quantity(Model.LongTransitQuantityMt)</bdi> تن،
+            <bdi>@PTGOilSystem.Web.Models.Reports.CompanyBalanceReportText.Money(Model.LongTransitAmount, Model.CurrencyCode)</bdi>
+            (بیش از @PTGOilSystem.Web.Models.Reports.CompanyBalanceReportViewModel.LongTransitDays روز).
+            <a asp-action="CompanyBalanceDetails" asp-route-section="GoodsInTransit"
+               asp-route-FromDate="@from" asp-route-ToDate="@to" asp-route-Currency="@Model.CurrencyCode">@T("دیدن بارها", "See loads")</a>
+        </div>
+    }
+
+    <div class="cbr-canvas">
+        <partial name="_CompanyBalanceSheet" model="Model" />
+    </div>
+</div>

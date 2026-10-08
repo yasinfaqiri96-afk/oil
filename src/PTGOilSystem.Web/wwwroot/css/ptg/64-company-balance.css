@@ -1,0 +1,448 @@
+/* ==========================================================================
+   بیلانس کلی شرکت — سند A4 داخل صفحه.
+   فقط زیر .cbr-page/.cbr-sheet اعمال می‌شود و روی هیچ صفحهٔ دیگر اثر ندارد.
+   اندازه‌ها = اندازهٔ PDF (pt) × 1.333 تا نسخهٔ وب و CompanyBalancePdfDocument یک سند دیده شوند.
+   رنگ‌ها همان ثابت‌های PDF‌اند و فقط اینجا یک بار تعریف شده‌اند.
+   ========================================================================== */
+
+.cbr-page {
+    --cbr-navy: #0B1B3A;
+    --cbr-secondary: #526077;
+    --cbr-teal: #008B87;
+    --cbr-head: #F5F7FA;
+    --cbr-border: #D9E0E8;
+    --cbr-hero: #F1FAF9;
+    --cbr-negative: #A53A3A;
+    --cbr-row: 28px;
+    --cbr-body: 11.5px;
+    --cbr-small: 10px;
+}
+
+/* ── پارامترها ───────────────────────────────────────────────────────────── */
+.cbr-params {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ptg-space-gap, 12px);
+    margin-block-end: var(--ptg-space-gap-lg, 24px);
+}
+
+.cbr-params .ak-field {
+    flex: 0 1 190px;
+    min-width: 160px;
+    margin: 0;
+}
+
+.cbr-params__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ── بوم و برگهٔ A4 ──────────────────────────────────────────────────────── */
+.cbr-canvas {
+    display: flex;
+    justify-content: center;
+}
+
+.cbr-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 19px;
+    inline-size: 100%;
+    max-inline-size: 794px;
+    min-block-size: 1123px;
+    padding: 37px 41px 29px;
+    color: var(--cbr-navy);
+    background: #FFFFFF;
+    border: 1px solid var(--cbr-border);
+    border-radius: 2px;
+    font-family: Vazirmatn, IRANSans, Tahoma, sans-serif;
+    font-size: var(--cbr-body);
+    line-height: 1.5;
+}
+
+.cbr-sheet bdi,
+.cbr-num {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── سربرگ ───────────────────────────────────────────────────────────────── */
+.cbr-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block-end: 11px;
+    border-block-end: 1px solid var(--cbr-navy);
+}
+
+.cbr-logo img {
+    display: block;
+    inline-size: 200px;
+    block-size: 72px;
+    object-fit: contain;
+    object-position: left center;
+}
+
+.cbr-meta {
+    display: grid;
+    gap: 3px;
+    inline-size: 307px;
+    margin: 0;
+    font-size: var(--cbr-small);
+}
+
+.cbr-meta div {
+    display: grid;
+    grid-template-columns: 83px 1fr;
+}
+
+.cbr-meta dt {
+    font-weight: 400;
+    color: var(--cbr-secondary);
+}
+
+.cbr-meta dd {
+    margin: 0;
+    color: var(--cbr-navy);
+}
+
+/* ── عنوان ───────────────────────────────────────────────────────────────── */
+.cbr-title {
+    text-align: center;
+}
+
+.cbr-title h1 {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--cbr-navy);
+}
+
+.cbr-title p {
+    margin: 2px 0 0;
+    font-size: 10.6px;
+    color: var(--cbr-secondary);
+}
+
+/* ── عدد اصلی ────────────────────────────────────────────────────────────── */
+.cbr-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 16px;
+    background: var(--cbr-hero);
+    border: 1px solid var(--cbr-border);
+}
+
+.cbr-hero__label,
+.cbr-hero__formula {
+    color: var(--cbr-secondary);
+}
+
+.cbr-hero__label {
+    font-size: 12px;
+}
+
+.cbr-hero__formula {
+    font-size: var(--cbr-small);
+}
+
+.cbr-hero__value {
+    direction: ltr;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--cbr-teal);
+}
+
+.cbr-hero.is-negative .cbr-hero__value {
+    color: var(--cbr-negative);
+}
+
+/* ── دو جدول هم‌ارتفاع ───────────────────────────────────────────────────── */
+.cbr-tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 19px;
+}
+
+.cbr-block__title {
+    margin: 0 0 7px;
+    font-size: 13.3px;
+    font-weight: 700;
+    color: var(--cbr-navy);
+}
+
+.cbr-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--cbr-border);
+    table-layout: fixed;
+}
+
+.cbr-table th,
+.cbr-table td {
+    block-size: var(--cbr-row);
+    padding: 0 11px;
+    text-align: start;
+    vertical-align: middle;
+    border-block-end: 1px solid var(--cbr-border);
+}
+
+.cbr-table td:first-child,
+.cbr-table th:first-child {
+    inline-size: 59%;
+}
+
+.cbr-table .cbr-num {
+    text-align: end;
+    direction: ltr;
+}
+
+.cbr-table thead .cbr-num {
+    direction: rtl;
+}
+
+/* شل برای همهٔ جدول‌های صفحه padding/رنگ/اندازهٔ ثابت می‌گذارد؛ برگهٔ سند باید اندازهٔ PDF را
+   نگه دارد. همان الگوی پیشوند بدنهٔ 63-party-details.css. */
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > :where(thead, tbody, tfoot) > tr > :where(td, th) {
+    padding: 0 11px;
+    color: var(--cbr-navy);
+    font-size: var(--cbr-body);
+    font-weight: 400;
+    line-height: 1.5;
+    background: transparent;
+}
+
+/* شل رنگ و اندازهٔ سرستون را با !important از توکن‌ها می‌خواند؛ اینجا خود توکن‌ها برای سرستون برگه
+   تعیین می‌شوند. */
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > thead > tr > th {
+    --text-primary: var(--cbr-secondary);
+    --font-table-head: 10.4px;
+    font-size: 10.4px;
+    font-weight: 600;
+    color: var(--cbr-secondary);
+    background: var(--cbr-head);
+}
+
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > tfoot > tr > :where(td, th) {
+    block-size: 31px;
+    font-size: 12px;
+    font-weight: 700;
+    border-block-start: 1px solid var(--cbr-navy);
+    border-block-end: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > tbody > tr > .is-negative {
+    color: var(--cbr-negative);
+}
+
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table--strip > :where(thead, tbody) > tr > .is-result {
+    --text-primary: var(--cbr-teal);
+    color: var(--cbr-teal);
+}
+
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table--strip > tbody > tr > .is-result {
+    font-size: 12.3px;
+    font-weight: 700;
+}
+
+body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table--strip > :where(thead, tbody) > tr > .is-result.is-negative {
+    --text-primary: var(--cbr-negative);
+    color: var(--cbr-negative);
+}
+
+/* رنگ لینک شل از توکن‌های رنگ اصلی خوانده می‌شود؛ داخل برگه همان توکن‌ها به رنگ سند اشاره می‌کنند
+   تا ردیف‌های قابل‌کلیک مثل PDF سرمه‌ای بمانند. */
+.cbr-sheet {
+    --primary-main: var(--cbr-navy);
+    --primary-dark: var(--cbr-teal);
+    --ptg-primary: var(--cbr-navy);
+    --app-primary: var(--cbr-navy);
+    --boltz-primary: var(--cbr-navy);
+}
+
+.cbr-link {
+    text-decoration: none;
+}
+
+.cbr-link:hover,
+.cbr-link:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* ── عملکرد دوره ─────────────────────────────────────────────────────────── */
+.cbr-performance__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cbr-performance__head span {
+    font-size: var(--cbr-small);
+    color: var(--cbr-secondary);
+}
+
+.cbr-performance__scroll {
+    overflow-x: auto;
+}
+
+.cbr-table--strip {
+    min-inline-size: 520px;
+}
+
+.cbr-table--strip th,
+.cbr-table--strip td {
+    text-align: center;
+}
+
+.cbr-table--strip td:first-child,
+.cbr-table--strip th:first-child {
+    inline-size: auto;
+}
+
+.cbr-table--strip td {
+    direction: ltr;
+}
+
+/* ── جمع‌بندی نهایی ──────────────────────────────────────────────────────── */
+.cbr-summary {
+    align-self: flex-end;
+    inline-size: min(400px, 100%);
+}
+
+.cbr-summary__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-block: 3px;
+    font-size: 12px;
+}
+
+.cbr-summary__row bdi {
+    direction: ltr;
+}
+
+.cbr-summary__row--net {
+    margin-block-start: 5px;
+    padding-block-start: 8px;
+    border-block-start: 1px solid var(--cbr-navy);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.cbr-summary__row--net.is-negative bdi {
+    color: var(--cbr-negative);
+}
+
+/* ── یادداشت‌ها و فوتر ───────────────────────────────────────────────────── */
+.cbr-notes {
+    margin: 0;
+    padding-inline-start: 14px;
+    font-size: 9px;
+    color: var(--cbr-secondary);
+}
+
+.cbr-foot {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: space-between;
+    margin-block-start: auto;
+    padding-block-start: 7px;
+    border-block-start: 1px solid var(--cbr-navy);
+}
+
+.cbr-foot__brand {
+    display: flex;
+    flex-direction: column;
+    direction: ltr;
+}
+
+.cbr-foot__brand strong {
+    font-size: 12px;
+}
+
+.cbr-foot__brand strong span {
+    font-weight: 400;
+    color: var(--cbr-secondary);
+}
+
+.cbr-foot__brand small,
+.cbr-foot__page {
+    font-size: 9.3px;
+    color: var(--cbr-secondary);
+}
+
+/* ── صفحهٔ جزئیات ────────────────────────────────────────────────────────── */
+.cbr-details-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--cbr-secondary);
+}
+
+.cbr-details-head strong {
+    font-size: 18px;
+    color: var(--cbr-navy);
+}
+
+.cbr-page .ak-table .cbr-num {
+    text-align: end;
+    direction: ltr;
+}
+
+.cbr-page .ak-table thead .cbr-num {
+    direction: inherit;
+}
+
+.cbr-page .ak-table .is-negative {
+    color: var(--cbr-negative);
+}
+
+.cbr-muted {
+    color: var(--cbr-secondary);
+}
+
+/* ── موبایل: جدول‌ها زیر هم؛ PDF همیشه A4 می‌ماند ──────────────────────── */
+@media (max-width: 767.98px) {
+    .cbr-sheet {
+        min-block-size: 0;
+        padding: 20px 16px;
+    }
+
+    .cbr-head {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .cbr-meta {
+        inline-size: 100%;
+    }
+
+    .cbr-logo img {
+        object-position: center;
+        margin-inline: auto;
+    }
+
+    .cbr-tables {
+        grid-template-columns: 1fr;
+    }
+
+    .cbr-table__spacer {
+        display: none;
+    }
+
+    .cbr-summary {
+        align-self: stretch;
+        inline-size: 100%;
+    }
+}

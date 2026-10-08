@@ -14,9 +14,49 @@
         return parts.slice(0, 2).map(function (part) { return part.charAt(0); }).join("").toUpperCase();
     }
 
-    function enhance(select) {
-        if (!select || select.dataset.akEntityReady === "true" || select.multiple) return;
+    // A row cloned with cloneNode(true) carries a dead copy of the wrapper
+    // (listeners are not cloned). Unwrap it so the select is enhanced afresh.
+    function unwrapClone(select) {
+        var stale = select.parentNode;
+        if (!stale || !stale.classList || !stale.classList.contains("ak-entity-combobox")) return;
+        stale.parentNode.insertBefore(select, stale);
+        stale.parentNode.removeChild(stale);
+        select.classList.remove("ak-entity-native");
+        delete select.dataset.akEntityReady;
+    }
 
+    // Page scripts often set select.value / selectedIndex directly without a
+    // change event; keep the visible chip in step with the native select.
+    function watchProgrammaticValue(select, sync) {
+        ["value", "selectedIndex"].forEach(function (name) {
+            var descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, name);
+            if (!descriptor || !descriptor.set) return;
+            Object.defineProperty(select, name, {
+                configurable: true,
+                enumerable: descriptor.enumerable,
+                get: function () { return descriptor.get.call(this); },
+                set: function (value) {
+                    descriptor.set.call(this, value);
+                    sync();
+                }
+            });
+        });
+    }
+
+    // Grouped selects (optgroup) show the group label as the option's meta line.
+    function optionMeta(option) {
+        var group = option.parentNode && option.parentNode.tagName === "OPTGROUP" ? option.parentNode.label : "";
+        return text(option.dataset.meta || option.dataset.metadata || option.dataset.code || group);
+    }
+
+    function enhance(select) {
+        if (!select || select.multiple) return;
+        if (select.dataset.akEntityReady === "true") {
+            if (select._akEntityEnhanced) return;
+            unwrapClone(select);
+        }
+
+        select._akEntityEnhanced = true;
         select.dataset.akEntityReady = "true";
         select.classList.add("ak-entity-native");
 
@@ -80,8 +120,25 @@
 
         function enabledOptions() {
             return Array.prototype.slice.call(select.options).filter(function (option) {
-                return option.value && !option.disabled;
+                return option.value && !option.disabled && !option.hidden;
             });
+        }
+
+        // Inside a horizontally scrolling table the menu floats over the page
+        // (fixed, placed from the field) instead of being clipped by the wrapper.
+        function place() {
+            if (root.dataset.open !== "true" || !root.classList.contains("is-floating")) return;
+            var rect = root.getBoundingClientRect();
+            var width = Math.max(rect.width, 256);
+            var rtl = window.getComputedStyle(root).direction === "rtl";
+            var left = rtl ? rect.right - width : rect.left;
+            left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+            var height = menu.offsetHeight;
+            var top = rect.bottom + 8;
+            if (top + height > window.innerHeight - 8 && rect.top - 8 - height >= 8) top = rect.top - 8 - height;
+            root.style.setProperty("--ak-entity-menu-top", top + "px");
+            root.style.setProperty("--ak-entity-menu-left", left + "px");
+            root.style.setProperty("--ak-entity-menu-width", width + "px");
         }
 
         function close(restore) {
@@ -93,12 +150,16 @@
 
         function open() {
             if (select.disabled) return;
+            // Lets pages fill lazily-loaded options right before the list renders.
+            select.dispatchEvent(new CustomEvent("ak-entity:open", { bubbles: true }));
+            root.classList.toggle("is-floating", !!root.parentNode.closest(".ak-table-wrap"));
             root.dataset.open = "true";
             input.setAttribute("aria-expanded", "true");
             input.value = "";
             input.placeholder = placeholderText();
             renderSelection("");
             render("");
+            place();
         }
 
         function placeholderText() {
@@ -153,6 +214,10 @@
             input.placeholder = label ? "" : placeholderText();
             input.disabled = select.disabled;
             root.dataset.disabled = select.disabled ? "true" : "false";
+            // Pages that hide the select itself (hidden / d-none) hide the field.
+            root.hidden = select.hidden;
+            root.classList.toggle("d-none", select.classList.contains("d-none"));
+            root.classList.toggle("is-invalid", select.classList.contains("input-validation-error") || select.classList.contains("is-invalid"));
             renderSelection(root.dataset.open === "true" ? "" : label);
         }
 
@@ -183,14 +248,14 @@
             var normalized = text(query).toLocaleLowerCase();
             options.innerHTML = "";
             var matches = enabledOptions().filter(function (option) {
-                var haystack = [option.textContent, option.dataset.meta, option.dataset.metadata, option.dataset.code].map(text).join(" ").toLocaleLowerCase();
+                var haystack = [option.textContent, optionMeta(option)].map(text).join(" ").toLocaleLowerCase();
                 return !normalized || haystack.indexOf(normalized) >= 0;
             });
 
             matches.forEach(function (option) {
                 var button = document.createElement("button");
                 var title = text(option.textContent);
-                var meta = text(option.dataset.meta || option.dataset.metadata || option.dataset.code);
+                var meta = optionMeta(option);
                 button.type = "button";
                 button.className = "ak-entity-option";
                 button.dataset.value = option.value;
@@ -216,6 +281,7 @@
         input.addEventListener("input", function () {
             if (root.dataset.open !== "true") open();
             render(input.value);
+            place();
         });
         input.addEventListener("keydown", function (event) {
             if (event.key === "Escape") {
@@ -268,17 +334,24 @@
         });
 
         select.addEventListener("change", syncInput);
+        watchProgrammaticValue(select, syncInput);
         select.addEventListener("focus", function () { input.focus(); });
         select.addEventListener("invalid", function () { root.classList.add("is-invalid"); });
 
         root._akClose = close;
+        root._akPlace = place;
+        // A page that focused the select before enhancement (e.g. a newly added row) keeps focus.
+        if (document.activeElement === select) input.focus();
 
+        // Options render on open only, so long lists and many rows stay cheap.
         new MutationObserver(function () {
-            render(root.dataset.open === "true" ? input.value : "");
+            if (root.dataset.open === "true") {
+                render(input.value);
+                place();
+            }
             syncInput();
-        }).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "selected", "label", "data-meta", "data-metadata"] });
+        }).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "selected", "label", "hidden", "class", "data-meta", "data-metadata"] });
 
-        render("");
         syncInput();
     }
 
@@ -295,6 +368,13 @@
                 if (!root.contains(event.target) && typeof root._akClose === "function") root._akClose(true);
             });
         });
+        function placeOpen() {
+            document.querySelectorAll('.ak-entity-combobox.is-floating[data-open="true"]').forEach(function (root) {
+                if (typeof root._akPlace === "function") root._akPlace();
+            });
+        }
+        window.addEventListener("scroll", placeOpen, true);
+        window.addEventListener("resize", placeOpen);
         new MutationObserver(function (records) {
             records.forEach(function (record) {
                 record.addedNodes.forEach(scan);

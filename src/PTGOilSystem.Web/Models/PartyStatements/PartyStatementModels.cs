@@ -143,6 +143,27 @@ public sealed class PartyStatementSummary
         var value = isRub && ClosingBalanceRub.HasValue ? ClosingBalanceRub.Value : ClosingBalance;
         return value > 0m ? "success" : value < 0m ? "danger" : null;
     }
+
+    // جمع‌های ستون‌های تجارتی (معامله / دریافت / پرداخت). از همان مبالغ سطرها با
+    // PartyStatementPresentation.AmountsFor ساخته می‌شوند و فقط تفکیک نمایشیِ همان
+    // TotalReceipt/TotalOutflow هستند؛ بیلانس از اینها محاسبه نمی‌شود.
+    public decimal TotalTrade { get; init; }
+    public decimal TotalReceived { get; init; }
+    public decimal TotalPaid { get; init; }
+    public decimal? TotalTradeRub { get; init; }
+    public decimal? TotalReceivedRub { get; init; }
+    public decimal? TotalPaidRub { get; init; }
+
+    /// <summary>
+    /// مقدار خالص معاملات دوره، فقط وقتی همهٔ سطرهای معامله مقدارِ ثبت‌شده با یک واحد دارند.
+    /// جمعِ ناقص گمراه‌کننده است، پس در غیر آن null می‌ماند.
+    /// </summary>
+    public decimal? TradeQuantity { get; init; }
+    public string? TradeQuantityUnit { get; init; }
+
+    public decimal TradeTotalFor(bool isRub) => isRub ? TotalTradeRub ?? 0m : TotalTrade;
+    public decimal ReceivedTotalFor(bool isRub) => isRub ? TotalReceivedRub ?? 0m : TotalReceived;
+    public decimal PaidTotalFor(bool isRub) => isRub ? TotalPaidRub ?? 0m : TotalPaid;
 }
 
 public sealed class PartyStatementRow
@@ -163,6 +184,61 @@ public sealed class PartyStatementRow
         => IsOpeningBalance
             ? CompanyFlowText.Get(CompanyFlowTextKey.OpeningBalance, isEnglish)
             : Description;
+
+    // شرح تجارتیِ سطر که از سند اصلی (فروش، بارگیری، پرداخت، تسویه) ساخته می‌شود.
+    // فقط نمایشی است و Description/Reference دست‌نخورده برای جستجو و خروجی‌ها می‌ماند.
+    // null یعنی سند اصلی در دسترس نبود و همان Description نمایش داده می‌شود.
+
+    /// <summary>خط اول شرح: نوع معامله و جنس، مثلاً «فروش دیزل».</summary>
+    public string? Title { get; set; }
+
+    /// <summary>خط دوم: مقدار × نرخ، موتر/واگن و طرف معامله — فقط اطلاعاتِ قطعی.</summary>
+    public string? Detail { get; set; }
+
+    /// <summary>خط سوم (کم‌رنگ): مرجع سند برای بررسی، مثلاً «فاکتور INV001».</summary>
+    public string? DocumentLabel { get; set; }
+
+    /// <summary>موترِ معامله (فقط فروش/خرید، از پیوند مستقیم سند)، مثلاً «موتر 12345»؛ کنار مرجع در خط سوم.</summary>
+    public string? VehicleLabel { get; set; }
+
+    /// <summary>مقدار سند اصلی برای جمعِ مقدار در خلاصه؛ ستون‌های عملیاتی را تغییر نمی‌دهد.</summary>
+    public decimal? TradeQuantity { get; set; }
+    public string? TradeQuantityUnit { get; set; }
+
+    /// <summary>
+    /// نرخ فی واحدِ همان سند، فقط وقتی مقدار × نرخ دقیقاً مبلغ همین سطر را می‌سازد؛ وگرنه null
+    /// تا هیچ نرخ ساختگی نمایش داده نشود.
+    /// </summary>
+    public decimal? TradeUnitPrice { get; set; }
+    public string? TradeUnitPriceCurrency { get; set; }
+
+    public string TitleFor(bool isEnglish)
+        => IsOpeningBalance
+            ? CompanyFlowText.Get(CompanyFlowTextKey.OpeningBalance, isEnglish)
+            : string.IsNullOrWhiteSpace(Title) ? Description : Title;
+
+    public string? DocumentLabelOrReference
+        => IsOpeningBalance ? null : string.IsNullOrWhiteSpace(DocumentLabel) ? Reference : DocumentLabel;
+
+    /// <summary>خط سوم کامل: «فاکتور INV001 · موتر 12345»؛ بدون موتر فقط مرجع سند.</summary>
+    public string? DocumentLine
+    {
+        get
+        {
+            if (IsOpeningBalance)
+            {
+                return null;
+            }
+
+            var parts = new[] { DocumentLabelOrReference, VehicleLabel }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .ToList();
+            return parts.Count == 0 ? null : string.Join(PartyStatementPresentation.DocumentVehicleSeparator, parts);
+        }
+    }
+
+    /// <summary>سطر معامله (کالا/خدمت) است یا حرکت پول — فقط برای انتخاب ستون نمایش.</summary>
+    public PartyStatementRowKind Kind => PartyStatementPresentation.KindOf(SourceType);
 
     /// <summary>رسید — ارزشی که شرکت در این سطر دریافت کرده است (USD).</summary>
     public decimal? ReceiptBase { get; set; }
@@ -549,8 +625,22 @@ public static class PartyStatementFormatting
         return Truncate(joined, maxLength);
     }
 
+    /// <summary>
+    /// شرح سند رسمی: بخش‌های ماشینی حذف می‌شوند ولی متنِ انسانی هرگز با «…» بریده نمی‌شود؛
+    /// خانهٔ جدول در صفحه و PDF چندخطی می‌شود.
+    /// </summary>
+    public static string CleanDescription(string? text)
+        => ShortDescription(text, int.MaxValue);
+
     /// <summary>مرجع کوتاهِ سطر: فقط کلید سند، بدون دنبالهٔ شرح.</summary>
     public static string? ShortReference(string? text)
+        => CleanReference(text, ReferenceMaxLength);
+
+    /// <summary>کلید سند بدون دنبالهٔ شرح و بدون بریدن — برای سند رسمی.</summary>
+    public static string? CleanReference(string? text)
+        => CleanReference(text, int.MaxValue);
+
+    private static string? CleanReference(string? text, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -558,7 +648,7 @@ public static class PartyStatementFormatting
         }
 
         var head = CollapseWhitespace(text.Split('|')[0]);
-        return Truncate(head.Length == 0 ? CollapseWhitespace(text) : head, ReferenceMaxLength);
+        return Truncate(head.Length == 0 ? CollapseWhitespace(text) : head, maxLength);
     }
 
     private static bool IsMachineSegment(string segment)

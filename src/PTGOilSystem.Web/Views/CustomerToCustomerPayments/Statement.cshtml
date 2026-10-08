@@ -20,7 +20,7 @@
             <div class="ak-form-grid">
                 <div class="ak-field">
                     <label for="customerId" class="ak-label">@UiText.T(Context, "مشتری", "Customer") <span class="ak-req">*</span></label>
-                    <select id="customerId" name="customerId" asp-items="customers" class="ak-input" required>
+                    <select id="customerId" name="customerId" asp-items="customers" class="ak-input" data-ak-entity-combobox required>
                         <option value="">@UiText.T(Context, "- انتخاب مشتری -", "- Select customer -")</option>
                     </select>
                 </div>
@@ -29,13 +29,13 @@
                     <div class="ak-advanced-body ak-form-grid">
                         <div class="ak-field">
                             <label for="counterpartyId" class="ak-label">@UiText.T(Context, "فقط با این مشتری", "Only with this customer")</label>
-                            <select id="counterpartyId" name="counterpartyId" asp-items="counterparties" class="ak-input">
+                            <select id="counterpartyId" name="counterpartyId" asp-items="counterparties" class="ak-input" data-ak-entity-combobox>
                                 <option value="">@UiText.T(Context, "همه", "All")</option>
                             </select>
                         </div>
                         <div class="ak-field">
                             <label for="currency" class="ak-label">@UiText.T(Context, "ارز", "Currency")</label>
-                            <select id="currency" name="currency" asp-items="currencies" class="ak-input">
+                            <select id="currency" name="currency" asp-items="currencies" class="ak-input" data-ak-entity-combobox>
                                 <option value="">@UiText.T(Context, "همه", "All")</option>
                             </select>
                         </div>

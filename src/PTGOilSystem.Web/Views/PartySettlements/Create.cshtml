@@ -43,7 +43,7 @@
                 <div class="ak-form-grid">
                     <div class="ak-field">
                         <label for="FromParty" class="ak-label">@UiText.T(Context, "از طرف‌حساب (پرداخت‌کننده)", "From (payer)") <span class="ak-req">*</span></label>
-                        <select id="FromParty" name="FromParty" class="ak-input" data-party-balance-select>
+                        <select id="FromParty" name="FromParty" class="ak-input" data-party-balance-select data-ak-entity-combobox>
                             <option value="">@UiText.T(Context, "- انتخاب -", "- Select -")</option>
                             @foreach (var g in groups.Where(g => g.Items.Count > 0))
                             {
@@ -60,7 +60,7 @@
                     </div>
                     <div class="ak-field">
                         <label for="ToParty" class="ak-label">@UiText.T(Context, "به طرف‌حساب (گیرنده)", "To (payee)") <span class="ak-req">*</span></label>
-                        <select id="ToParty" name="ToParty" class="ak-input" data-party-balance-select>
+                        <select id="ToParty" name="ToParty" class="ak-input" data-party-balance-select data-ak-entity-combobox>
                             <option value="">@UiText.T(Context, "- انتخاب -", "- Select -")</option>
                             @foreach (var g in groups.Where(g => g.Items.Count > 0))
                             {

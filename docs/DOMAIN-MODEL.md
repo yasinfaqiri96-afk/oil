@@ -77,6 +77,6 @@ Contract → Platt's / FX → Loading → Receipt → Inventory (Ilinka Stock)
 - ابزار: EF Core Migrations + Npgsql.
 
 ```bash
-dotnet ef migrations add <Name> --project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
-dotnet ef database update      --project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
+dotnet ef migrations add <Name> --project src/PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj --startup-project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj --output-dir Migrations --namespace PTGOilSystem.Web.Migrations
+dotnet ef database update --project src/PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj --startup-project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
 ```

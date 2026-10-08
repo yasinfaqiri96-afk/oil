@@ -157,6 +157,24 @@ public sealed class TabularExportService : ITabularExportService
         return Task.CompletedTask;
     }
 
+    public Task WriteCompanyBalancePdfAsync(
+        Models.Reports.CompanyBalanceReportViewModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(destination);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var document = new CompanyBalancePdfDocument(
+            model,
+            PdfDesignSystem.ResolveWebAsset(_environment.WebRootPath, CompanyBalancePdfDocument.LogoRelativePath)
+                ?? PdfDesignSystem.ResolveWebAsset(_environment.WebRootPath, _options.CompanyLogoPath));
+        document.GeneratePdf(destination);
+        return Task.CompletedTask;
+    }
+
     private void InitializeQuestPdf()
     {
         lock (QuestPdfInitializationLock)

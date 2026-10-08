@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 
 namespace PTGOilSystem.Web.Services.Customs;
+
+/// <summary>مبلغِ سندِ نقدیِ یک گروهِ گمرک به ارزِ صندوق، با نرخِ تبدیل به USD.</summary>
+public sealed record CustomsCashAmount(decimal Amount, string Currency, decimal RateToUsd);
 
 /// <summary>
 /// منطقِ واحدِ همگام‌سازی «هزینهٔ اظهارنامهٔ گمرکی» با <see cref="ExpenseTransaction"/> و
@@ -25,6 +29,7 @@ public static class CustomsDeclarationExpenseSync
 {
     public const string DutyExpenseCode = "CUSTOMS-DUTY";
     public const string ServiceExpenseCode = "CUSTOMS-SERVICE";
+    public const string CashCurrencyMismatchCode = "CUSTOMS_CASH_CURRENCY_AMOUNT_UNKNOWN";
 
     // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
     private static readonly IExpenseSettlementValidator SettlementValidator = new ExpenseSettlementValidator();
@@ -60,6 +65,59 @@ public static class CustomsDeclarationExpenseSync
         return (duty, service);
     }
 
+    /// <summary>
+    /// مبلغِ AFN یک گروه از همان اقلامی که <see cref="SplitUsd"/> برای آن گروه می‌شمارد. اگر یکی از
+    /// آن اقلام معادل AFN نداشته باشد (ردیف دالریِ بدون نرخ)، مبلغِ افغانیِ گروه معلوم نیست ⇒ null.
+    /// </summary>
+    public static decimal? GroupAfn(IEnumerable<CustomsDeclarationItem> items, CustomsComponentGroup group)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var total = 0m;
+        foreach (var item in items)
+        {
+            if ((item.AmountUsd ?? 0m) <= 0m || CustomsComponentGroupMap.Resolve(item.ComponentType) != group)
+            {
+                continue;
+            }
+
+            if (item.AmountAfn <= 0m)
+            {
+                return null;
+            }
+
+            total += item.AmountAfn;
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// سندِ «نقد پرداخت شد» به ارزِ همان صندوق ثبت می‌شود تا صندوق به ارزِ خودش کم شود. صندوقِ
+    /// دالری ⇒ USD با نرخ ۱. صندوقِ افغانی ⇒ جمعِ AFN اقلامِ گروه، و نرخ = USD ÷ AFN، تا معادلِ دالری
+    /// عیناً همان معادلِ ثبت‌شدهٔ اظهارنامه بماند و AmountUsd = round(Amount × نرخ, 4) برقرار باشد
+    /// (همان شرطی که ExpenseAccountingAdapter و AccountingPostingService می‌خواهند).
+    /// null ⇒ سندِ درست ساخته نمی‌شود: ارزِ دیگر، مبلغ AFN نامعلوم، یا نرخی که USD را دقیق نمی‌سازد.
+    /// </summary>
+    public static CustomsCashAmount? ResolveCashAmount(string? cashAccountCurrency, decimal amountUsd, decimal? amountAfn)
+    {
+        var currency = SystemCurrency.Normalize(cashAccountCurrency);
+        if (SystemCurrency.IsBaseCurrency(currency))
+        {
+            return new CustomsCashAmount(amountUsd, SystemCurrency.BaseCurrencyCode, 1m);
+        }
+
+        if (currency != Models.Customs.CustomsCurrency.Afn || amountAfn is not > 0m || amountUsd <= 0m)
+        {
+            return null;
+        }
+
+        var rate = FxRateMath.RoundRate(amountUsd / amountAfn.Value);
+        return decimal.Round(amountAfn.Value * rate, 4, MidpointRounding.AwayFromZero) == amountUsd
+            ? new CustomsCashAmount(amountAfn.Value, currency, rate)
+            : null;
+    }
+
     public static async Task SyncAsync(
         ApplicationDbContext db,
         CustomsDeclaration declaration,
@@ -80,6 +138,7 @@ public static class CustomsDeclarationExpenseSync
         await SyncGroupAsync(
             db,
             declaration,
+            items,
             CustomsComponentGroup.GovernmentDuty,
             dutyUsd,
             declaration.DutySettlementMode,
@@ -91,6 +150,7 @@ public static class CustomsDeclarationExpenseSync
         await SyncGroupAsync(
             db,
             declaration,
+            items,
             CustomsComponentGroup.ThirdPartyService,
             serviceUsd,
             declaration.ServiceSettlementMode,
@@ -103,6 +163,7 @@ public static class CustomsDeclarationExpenseSync
     private static async Task SyncGroupAsync(
         ApplicationDbContext db,
         CustomsDeclaration declaration,
+        IReadOnlyCollection<CustomsDeclarationItem> items,
         CustomsComponentGroup group,
         decimal amountUsd,
         ExpenseSettlementMode settlementMode,
@@ -136,6 +197,21 @@ public static class CustomsDeclarationExpenseSync
             return;
         }
 
+        // اظهارنامه هر دو ستونِ AFN/USD را به‌عنوان «معادلِ همان مبلغ» ذخیره می‌کند. سندِ نقدی به ارزِ
+        // صندوقِ انتخاب‌شده نوشته می‌شود؛ بقیهٔ حالت‌ها مثل قبل روی USD بسته می‌شوند.
+        var cashAmount = new CustomsCashAmount(amountUsd, SystemCurrency.BaseCurrencyCode, 1m);
+        if (settlementMode == ExpenseSettlementMode.PaidImmediately && cashAccountId is > 0)
+        {
+            var cashCurrency = await db.CashAccounts
+                .Where(a => a.Id == cashAccountId.Value)
+                .Select(a => a.Currency)
+                .FirstOrDefaultAsync(ct);
+            cashAmount = ResolveCashAmount(cashCurrency, amountUsd, GroupAfn(items, group))
+                ?? throw new BusinessRuleException(
+                    CashCurrencyMismatchCode,
+                    $"سند نقدی {CustomsComponentGroupMap.Label(group)} گمرک به ارز صندوق ({SystemCurrency.Normalize(cashCurrency)}) ساخته نمی‌شود؛ معادل افغانی و نرخ همهٔ ردیف‌ها لازم است.");
+        }
+
         var expenseType = await EnsureExpenseTypeAsync(db, group, ct);
         var description = BuildDescription(declaration, group);
 
@@ -157,11 +233,9 @@ public static class CustomsDeclarationExpenseSync
         primary.LoadingRegisterId = declaration.LoadingRegisterId;
         primary.ContractId = await ResolveContractIdAsync(db, declaration, ct);
         primary.ExpenseDate = declaration.DeclarationDate.Date;
-        // اظهارنامه هر دو ستونِ AFN/USD را به‌عنوان «معادلِ همان مبلغ» ذخیره می‌کند، پس
-        // سطرِ مالی روی USD بسته می‌شود و نرخ دوباره اعمال نمی‌شود.
-        primary.Amount = amountUsd;
-        primary.Currency = SystemCurrency.BaseCurrencyCode;
-        primary.AppliedFxRateToUsd = 1m;
+        primary.Amount = cashAmount.Amount;
+        primary.Currency = cashAmount.Currency;
+        primary.AppliedFxRateToUsd = cashAmount.RateToUsd;
         primary.AmountUsd = amountUsd;
         primary.Description = description;
         primary.ServiceProviderId = settlementMode == ExpenseSettlementMode.Payable ? serviceProviderId : null;
@@ -221,7 +295,9 @@ public static class CustomsDeclarationExpenseSync
             ExpenseType = expenseType,
             Description = expense.Description ?? "Customs",
             Reference = $"CUSTOMS-DECLARATION:{expense.CustomsDeclarationId}-{(int)expense.CustomsComponentGroup!.Value}",
-            FxRateSource = "Base currency"
+            FxRateSource = SystemCurrency.IsBaseCurrency(expense.Currency)
+                ? "Base currency"
+                : "Customs declaration item rates"
         };
 
         var existing = await db.LedgerEntries

@@ -139,7 +139,7 @@
 
                         <div class="ak-field">
                             <label class="ak-label" for="bulkReceiptTerminal-@Model.ContractId">@T("ترمینال", "Terminal")</label>
-                            <select id="bulkReceiptTerminal-@Model.ContractId" name="TerminalId" class="ak-input" data-bulk-receipt-terminal-select>
+                            <select id="bulkReceiptTerminal-@Model.ContractId" name="TerminalId" class="ak-input" data-ak-entity-combobox data-bulk-receipt-terminal-select>
                                 <option value="">— @T("انتخاب کنید", "Select") —</option>
                                 @foreach (var terminal in Model.BulkReceiptTerminals)
                                 {
@@ -150,7 +150,7 @@
 
                         <div class="ak-field">
                             <label class="ak-label" for="bulkReceiptTank-@Model.ContractId">@T("مخزن", "Storage tank")</label>
-                            <select id="bulkReceiptTank-@Model.ContractId" name="StorageTankId" class="ak-input" data-bulk-receipt-tank-select>
+                            <select id="bulkReceiptTank-@Model.ContractId" name="StorageTankId" class="ak-input" data-ak-entity-combobox data-bulk-receipt-tank-select>
                                 <option value="">— @T("انتخاب کنید", "Select") —</option>
                                 @foreach (var tank in Model.BulkReceiptStorageTanks)
                                 {

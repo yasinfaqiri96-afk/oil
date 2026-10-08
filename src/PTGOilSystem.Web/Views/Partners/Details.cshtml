@@ -204,7 +204,7 @@
             <input type="hidden" name="tab" value="@PartnerProfileTabs.Ledger" />
             <div class="ak-field">
                 <label class="ak-label" for="partnerLedgerContract">قرارداد</label>
-                <select id="partnerLedgerContract" name="contractId" class="ak-input">
+                <select id="partnerLedgerContract" name="contractId" class="ak-input" data-ak-entity-combobox>
                     <option value="">همه قراردادها</option>
                     @foreach (var option in Model.ContractOptions)
                     {

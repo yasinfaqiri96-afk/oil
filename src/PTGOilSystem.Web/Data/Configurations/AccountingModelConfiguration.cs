@@ -223,7 +223,7 @@ public static class AccountingModelConfiguration
         line.Property(x => x.Debit).HasColumnType("numeric(18,4)");
         line.Property(x => x.Credit).HasColumnType("numeric(18,4)");
         line.Property(x => x.TransactionAmount).HasColumnType("numeric(18,4)");
-        line.Property(x => x.ExchangeRate).HasColumnType("numeric(18,8)");
+        line.Property(x => x.ExchangeRate).HasColumnType("numeric(24,12)");
         line.HasIndex(x => new { x.JournalEntryId, x.LineNumber }).IsUnique();
         line.HasIndex(x => x.AccountId);
         line.HasIndex(x => x.ContractId);

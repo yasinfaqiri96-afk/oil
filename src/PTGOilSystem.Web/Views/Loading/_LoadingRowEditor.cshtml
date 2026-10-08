@@ -102,7 +102,7 @@
     </td>
 
         <td class="@(Model.ShowContractSelector ?"" : "d-none")" data-loading-contract-cell>
-            <select name="@($"{prefix}.ContractId")" class="ak-input" data-row-contract-select aria-label="قرارداد">
+            <select name="@($"{prefix}.ContractId")" class="ak-input" data-ak-entity-combobox data-row-contract-select aria-label="قرارداد">
                 <option value=""></option>
                 @foreach (var option in Model.ContractOptions)
                 {
@@ -238,7 +238,7 @@
                         </select>
                     </div>
                     <div data-loading-logistics-item-field hidden="@(logisticsMode == "driver" ? "hidden" : null)">
-                        <select class="ak-input"
+                        <select class="ak-input" data-ak-entity-combobox
                                 data-row-logistics-display
                                 aria-label="انتخاب ترانسپورت">
                             <option value=""></option>

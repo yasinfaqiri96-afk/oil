@@ -115,6 +115,10 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             await AddOperationalColumnsAsync(calculation.PeriodRows, cancellationToken);
         }
 
+        // شرح تجارتیِ هر سطر از سند اصلی (جنس، مقدار × نرخ، موتر، طرف، فاکتور/رسید). فقط نمایشی است.
+        await new PartyStatementNarrativeBuilder(_db)
+            .ApplyAsync(party, partyInfo.Name, calculation.PeriodRows, cancellationToken);
+
         // نمایش روبلی: کاربر ارز روبل را انتخاب کرده تا مانده و جمع‌های روبلیِ واقعی
         // (به نرخ تاریخی هر سند) نمایش داده شوند. مقادیر USD دست‌نخورده باقی می‌مانند.
         var presentInRub = IsRubPresentation(filter);
@@ -163,6 +167,8 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                 : null;
         }
 
+        var columnTotals = SummarizeColumns(party.PartyType, calculation.PeriodRows, presentInRub);
+
         var companyInfo = await LoadCompanyInfoAsync(party, filter.ContractId, cancellationToken);
         var periodRows = resultRows.Where(r => !r.IsOpeningBalance).ToList();
         var periodFrom = filter.FromDate?.Date ?? periodRows.FirstOrDefault()?.Date.Date;
@@ -203,7 +209,15 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     : string.Empty,
                 ClosingBalanceRubMeaningEn = closingRub.HasValue
                     ? policy.BalanceMeaning(closingRub.Value, isEnglish: true)
-                    : string.Empty
+                    : string.Empty,
+                TotalTrade = columnTotals.Trade,
+                TotalReceived = columnTotals.Received,
+                TotalPaid = columnTotals.Paid,
+                TotalTradeRub = columnTotals.TradeRub,
+                TotalReceivedRub = columnTotals.ReceivedRub,
+                TotalPaidRub = columnTotals.PaidRub,
+                TradeQuantity = columnTotals.Quantity,
+                TradeQuantityUnit = columnTotals.QuantityUnit
             },
             ColumnOptions = ResolveColumns(periodRows, filter),
             Rows = resultRows,
@@ -594,18 +608,23 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             // بدون طرف‌حساب از راهِ قرارداد به مشتری نمی‌چسبند.
             // رجوع: LedgerEntryOwnership.CustomerOwnedByContract.
             PartyStatementPartyType.Customer => query.Where(l =>
-                l.CustomerId == party.PartyId
-                || (l.CustomerId == null
-                    && l.SupplierId == null
-                    && l.ServiceProviderId == null
-                    && l.DriverId == null
-                    && l.EmployeeId == null
-                    && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
-                    && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
-                    && l.Contract != null
-                    && l.Contract.ContractType == ContractType.Sale
-                    && l.Contract.CustomerId == party.PartyId)
-                || (l.SourceType == "Sale" && _db.SalesTransactions.Any(s => s.Id == l.SourceId && s.CustomerId == party.PartyId))),
+                (l.CustomerId == party.PartyId
+                    || (l.CustomerId == null
+                        && l.SupplierId == null
+                        && l.ServiceProviderId == null
+                        && l.DriverId == null
+                        && l.EmployeeId == null
+                        && l.SourceType != LedgerEntryOwnership.ExpenseSourceType
+                        && !LedgerEntryOwnership.CashSourceTypesWithoutContractParty.Contains(l.SourceType)
+                        && l.Contract != null
+                        && l.Contract.ContractType == ContractType.Sale
+                        && l.Contract.CustomerId == party.PartyId)
+                    || (l.SourceType == SaleSourceType
+                        && _db.SalesTransactions.Any(s => s.Id == l.SourceId && s.CustomerId == party.PartyId)))
+                // اصل فروش لغوشده و سطر برگشت آن برای audit در Ledger می‌مانند، اما چون
+                // اثر خالصشان صفر است در صورت‌حساب رسمی مشتری نمایش داده نمی‌شوند.
+                && (l.SourceType != SaleSourceType
+                    || !_db.SalesTransactions.Any(s => s.Id == l.SourceId && s.IsCancelled))),
             // انتساب تأمین‌کننده از تعریف مرکزی می‌آید تا اسنادِ متعلق به طرف‌حسابِ دیگر
             // (مثلاً کرایهٔ حملِ ServiceProvider/Driver روی همان قرارداد خرید) وارد
             // صورت‌حساب تأمین‌کننده نشوند. رجوع: LedgerEntryOwnership.SupplierOwned.
@@ -623,6 +642,29 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     p.LedgerEntryId == l.Id && p.FundingSource == PaymentFundingSource.Partner)),
             _ => throw new ArgumentOutOfRangeException(nameof(party), party.PartyType, "این نوع از Ledger عمومی خوانده نمی‌شود.")
         };
+
+        // قرارداد لغوشده‌ای که از فهرست حذف (آرشیف) شده، با جفت سند ثبت/برگشتِ صفرشده‌اش در
+        // صورت‌حساب تأمین‌کننده نمی‌آید. آرشیف فقط بعد از لغو و برگشت همهٔ اسناد ممکن است، پس مانده تغییر نمی‌کند.
+        if (party.PartyType == PartyStatementPartyType.Supplier)
+        {
+            query = query.Where(l => l.Contract == null || !l.Contract.IsArchived);
+        }
+
+        // ویرایش مقدار فروش (SalesController.ApplyQuantityEditAsync): سطر فروشِ قبلی و برگشتش (جمع صفر)
+        // جای خود را به ثبتِ تازه با مرجع «فاکتور/E{n}» داده‌اند؛ فقط ثبتِ جاری در صورت‌حساب می‌آید.
+        // فقط سطری پنهان می‌شود که خودش برگشت است یا برگشت دارد، پس مانده تغییر نمی‌کند.
+        var reversalSuffix = CompanyFlowSourceTypes.ReversalReferenceSuffix;
+        query = query.Where(l => l.SourceType != SaleSourceType
+            || !(_db.LedgerEntries.Any(r => r.SourceType == SaleSourceType
+                    && r.SourceId == l.SourceId
+                    && r.Id > l.Id
+                    && r.Reference != null
+                    && r.Reference.Contains("/E")
+                    && !r.Reference.EndsWith(reversalSuffix))
+                && ((l.Reference != null && l.Reference.EndsWith(reversalSuffix))
+                    || _db.LedgerEntries.Any(x => x.SourceType == SaleSourceType
+                        && x.SourceId == l.SourceId
+                        && x.Reference == l.Reference + reversalSuffix))));
 
         if (filter.ContractId.HasValue)
         {
@@ -1101,7 +1143,17 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             var sales = await _db.SalesTransactions
                 .AsNoTracking()
                 .Where(s => saleIds.Contains(s.Id))
-                .Select(s => new { s.Id, s.QuantityMt, s.UnitPriceUsd })
+                .Select(s => new
+                {
+                    s.Id,
+                    s.QuantityMt,
+                    s.UnitPriceInCurrency,
+                    s.UnitPriceUsd,
+                    s.Currency,
+                    ProductName = s.Product != null
+                        ? (s.Product.NamePersian ?? s.Product.Name)
+                        : null
+                })
                 .ToDictionaryAsync(s => s.Id, ct);
             foreach (var row in rows.Where(r => r.SourceType == "Sale"))
             {
@@ -1110,6 +1162,15 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
                     row.Quantity = sale.QuantityMt;
                     row.QuantityUnit = "MT";
                     row.UnitPrice = sale.UnitPriceUsd;
+                    var currency = NormalizeCurrency(sale.Currency);
+                    var unitPrice = sale.UnitPriceInCurrency > 0m
+                        ? sale.UnitPriceInCurrency
+                        : sale.UnitPriceUsd;
+                    var productName = string.IsNullOrWhiteSpace(sale.ProductName)
+                        ? "محصول نفتی"
+                        : sale.ProductName;
+                    var lifecycle = row.IsReversalRow ? "لغو فروش" : "فروش";
+                    row.Description = $"{lifecycle} {productName}؛ مقدار {sale.QuantityMt:0.###} MT؛ نرخ {unitPrice:0.####} {currency}/MT";
                 }
             }
         }
@@ -1216,14 +1277,82 @@ public sealed class PartyStatementReadService : IPartyStatementReadService
             balance += row.SignedAmount;
             row.Sequence = sequence++;
             row.RunningBalance = balance;
-            // سند رسمی فقط متن کوتاه می‌خواهد؛ دنبالهٔ ردیابیِ Ledger اینجا نمایش داده نمی‌شود.
-            row.Reference = PartyStatementFormatting.ShortReference(row.Reference);
-            row.Description = PartyStatementFormatting.ShortDescription(row.Description);
+            // دنبالهٔ ردیابیِ Ledger در سند رسمی نمایش داده نمی‌شود، اما متن انسانی هرگز با «…»
+            // بریده نمی‌شود؛ خانهٔ شرح در صفحه و PDF چندخطی است.
+            row.Reference = PartyStatementFormatting.CleanReference(row.Reference);
+            row.Description = PartyStatementFormatting.CleanDescription(row.Description);
             result.Add(row);
         }
 
         return result;
     }
+
+    /// <summary>
+    /// جمع ستون‌های «معامله / دریافت / پرداخت» از همان مبالغ سطرها. تفکیکِ نمایشیِ همان
+    /// Σرسید/Σبرد است و بیلانس از آن ساخته نمی‌شود.
+    /// </summary>
+    private static ColumnTotals SummarizeColumns(
+        PartyStatementPartyType partyType,
+        IReadOnlyList<PartyStatementRow> rows,
+        bool presentInRub)
+    {
+        decimal trade = 0m, received = 0m, paid = 0m;
+        decimal tradeRub = 0m, receivedRub = 0m, paidRub = 0m;
+        decimal quantity = 0m;
+        var quantityKnown = true;
+        var hasTrade = false;
+        string? unit = null;
+        foreach (var row in rows)
+        {
+            var amounts = PartyStatementPresentation.AmountsFor(row, partyType);
+            trade += amounts.Trade ?? 0m;
+            received += amounts.Received ?? 0m;
+            paid += amounts.Paid ?? 0m;
+
+            if (amounts.Trade.HasValue)
+            {
+                hasTrade = true;
+                if (!row.TradeQuantity.HasValue
+                    || (unit is not null && !string.Equals(unit, row.TradeQuantityUnit, StringComparison.OrdinalIgnoreCase)))
+                {
+                    quantityKnown = false;
+                }
+                else
+                {
+                    unit ??= row.TradeQuantityUnit;
+                    quantity += Math.Sign(amounts.Trade.Value) * row.TradeQuantity.Value;
+                }
+            }
+
+            if (presentInRub)
+            {
+                var rub = PartyStatementPresentation.AmountsFor(row, partyType, isRub: true);
+                tradeRub += rub.Trade ?? 0m;
+                receivedRub += rub.Received ?? 0m;
+                paidRub += rub.Paid ?? 0m;
+            }
+        }
+
+        return new ColumnTotals(
+            trade,
+            received,
+            paid,
+            presentInRub ? tradeRub : null,
+            presentInRub ? receivedRub : null,
+            presentInRub ? paidRub : null,
+            hasTrade && quantityKnown ? quantity : null,
+            hasTrade && quantityKnown ? unit : null);
+    }
+
+    private sealed record ColumnTotals(
+        decimal Trade,
+        decimal Received,
+        decimal Paid,
+        decimal? TradeRub,
+        decimal? ReceivedRub,
+        decimal? PaidRub,
+        decimal? Quantity,
+        string? QuantityUnit);
 
     private static PartyStatementColumnOptions ResolveColumns(
         IReadOnlyCollection<PartyStatementRow> rows,

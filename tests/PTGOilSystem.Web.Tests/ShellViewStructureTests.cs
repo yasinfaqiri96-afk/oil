@@ -744,7 +744,7 @@ public class ShellViewStructureTests
         var inventoryOperations = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/InventoryOperations.cshtml");
         var reports = ReadRepoFile("src/PTGOilSystem.Web/Views/Reports/Index.cshtml");
         var reportsController = ReadRepoFile("src/PTGOilSystem.Web/Controllers/ReportsController.cs");
-        var migration = ReadRepoFile("src/PTGOilSystem.Web/Migrations/20260808120000_NormalizeRblCurrencyReferenceToRub.cs");
+        var migration = ReadRepoFile("src/PTGOilSystem.Migrations/Migrations/20260808120000_NormalizeRblCurrencyReferenceToRub.cs");
 
         Assert.DoesNotContain("data-search-open", layout);
         Assert.DoesNotContain("data-global-search", layout);

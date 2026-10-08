@@ -2163,6 +2163,13 @@ select.ak-input {
     transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms;
 }
 
+/* داخل جدول اسکرول‌دار، لیست روی صفحه شناور می‌شود تا برش نخورد؛ جای آن را JS از خود فیلد می‌گیرد. */
+.ak-entity-combobox.is-floating .ak-entity-menu {
+    position: fixed;
+    inset: var(--ak-entity-menu-top, 0) auto auto var(--ak-entity-menu-left, 0);
+    width: var(--ak-entity-menu-width, 16rem);
+}
+
 .ak-entity-combobox[data-open="true"] .ak-entity-menu {
     opacity: 1;
     visibility: visible;
@@ -3729,25 +3736,26 @@ select.ak-input {
     min-width: 118px;
 }
 
-/* Wide text/select columns: driver (4), carrier (6), company/asset (7). */
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(4) .ak-input,
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(7) .ak-input {
+/* Columns: type (1), loading date (2), vehicle (3), CMR (4), driver (5),
+   quantity (6), carrier (7), company/asset (8), delete (9).
+   Wide text/select columns: driver (5), company/asset (8). */
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(5) .ak-input,
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(8) .ak-input,
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(8) .ak-entity-combobox {
     min-width: 178px;
 }
 
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(6) .ak-input {
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(7) .ak-input {
     min-width: 148px;
 }
 
-/* Vehicle plate/wagon column (2) sits a bit wider than numeric fields. */
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(2) .ak-input {
+/* Vehicle plate/wagon column (3) sits a bit wider than numeric fields. */
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(3) .ak-input {
     min-width: 150px;
 }
 
-/* Short numeric columns only need the base width. */
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(5) .ak-input,
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(8) .ak-input,
-[data-inv-transport-form] [data-vehicle-table] td:nth-child(9) .ak-input {
+/* Short numeric column only needs the base width. */
+[data-inv-transport-form] [data-vehicle-table] td:nth-child(6) .ak-input {
     min-width: 104px;
 }
 

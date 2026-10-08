@@ -1086,9 +1086,12 @@ public partial class LoadingController : Controller
 
         var result = await _pricing.CalculateContractPriceAsync(contract.Id);
         var plattsReference = await ResolvePlattsReferenceSuggestionAsync(contract);
+        // پیش‌فرض وزن سطرهای فرم: همان باقیماندهٔ قرارداد که ثبت بارگیری با آن کنترل می‌شود.
+        var remainingQuantityMt = Math.Max(contract.QuantityMt - await GetCommittedLoadedQuantityMtAsync(contract.Id), 0m);
 
         return Json(new
         {
+            remainingQuantityMt,
             ok = result.FinalUnitPrice.HasValue,
             isFormulaPlatts = contract.PricingMethod == PricingMethod.FormulaPlatts,
             basePlattsPrice = result.BasePlattsPrice,
@@ -1610,6 +1613,18 @@ public partial class LoadingController : Controller
             if (model.RecordFreight)
             {
                 ApplyLogisticsFreightSnapshot(row, model.TransportType);
+
+                // کرایه بدوش شرکت ما بدون هیچ طرف‌حساب ⇒ نه سند مصرف ساخته می‌شود نه بدهی؛ کرایه فقط
+                // عددی روی بارگیری می‌ماند. «ترانسپورت آزاد» بدون شرکت خدماتی خطای جدای خودش را دارد.
+                if (model.FreightCostResponsibility == CostResponsibility.Buyer
+                    && ((row.TransportExpenseUsd ?? 0m) > 0m || (row.RailwayExpenseUsd ?? 0m) > 0m)
+                    && !postedFreeTransportMode
+                    && !IsFreeDriverMode(row)
+                    && !row.LogisticsServiceProviderId.HasValue
+                    && !row.OperationalAssetId.HasValue)
+                {
+                    ModelState.AddModelError(RowField(row.RowKey, nameof(row.LogisticsMode)), FreightPartyRequiredMessage);
+                }
             }
 
             if (useRowContracts)
@@ -2741,6 +2756,12 @@ public partial class LoadingController : Controller
                 && !model.LogisticsServiceProviderId.HasValue)
             {
                 ModelState.AddModelError(nameof(model.LogisticsServiceProviderId), "کرایه بدوش شرکت ما است؛ برای «ترانسپورت آزاد» شرکت خدماتی طرف‌حساب کرایه را انتخاب کنید.");
+            }
+            else if (freightActive
+                && editMode == "none"
+                && model.FreightCostResponsibility == CostResponsibility.Buyer)
+            {
+                ModelState.AddModelError(nameof(model.LogisticsMode), FreightPartyRequiredMessage);
             }
 
             if (isDriverMode && string.IsNullOrWhiteSpace(model.DriverName))
@@ -4147,6 +4168,9 @@ public partial class LoadingController : Controller
 
     private const string FreightResponsibilityRequiredMessage =
         "کرایه با ترانسپورت بیرونی (ترانسپورت آزاد یا راننده آزاد) ثبت می‌شود؛ «مسئول کرایه» را انتخاب کنید.";
+
+    private const string FreightPartyRequiredMessage =
+        "کرایه بدوش شرکت ما است؛ «نوعیت ترانسپورت» و طرف‌حساب کرایه (شرکت خدماتی، راننده آزاد یا دارایی ملکی) را انتخاب کنید، وگرنه کرایه در مصارف و حساب‌ها ثبت نمی‌شود.";
 
     /// <summary>
     /// فیلدهای کرایهٔ فرم ویرایش را روی بارگیری می‌نشاند؛ همان محاسبهٔ <see cref="ApplyLogisticsFreightSnapshot"/>.

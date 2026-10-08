@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PTGOilSystem.Persistence/PTGOilSystem.Persistence.csproj" />
+    <Compile Include="../PTGOilSystem.Web/Data/PaymentCompanyBackfillSql.cs" Link="Data/PaymentCompanyBackfillSql.cs" />
+  </ItemGroup>
+</Project>

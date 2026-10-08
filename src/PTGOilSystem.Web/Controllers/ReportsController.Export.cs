@@ -36,7 +36,9 @@ public partial class ReportsController
                 new("گردش دوره USD", "Period movement USD", TabularExportValueType.Number, 17),
                 new("تعدیل ارزی USD", "FX adjustment USD", TabularExportValueType.Number, 17),
                 new("مانده USD", "Balance USD", TabularExportValueType.Number, 16),
-                new("آخرین تاریخ", "Last date", TabularExportValueType.Date, 14)
+                new("آخرین تاریخ", "Last date", TabularExportValueType.Date, 14),
+                new("طلب شرکت USD", "Company receivable USD", TabularExportValueType.Number, 16),
+                new("بدهی شرکت USD", "Company payable USD", TabularExportValueType.Number, 16)
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
@@ -45,7 +47,9 @@ public partial class ReportsController
                 TabularExportCell.Number(r.CreditUsd), TabularExportCell.Number(r.PeriodMovementUsd),
                 TabularExportCell.Number(r.FxAdjustmentUsd),
                 TabularExportCell.Number(r.BalanceUsd),
-                TabularExportCell.Date(r.LastEntryDate)
+                TabularExportCell.Date(r.LastEntryDate),
+                TabularExportCell.Number(Math.Max(r.CompanyClaimUsd, 0m)),
+                TabularExportCell.Number(Math.Max(-r.CompanyClaimUsd, 0m))
             ])),
             Totals = new TabularExportRow(
             [
@@ -54,7 +58,9 @@ public partial class ReportsController
                 TabularExportCell.Number(rows.Sum(r => r.DebitUsd)), TabularExportCell.Number(rows.Sum(r => r.CreditUsd)),
                 TabularExportCell.Number(rows.Sum(r => r.PeriodMovementUsd)),
                 TabularExportCell.Number(rows.Sum(r => r.FxAdjustmentUsd)),
-                TabularExportCell.Number(rows.Sum(r => r.BalanceUsd)), TabularExportCell.Date(null)
+                TabularExportCell.Text(null), TabularExportCell.Date(null),
+                TabularExportCell.Number(model.TotalReceivableUsd),
+                TabularExportCell.Number(model.TotalPayableUsd)
             ])
         });
     }
@@ -128,8 +134,6 @@ public partial class ReportsController
             ("بهای تمام‌شدهٔ فروش", "Cost of goods sold", -model.PurchaseCostUsd),
             ("سود ناخالص", "Gross profit", profitPublishable ? model.GrossProfitUsd : null),
             ("مصارف", "Expenses", -model.ExpenseUsd),
-            ("مصارف بارگیری (حمل/گدام/خط‌آهن/سایر)", "Loading costs (transport/warehouse/railway/other)", -model.LoadingOperationalCostUsd),
-            ("ضایعات و کسری", "Losses and shortages", -model.LossCostUsd),
             ("سود تسعیر ارز", "Exchange gain", model.ExchangeGainUsd),
             ("زیان تسعیر ارز", "Exchange loss", -model.ExchangeLossUsd),
             ("سود خالص", "Net profit", profitPublishable ? model.NetProfitUsd : null),
@@ -139,7 +143,34 @@ public partial class ReportsController
             ("خالص صراف", "Sarraf net", model.SarrafNetUsd)
         };
 
+        // شاخص‌های عملیاتی جدا از سطرهای مفاد و با مقدار مثبت می‌آیند؛ در «سود خالص» پایین کسر نشده‌اند.
+        var operationalLines = new (string Fa, string En, decimal Value)[]
+        {
+            ("مصارف بارگیری (حمل/گدام/خط‌آهن/سایر)", "Loading costs (transport/warehouse/railway/other)", model.LoadingOperationalCostUsd),
+            ("کسر و ضایعات", "Shortage and losses", model.LossCostUsd)
+        };
+
         var isEn = UiText.IsEn(HttpContext);
+        var operationalRows = new[]
+            {
+                new TabularExportRow(
+                [
+                    TabularExportCell.Text(isEn
+                        ? CompanyFinancialOverviewViewModel.OperationalIndicatorsTitleEn
+                        : CompanyFinancialOverviewViewModel.OperationalIndicatorsTitleFa),
+                    TabularExportCell.Number(null),
+                    TabularExportCell.Text(isEn
+                        ? CompanyFinancialOverviewViewModel.OperationalIndicatorsNoteEn
+                        : CompanyFinancialOverviewViewModel.OperationalIndicatorsNoteFa)
+                ])
+            }
+            .Concat(operationalLines.Select(line => new TabularExportRow(
+            [
+                TabularExportCell.Text(isEn ? line.En : line.Fa),
+                TabularExportCell.Number(line.Value),
+                TabularExportCell.Text(isEn ? "Operational indicator — not deducted from net profit" : "شاخص عملیاتی — در سود خالص کسر نشده")
+            ])))
+            .ToList();
         var filters = BuildReportExportFilters(filter).ToList();
         filters.AddRange(TabularExportSupport.FilterSummary(
             ("تاریخ تولید (کابل) / Generated (Kabul)", _businessClock.Today.ToString("yyyy-MM-dd")),
@@ -151,7 +182,7 @@ public partial class ReportsController
             FileNameStem = "PTG_Company_PnL",
             TitleFa = "سود و زیان شرکت",
             TitleEn = "Company P&L",
-            KnownRowCount = lines.Length + model.TopContracts.Count,
+            KnownRowCount = lines.Length + operationalRows.Count + model.TopContracts.Count,
             Filters = filters,
             Columns =
             [
@@ -168,6 +199,7 @@ public partial class ReportsController
                         ? isEn ? "Company total" : "جمع شرکت"
                         : isEn ? model.ProfitUnavailableNoteEn : model.ProfitUnavailableNoteFa)
                 ]))
+                .Concat(operationalRows)
                 .Concat(model.TopContracts.Select(contract => new TabularExportRow(
                 [
                     TabularExportCell.Text(contract.ContractNumber),

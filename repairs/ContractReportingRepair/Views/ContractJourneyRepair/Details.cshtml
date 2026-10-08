@@ -27,8 +27,8 @@
     var contractLevelExpenseTotalUsd = Math.Max(expenseTotalUsd - inventoryTransportExpenseTotalUsd, 0m);
     var paymentTotalUsd = useSummaryMetrics ? summaryMetrics.PaymentTotalUsd : Model.PaymentItems.Sum(p => p.AmountUsd);
     var dispatchQuantityMt = useSummaryMetrics ? summaryMetrics.DispatchQuantityMt : Model.DispatchItems.Sum(d => d.LoadedQuantityMt);
-    var loadingQuantityMt = useSummaryMetrics ? summaryMetrics.LoadingQuantityMt : Model.LoadingItems.Sum(l => l.LoadedQuantityMt);
-    var loadingCount = useSummaryMetrics ? summaryMetrics.LoadingCount : Model.LoadingItems.Count;
+    var loadingQuantityMt = repair?.LoadedQuantityMt ?? (useSummaryMetrics ? summaryMetrics.LoadingQuantityMt : Model.LoadingItems.Sum(l => l.LoadedQuantityMt));
+    var loadingCount = repair?.LoadingCount ?? (useSummaryMetrics ? summaryMetrics.LoadingCount : Model.LoadingItems.Count);
     var receiptCount = useSummaryMetrics ? summaryMetrics.ReceiptCount : Model.ReceiptItems.Count;
     var dispatchCount = useSummaryMetrics ? summaryMetrics.DispatchCount : Model.DispatchItems.Count;
     var transportLegCount = useSummaryMetrics ? summaryMetrics.InventoryTransportLegCount : Model.InventoryTransportLegItems.Count;
@@ -51,7 +51,7 @@
     var inventoryMovementCount = useSummaryMetrics ? summaryMetrics.InventoryMovementCount : Model.InventoryMovementItems.Count;
     decimal DisplayLossQuantityMt(ContractJourneyLossItemViewModel loss)
         => loss.DifferenceQuantityMt > 0m ? loss.DifferenceQuantityMt : Math.Max(loss.ChargeableLossMt, 0m);
-    var totalDisplayLossMt = useSummaryMetrics ? summaryMetrics.LossQuantityMt : Model.LossItems.Sum(DisplayLossQuantityMt);
+    var totalDisplayLossMt = repair?.PhysicalLossMt ?? (useSummaryMetrics ? summaryMetrics.LossQuantityMt : Model.LossItems.Sum(DisplayLossQuantityMt));
     decimal? salesAverageUsd = soldQuantityMt > 0m ? salesTotalUsd / soldQuantityMt : null;
     decimal? expensePerLoadedMt = loadingQuantityMt > 0m ? contractLevelExpenseTotalUsd / loadingQuantityMt : null;
     var summaryPnlExpenseTotalUsd = Model.MiniPnl.TraceableExpensesUsd;
@@ -801,7 +801,7 @@
                 <vc:stat-card title="@T("مجموع مصارف", "Total expenses")" value="@summaryExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
                 <vc:stat-card title="@T("مصرف هر تن", "Expense per MT")" value="@(summaryExpensePerLoadedMt.HasValue ? summaryExpensePerLoadedMt.Value.ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار کسری", "Loss quantity")" value="@NumberDisplay.Quantity(totalDisplayLossMt)" unit="@UnitMt()" avatar="losses" state="@(totalDisplayLossMt > 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("مبلغ کسری", "Loss cost")" value="@summaryLossCostUsd.ToString("N0")" unit="@UnitUsd()" avatar="statement"></vc:stat-card>
+                <vc:stat-card title="@T("کسری به دوش شرکت", "Company-borne loss")" value="@summaryLossCostUsd.ToString("N0")" unit="@UnitUsd()" avatar="statement"></vc:stat-card>
             </section>
                 break;
 

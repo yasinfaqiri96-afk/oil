@@ -39,14 +39,15 @@ public partial class ReportsController
         return TabularExportSupport.File(this, format, new TabularExportDocument
         {
             FileNameStem = "PTG_Party_Aging",
-            TitleFa = "سررسید طلبات و بدهی‌ها",
-            TitleEn = "Receivable & Payable Aging",
+            TitleFa = "سن طلبات و بدهی‌ها بر اساس آخرین حرکت",
+            TitleEn = "Account Age Since Last Movement",
             KnownRowCount = model.Rows.Count,
             ForceLandscape = true,
             Filters = TabularExportSupport.FilterSummary(
                 ("از تاریخ / From", filter.FromDate?.ToString("yyyy-MM-dd")),
                 ("تا تاریخ / To", filter.ToDate?.ToString("yyyy-MM-dd")),
-                ("تاریخ سنجش / As of", model.AsOfDate.ToString("yyyy-MM-dd"))),
+                ("تاریخ سنجش / As of", model.AsOfDate.ToString("yyyy-MM-dd")),
+                ("مبنا / Basis", "آخرین حرکت حساب؛ بدون موعد واقعی، وضعیت معوق تعیین نمی‌شود / Last movement; no due-date assessment")),
             Columns =
             [
                 new("طرف حساب", "Party", Width: 24),
@@ -87,6 +88,7 @@ public partial class ReportsController
         PartyAgingBucket.UpTo30 => "تا ۳۰ روز",
         PartyAgingBucket.From31To60 => "۳۱ تا ۶۰ روز",
         PartyAgingBucket.From61To90 => "۶۱ تا ۹۰ روز",
+        PartyAgingBucket.Unknown => "بدون تاریخ حرکت",
         _ => "بیشتر از ۹۰ روز"
     };
 
@@ -114,7 +116,7 @@ public partial class ReportsController
             .Select(r =>
             {
                 var daysIdle = r.LastEntryDate is null
-                    ? int.MaxValue
+                    ? (int?)null
                     : Math.Max(0, (int)Math.Round((asOfDate.Date - r.LastEntryDate.Value.Date).TotalDays));
 
                 return new PartyAgingRowViewModel
@@ -123,12 +125,12 @@ public partial class ReportsController
                     PartyTypeLabel = PartyAgingPartyTypeLabel(r.PartyType),
                     PartyId = r.PartyId,
                     PartyName = r.PartyName,
-                    ReceivableUsd = r.BalanceUsd > 0m ? r.BalanceUsd : 0m,
-                    PayableUsd = r.BalanceUsd < 0m ? -r.BalanceUsd : 0m,
+                    ReceivableUsd = r.CompanyClaimUsd > 0m ? r.CompanyClaimUsd : 0m,
+                    PayableUsd = r.CompanyClaimUsd < 0m ? -r.CompanyClaimUsd : 0m,
                     LastEntryDate = r.LastEntryDate,
                     // حسابِ بدون هیچ حرکت، کهنه‌ترین حالت است و روزش نمایش داده نمی‌شود.
-                    DaysIdle = daysIdle == int.MaxValue ? 0 : daysIdle,
-                    Bucket = BucketOf(daysIdle),
+                    DaysIdle = daysIdle ?? 0,
+                    Bucket = daysIdle.HasValue ? BucketOf(daysIdle.Value) : PartyAgingBucket.Unknown,
                     DetailsController = r.DetailsController
                 };
             })

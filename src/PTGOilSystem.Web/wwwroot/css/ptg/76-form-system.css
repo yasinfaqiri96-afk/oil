@@ -436,7 +436,8 @@ form.ak-form .ak-form-alert {
 }
 
 form.ak-form .ak-form-alert:empty,
-form.ak-form .ak-form-alert.validation-summary-valid {
+form.ak-form .ak-form-alert.validation-summary-valid,
+form.ak-form .ak-note:empty {
     display: none;
 }
 
@@ -993,7 +994,8 @@ form.ak-form .ak-table {
     max-width: 100%;
 }
 
-form.ak-form .ak-table .ak-input {
+form.ak-form .ak-table .ak-input,
+form.ak-form .ak-table .ak-entity-input {
     height: var(--chk-compact-h);
     min-height: var(--chk-compact-h);
 }

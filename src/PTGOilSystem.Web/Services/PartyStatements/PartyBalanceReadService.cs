@@ -767,85 +767,20 @@ public sealed class PartyBalanceReadService : IPartyBalanceReadService
         }
     }
 
-    /// <summary>
-    /// ماندهٔ شریک — از همان <see cref="IPartnershipStatementService"/> که پروفایل شریک و
-    /// صورت‌حساب شراکت می‌خوانند. این گزارش فرمول جداگانه‌ای برای شریک ندارد.
-    ///
-    /// پیش از این همین متد سهمِ درصدیِ هر سطرِ لجرِ قرارداد را می‌گرفت. آن محاسبه نه
-    /// <see cref="Contract.SaleProceedsHolderPartnerId"/> را می‌شناخت و نه
-    /// <see cref="PartnerSettlement"/> را، پس ماندهٔ همین شریک اینجا با پروفایل او
-    /// دقیقاً به اندازهٔ کلِ عایدِ فروشِ نزد یک شریک فرق می‌کرد.
-    ///
-    /// اثرِ هر ردیف (<see cref="PartnerAccountEntry.EffectUsd"/>) خودش جزءِ فرمول مانده است:
-    /// مثبت = شریک ارزشی آورده (برد)، منفی = ارزشی به او رسیده (رسید). بیلانسِ حسابِ
-    /// طرف‌حساب «اول دوره + Σبرد − Σرسید» است، پس ماندهٔ نهایی همان
-    /// <see cref="PartnerAccountStatement.NetPositionUsd"/> در می‌آید:
-    /// مثبت = شریک طلبکار، منفی = شریک بدهکار.
-    /// </summary>
+    /// <summary>Real external partner claims share the company balance reader; internal allocations stay in profiles.</summary>
     private async Task AddPartnerEventsAsync(
         List<BalanceEvent> target,
         ManagementReportFilterViewModel filter,
         CancellationToken ct)
     {
-        // فقط قراردادهایی که واقعاً شراکتی‌اند. دامنه با صورت‌حساب شراکت یکی است.
-        var membershipQuery = _db.ContractPartners
-            .AsNoTracking()
-            .Where(cp => cp.Contract != null
-                && cp.Contract.OwnershipType == ContractOwnershipType.Partnership);
-        if (filter.ContractId.HasValue)
+        var reader = new PartnerCompanyBalanceReader(_db, _partnerships);
+        var owners = await reader.BookOwnerIdsAsync(ct);
+        var events = await reader.ReadEventsAsync(filter.ToDate ?? PTGOilSystem.Web.Services.Time.AfghanistanBusinessClock.SystemToday, filter.ContractId, ct);
+        foreach (var entry in events.Where(e => !owners.Contains(e.PartnerId)))
         {
-            membershipQuery = membershipQuery.Where(cp => cp.ContractId == filter.ContractId.Value);
-        }
-
-        var partnerIds = await membershipQuery
-            .Select(cp => cp.PartnerId)
-            .Distinct()
-            .ToListAsync(ct);
-        if (partnerIds.Count == 0)
-        {
-            return;
-        }
-
-        int[]? contractIds = filter.ContractId.HasValue ? [filter.ContractId.Value] : null;
-        var toDate = filter.ToDate?.Date;
-        // ردیفِ بی‌تاریخ فقط سهمِ مفادِ قراردادی است که هنوز فروشی ندارد. به ابتدای
-        // دوره نسبت داده می‌شود تا هیچ‌وقت خاموش از جمع حذف نشود.
-        var undatedFallback = filter.FromDate?.Date ?? DateTime.MinValue;
-
-        // یک بار برای همهٔ شرکا. پیش از این به ازای هر شریک یک صورت‌حساب کامل ساخته می‌شد و
-        // چون دامنهٔ قراردادها یکی بود، همان کوئری‌ها عیناً تکرار می‌شدند. فرمول عوض نشده:
-        // همان IPartnershipStatementService و همان Entries، فقط یک بار خوانده می‌شود.
-        var statements = await _partnerships.BuildForPartnersAsync(partnerIds, contractIds, ct);
-
-        foreach (var partnerId in partnerIds)
-        {
-            if (!statements.TryGetValue(partnerId, out var statement) || statement is null)
-            {
-                continue;
-            }
-
-            foreach (var entry in statement.Entries)
-            {
-                if (toDate.HasValue && entry.Date.HasValue && entry.Date.Value.Date > toDate.Value)
-                {
-                    continue;
-                }
-
-                if (entry.EffectUsd == 0m)
-                {
-                    continue;
-                }
-
-                target.Add(new BalanceEvent(
-                    PartyStatementPartyType.Partner,
-                    partnerId,
-                    entry.Date?.Date ?? undatedFallback,
-                    entry.EffectUsd < 0m
-                        ? CompanyFlowDirection.Receipt
-                        : CompanyFlowDirection.Outflow,
-                    Math.Abs(entry.EffectUsd),
-                    IsDateKnown: entry.Date.HasValue));
-            }
+            target.Add(new BalanceEvent(PartyStatementPartyType.Partner, entry.PartnerId, entry.Date,
+                entry.EffectUsd < 0m ? CompanyFlowDirection.Receipt : CompanyFlowDirection.Outflow,
+                Math.Abs(entry.EffectUsd), ContractId: entry.ContractId));
         }
     }
 

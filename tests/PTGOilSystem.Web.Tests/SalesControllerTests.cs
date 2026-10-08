@@ -2508,6 +2508,153 @@ public class SalesControllerTests
             TempData = BuildTempData()
         };
 
+    // ویرایش مقدار فروش از مخزن: همان فروش و همان فاکتور، موجودی و سطر دفتر با مقدار جدید.
+    // دو ویرایش پشت‌سرهم و سپس لغو باید همیشه مانده‌ها را درست نگه دارد (محافظ «دو بار برگشت»).
+    [Fact]
+    public async Task Edit_Quantity_Reposts_Stock_And_Ledger_On_The_Same_Sale()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1,
+            ContractId = 2,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 20),
+            QuantityMt = 100m,
+            ReferenceDocument = "GRN-EDIT-1"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        Assert.IsType<RedirectToActionResult>(await controller.Create(new SalesCreateViewModel
+        {
+            SaleStage = SaleStage.TerminalStock,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            DestinationLocationId = 1,
+            SourceTerminalId = 1,
+            SourceStorageTankId = 1,
+            SourcePurchaseContractId = 2,
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 30m,
+            UnitPriceUsd = 500m,
+            InvoiceNumber = "INV-EDIT"
+        }));
+        var saleId = (await db.SalesTransactions.AsNoTracking().SingleAsync()).Id;
+
+        async Task EditQuantityAsync(decimal quantityMt)
+        {
+            var current = await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == saleId);
+            var result = await BuildController(db).Edit(saleId, new SalesCreateViewModel
+            {
+                Version = current.Version,
+                CompanyId = current.CompanyId ?? 0,
+                CustomerId = current.CustomerId,
+                ProductId = current.ProductId,
+                ContractId = current.ContractId,
+                DestinationLocationId = current.DestinationLocationId,
+                ShipmentId = current.ShipmentId,
+                SaleStage = current.SaleStage,
+                SaleDate = current.SaleDate,
+                InvoiceNumber = current.InvoiceNumber,
+                Currency = current.Currency,
+                UnitPriceInCurrency = current.UnitPriceInCurrency,
+                QuantityMt = quantityMt
+            });
+            Assert.IsType<RedirectToActionResult>(result);
+            db.ChangeTracker.Clear();
+        }
+
+        async Task AssertStateAsync(decimal quantityMt, string latestReference)
+        {
+            var sale = await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == saleId);
+            Assert.Equal(quantityMt, sale.QuantityMt);
+            Assert.Equal(quantityMt * 500m, sale.TotalUsd);
+            Assert.Equal("INV-EDIT", sale.InvoiceNumber);
+
+            var saleOuts = await db.InventoryMovements.AsNoTracking()
+                .Where(m => m.SalesTransactionId == saleId && m.Direction == MovementDirection.Out)
+                .SumAsync(m => m.QuantityMt);
+            Assert.Equal(quantityMt, saleOuts);
+
+            var tank = await db.InventoryMovements.AsNoTracking().Where(m => m.StorageTankId == 1).ToListAsync();
+            Assert.Equal(100m - quantityMt, tank.Sum(m => m.Direction == MovementDirection.In ? m.QuantityMt : -m.QuantityMt));
+
+            var ledger = await db.LedgerEntries.AsNoTracking()
+                .Where(l => l.SourceType == "Sale" && l.SourceId == saleId)
+                .OrderBy(l => l.Id)
+                .ToListAsync();
+            Assert.Equal(quantityMt * 500m, ledger.Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd));
+            Assert.Equal(latestReference, ledger[^1].Reference);
+        }
+
+        await EditQuantityAsync(20m);
+        await AssertStateAsync(20m, "INV-EDIT/E1");
+
+        await EditQuantityAsync(40m);
+        await AssertStateAsync(40m, "INV-EDIT/E2");
+
+        await BuildController(db).Cancel(saleId, cancelReason: "تست لغو بعد از ویرایش");
+        var cancelledLedger = await db.LedgerEntries.AsNoTracking()
+            .Where(l => l.SourceType == "Sale" && l.SourceId == saleId)
+            .ToListAsync();
+        Assert.Equal(0m, cancelledLedger.Sum(l => l.Side == LedgerSide.Credit ? l.AmountUsd : -l.AmountUsd));
+        var tankAfterCancel = await db.InventoryMovements.AsNoTracking().Where(m => m.StorageTankId == 1).ToListAsync();
+        Assert.Equal(100m, tankAfterCancel.Sum(m => m.Direction == MovementDirection.In ? m.QuantityMt : -m.QuantityMt));
+    }
+
+    [Fact]
+    public async Task Edit_Quantity_Is_Refused_For_In_Transit_Sale()
+    {
+        var options = NewDbOptions();
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = 70,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SaleStage = SaleStage.InTransit,
+            InvoiceNumber = "INV-TRANSIT",
+            SaleDate = new DateTime(2026, 4, 23),
+            QuantityMt = 10m,
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            AppliedFxRateToUsd = 1m,
+            UnitPriceUsd = 500m,
+            TotalInCurrency = 5_000m,
+            TotalUsd = 5_000m
+        });
+        await db.SaveChangesAsync();
+        var sale = await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == 70);
+
+        var controller = BuildController(db);
+        var result = await controller.Edit(70, new SalesCreateViewModel
+        {
+            Version = sale.Version,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SaleStage = SaleStage.InTransit,
+            SaleDate = sale.SaleDate,
+            InvoiceNumber = "INV-TRANSIT",
+            Currency = "USD",
+            UnitPriceInCurrency = 500m,
+            QuantityMt = 8m
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains("لغو", controller.ModelState[nameof(SalesCreateViewModel.QuantityMt)]!.Errors.Single().ErrorMessage);
+        Assert.Equal(10m, (await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == 70)).QuantityMt);
+    }
+
     private static void SeedReferenceData(ApplicationDbContext db)
     {
         db.Currencies.Add(new Currency { Id = 1, Code = "USD", Name = "US Dollar", Symbol = "$", IsActive = true });

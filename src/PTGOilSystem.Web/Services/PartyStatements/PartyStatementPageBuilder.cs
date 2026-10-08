@@ -204,7 +204,7 @@ public sealed class PartyStatementPageBuilder
         var contractQuery = _db.Contracts.AsNoTracking().AsQueryable();
         contractQuery = partyType switch
         {
-            PartyStatementPartyType.Supplier => contractQuery.Where(x => x.SupplierId == id),
+            PartyStatementPartyType.Supplier => contractQuery.Where(x => x.SupplierId == id && !x.IsArchived),
             PartyStatementPartyType.Customer => contractQuery.Where(x => x.CustomerId == id),
             PartyStatementPartyType.Company => contractQuery.Where(x => x.CompanyId == id),
             _ => contractQuery

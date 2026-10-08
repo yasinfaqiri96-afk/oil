@@ -62,7 +62,7 @@ public sealed class ConcurrencyVersionFormCoverageTests
     [Fact]
     public void Every_Guarded_Edit_View_Model_Exposes_A_Version_Field()
     {
-        var assembly = typeof(PTGOilSystem.Web.Data.ApplicationDbContext).Assembly;
+        var assembly = typeof(PTGOilSystem.Web.Controllers.SalesController).Assembly;
 
         string[] viewModels =
         [

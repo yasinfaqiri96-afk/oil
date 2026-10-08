@@ -52,7 +52,7 @@ wrapper روی `scripts/run-local.ps1 -Watch` (یعنی `dotnet watch`). تغی�
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ConnectionStrings__DefaultConnection = "Host=localhost;Port=5432;Username=postgres;Password=<PASSWORD>;Database=ptg_oil_system;SSL Mode=Prefer;Trust Server Certificate=true"
 
-dotnet ef database update --project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
+dotnet ef database update --project src/PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj --startup-project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
 dotnet run                --project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj
 ```
 

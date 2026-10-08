@@ -22,7 +22,22 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
 {
     private readonly ApplicationDbContext _db;
 
-    public PurchaseAggregationService(ApplicationDbContext db) => _db = db;
+    private readonly DateTime? _reportBefore;
+
+    public PurchaseAggregationService(ApplicationDbContext db, DateTime? reportAsOfDate = null)
+    {
+        _db = db;
+        _reportBefore = reportAsOfDate.HasValue ? DateTime.SpecifyKind(reportAsOfDate.Value.Date.AddDays(1), DateTimeKind.Utc) : null;
+    }
+
+    // کد نوع مصرفی که LoadingController کرایهٔ خودکار راننده را با آن ثبت و در فیلد درون‌خطی هم‌نام
+    // آینه می‌کند (LoadingController.Loading*ExpenseCode).
+    private const string LoadingTransportExpenseCode = "LOAD-TRANSPORT";
+    private const string LoadingStorageExpenseCode = "LOAD-STORAGE";
+    private const string LoadingWagonRentExpenseCode = "LOAD-WAGON-RENT";
+    private const string LoadingOtherExpenseCode = "LOAD-OTHER";
+
+    private static readonly LoadingMirroredExpenseAmounts NoMirroredExpenses = new(0m, 0m, 0m, 0m);
 
     private static decimal? ResolveEffectivePrice(
         decimal? loadingPriceUsd,
@@ -36,7 +51,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         IEnumerable<LoadingRegisterRow> rows,
         decimal? contractFinalPriceUsd,
         IReadOnlySet<int>? loadingRegisterIdsWithOfficialExpenses = null,
-        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null)
+        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null,
+        IReadOnlyDictionary<int, LoadingMirroredExpenseAmounts>? mirroredDriverExpenseAmounts = null)
     {
         decimal totalLoaded = 0m;
         decimal pricedLoaded = 0m;
@@ -66,16 +82,28 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
 
             if (!dropFixedFields)
             {
+                // بارگیریِ ردیف‌دار سندِ خودکارِ راننده (ExpenseTransaction) را هم برای نمایش در همین
+                // فیلدها آینه می‌کند (LoadingController.MirrorLoadingExpenseLinesToLoading)؛ آن سند خودش
+                // مصرف قرارداد است، پس سهمش از فیلد درون‌خطی کم می‌شود تا کرایه دو بار شمرده نشود.
+                var mirrored = isLineBased && mirroredDriverExpenseAmounts is not null
+                    && mirroredDriverExpenseAmounts.TryGetValue(row.Id, out var amounts)
+                        ? amounts
+                        : NoMirroredExpenses;
+                var inlineTransport = Math.Max((row.TransportExpenseUsd ?? 0m) - mirrored.TransportUsd, 0m);
+                var inlineWarehouse = Math.Max((row.WarehouseExpenseUsd ?? 0m) - mirrored.WarehouseUsd, 0m);
+                var inlineOther = Math.Max((row.OtherExpenseUsd ?? 0m) - mirrored.OtherUsd, 0m);
+                var inlineRailway = Math.Max((row.RailwayExpenseUsd ?? 0m) - mirrored.RailwayUsd, 0m);
+
                 // کرایه (حمل/خط‌آهن) فقط وقتی هزینهٔ شرکت است که بدوش ما باشد. ردیف‌های دستیِ
                 // «ثبت مصارف» انتخاب صریح کاربرند و همیشه شمرده می‌شوند.
                 var countFreight = isLineBased || IsCompanyFreightCost(row.FreightCostResponsibility);
-                transport += countFreight ? row.TransportExpenseUsd ?? 0m : 0m;
-                warehouse += row.WarehouseExpenseUsd ?? 0m;
-                other += row.OtherExpenseUsd ?? 0m;
-                railway += countFreight ? row.RailwayExpenseUsd ?? 0m : 0m;
+                transport += countFreight ? inlineTransport : 0m;
+                warehouse += inlineWarehouse;
+                other += inlineOther;
+                railway += countFreight ? inlineRailway : 0m;
                 if (isLineBased)
                 {
-                    railwayFromLines += row.RailwayExpenseUsd ?? 0m;
+                    railwayFromLines += inlineRailway;
                 }
             }
 
@@ -121,6 +149,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
     {
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
+            .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => lr.ContractId == contractId && !lr.IsCancelled)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
@@ -137,8 +166,9 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         var loadingIds = rows.Select(r => r.Id).ToList();
         var loadingIdsWithOfficialExpenses = await LoadLoadingIdsWithOfficialExpensesAsync(loadingIds, ct);
         var loadingIdsWithLines = await LoadLoadingIdsWithExpenseLinesAsync(loadingIds, ct);
+        var mirroredDriverExpenses = await LoadMirroredDriverExpenseAmountsAsync(loadingIds, ct);
 
-        return BuildSnapshot(contractId, rows, contractFinalPriceUsd, loadingIdsWithOfficialExpenses, loadingIdsWithLines);
+        return BuildSnapshot(contractId, rows, contractFinalPriceUsd, loadingIdsWithOfficialExpenses, loadingIdsWithLines, mirroredDriverExpenses);
     }
 
     public async Task<IReadOnlyDictionary<int, PurchaseAggregationSnapshot>> AggregateForContractsAsync(
@@ -153,6 +183,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
 
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
+            .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => contractIds.Contains(lr.ContractId) && !lr.IsCancelled)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
@@ -169,6 +200,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         var loadingIds = rows.Select(r => r.Id).ToList();
         var loadingIdsWithOfficialExpenses = await LoadLoadingIdsWithOfficialExpensesAsync(loadingIds, ct);
         var loadingIdsWithLines = await LoadLoadingIdsWithExpenseLinesAsync(loadingIds, ct);
+        var mirroredDriverExpenses = await LoadMirroredDriverExpenseAmountsAsync(loadingIds, ct);
 
         var grouped = rows
             .GroupBy(r => r.ContractId)
@@ -181,7 +213,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
             var contractRows = grouped.TryGetValue(contractId, out var list)
                 ? list
                 : new List<LoadingRegisterRow>();
-            result[contractId] = BuildSnapshot(contractId, contractRows, finalPrice, loadingIdsWithOfficialExpenses, loadingIdsWithLines);
+            result[contractId] = BuildSnapshot(contractId, contractRows, finalPrice, loadingIdsWithOfficialExpenses, loadingIdsWithLines, mirroredDriverExpenses);
         }
 
         return result;
@@ -192,6 +224,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
     {
         var rows = await _db.LoadingRegisters
             .AsNoTracking()
+            .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => !lr.IsCancelled)
             .GroupBy(lr => lr.ContractId)
             .Select(g => new { ContractId = g.Key, Quantity = g.Sum(lr => lr.LoadedQuantityMt) })
@@ -205,7 +238,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         IEnumerable<LoadingRegister> loadingRegisters,
         decimal? contractFinalPriceUsd,
         IReadOnlySet<int>? loadingRegisterIdsWithOfficialExpenses = null,
-        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null)
+        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null,
+        IReadOnlyDictionary<int, LoadingMirroredExpenseAmounts>? mirroredDriverExpenseAmounts = null)
     {
         ArgumentNullException.ThrowIfNull(loadingRegisters);
 
@@ -227,7 +261,48 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
             projected,
             contractFinalPriceUsd,
             loadingRegisterIdsWithOfficialExpenses,
-            loadingRegisterIdsWithExpenseLines);
+            loadingRegisterIdsWithExpenseLines,
+            mirroredDriverExpenseAmounts);
+    }
+
+    public async Task<IReadOnlyDictionary<int, LoadingMirroredExpenseAmounts>> LoadMirroredDriverExpenseAmountsAsync(
+        IReadOnlyCollection<int> loadingRegisterIds,
+        CancellationToken ct = default)
+    {
+        if (loadingRegisterIds is null || loadingRegisterIds.Count == 0)
+        {
+            return new Dictionary<int, LoadingMirroredExpenseAmounts>();
+        }
+
+        // همان انتخابی که LoadingController برای آینه می‌کند: سند فعال، غیرگمرکی، با راننده؛ و همان
+        // چهار کد نوع مصرف که در چهار فیلد درون‌خطی نشسته‌اند.
+        var rows = await _db.ExpenseTransactions
+            .AsNoTracking()
+            .Where(e => (!_reportBefore.HasValue || e.ExpenseDate < _reportBefore.Value) && !e.IsCancelled
+                && !e.CustomsDeclarationId.HasValue
+                && e.DriverId.HasValue
+                && e.LoadingRegisterId.HasValue
+                && loadingRegisterIds.Contains(e.LoadingRegisterId.Value)
+                && e.ExpenseType != null)
+            .Select(e => new { LoadingRegisterId = e.LoadingRegisterId!.Value, e.ExpenseType!.Code, e.AmountUsd })
+            .ToListAsync(ct);
+
+        decimal Sum(IEnumerable<(string Code, decimal AmountUsd)> items, string code)
+            => items.Where(i => string.Equals(i.Code, code, StringComparison.OrdinalIgnoreCase)).Sum(i => i.AmountUsd);
+
+        return rows
+            .GroupBy(r => r.LoadingRegisterId)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var items = g.Select(r => (r.Code, r.AmountUsd)).ToList();
+                    return new LoadingMirroredExpenseAmounts(
+                        Sum(items, LoadingTransportExpenseCode),
+                        Sum(items, LoadingStorageExpenseCode),
+                        Sum(items, LoadingWagonRentExpenseCode),
+                        Sum(items, LoadingOtherExpenseCode));
+                });
     }
 
     private async Task<HashSet<int>> LoadLoadingIdsWithOfficialExpensesAsync(
@@ -244,7 +319,7 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
         // اظهارنامه باعث می‌شود آن مصارفِ واقعی از گزارش حذف شوند و مصرف کمتر از واقع بیاید.
         var ids = await _db.ExpenseTransactions
             .AsNoTracking()
-            .Where(e => !e.IsCancelled
+            .Where(e => (!_reportBefore.HasValue || e.ExpenseDate < _reportBefore.Value) && !e.IsCancelled
                 && !e.CustomsDeclarationId.HasValue
                 && e.LoadingRegisterId.HasValue
                 && loadingRegisterIds.Contains(e.LoadingRegisterId.Value))

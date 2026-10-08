@@ -1,4 +1,5 @@
 @using PTGOilSystem.Web.Models.StatCards
+@using PTGOilSystem.Web.Models.Reports
 @model PTGOilSystem.Web.Models.Reports.CompanyFinancialOverviewViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "وضعیت مالی شرکت", "Company Financial Status");
@@ -47,12 +48,12 @@
                       unit="USD"
                       avatar="treasury"></vc:stat-card>
 
-        <vc:stat-card title="@T("طلبات ما (بدون شریک)", "We are owed (excl. partners)")"
+        <vc:stat-card title="@T("طلبات واقعی شرکت", "Actual company receivables")"
                       value="@StatCardFormatter.Number(Model.TotalReceivableUsd, 0)"
                       unit="USD"
                       avatar="receivables"></vc:stat-card>
 
-        <vc:stat-card title="@T("بدهی ما (بدون شریک)", "We owe (excl. partners)")"
+        <vc:stat-card title="@T("بدهی‌های واقعی شرکت", "Actual company payables")"
                       value="@StatCardFormatter.Number(Model.TotalPayableUsd, 0)"
                       unit="USD"
                       avatar="payments-out"></vc:stat-card>
@@ -88,6 +89,26 @@
             <a asp-action="Warnings">@T("دیدن کارهای نیمه‌تمام", "See unfinished work")</a>
         </div>
     }
+
+    @* مصارف بارگیری و ضایعات فقط شاخص کنترول‌اند و جزو «مفاد / ضرر» بالا نیستند؛ کنار آن کسر نمی‌شوند. *@
+    @{
+        var operationalTitle = T(CompanyFinancialOverviewViewModel.OperationalIndicatorsTitleFa, CompanyFinancialOverviewViewModel.OperationalIndicatorsTitleEn);
+        var operationalNote = T(CompanyFinancialOverviewViewModel.OperationalIndicatorsNoteFa, CompanyFinancialOverviewViewModel.OperationalIndicatorsNoteEn);
+    }
+    <section class="ak-form-section" aria-label="@operationalTitle">
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@((operationalTitle, (string?)operationalNote))" />
+        <div class="ak-stat-grid">
+            <vc:stat-card title="@T("مصارف بارگیری", "Loading costs")"
+                          value="@StatCardFormatter.Number(Model.LoadingOperationalCostUsd, 0)"
+                          unit="USD"
+                          avatar="transported"></vc:stat-card>
+            <vc:stat-card title="@T("کسر و ضایعات", "Shortage and losses")"
+                          value="@StatCardFormatter.Number(Model.LossCostUsd, 0)"
+                          unit="USD"
+                          avatar="losses"></vc:stat-card>
+        </div>
+    </section>
 
     <div class="ak-list">
         @{
@@ -125,7 +146,7 @@
             <div class="col-12 col-lg-6">
                 <section class="ak-form-section company-overview-balances__side company-overview-balances__side--receivable">
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((T("بزرگ‌ترین طلبات", "Largest receivables"), (string?)null))" />
+                             model="@((T("طلبات", "Receivables"), (string?)null))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table">
                             <thead>
@@ -143,7 +164,7 @@
                                     <tr>
                                         <td class="ak-col-grow">@row.PartyName</td>
                                         <td>@PartyTypeName(row.PartyType)</td>
-                                        <td class="ak-col-num ak-num">@row.BalanceUsd.ToString("N2")</td>
+                                        <td class="ak-col-num ak-num">@row.CompanyClaimUsd.ToString("N2")</td>
                                         <td><span class="ak-status @badge.Class">@badge.Text</span></td>
                                     </tr>
                                 }
@@ -160,7 +181,7 @@
             <div class="col-12 col-lg-6">
                 <section class="ak-form-section company-overview-balances__side company-overview-balances__side--payable">
                     <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((T("بزرگ‌ترین بدهی‌ها", "Largest payables"), (string?)null))" />
+                             model="@((T("بدهی‌ها", "Payables"), (string?)null))" />
                     <div class="ak-table-wrap">
                         <table class="ak-table">
                             <thead>

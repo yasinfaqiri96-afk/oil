@@ -256,7 +256,7 @@
                         </div>
                         <div class="ak-field">
                             <label class="ak-label">منبع محصول <span class="ak-req">*</span></label>
-                            <select class="ak-input" data-presale-source>
+                            <select class="ak-input" data-ak-entity-combobox data-presale-source>
                                 <option value="">انتخاب منبع</option>
                                 @foreach (var s in Model.Sources)
                                 {
@@ -357,7 +357,7 @@
                     <div class="ak-form-grid">
                         <div class="ak-field">
                             <label class="ak-label">دریافت با مانده قابل تخصیص</label>
-                            <select name="paymentTransactionId" class="ak-input" data-presale-payment>
+                            <select name="paymentTransactionId" class="ak-input" data-ak-entity-combobox data-presale-payment>
                                 @foreach (var p in Model.AllocatablePayments)
                                 {
                                     <option value="@p.PaymentTransactionId" data-allocatable="@p.AllocatableAmount">

@@ -1,0 +1,122 @@
+@using PTGOilSystem.Web.Services.Reporting
+@model PTGOilSystem.Web.Models.Reports.InventorySalesReportViewModel
+@{
+    string DetailsUrl(bool show, int page = 1) => Url.Action("InventorySales", new {
+        ProductId = Model.Stock.Filter.ProductId, TerminalId = Model.Stock.Filter.TerminalId,
+        StorageTankId = Model.Stock.Filter.StorageTankId, ToDate = Model.Stock.Filter.ToDate?.ToString("yyyy-MM-dd"),
+        showDetails = show, page
+    }) ?? "";
+    ViewData["Title"] = UiText.T(Context, "موجودی و فروش", "Inventory & Sales");
+}
+
+<div class="ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "موجودی و فروش", "Inventory & Sales"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       UiText.T(Context, "گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
+
+    <p class="ak-note">@UiText.T(Context, "همهٔ مقدارها به تُن متریک (MT) است. قابل فروش = موجودی فیزیکی − رزرو فعال پیش‌فروش؛ مال در مسیر شامل نیست.", "All quantities are metric tonnes (MT). Sellable = physical stock minus active reservations; transit is excluded.")</p>
+
+    <section class="ak-stat-grid" aria-label="@UiText.T(Context, "آمار موجودی قابل فروش", "Sellable stock metrics")">
+        @foreach (var metric in Model.Stock.Metrics.Take(3))
+        {
+            @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
+        }
+    </section>
+
+    @if (Model.Stock.TotalUnallocatedReservedMt > 0m)
+    {
+        <p class="ak-note">@UiText.T(Context, "رزرو بدون جواز مشخص:", "Reservations without an assigned company:") <bdi>@Model.Stock.TotalUnallocatedReservedMt.ToString("N4") MT</bdi> — @UiText.T(Context, "این مقدار جداست و از موجودی جوازها کم نشده است.", "Shown separately; not deducted from company stock.")</p>
+    }
+    @if (Model.Stock.Filter.TerminalId.HasValue || Model.Stock.Filter.StorageTankId.HasValue)
+    {
+        <p class="ak-note">@UiText.T(Context, "موجودی برای محل انتخاب‌شده است؛ رزرو در سطح جنس و جواز ثبت می‌شود و به ترمینال یا مخزن مشخص اختصاص ندارد.", "Physical stock is location-filtered; reservations belong to the product and company, not a specific terminal or tank.")</p>
+    }
+    @if (Model.Stock.Filter.ToDate.HasValue)
+    {
+        <p class="ak-note">@UiText.T(Context, "موجودی تا تاریخ انتخاب‌شده است؛ رزرو، تعهد فعال فعلی سفارش‌های ثبت‌شده تا آن تاریخ است و بازسازی تاریخی رزرو نیست.", "Stock is as of the selected date; reservations are current active commitments for orders entered by that date, not historical reservation balances.")</p>
+    }
+
+    <div class="ak-list">
+        @{
+            List<AkFilterOption> StockOpts(object? s) => (s as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+                ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>())
+                .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
+            var stockFilter = new AkSearchFilterModel("", null,
+                UiText.T(Context, "جنس، محل یا تاریخ را انتخاب کنید...", "Select a product, location or date..."),
+                new List<AkFilterDefinition>
+                {
+                    new("ToDate", UiText.T(Context, "تا تاریخ", "As of"), "date", null,
+                        Model.Stock.Filter.ToDate?.ToString("yyyy-MM-dd")),
+                    new("ProductId", UiText.T(Context, "جنس", "Product"), "select", StockOpts(ViewBag.Products),
+                        Model.Stock.Filter.ProductId?.ToString()),
+                    new("TerminalId", UiText.T(Context, "ترمینال", "Terminal"), "select", StockOpts(ViewBag.Terminals),
+                        Model.Stock.Filter.TerminalId?.ToString()),
+                    new("StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", StockOpts(ViewBag.StorageTanks),
+                        Model.Stock.Filter.StorageTankId?.ToString())
+                });
+        }
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="stockFilter" />
+            <div class="ak-list-toolbar-actions">
+                <a class="btn btn-sm btn-light" href="@DetailsUrl(!Model.ShowDetails)">@UiText.T(Context, Model.ShowDetails ? "بستن جزئیات" : "گردش و بررسی", Model.ShowDetails ? "Hide details" : "Movements & review")</a>
+                <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("SellableStockExport"))" />
+            </div>
+        </div>
+
+        <div class="ak-table-wrap">
+            <table class="ak-table">
+                <thead>
+                    <tr>
+                        <th class="ak-col-grow">@UiText.T(Context, "جنس", "Product")</th>
+                        <th>@UiText.T(Context, "جواز", "Company")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "موجودی فیزیکی (MT)", "Physical MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رزرو (MT)", "Reserved MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "قابل فروش (MT)", "Sellable MT")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "رزرو بدون منبع", "Unallocated")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Stock.Rows)
+                    {
+                        <tr>
+                            <td class="ak-col-grow">
+                                <a class="ak-link" asp-action="InventorySales" asp-route-ProductId="@row.ProductId"
+                                   asp-route-TerminalId="@Model.Stock.Filter.TerminalId"
+                                   asp-route-StorageTankId="@Model.Stock.Filter.StorageTankId"
+                                   asp-route-ToDate="@(Model.Stock.Filter.ToDate?.ToString("yyyy-MM-dd"))"
+                                   asp-route-showDetails="true"
+                                   aria-label="@UiText.T(Context, $"گردش {row.ProductName}", $"Movements for {row.ProductName}")">@row.ProductName</a>
+                            </td>
+                            <td>@row.CompanyName</td>
+                            <td class="ak-col-num ak-num">@row.PhysicalStockMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.ReservedMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@row.SellableMt.ToString("N4")</td>
+                            <td class="ak-col-num ak-num">@(row.UnallocatedReservedMt > 0m ? row.UnallocatedReservedMt.ToString("N4") : "-")</td>
+                            <td>
+                                @if (row.IsOverReserved)
+                                {
+                                    <span class="ak-badge ak-badge-danger">@UiText.T(Context, "رزرو بیشتر از موجودی", "Over-reserved")</span>
+                                }
+                                else if (row.Attribution == ReservationAttribution.Unallocated)
+                                {
+                                    <span class="ak-badge ak-badge-warning">@UiText.T(Context, "بدون جواز مشخص", "Unallocated")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Stock.Rows.Any())
+                    {
+                        <tr><td colspan="7"><div class="ak-empty"><i class="bi bi-box-seam"></i> @UiText.T(Context, "موجودی‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No stock found; change the filters.")</div></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <partial name="_InventorySalesDetails" model="Model" />
+</div>

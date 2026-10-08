@@ -1,0 +1,95 @@
+@model PTGOilSystem.Web.Models.Reports.CompanyBalanceDetailsViewModel
+@using PTGOilSystem.Web.Models.Reports
+@using Txt = PTGOilSystem.Web.Models.Reports.CompanyBalanceReportText
+@{
+    ViewData["Title"] = UiText.T(Context, Model.TitleFa, Model.TitleEn);
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var report = Model.Report;
+    var currency = report.CurrencyCode;
+    var from = report.ReportFromDate.ToString("yyyy-MM-dd");
+    var to = report.ReportToDate.ToString("yyyy-MM-dd");
+    var backUrl = Url.Action("CompanyBalance", new { FromDate = from, ToDate = to, Currency = currency });
+    // جمع همان عددی است که روی سند اصلی چاپ شده، نه جمع دوبارهٔ ردیف‌های گردشده.
+    var total = Model.Section switch
+    {
+        CompanyBalanceSection.PeriodExpenses => report.PeriodExpenses,
+        CompanyBalanceSection.SalesRevenue => report.SalesRevenue,
+        _ => report.Line(Model.Section)?.Amount ?? 0m
+    };
+    var scope = Model.Section is CompanyBalanceSection.PeriodExpenses or CompanyBalanceSection.SalesRevenue
+        ? Txt.Period(report.ReportFromDate, report.ReportToDate)
+        : $"تا {Txt.Date(report.ReportToDate)}";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/ptg/64-company-balance.css" asp-append-version="true" data-ptg-page-asset="company-balance" />
+}
+
+<div class="ak-list-page cbr-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((T(Model.TitleFa, Model.TitleEn), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       T("بیلانس کلی شرکت", "Company Balance Sheet"), "bi-arrow-right", backUrl))" />
+
+    <section class="ak-list">
+        <div class="cbr-details-head">
+            <span>@scope · <bdi>@currency</bdi></span>
+            <strong><bdi>@Txt.Money(total, currency)</bdi></strong>
+        </div>
+
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="ak-empty">@T("برای این ردیف تا این تاریخ ماندهٔ ثبت‌شده‌ای وجود ندارد.", "No balance recorded for this line up to this date.")</div>
+        }
+        else
+        {
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Txt.DescriptionHeader</th>
+                            <th scope="col">@T("جزئیات", "Details")</th>
+                            @if (Model.HasQuantity)
+                            {
+                                <th scope="col" class="cbr-num">@T("مقدار (تن)", "Quantity (MT)")</th>
+                            }
+                            <th scope="col" class="cbr-num">@Txt.AmountHeader(currency)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(row.LinkController) && row.LinkId.HasValue)
+                                    {
+                                        <a href="@Url.Action(row.LinkAction ?? "Details", row.LinkController, new { id = row.LinkId })">@row.Name</a>
+                                    }
+                                    else
+                                    {
+                                        @row.Name
+                                    }
+                                </td>
+                                <td class="cbr-muted">@(row.Secondary ?? "—")</td>
+                                @if (Model.HasQuantity)
+                                {
+                                    <td class="cbr-num"><bdi>@(row.QuantityMt.HasValue ? Txt.Quantity(row.QuantityMt.Value) : "—")</bdi></td>
+                                }
+                                <td class="cbr-num @(row.Amount < 0m ? "is-negative" : null)">
+                                    @if (row.IsValued)
+                                    {
+                                        <bdi>@Txt.Amount(row.Amount)</bdi>
+                                    }
+                                    else
+                                    {
+                                        <span class="cbr-muted">@T("بدون قیمت خرید", "No purchase price")</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

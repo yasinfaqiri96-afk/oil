@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -11,6 +11,14 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../PTGOilSystem.Persistence/PTGOilSystem.Persistence.csproj" />
+    <ProjectReference Include="../PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj" />
+    <Compile Remove="Data/PaymentCompanyBackfillSql.cs" />
+    <Compile Remove="Data/ApplicationDbContext.cs;Data/Configurations/**/*.cs;Models/Entities/**/*.cs;Security/CurrentUserContext.cs;Helpers/AfghanTextNormalizer.cs;Services/Time/AfghanistanBusinessClock.cs;Services/Customs/CustomsComponentGroupMap.cs" />
+    <Compile Remove="Services/ContractClosure/ContractClosureScope.cs;Services/OperationalPeriod/OperationalPeriodScope.cs;Services/OperationalPeriod/OperationalPeriodMessage.cs;Helpers/DateDisplay.cs;Services/Calendars/AppCalendarContext.cs;Services/Calendars/AfghanSolarCalendar.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.39.0" />
@@ -130,7 +138,13 @@
     </Task>
   </UsingTask>
 
-  <Target Name="BuildCssBundles" BeforeTargets="BeforeBuild;BeforePublish">
+  <!-- Debug/Development loads source assets. Keep the shared bundle target
+       available to Publish (including NoBuild=true) and explicit opt-in builds. -->
+  <Target Name="BuildCssBundlesForBuild" BeforeTargets="BeforeBuild"
+          Condition="'$(Configuration)' != 'Debug' Or '$(PtgBuildBundles)' == 'true'"
+          DependsOnTargets="BuildCssBundles" />
+
+  <Target Name="BuildCssBundles" BeforeTargets="PrepareForPublish">
     <ItemGroup>
       <PtgCoreCss Include="wwwroot/css/_variables.css" />
       <PtgCoreCss Include="wwwroot/css/_utilities.css" />
@@ -196,6 +210,27 @@
     <BundleCss Sources="@(PtgCoreCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-core.bundle.css" />
     <BundleCss Sources="@(PtgAppCss)" Output="$(MSBuildProjectDirectory)/wwwroot/css/ptg-app.bundle.css" />
     <BundleJs Sources="@(PtgCoreJs)" Output="$(MSBuildProjectDirectory)/wwwroot/js/ptg-core.bundle.js" />
+    <ItemGroup>
+      <!-- Include freshly generated assets even on a checkout without bundles. -->
+      <Content Include="wwwroot/css/ptg-core.bundle.css;wwwroot/css/ptg-app.bundle.css;wwwroot/js/ptg-core.bundle.js"
+               Exclude="@(Content)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- A Debug publish with NoBuild=true may reuse a manifest made without bundles.
+       Explicit publish items keep those generated files in the final output. -->
+  <Target Name="IncludeProductionBundlesInPublish" AfterTargets="ComputeFilesToPublish"
+          DependsOnTargets="BuildCssBundles">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(ResolvedFileToPublish.RelativePath)' == 'wwwroot/css/ptg-core.bundle.css' Or '%(ResolvedFileToPublish.RelativePath)' == 'wwwroot/css/ptg-app.bundle.css' Or '%(ResolvedFileToPublish.RelativePath)' == 'wwwroot/js/ptg-core.bundle.js'" />
+      <ResolvedFileToPublish Include="$(MSBuildProjectDirectory)/wwwroot/css/ptg-core.bundle.css"
+          RelativePath="wwwroot/css/ptg-core.bundle.css" CopyToPublishDirectory="PreserveNewest" />
+      <ResolvedFileToPublish Include="$(MSBuildProjectDirectory)/wwwroot/css/ptg-app.bundle.css"
+          RelativePath="wwwroot/css/ptg-app.bundle.css" CopyToPublishDirectory="PreserveNewest" />
+      <ResolvedFileToPublish Include="$(MSBuildProjectDirectory)/wwwroot/js/ptg-core.bundle.js"
+          RelativePath="wwwroot/js/ptg-core.bundle.js" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
   </Target>
 
 </Project>

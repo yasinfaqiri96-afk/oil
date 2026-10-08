@@ -26,7 +26,7 @@
         <input type="hidden" name="@Name("ExpenseTransactionId")" value="@Model.ExpenseTransactionId" data-row-expense-tx />
         <input type="hidden" name="@Name("AssetRentTransactionId")" value="@Model.AssetRentTransactionId" data-row-asset-rent />
         <input type="hidden" name="@Name("Notes")" value="@Model.Notes" />
-        <select name="@Name("ExpenseTypeId")" class="ak-input" data-row-type aria-label="نوع مصرف">
+        <select name="@Name("ExpenseTypeId")" class="ak-input" data-ak-entity-combobox data-row-type aria-label="نوع مصرف">
             <option value="">انتخاب نوع</option>
             @foreach (var o in typeOptions)
             {
@@ -62,16 +62,16 @@
         </select></td>
 
     <td>
-        <select name="@Name("ServiceProviderId")" class="ak-input" data-row-provider aria-label="انتخاب شرکت خدماتی"
-                @(isProvider ? null : "disabled") hidden="@(isProvider ? null : "hidden")">
+        <select name="@Name("ServiceProviderId")" class="ak-input" data-ak-entity-combobox data-row-provider aria-label="انتخاب شرکت خدماتی"
+                disabled="@(isProvider ? null : "disabled")" hidden="@(isProvider ? null : "hidden")">
             <option value="">انتخاب شرکت</option>
             @foreach (var o in providerOptions)
             {
                 <option value="@o.Value" selected="@(o.Value == providerValue ? "selected" : null)">@o.Text</option>
             }
         </select>
-        <select name="@Name("OperationalAssetId")" class="ak-input" data-row-asset aria-label="انتخاب دارایی ملکی"
-                @(isAsset ? null : "disabled") hidden="@(isAsset ? null : "hidden")">
+        <select name="@Name("OperationalAssetId")" class="ak-input" data-ak-entity-combobox data-row-asset aria-label="انتخاب دارایی ملکی"
+                disabled="@(isAsset ? null : "disabled")" hidden="@(isAsset ? null : "hidden")">
             <option value="">انتخاب دارایی</option>
             @foreach (var o in assetOptions)
             {

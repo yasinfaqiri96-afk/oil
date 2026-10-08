@@ -104,7 +104,7 @@ public sealed class PartnerAccountingUnificationTests
     }
 
     [Fact]
-    public async Task AcceptanceScenario_ReceivablesPayables_GivesTheSameBalanceAsTheProfile()
+    public async Task AcceptanceScenario_ReceivablesPayables_DoesNotTreatCreditSalesAsPartnerCash()
     {
         await using var db = CreateDb();
         var s = await SeedAcceptanceAsync(db);
@@ -112,7 +112,7 @@ public sealed class PartnerAccountingUnificationTests
         var rows = await BuildBalancesAsync(db);
 
         Assert.Equal(FawadNetPosition, PartnerRow(rows, s.FawadId).ClosingBalanceUsd);
-        Assert.Equal(-FawadNetPosition, PartnerRow(rows, s.YusufId).ClosingBalanceUsd);
+        Assert.Equal(YusufContribution + ProfitShareEach, PartnerRow(rows, s.YusufId).ClosingBalanceUsd);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class PartnerAccountingUnificationTests
         var rows = await BuildBalancesAsync(db);
 
         Assert.Equal("شریک از شراکت طلبکار است", PartnerRow(rows, s.FawadId).BalanceMeaning);
-        Assert.Equal("شریک به شراکت بدهکار است", PartnerRow(rows, s.YusufId).BalanceMeaning);
+        Assert.Equal("شریک از شراکت طلبکار است", PartnerRow(rows, s.YusufId).BalanceMeaning);
     }
 
     // ————————————————— هویت شرکت ↔ شریک —————————————————
@@ -276,7 +276,7 @@ public sealed class PartnerAccountingUnificationTests
         Assert.Equal(FawadNetPosition - 100_000m, fawad.NetPositionUsd);
         Assert.Equal(-(FawadNetPosition - 100_000m), yusuf.NetPositionUsd);
         Assert.Equal(fawad.NetPositionUsd, PartnerRow(rows, s.FawadId).ClosingBalanceUsd);
-        Assert.Equal(yusuf.NetPositionUsd, PartnerRow(rows, s.YusufId).ClosingBalanceUsd);
+        Assert.Equal(YusufContribution + ProfitShareEach + 100_000m, PartnerRow(rows, s.YusufId).ClosingBalanceUsd);
     }
 
     [Fact]

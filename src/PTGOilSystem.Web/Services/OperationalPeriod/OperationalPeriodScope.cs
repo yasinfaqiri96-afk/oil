@@ -12,7 +12,7 @@ namespace PTGOilSystem.Web.Services.OperationalPeriod;
 /// عمداً فقط اسنادی اینجا هستند که موجودی یا مانده‌ای می‌سازند. دادهٔ پایه (کالا، ترمینال،
 /// نرخ روز، کاربر) تاریخِ دوره ندارد و قفل به آن کاری ندارد.
 /// </summary>
-public static class OperationalPeriodScope
+public static partial class OperationalPeriodScope
 {
     /// <summary>
     /// تاریخِ تجاریِ این موجودیت، یا null اگر اصلاً در دامنهٔ قفل نباشد.

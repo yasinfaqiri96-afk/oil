@@ -277,11 +277,11 @@
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="OperationalAssetId" value="@Model.Id" />
                     <div class="ak-form-grid">
-                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "مسئول", "Responsible")</label><select name="ResponsiblePartyKey" asp-items="ViewBag.ResponsibleParties" class="ak-input" required><option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option></select></div>
+                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "مسئول", "Responsible")</label><select name="ResponsiblePartyKey" asp-items="ViewBag.ResponsibleParties" class="ak-input" data-ak-entity-combobox required><option value="">@UiText.T(Context, "انتخاب کنید...", "Select...")</option></select></div>
                         <div class="ak-field"><label class="ak-label">@UiText.T(Context, "نقش", "Role")</label><input name="Role" value="@Model.NewAssignment.Role" class="ak-input" required /></div>
                         <div class="ak-field"><label class="ak-label">@UiText.T(Context, "از تاریخ", "From")</label><input name="FromDate" value="@Model.NewAssignment.FromDate.ToString("yyyy-MM-dd")" type="date" class="ak-input" required /></div>
-                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "ترمینال پایه", "Base terminal")</label><select name="BaseTerminalId" asp-items="ViewBag.AssignmentTerminals" class="ak-input"><option value="">-</option></select></div>
-                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "راننده (اختیاری)", "Driver (optional)")</label><select name="DriverId" asp-items="ViewBag.AssignmentDrivers" class="ak-input"><option value="">-</option></select></div>
+                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "ترمینال پایه", "Base terminal")</label><select name="BaseTerminalId" asp-items="ViewBag.AssignmentTerminals" class="ak-input" data-ak-entity-combobox><option value="">-</option></select></div>
+                        <div class="ak-field"><label class="ak-label">@UiText.T(Context, "راننده (اختیاری)", "Driver (optional)")</label><select name="DriverId" asp-items="ViewBag.AssignmentDrivers" class="ak-input" data-ak-entity-combobox><option value="">-</option></select></div>
                         <div class="ak-field"><label class="ak-label">@UiText.T(Context, "یادداشت", "Notes")</label><input name="Notes" class="ak-input" /></div>
                     </div>
                     <div class="ak-footer-actions"><button type="submit" class="ak-save">@UiText.T(Context, "ثبت مسئولیت جدید", "Save new assignment")</button></div>
@@ -835,7 +835,7 @@
                                 </div>
                                 <div class="ak-field" data-oa-rent-party-field="internal-customer">
                                     <label asp-for="NewRent.ChargedToCustomerId" class="ak-label">@UiText.T(Context, "مشتری", "Customer")</label>
-                                    <select name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input">
+                                    <select name="ChargedToCustomerId" asp-items="ViewBag.Customers" class="ak-input" data-ak-entity-combobox>
                                         <option value="">@UiText.T(Context, "مشتری را انتخاب کنید...", "Select customer...")</option>
                                     </select>
                                 </div>

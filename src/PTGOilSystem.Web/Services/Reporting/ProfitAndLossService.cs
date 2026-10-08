@@ -81,10 +81,11 @@ public static class PnlMath
 
 /// <summary>
 /// Authoritative read engine for realised sales P&amp;L.
-/// Revenue comes from non-cancelled <see cref="SalesTransaction"/> rows and COGS
-/// comes only from active <see cref="SalesCostConsumption"/> snapshots. Missing
-/// consumption is surfaced as <see cref="PnlConfidence.NeedsReview"/>; it is never
-/// replaced with a guessed current price.
+/// Revenue comes from non-cancelled <see cref="SalesTransaction"/> rows. COGS of a sale comes from its
+/// attributed purchase-contract share × the contract cost basis as of the sale date (Estimated), else
+/// from active <see cref="SalesCostConsumption"/> snapshots (Verified). <see cref="BuildCompanyAsync"/>
+/// and <see cref="BuildForSaleContractsAsync"/> keep pool-only COGS. A sale with neither is surfaced as
+/// <see cref="PnlConfidence.NeedsReview"/>; it is never replaced with a guessed current price.
 /// </summary>
 public interface IProfitAndLossService
 {
@@ -94,6 +95,19 @@ public interface IProfitAndLossService
 
     Task<CompanyPnlSnapshot> BuildCompanyAsync(
         ManagementReportFilterViewModel filter,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// تنها موتورِ «عملکرد دوره» برای گزارش‌های مدیریتیِ سطح شرکت (بیلانس کلی، وضعیت مالی شرکت، سود
+    /// امروزِ موبایل): فروش − بهای فروش − مصارف دوره ± نتیجهٔ ارزی. بهای فروش همان قاعدهٔ
+    /// <see cref="BuildForSalesAsync"/> است: سهمِ هر فروش از قرارداد خرید × بهای واحدِ همان قرارداد تا تاریخ
+    /// خودِ آن فروش؛ فروشِ بی‌بهای قراردادی بهای Pool فعال را می‌گیرد. <paramref name="costBasis"/> (تا «تا تاریخ»
+    /// یا <paramref name="asOfDate"/>) فقط برای گدام/سایرِ بی‌سندِ بارگیری است و از ساختِ دوباره جلوگیری می‌کند.
+    /// </summary>
+    Task<CompanyPeriodPerformanceSnapshot> BuildCompanyPeriodAsync(
+        ManagementReportFilterViewModel filter,
+        DateTime asOfDate,
+        PurchaseCostBasis? costBasis = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -107,7 +121,9 @@ public interface IProfitAndLossService
     /// <summary>
     /// Realised P&amp;L for an explicit set of sales, grouped by an arbitrary caller key
     /// (shipment, contract journey, wagon…). The caller owns the lineage that maps a sale
-    /// to its group; revenue and COGS still come only from this service.
+    /// to its group; revenue and COGS still come only from this service. COGS of a sale is its
+    /// purchase-contract share × that contract's cost basis as of the sale date, else its active pool
+    /// cost — never both (ProfitAndLossService.SaleCost).
     /// </summary>
     Task<IReadOnlyDictionary<int, SalesPnlSnapshot>> BuildForSaleGroupsAsync(
         IReadOnlyDictionary<int, int> saleIdToGroupKey,
@@ -124,22 +140,45 @@ public interface IProfitAndLossService
     Task<SalesPnlSnapshot> BuildForSalesAsync(
         IReadOnlyCollection<int> salesTransactionIds,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// سود محققِ همین فروش‌ها فقط در دامنهٔ یک قرارداد خرید: عاید و بهای سهمِ همان قرارداد؛ فروشی که سهمی
+    /// از آن قرارداد ندارد کامل حساب می‌شود. همان قاعدهٔ بهای فروش <see cref="BuildForSalesAsync"/>.
+    /// </summary>
+    Task<SalesPnlSnapshot> BuildForPurchaseContractSalesAsync(
+        int purchaseContractId,
+        IReadOnlyCollection<int> salesTransactionIds,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// بهای واحد هر قرارداد خرید «تا یک تاریخ»: فقط بارگیری‌های لغونشده‌ای که تا پایان همان روز ثبت
+    /// شده‌اند، با همان حساب <see cref="IPurchaseAggregationService"/>، به‌علاوهٔ کرایهٔ مستقیمِ بی‌سندِ
+    /// همان بارگیری‌ها. برای ارزش‌گذاری تاریخی (بیلانس کلی شرکت)؛ روی <see cref="BuildContractEconomicsAsync"/>
+    /// اثری ندارد.
+    /// </summary>
+    Task<PurchaseCostBasis> BuildPurchaseCostBasisAsync(
+        IReadOnlyCollection<int> purchaseContractIds,
+        DateTime asOfDate,
+        CancellationToken ct = default);
 }
 
 public sealed partial class ProfitAndLossService : IProfitAndLossService
 {
     private readonly ApplicationDbContext _db;
+    private readonly DateTime? _reportBefore;
     private readonly IPurchaseAggregationService _purchaseAggregation;
     private readonly ISaleContractAttributionReader _saleAttribution;
 
     public ProfitAndLossService(
         ApplicationDbContext db,
         IPurchaseAggregationService? purchaseAggregation = null,
-        ISaleContractAttributionReader? saleAttribution = null)
+        ISaleContractAttributionReader? saleAttribution = null,
+        DateTime? reportAsOfDate = null)
     {
         _db = db;
-        _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
-        _saleAttribution = saleAttribution ?? new SaleContractAttributionReader(db);
+        _reportBefore = reportAsOfDate.HasValue ? DateTime.SpecifyKind(reportAsOfDate.Value.Date.AddDays(1), DateTimeKind.Utc) : null;
+        _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db, reportAsOfDate);
+        _saleAttribution = saleAttribution ?? new SaleContractAttributionReader(db, reportAsOfDate);
     }
 
     public async Task<IReadOnlyDictionary<int, SalesPnlSnapshot>> BuildForSaleContractsAsync(
@@ -182,65 +221,21 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(saleIdToGroupKey);
-        var requestedSaleIds = saleIdToGroupKey.Keys.Where(id => id > 0).Distinct().ToArray();
-        if (requestedSaleIds.Length == 0)
-        {
-            return new Dictionary<int, SalesPnlSnapshot>();
-        }
-
-        var (sales, costBySale) = await LoadSalesAndCostsAsync(requestedSaleIds, ct);
-        return sales
-            .Where(s => saleIdToGroupKey.ContainsKey(s.Id))
-            .GroupBy(s => saleIdToGroupKey[s.Id])
-            .ToDictionary(
-                g => g.Key,
-                g => BuildSalesSnapshot(g.Select(s => (s.Id, s.TotalUsd)), costBySale));
+        // فروش لغوشده و Pool برگشت‌خورده در LoadSaleCostInputsAsync کنار می‌روند و هیچ گروهی آن‌ها را برنمی‌گرداند.
+        var inputs = await LoadSaleCostInputsAsync(saleIdToGroupKey.Keys.ToList(), ct);
+        return inputs.Sales.Keys
+            .GroupBy(id => saleIdToGroupKey[id])
+            .ToDictionary(g => g.Key, g => ToSnapshot(CostSales(g, inputs)));
     }
 
     public async Task<SalesPnlSnapshot> BuildForSalesAsync(
         IReadOnlyCollection<int> salesTransactionIds,
         CancellationToken ct = default)
     {
-        var ids = salesTransactionIds.Where(id => id > 0).Distinct().ToArray();
-        if (ids.Length == 0)
-        {
-            return BuildSalesSnapshot([], new Dictionary<int, decimal>());
-        }
-
-        var (sales, costBySale) = await LoadSalesAndCostsAsync(ids, ct);
-        return BuildSalesSnapshot(sales.Select(s => (s.Id, s.TotalUsd)), costBySale);
+        ArgumentNullException.ThrowIfNull(salesTransactionIds);
+        var inputs = await LoadSaleCostInputsAsync(salesTransactionIds, ct);
+        return ToSnapshot(CostSales(inputs.Sales.Keys, inputs));
     }
-
-    /// <summary>
-    /// Loads non-cancelled revenue rows plus their active cost snapshots for an explicit id set.
-    /// Cancelled sales and reversed consumption rows are dropped here so no caller can re-add them.
-    /// </summary>
-    private async Task<(List<SaleRevenueRow> Sales, Dictionary<int, decimal> CostBySale)> LoadSalesAndCostsAsync(
-        int[] saleIds,
-        CancellationToken ct)
-    {
-        var sales = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled && saleIds.Contains(s.Id))
-            .Select(s => new SaleRevenueRow(s.Id, s.TotalUsd))
-            .ToListAsync(ct);
-
-        if (sales.Count == 0)
-        {
-            return (sales, new Dictionary<int, decimal>());
-        }
-
-        var presentSaleIds = sales.Select(s => s.Id).ToArray();
-        var costs = await _db.SalesCostConsumptions.AsNoTracking()
-            .Where(c => c.Status == SalesCostConsumptionStatus.Active
-                && presentSaleIds.Contains(c.SalesTransactionId))
-            .GroupBy(c => c.SalesTransactionId)
-            .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-            .ToListAsync(ct);
-
-        return (sales, costs.ToDictionary(c => c.SaleId, c => c.CostUsd));
-    }
-
-    private sealed record SaleRevenueRow(int Id, decimal TotalUsd);
 
     public async Task<CompanyPnlSnapshot> BuildCompanyAsync(
         ManagementReportFilterViewModel filter,
@@ -248,14 +243,7 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var salesQuery = _db.SalesTransactions.AsNoTracking().Where(s => !s.IsCancelled);
-        if (filter.FromDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate >= filter.FromDate.Value.Date);
-        if (filter.ToDate.HasValue) salesQuery = salesQuery.Where(s => s.SaleDate < filter.ToDate.Value.Date.AddDays(1));
-        if (filter.ProductId.HasValue) salesQuery = salesQuery.Where(s => s.ProductId == filter.ProductId.Value);
-        if (filter.ContractId.HasValue) salesQuery = salesQuery.Where(s => s.ContractId == filter.ContractId.Value);
-        if (filter.CustomerId.HasValue) salesQuery = salesQuery.Where(s => s.CustomerId == filter.CustomerId.Value);
-
-        var sales = await salesQuery
+        var sales = await CompanySalesQuery(filter)
             .Select(s => new { s.Id, s.TotalUsd })
             .ToListAsync(ct);
         var saleIds = sales.Select(s => s.Id).ToArray();
@@ -289,7 +277,8 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
                 .SumAsync(e => (decimal?)e.AmountUsd, ct) ?? 0m;
 
         var fxQuery = _db.SarrafSettlements.AsNoTracking()
-            .Where(s => s.Status == SarrafSettlementStatus.Posted);
+            .Where(s => (!_reportBefore.HasValue || s.SettlementDate < _reportBefore.Value)
+                && s.Status == SarrafSettlementStatus.Posted);
         if (filter.FromDate.HasValue) fxQuery = fxQuery.Where(s => s.SettlementDate >= filter.FromDate.Value.Date);
         if (filter.ToDate.HasValue) fxQuery = fxQuery.Where(s => s.SettlementDate < filter.ToDate.Value.Date.AddDays(1));
         if (filter.ContractId.HasValue) fxQuery = fxQuery.Where(s => s.ContractId == filter.ContractId.Value);
@@ -304,7 +293,8 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
             })
             .FirstOrDefaultAsync(ct);
 
-        var ledgerQuery = _db.LedgerEntries.AsNoTracking().Where(l => FxLedgerSourceTypes.Contains(l.SourceType));
+        var ledgerQuery = _db.LedgerEntries.AsNoTracking().Where(l => (!_reportBefore.HasValue || l.EntryDate < _reportBefore.Value)
+                && FxLedgerSourceTypes.Contains(l.SourceType));
         if (filter.FromDate.HasValue) ledgerQuery = ledgerQuery.Where(l => l.EntryDate >= filter.FromDate.Value.Date);
         if (filter.ToDate.HasValue) ledgerQuery = ledgerQuery.Where(l => l.EntryDate < filter.ToDate.Value.Date.AddDays(1));
         if (filter.ContractId.HasValue) ledgerQuery = ledgerQuery.Where(l => l.ContractId == filter.ContractId.Value);
@@ -334,14 +324,16 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
         }
 
         var settlements = await _db.SarrafSettlements.AsNoTracking()
-            .Where(s => s.Status == SarrafSettlementStatus.Posted
+            .Where(s => (!_reportBefore.HasValue || s.SettlementDate < _reportBefore.Value)
+                && s.Status == SarrafSettlementStatus.Posted
                 && s.ContractId != null
                 && ids.Contains(s.ContractId.Value))
             .GroupBy(s => new { ContractId = s.ContractId!.Value, s.DifferenceType })
             .Select(g => new { g.Key.ContractId, g.Key.DifferenceType, AmountUsd = g.Sum(s => Math.Abs(s.DifferenceAmountUsd)) })
             .ToListAsync(ct);
         var ledgerRows = await _db.LedgerEntries.AsNoTracking()
-            .Where(l => FxLedgerSourceTypes.Contains(l.SourceType)
+            .Where(l => (!_reportBefore.HasValue || l.EntryDate < _reportBefore.Value)
+                && FxLedgerSourceTypes.Contains(l.SourceType)
                 && l.ContractId != null
                 && ids.Contains(l.ContractId.Value))
             .GroupBy(l => new { ContractId = l.ContractId!.Value, l.SourceType, l.Side })
@@ -408,8 +400,14 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
     }
 
     /// <summary>نوعِ مصرفِ «تفاوت نرخ»؛ همان قاعدهٔ یافتنِ نوع در روزنامچه و شناساییِ تفاوت نرخ.</summary>
-    private IQueryable<int> FxDifferenceExpenseTypeIds()
-        => _db.ExpenseTypes.AsNoTracking()
+    private IQueryable<int> FxDifferenceExpenseTypeIds() => FxDifferenceExpenseTypeIds(_db);
+
+    /// <summary>
+    /// همان قاعده برای گزارش‌هایی که تفکیکِ «مصارف عملیاتی» سودِ شرکت را نشان می‌دهند
+    /// (بیلانس کلی شرکت) تا جمعِ تفکیک با <see cref="CompanyPnlSnapshot.OperatingExpenseUsd"/> یکی بماند.
+    /// </summary>
+    internal static IQueryable<int> FxDifferenceExpenseTypeIds(ApplicationDbContext db)
+        => db.ExpenseTypes.AsNoTracking()
             .Where(t => t.Category == "FxDifference" || t.Code == SupplierFxRecognitionService.FxDifferenceExpenseCode)
             .Select(t => t.Id);
 

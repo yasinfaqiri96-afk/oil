@@ -669,7 +669,8 @@
                     rubRateDate: typeof payload.rubRateDate === 'string' ? payload.rubRateDate : '',
                     rubRateSource: typeof payload.rubRateSource === 'string' ? payload.rubRateSource : '',
                     needsReview: payload.needsReview === true,
-                    reason: typeof payload.reason === 'string' ? payload.reason : ''
+                    reason: typeof payload.reason === 'string' ? payload.reason : '',
+                    remainingQuantityMt: typeof payload.remainingQuantityMt === 'number' ? payload.remainingQuantityMt : null
                 };
             }
 
@@ -1547,8 +1548,36 @@
                 return pricing.finalUnitPrice;
             }
 
+            function getRowContractKey(row) {
+                const selectedContractIds = getSelectedContractIds();
+                return selectedContractIds.length > 1
+                    ? row.querySelector('[data-row-contract-select]')?.value || ''
+                    : selectedContractIds[0] || '';
+            }
+
+            // وزن پیش‌فرض سطر = باقیماندهٔ قرارداد منهای وزن سطرهای دیگر همان قرارداد؛
+            // فقط فیلد خالی یا خودکارپرشده را پر می‌کند و کاربر می‌تواند آن را کم یا زیاد کند.
+            function applyDefaultQuantityToRow(row, pricing) {
+                const quantityInput = row.querySelector('[data-row-quantity]');
+                const remaining = pricing?.remainingQuantityMt;
+                if (!quantityInput || row.dataset.virtualIndex !== undefined
+                    || typeof remaining !== 'number' || !canAutofill(quantityInput)) {
+                    return;
+                }
+
+                const contractKey = getRowContractKey(row);
+                const otherRowsQuantity = Array.from(rowsHost.querySelectorAll('[data-loading-row]'))
+                    .filter(other => other !== row && getRowContractKey(other) === contractKey)
+                    .reduce((sum, other) => sum + parseDecimal(other.querySelector('[data-row-quantity]')), 0);
+                const suggested = remaining - otherRowsQuantity;
+
+                quantityInput.value = suggested > 0 ? formatInputNumber(suggested) : '';
+                setAutofilled(quantityInput, suggested > 0);
+            }
+
             function applyPricingToRow(row) {
                 const pricing = getPricingForRow(row);
+                applyDefaultQuantityToRow(row, pricing);
                 const plattsInput = row.querySelector('[data-row-platts]');
                 const priceInput = row.querySelector('[data-row-loading-price]');
 
@@ -2265,7 +2294,7 @@
 
             // Fill a row's transport list the moment the user reaches for it. Capture phase so
             // the options exist before the browser opens the dropdown.
-            ['pointerdown', 'focusin'].forEach(eventName => {
+            ['pointerdown', 'focusin', 'ak-entity:open'].forEach(eventName => {
                 rowsHost.addEventListener(eventName, event => {
                     const itemSelect = event.target.closest('[data-row-logistics-display]');
                     if (!itemSelect) {
@@ -2305,7 +2334,7 @@
                     return;
                 }
 
-                if (event.target.matches('[data-row-loading-price]')) {
+                if (event.target.matches('[data-row-loading-price], [data-row-quantity]')) {
                     setAutofilled(event.target, false);
                 }
 
@@ -3054,8 +3083,13 @@
                     });
                     const lossStage = row.querySelector('input[name$=".Loss.Stage"]');
                     data.loss = { enabled: false, stage: lossStage?.value || 'LoadingDifference' };
+                    // وزن پیش‌فرضِ خودکار به‌تنهایی سطر خالی را «پر» حساب نکند.
+                    if (activeControl(row, 'loadedQuantityMt')?.dataset.autofilled === 'true'
+                        && isBlankData({ ...data, loadedQuantityMt: null })) {
+                        return null;
+                    }
                     return data;
-                }).filter(data => !isBlankData(data));
+                }).filter(data => data && !isBlankData(data));
             }
 
             function ensureVirtualMode() {

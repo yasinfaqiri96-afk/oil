@@ -132,20 +132,21 @@ public sealed class MobileDashboardService(
 
     private async Task<MobileTodayProfitKpi> BuildTodayProfitAsync(DateTime today, CancellationToken ct)
     {
-        var pnl = await profitAndLoss.BuildCompanyAsync(
+        // همان موتور عملکرد دورهٔ بیلانس کلی و وضعیت مالی شرکت، برای یک روز.
+        var period = await profitAndLoss.BuildCompanyPeriodAsync(
             new ManagementReportFilterViewModel { FromDate = today, ToDate = today },
-            ct);
-        var sales = pnl.Sales;
+            today,
+            ct: ct);
 
         return new MobileTodayProfitKpi
         {
-            RevenueUsd = sales.RevenueUsd,
-            CostOfGoodsSoldUsd = sales.CostOfGoodsSoldUsd,
-            GrossProfitUsd = sales.GrossProfitUsd,
-            SaleCount = sales.SaleCount,
-            CostedSaleCount = sales.CostedSaleCount,
-            UncostedSaleCount = sales.UncostedSaleCount,
-            Confidence = ToWire(sales.Confidence)
+            RevenueUsd = period.SalesRevenueUsd,
+            CostOfGoodsSoldUsd = period.CostOfSalesUsd,
+            GrossProfitUsd = period.GrossProfitUsd,
+            SaleCount = period.SaleCount,
+            CostedSaleCount = period.CostedSaleCount,
+            UncostedSaleCount = period.UncostedSaleCount,
+            Confidence = ToWire(period.Confidence)
         };
     }
 

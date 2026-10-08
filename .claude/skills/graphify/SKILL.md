@@ -1,9 +1,13 @@
 ---
 name: graphify
-description: "Answer codebase questions from the knowledge graph in graphify-out/ before raw grep. Also builds the graph from code, docs, or media."
+description: "Use only for explicit Graphify requests or substantial architecture/dependency analysis. Optional knowledge graph tooling; never required for routine code search, small fixes, UI changes, or test reruns."
 ---
 
 # /graphify
+
+## PTG scope gate (takes precedence over the generic workflow below)
+
+Search relevant files/methods directly first. Invoke this skill only for an explicit user request, a major architecture change, an important dependency/service relationship change, or once at the end of a large feature when needed. Do not query or update Graphify for routine bug fixes, UI/CSS/JS/View changes, small Controller changes, text edits, or test reruns. The existence of `graphify-out/` alone is not a trigger. Follow the generic workflow below only after this gate applies.
 
 Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md.
 

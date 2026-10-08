@@ -9,7 +9,8 @@ public enum PartyAgingBucket
     UpTo30 = 0,
     From31To60 = 1,
     From61To90 = 2,
-    Over90 = 3
+    Over90 = 3,
+    Unknown = 4
 }
 
 /// <summary>یک طرف‌حساب با مانده و سنِ سکوت همان حساب. فقط‌خواندنی.</summary>

@@ -3530,7 +3530,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("numeric(18,4)");
 
                     b.Property<decimal?>("AppliedFxRateToUsd")
-                        .HasColumnType("numeric(18,6)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<int?>("CashAccountId")
                         .HasColumnType("integer");
@@ -5238,7 +5238,7 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<decimal>("ExchangeRate")
-                        .HasColumnType("numeric(18,8)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<int>("JournalEntryId")
                         .HasColumnType("integer");

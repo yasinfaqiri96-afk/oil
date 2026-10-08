@@ -301,6 +301,41 @@ public sealed class SaleCorrectionWorkflowTests
         Assert.Equal("INV-501", sale.InvoiceNumber);
     }
 
+    /// <summary>
+    /// فرم برای ارز پایه فیلد نرخ تبدیل را خالی می‌فرستد؛ این نباید ویرایشِ فقط‌یادداشت را
+    /// به‌عنوان «تغییر فیلد مالی» رد کند.
+    /// </summary>
+    [Fact]
+    public async Task Edit_Notes_Only_Succeeds_When_Base_Currency_Fx_Rate_Is_Posted_Blank()
+    {
+        var options = NewDbOptions();
+        await using var db = await SeedPostedSaleAsync(options);
+        var controller = BuildController(db);
+        var original = await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == SaleId);
+
+        var result = await controller.Edit(SaleId, new SalesCreateViewModel
+        {
+            Version = original.Version,
+            CompanyId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            SaleStage = SaleStage.InTransit,
+            InvoiceNumber = "INV-501",
+            SaleDate = new DateTime(2026, 4, 10, 0, 0, 0, DateTimeKind.Utc),
+            Currency = "USD",
+            QuantityMt = 20m,
+            UnitPriceInCurrency = 700m,
+            AppliedFxRateToUsd = null,
+            Notes = "یادداشت تازه",
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var sale = await db.SalesTransactions.AsNoTracking().SingleAsync(s => s.Id == SaleId);
+        Assert.Equal("یادداشت تازه", sale.Notes);
+        Assert.Equal(1m, sale.AppliedFxRateToUsd);
+        Assert.Equal(14_000m, sale.TotalUsd);
+    }
+
     private sealed class NullTempDataProvider : ITempDataProvider
     {
         public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();

@@ -22,7 +22,7 @@
         <div class="ak-form-grid mb-2">
             <div class="ak-field">
                 <label class="ak-label" for="pay-cash">@UiText.T(Context, "صندوق / بانک", "Cash / bank")</label>
-                <select id="pay-cash" name="cashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input" required>
+                <select id="pay-cash" name="cashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input" data-ak-entity-combobox required>
                     <option value="">@UiText.T(Context, "انتخاب حساب", "Choose account")</option>
                 </select>
             </div>

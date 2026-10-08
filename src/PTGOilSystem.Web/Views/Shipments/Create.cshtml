@@ -62,7 +62,7 @@
                     <span asp-validation-for="QuantityMt" class="field-validation-error"></span>
                 </div>
 
-                <div class="ak-field">
+                <div class="ak-field ak-col-full">
                     <details class="ak-advanced" open="@(showShipmentAdvanced ? "open" : null)">
                         <summary class="ak-advanced-summary">
                             <span><i class="bi bi-sliders" aria-hidden="true"></i>@UiText.T(Context,"جزئیات بیشتر (تاریخ، مبدا/مقصد، قرارداد اصلی، یادداشت)","More details (dates, origin/destination, primary contract, notes)")</span>
@@ -148,11 +148,11 @@
                                 <tr data-allocation-row>
                                     <td class="text-muted" data-allocation-seq>@(i + 1)</td>
                                     <td>
-                                        @Html.DropDownList($"ContractAllocations[{i}].ContractId", new SelectList(purchaseContracts, "Value", "Text", selectedContract), UiText.T(Context,"انتخاب قرارداد خرید","Select purchase contract"), new { @class = "ak-input ak-input", data_contract_select = "" })
+                                        @Html.DropDownList($"ContractAllocations[{i}].ContractId", new SelectList(purchaseContracts, "Value", "Text", selectedContract), UiText.T(Context,"انتخاب قرارداد خرید","Select purchase contract"), new { @class = "ak-input ak-input", data_contract_select = "", data_ak_entity_combobox = "" })
                                         @Html.ValidationMessage($"ContractAllocations[{i}].ContractId", null, new { @class = "field-validation-error" })
                                     </td>
                                     <td>
-                                        <select name="ContractAllocations[@i].StorageTankId" class="ak-input" data-tank-select required disabled>
+                                        <select name="ContractAllocations[@i].StorageTankId" class="ak-input" data-ak-entity-combobox data-tank-select required disabled>
                                             <option value="">@UiText.T(Context,"ابتدا قرارداد را انتخاب کنید","Select contract first")</option>
                                         </select>
                                         <div class="alert alert-info py-1 px-2 mt-1 mb-0 small" data-tank-status hidden></div>
@@ -188,10 +188,10 @@
                     <tr data-allocation-row>
                         <td class="text-muted" data-allocation-seq></td>
                         <td>
-                            <select name="ContractAllocations[__index__].ContractId" class="ak-input" data-contract-select>@Html.Raw(contractOptionsMarkup)</select>
+                            <select name="ContractAllocations[__index__].ContractId" class="ak-input" data-ak-entity-combobox data-contract-select>@Html.Raw(contractOptionsMarkup)</select>
                         </td>
                         <td>
-                            <select name="ContractAllocations[__index__].StorageTankId" class="ak-input" data-tank-select required disabled>
+                            <select name="ContractAllocations[__index__].StorageTankId" class="ak-input" data-ak-entity-combobox data-tank-select required disabled>
                                 <option value="">@UiText.T(Context,"ابتدا قرارداد را انتخاب کنید","Select contract first")</option>
                             </select>
                             <div class="alert alert-info py-1 px-2 mt-1 mb-0 small" data-tank-status hidden></div>

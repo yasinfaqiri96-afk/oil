@@ -139,10 +139,12 @@ public sealed class PurchaseContractSales
 public sealed class SaleContractAttributionReader : ISaleContractAttributionReader
 {
     private readonly ApplicationDbContext _db;
+    private readonly DateTime? _reportBefore;
 
-    public SaleContractAttributionReader(ApplicationDbContext db)
+    public SaleContractAttributionReader(ApplicationDbContext db, DateTime? reportAsOfDate = null)
     {
         _db = db;
+        _reportBefore = reportAsOfDate.HasValue ? DateTime.SpecifyKind(reportAsOfDate.Value.Date.AddDays(1), DateTimeKind.Utc) : null;
     }
 
     public async Task<SaleContractAttributionMap> LoadForSalesAsync(
@@ -246,7 +248,7 @@ public sealed class SaleContractAttributionReader : ISaleContractAttributionRead
         }
 
         var saleRows = await _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled && saleIds.Contains(s.Id))
+            .Where(s => (!_reportBefore.HasValue || s.SaleDate < _reportBefore.Value) && !s.IsCancelled && saleIds.Contains(s.Id))
             .Select(s => new { s.Id, s.SaleDate, s.InvoiceNumber, s.QuantityMt, s.TotalUsd })
             .ToDictionaryAsync(s => s.Id, ct);
         var attribution = await LoadForSalesAsync(saleIds, ct);
@@ -363,7 +365,7 @@ public sealed class SaleContractAttributionReader : ISaleContractAttributionRead
 
         var inTransitLinks = new List<SaleLink>();
         var saleDispatchQuery = _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled
+            .Where(s => (!_reportBefore.HasValue || s.SaleDate < _reportBefore.Value) && !s.IsCancelled
                 && s.TruckDispatchId.HasValue
                 && s.TruckDispatch != null
                 && s.TruckDispatch.Status != DispatchStatus.Cancelled);
@@ -400,7 +402,7 @@ public sealed class SaleContractAttributionReader : ISaleContractAttributionRead
         // پیوندِ ثبت‌شده روی خودِ سند فروش: SourcePurchaseContractId، و فروشِ قدیمی که ContractId اش
         // خودِ قرارداد خرید است (نه قرارداد فروش).
         var explicitQuery = _db.SalesTransactions.AsNoTracking()
-            .Where(s => !s.IsCancelled
+            .Where(s => (!_reportBefore.HasValue || s.SaleDate < _reportBefore.Value) && !s.IsCancelled
                 && (s.SourcePurchaseContractId.HasValue
                     || (s.Contract != null && s.Contract.ContractType == ContractType.Purchase)));
         explicitQuery = byContract

@@ -44,7 +44,7 @@
                     <div class="ak-form-grid">
                     <div class="ak-field">
                         <label class="ak-label">@UiText.T(Context, "منبع از بارگیری", "Loading Source")</label>
-                        <select name="loadingRegisterId" class="ak-input" data-customs-loading-source>
+                        <select name="loadingRegisterId" class="ak-input" data-ak-entity-combobox data-customs-loading-source>
                             <option value=""></option>
                             @foreach (var option in loadingOptions)
                             {
@@ -54,7 +54,7 @@
                     </div>
                     <div class="ak-field">
                         <label class="ak-label">@UiText.T(Context, "منبع از انتقال موجودی", "Inventory Transfer Source")</label>
-                        <select name="transportLegId" class="ak-input" data-customs-transport-source>
+                        <select name="transportLegId" class="ak-input" data-ak-entity-combobox data-customs-transport-source>
                             <option value=""></option>
                             @foreach (var option in transportOptions)
                             {
@@ -64,7 +64,7 @@
                     </div>
                     <div class="ak-field">
                         <label class="ak-label">@UiText.T(Context, "منبع از ارسال با موتر", "Truck Dispatch Source")</label>
-                        <select name="truckDispatchId" class="ak-input" data-customs-dispatch-source>
+                        <select name="truckDispatchId" class="ak-input" data-ak-entity-combobox data-customs-dispatch-source>
                             <option value=""></option>
                             @foreach (var option in truckDispatchOptions)
                             {

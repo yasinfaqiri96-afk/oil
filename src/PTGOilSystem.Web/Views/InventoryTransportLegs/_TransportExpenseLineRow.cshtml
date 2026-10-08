@@ -86,8 +86,8 @@
     <div class="ak-field">
         @* پنهان‌سازی با صفت hidden است، نه inline style: اسکریپت مشترک ویرایشگر مصارف
            فقط `select.hidden` را برمی‌دارد و inline style بر آن غالب می‌ماند. *@
-        <select name="@Name("ServiceProviderId")" class="ak-input" data-row-provider aria-label="انتخاب شرکت خدماتی"
-                @(isProvider ? null : "disabled") hidden="@(isProvider ? null : "hidden")">
+        <select name="@Name("ServiceProviderId")" class="ak-input" data-ak-entity-combobox data-row-provider aria-label="انتخاب شرکت خدماتی"
+                disabled="@(isProvider ? null : "disabled")" hidden="@(isProvider ? null : "hidden")">
             <option value="">انتخاب شرکت</option>
             @if (providerOptions != null)
             {
@@ -97,8 +97,8 @@
                 }
             }
         </select>
-        <select name="@Name("OperationalAssetId")" class="ak-input" data-row-asset aria-label="انتخاب دارایی ملکی"
-                @(isAsset ? null : "disabled") hidden="@(isAsset ? null : "hidden")">
+        <select name="@Name("OperationalAssetId")" class="ak-input" data-ak-entity-combobox data-row-asset aria-label="انتخاب دارایی ملکی"
+                disabled="@(isAsset ? null : "disabled")" hidden="@(isAsset ? null : "hidden")">
             <option value="">انتخاب دارایی</option>
             @if (assetOptions != null)
             {
@@ -108,8 +108,8 @@
                 }
             }
         </select>
-        <select name="@Name("DriverId")" class="ak-input" data-row-driver aria-label="انتخاب راننده"
-                @(isDriver ? null : "disabled") hidden="@(isDriver ? null : "hidden")">
+        <select name="@Name("DriverId")" class="ak-input" data-ak-entity-combobox data-row-driver aria-label="انتخاب راننده"
+                disabled="@(isDriver ? null : "disabled")" hidden="@(isDriver ? null : "hidden")">
             <option value="">انتخاب راننده</option>
             @if (driverOptions != null)
             {

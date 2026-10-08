@@ -140,11 +140,11 @@ public sealed class MobileDashboardServiceTests
             : InterfaceFake<IPartyBalanceReadService>.Create();
 
         var profitAndLoss = includeFinancialReaders
-            ? InterfaceFake<IProfitAndLossService>.Create(("BuildCompanyAsync", args =>
+            ? InterfaceFake<IProfitAndLossService>.Create(("BuildCompanyPeriodAsync", args =>
             {
                 onPnl?.Invoke((ManagementReportFilterViewModel)args![0]!);
-                return Task.FromResult(new CompanyPnlSnapshot(
-                    new SalesPnlSnapshot(1500m, 1200m, 3, 2, 1, PnlConfidence.NeedsReview), 50m, 0m, 0m));
+                return Task.FromResult(new CompanyPeriodPerformanceSnapshot(
+                    1500m, 3, 1200m, 1, 2, 50m, 0m, 0m, 0m));
             }))
             : InterfaceFake<IProfitAndLossService>.Create();
 

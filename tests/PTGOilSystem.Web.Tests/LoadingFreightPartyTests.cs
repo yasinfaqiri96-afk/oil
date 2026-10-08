@@ -155,6 +155,30 @@ public class LoadingFreightPartyTests
     }
 
     [Fact]
+    public async Task Buyer_Freight_Without_Transport_Type_Is_Rejected()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        await db.SaveChangesAsync();
+
+        var controller = NewLoadingController(db);
+        var result = await controller.Create(Model(CostResponsibility.Buyer, new LoadingCreateRowViewModel
+        {
+            LoadingDate = new DateTime(2026, 4, 23),
+            TruckId = 1,
+            BillOfLadingNumber = "CMR-N1",
+            LoadedQuantityMt = 50m,
+            FreightRateUsdPerMt = 1m
+        }));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(
+            controller.ModelState.Values.SelectMany(v => v.Errors),
+            e => e.ErrorMessage.Contains("«نوعیت ترانسپورت» و طرف‌حساب کرایه", StringComparison.Ordinal));
+        Assert.Empty(await db.LoadingRegisters.ToListAsync());
+    }
+
+    [Fact]
     public async Task OwnedTransport_Creates_No_External_Payable_But_Shows_Internal_Cost_In_Contract()
     {
         await using var db = NewDb();

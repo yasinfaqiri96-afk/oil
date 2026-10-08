@@ -1,7 +1,14 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using PTGOilSystem.Web.Controllers;
 using PTGOilSystem.Web.Data;
+using PTGOilSystem.Web.Models.Customs;
 using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Customs;
+using PTGOilSystem.Web.Services.Reporting;
 using PTGOilSystem.Web.Services.Expenses;
 using PTGOilSystem.Web.Services.Ledger;
 using Xunit;
@@ -81,10 +88,14 @@ public sealed class CustomsSettlementTests
         ExpenseSettlementMode dutyMode,
         ExpenseSettlementMode serviceMode,
         int? dutyCashAccountId = null,
-        int? brokerId = null)
+        int? brokerId = null,
+        int? serviceCashAccountId = null,
+        CustomsDeclarationItem[]? items = null)
     {
         var db = CreateDb();
         db.CashAccounts.Add(new CashAccount { Id = 5, Name = "صندوق افغانی", Currency = "AFN" });
+        db.CashAccounts.Add(new CashAccount { Id = 6, Name = "صندوق دالری", Currency = "USD" });
+        db.CashAccounts.Add(new CashAccount { Id = 7, Name = "صندوق روبل", Currency = "RUB" });
         db.ServiceProviders.Add(new ServiceProvider
         {
             Id = 9,
@@ -99,8 +110,9 @@ public sealed class CustomsSettlementTests
             DutySettlementMode = dutyMode,
             DutyCashAccountId = dutyCashAccountId,
             ServiceSettlementMode = serviceMode,
+            ServiceCashAccountId = serviceCashAccountId,
             ServiceProviderId = brokerId,
-            Items =
+            Items = items?.ToList() ??
             [
                 Item(CustomsComponentType.Mahsooli, 600m),
                 Item(CustomsComponentType.Komisionkar, 100m)
@@ -304,4 +316,337 @@ public sealed class CustomsSettlementTests
         Assert.Empty(await db.ExpenseTransactions.Where(e => !e.IsCancelled).ToListAsync());
         Assert.Empty(await db.LedgerEntries.ToListAsync());
     }
+
+    // ------------------------------------------------- ارزِ صندوق
+
+    /// <summary>
+    /// «نقد پرداخت شد» از صندوق افغانی: همان مبلغ افغانیِ ردیف‌ها از صندوق کم می‌شود و معادل
+    /// دالری عیناً همان معادلِ اظهارنامه می‌ماند. نرخ طوری است که Amount × نرخ = AmountUsd (شرطِ
+    /// دفتر حسابداری دوطرفه).
+    /// </summary>
+    [Fact]
+    public async Task Duty_Paid_From_Afn_Cash_Is_Posted_In_Afn_With_The_Declared_Usd()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.Payable,
+            dutyCashAccountId: 5,
+            brokerId: 9);
+        using var _ = db;
+
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var duty = await ExpenseAsync(db, declaration, CustomsComponentGroup.GovernmentDuty);
+        Assert.Equal(42000m, duty.Amount);
+        Assert.Equal("AFN", duty.Currency);
+        Assert.Equal(600m, duty.AmountUsd);
+        Assert.Equal(FxRateMath.RoundRate(600m / 42000m), duty.AppliedFxRateToUsd);
+        Assert.Equal(duty.AmountUsd, decimal.Round(duty.Amount * duty.AppliedFxRateToUsd!.Value, 4, MidpointRounding.AwayFromZero));
+
+        var ledger = await db.LedgerEntries.SingleAsync(l => l.SourceId == duty.Id);
+        Assert.Equal(600m, ledger.AmountUsd);
+        Assert.Equal("USD", ledger.Currency);
+        Assert.Equal(42000m, ledger.SourceAmount);
+        Assert.Equal("AFN", ledger.SourceCurrencyCode);
+        Assert.Equal(duty.AppliedFxRateToUsd, ledger.AppliedFxRateToUsd);
+
+        // کمیشنکارِ «بدهی» مثل قبل دالری است.
+        var service = await ExpenseAsync(db, declaration, CustomsComponentGroup.ThirdPartyService);
+        Assert.Equal(100m, service.Amount);
+        Assert.Equal("USD", service.Currency);
+        Assert.Equal(1m, service.AppliedFxRateToUsd);
+    }
+
+    [Fact]
+    public async Task Duty_Paid_From_Usd_Cash_Stays_In_Usd()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.Payable,
+            dutyCashAccountId: 6,
+            brokerId: 9);
+        using var _ = db;
+
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var duty = await ExpenseAsync(db, declaration, CustomsComponentGroup.GovernmentDuty);
+        Assert.Equal(600m, duty.Amount);
+        Assert.Equal("USD", duty.Currency);
+        Assert.Equal(1m, duty.AppliedFxRateToUsd);
+        Assert.Equal(600m, duty.AmountUsd);
+    }
+
+    /// <summary>
+    /// موجودی صندوق قبل و بعد از پرداخت: صندوق افغانی دقیقاً به‌اندازهٔ مبلغ افغانیِ حقوق دولتی و
+    /// کمیشن کم می‌شود و چون همهٔ اسنادش افغانی‌اند، جمعش به افغانی می‌ماند (نه دالر).
+    /// </summary>
+    [Fact]
+    public async Task Afn_Cash_Balance_Drops_By_The_Afn_Amount_Of_Duty_And_Commission()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.PaidImmediately,
+            dutyCashAccountId: 5,
+            serviceCashAccountId: 5);
+        using var _ = db;
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            PaymentDate = new DateTime(2026, 5, 1),
+            Direction = PaymentDirection.In,
+            PaymentKind = PaymentKind.ManualReceipt,
+            CashAccountId = 5,
+            FundingSource = PaymentFundingSource.Company,
+            Amount = 100000m,
+            Currency = "AFN",
+            AmountUsd = 1428.5714m
+        });
+        await db.SaveChangesAsync();
+
+        var before = await CashTotalsAsync(db, 5);
+        Assert.Equal("AFN", before.TotalsCurrency);
+        Assert.Equal(100000m, before.Balance);
+
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var after = await CashTotalsAsync(db, 5);
+        Assert.False(after.UsesUsdTotals);
+        Assert.Equal("AFN", after.TotalsCurrency);
+        Assert.Equal(42000m + 7000m, after.NativeOut);
+        Assert.Equal(100000m - 49000m, after.Balance);
+        Assert.Equal(600m + 100m, after.UsdOut);
+
+        var service = await ExpenseAsync(db, declaration, CustomsComponentGroup.ThirdPartyService);
+        Assert.Equal(7000m, service.Amount);
+        Assert.Equal("AFN", service.Currency);
+        Assert.Equal(100m, service.AmountUsd);
+    }
+
+    [Fact]
+    public async Task Usd_Cash_Balance_Drops_By_The_Usd_Amount()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.PaidImmediately,
+            dutyCashAccountId: 6,
+            serviceCashAccountId: 6);
+        using var _ = db;
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            PaymentDate = new DateTime(2026, 5, 1),
+            Direction = PaymentDirection.In,
+            PaymentKind = PaymentKind.ManualReceipt,
+            CashAccountId = 6,
+            FundingSource = PaymentFundingSource.Company,
+            Amount = 1000m,
+            Currency = "USD",
+            AmountUsd = 1000m
+        });
+        await db.SaveChangesAsync();
+
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var after = await CashTotalsAsync(db, 6);
+        Assert.Equal("USD", after.TotalsCurrency);
+        Assert.Equal(700m, after.NativeOut);
+        Assert.Equal(300m, after.Balance);
+    }
+
+    /// <summary>ردیف دالریِ بدون نرخ معادل افغانی ندارد؛ سندِ افغانیِ ناقص ساخته نمی‌شود.</summary>
+    [Fact]
+    public async Task Afn_Cash_Payment_Without_The_Afn_Amount_Of_Every_Row_Is_Rejected()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.Unknown,
+            dutyCashAccountId: 5,
+            items:
+            [
+                Item(CustomsComponentType.Mahsooli, 600m),
+                new CustomsDeclarationItem { ComponentType = CustomsComponentType.MahsooliDolari, AmountAfn = 0m, AmountUsd = 300m }
+            ]);
+        using var _ = db;
+
+        var error = await Assert.ThrowsAsync<PTGOilSystem.Web.Services.Exceptions.BusinessRuleException>(
+            () => CustomsDeclarationExpenseSync.SyncAsync(db, declaration));
+        Assert.Equal(CustomsDeclarationExpenseSync.CashCurrencyMismatchCode, error.Code);
+        Assert.Empty(await db.ExpenseTransactions.ToListAsync());
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Cash_Payment_From_An_Account_Neither_Afn_Nor_Usd_Is_Rejected()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.Unknown,
+            dutyCashAccountId: 7);
+        using var _ = db;
+
+        await Assert.ThrowsAsync<PTGOilSystem.Web.Services.Exceptions.BusinessRuleException>(
+            () => CustomsDeclarationExpenseSync.SyncAsync(db, declaration));
+        Assert.Empty(await db.ExpenseTransactions.ToListAsync());
+    }
+
+    /// <summary>
+    /// تغییر صندوق یا حالتِ تسویه همان سند و همان سطر دفتر کل را درجا اصلاح می‌کند؛ سند تکراری
+    /// ساخته نمی‌شود و معادل دالری ثابت می‌ماند.
+    /// </summary>
+    [Fact]
+    public async Task Changing_The_Cash_Account_Updates_The_Same_Expense_And_Ledger_Row()
+    {
+        var (db, declaration) = await SeedAsync(
+            ExpenseSettlementMode.PaidImmediately,
+            ExpenseSettlementMode.Unknown,
+            dutyCashAccountId: 6);
+        using var _ = db;
+
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+        var original = await ExpenseAsync(db, declaration, CustomsComponentGroup.GovernmentDuty);
+        Assert.Equal("USD", original.Currency);
+
+        declaration.DutyCashAccountId = 5;
+        await db.SaveChangesAsync();
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var afn = Assert.Single(await db.ExpenseTransactions.Where(e => !e.IsCancelled).ToListAsync());
+        Assert.Equal(original.Id, afn.Id);
+        Assert.Equal(42000m, afn.Amount);
+        Assert.Equal("AFN", afn.Currency);
+        Assert.Equal(600m, afn.AmountUsd);
+        var ledger = Assert.Single(await db.LedgerEntries.ToListAsync());
+        Assert.Equal(afn.Id, ledger.SourceId);
+        Assert.Equal("AFN", ledger.SourceCurrencyCode);
+        Assert.Equal(42000m, ledger.SourceAmount);
+        Assert.Equal(600m, ledger.AmountUsd);
+
+        // حالت «بدون حرکت پول» ⇒ دوباره دالری، بدون صندوق.
+        declaration.DutySettlementMode = ExpenseSettlementMode.NonCash;
+        declaration.DutyCashAccountId = null;
+        await db.SaveChangesAsync();
+        await CustomsDeclarationExpenseSync.SyncAsync(db, declaration);
+
+        var nonCash = Assert.Single(await db.ExpenseTransactions.Where(e => !e.IsCancelled).ToListAsync());
+        Assert.Equal(original.Id, nonCash.Id);
+        Assert.Equal(600m, nonCash.Amount);
+        Assert.Equal("USD", nonCash.Currency);
+        Assert.Equal(1m, nonCash.AppliedFxRateToUsd);
+        Assert.Null(nonCash.CashAccountId);
+        Assert.Single(await db.LedgerEntries.ToListAsync());
+    }
+
+    /// <summary>
+    /// با نرخ ۱۲ رقمی، مبالغ بزرگ و نرخ‌های مختلطِ ردیف‌ها هم دقیقاً همان USD اظهارنامه را می‌سازند.
+    /// </summary>
+    [Theory]
+    [InlineData("1500", "110000")]
+    [InlineData("1000", "70000")]
+    [InlineData("142857.14", "10000000")]
+    [InlineData("3333.33", "250000")]
+    [InlineData("0.01", "1")]
+    public void Afn_Cash_Amount_Reproduces_The_Declared_Usd_Exactly(string usdText, string afnText)
+    {
+        var usd = decimal.Parse(usdText, System.Globalization.CultureInfo.InvariantCulture);
+        var afn = decimal.Parse(afnText, System.Globalization.CultureInfo.InvariantCulture);
+
+        var cash = CustomsDeclarationExpenseSync.ResolveCashAmount("AFN", usd, afn);
+
+        Assert.NotNull(cash);
+        Assert.Equal(afn, cash.Amount);
+        Assert.Equal("AFN", cash.Currency);
+        Assert.Equal(usd, decimal.Round(cash.Amount * cash.RateToUsd, 4, MidpointRounding.AwayFromZero));
+        Assert.Equal(cash.RateToUsd, FxRateMath.RoundRate(cash.RateToUsd));
+    }
+
+    [Fact]
+    public void Afn_Cash_Amount_Is_Unknown_Without_An_Afn_Amount_Or_For_Another_Currency()
+    {
+        Assert.Null(CustomsDeclarationExpenseSync.ResolveCashAmount("AFN", 600m, null));
+        Assert.Null(CustomsDeclarationExpenseSync.ResolveCashAmount("AFN", 600m, 0m));
+        Assert.Null(CustomsDeclarationExpenseSync.ResolveCashAmount("RUB", 600m, 42000m));
+        Assert.Equal(new CustomsCashAmount(600m, "USD", 1m), CustomsDeclarationExpenseSync.ResolveCashAmount("usd", 600m, 42000m));
+    }
+
+    // ------------------------------------------------- فرم اظهارنامه
+
+    [Fact]
+    public async Task Form_Rejects_Afn_Cash_Payment_When_A_Usd_Row_Has_No_Rate()
+    {
+        var (db, _) = await SeedAsync(ExpenseSettlementMode.Unknown, ExpenseSettlementMode.Unknown);
+        using var _db = db;
+
+        var controller = NewCustomsController(db);
+        var result = await controller.Create(FormModel(
+            dutyCashAccountId: 5,
+            Row(CustomsComponentType.Mahsooli, "AFN", 42000m, 70m),
+            Row(CustomsComponentType.MahsooliDolari, "USD", 300m, null)));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(
+            controller.ModelState[nameof(CustomsDeclarationCreateViewModel.DutyCashAccountId)]!.Errors,
+            e => e.ErrorMessage.Contains("معادل افغانیِ همهٔ ردیف‌های این گروه", StringComparison.Ordinal));
+        Assert.Equal(1, await db.CustomsDeclarations.CountAsync());
+        Assert.Empty(await db.ExpenseTransactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Form_Rejects_Cash_Payment_When_An_Afn_Row_Has_No_Rate()
+    {
+        var (db, _) = await SeedAsync(ExpenseSettlementMode.Unknown, ExpenseSettlementMode.Unknown);
+        using var _db = db;
+
+        var controller = NewCustomsController(db);
+        await controller.Create(FormModel(
+            dutyCashAccountId: 6,
+            Row(CustomsComponentType.Mahsooli, "AFN", 42000m, null)));
+
+        Assert.Contains(
+            controller.ModelState[nameof(CustomsDeclarationCreateViewModel.DutyCashAccountId)]!.Errors,
+            e => e.ErrorMessage.Contains("نرخ تبدیل را وارد کنید", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Form_Accepts_Afn_Cash_Payment_When_Every_Row_Has_A_Rate()
+    {
+        var (db, _) = await SeedAsync(ExpenseSettlementMode.Unknown, ExpenseSettlementMode.Unknown);
+        using var _db = db;
+
+        var controller = NewCustomsController(db);
+        await controller.Create(FormModel(
+            dutyCashAccountId: 5,
+            Row(CustomsComponentType.Mahsooli, "AFN", 70000m, 70m),
+            Row(CustomsComponentType.MahsooliDolari, "USD", 500m, 80m)));
+
+        // تنها خطا نبودِ منبع (بارگیری/انتقال/موتر) است؛ صندوق افغانی پذیرفته شده.
+        Assert.False(controller.ModelState.ContainsKey(nameof(CustomsDeclarationCreateViewModel.DutyCashAccountId)));
+    }
+
+    private static CustomsDeclarationsController NewCustomsController(ApplicationDbContext db)
+        => new(db, NullLogger<CustomsDeclarationsController>.Instance, null!)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+
+    private static CustomsDeclarationItemRowViewModel Row(CustomsComponentType type, string currency, decimal amount, decimal? rate)
+        => new() { ComponentType = type, Currency = currency, Amount = amount, Rate = rate };
+
+    private static CustomsDeclarationCreateViewModel FormModel(int dutyCashAccountId, params CustomsDeclarationItemRowViewModel[] rows)
+        => new()
+        {
+            DeclarationDate = new DateTime(2026, 5, 20),
+            DutySettlementMode = ExpenseSettlementMode.PaidImmediately,
+            DutyCashAccountId = dutyCashAccountId,
+            ServiceSettlementMode = ExpenseSettlementMode.Unknown,
+            Items = rows.ToList()
+        };
+
+    private static Task<ExpenseTransaction> ExpenseAsync(
+        ApplicationDbContext db,
+        CustomsDeclaration declaration,
+        CustomsComponentGroup group)
+        => db.ExpenseTransactions.SingleAsync(e => e.CustomsDeclarationId == declaration.Id
+            && e.CustomsComponentGroup == group
+            && !e.IsCancelled);
+
+    private static async Task<CashAccountActivityTotals> CashTotalsAsync(ApplicationDbContext db, int cashAccountId)
+        => (await new CashPositionReader(db).ReadAccountTotalsAsync([cashAccountId], null)).Single();
 }

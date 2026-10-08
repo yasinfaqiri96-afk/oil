@@ -141,6 +141,18 @@
     string? PageUrl(int page) => Url.Action("Document", "PartyStatements", CommonRouteValues(page: page));
 
     string Amount(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "—";
+    // مثل PDF رسمی: خانهٔ خالی «-» و مبلغ منفی در پرانتز.
+    string ColumnAmount(decimal? value) => !value.HasValue ? "-" : value.Value < 0m ? $"({Math.Abs(value.Value):N2})" : value.Value.ToString("N2");
+    var labels = PartyStatementPresentation.ColumnsFor(s.Party.PartyType);
+    // ستون‌های تجارتی (معامله / دریافت / پرداخت): تفکیک نمایشیِ همان رسید/برد؛ ستونی که در
+    // کل دوره خالی است نمایش داده نمی‌شود.
+    var allAmounts = s.Rows.Select(r => PartyStatementPresentation.AmountsFor(r, s.Party.PartyType, isRub)).ToList();
+    var showTrade = labels.HasTradeColumn && allAmounts.Any(a => a.Trade.HasValue);
+    var hasReceived = allAmounts.Any(a => a.Received.HasValue);
+    var hasPaid = allAmounts.Any(a => a.Paid.HasValue);
+    // دریافت و پرداخت همیشه دو ستون جدا هستند تا هر مبلغ و جمع آن زیر سرستون خودش بماند.
+    const int moneyColumns = 2;
+    var summaryItems = 2 + (showTrade ? 1 : 0) + (hasReceived || !hasPaid ? 1 : 0) + (hasPaid ? 1 : 0);
     string OptionalAmount(decimal? value, int decimals = 2) => value.HasValue ? value.Value.ToString($"N{decimals}") : "—";
     string BaseAmount(decimal? usd, decimal? rub) => Amount(isRub ? rub : usd);
     string PartyTypeLabel() => s.Party.PartyType switch
@@ -218,7 +230,7 @@
         {
             <div class="statement-party-switch">
                 <label for="statement-party-select">@UiText.T(Context, "تأمین‌کننده", "Supplier")</label>
-                <select id="statement-party-select" class="ak-input" data-statement-party-switch>
+                <select id="statement-party-select" class="ak-input" data-ak-entity-combobox data-statement-party-switch>
                     @foreach (var option in Model.PartyOptions)
                     {
                         <option value="@PartySwitchUrl(option.Id)" selected="@(option.Id == s.Party.PartyId)">@option.Text</option>
@@ -246,11 +258,19 @@
         </div>
     </header>
 
-    <section class="statement-summary" aria-label="خلاصه مالی">
+    <section class="statement-summary @(summaryItems == 5 ? "has-five" : null)" aria-label="خلاصه مالی">
         <div class="statement-summary-item"><small>بیلانس اول دوره</small><strong>@BaseAmount(s.Summary.OpeningBalance, s.Summary.OpeningBalanceRub)</strong><span>@currency</span></div>
-        <div class="statement-summary-item"><small>مجموع رسیدگی</small><strong class="statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</strong><span>@currency</span></div>
-        <div class="statement-summary-item"><small>مجموع بردگی</small><strong class="statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</strong><span>@currency</span></div>
-        <div class="statement-summary-item is-current"><small>بیلانس فعلی</small><strong>@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</strong><span>@currency</span></div>
+        @if (showTrade)
+        {
+            <div class="statement-summary-item">
+                <small>@labels.TradeTotal(isEn)</small><strong>@Amount(s.Summary.TradeTotalFor(isRub))</strong><span>@currency</span>
+            </div>
+        }
+        @if (hasReceived || !hasPaid) { <div class="statement-summary-item"><small>@labels.ReceivedTotal(isEn)</small><strong>@Amount(s.Summary.ReceivedTotalFor(isRub))</strong><span>@currency</span></div> }
+        @if (hasPaid) { <div class="statement-summary-item"><small>@labels.PaidTotal(isEn)</small><strong>@Amount(s.Summary.PaidTotalFor(isRub))</strong><span>@currency</span></div> }
+        <div class="statement-summary-item is-current">
+            <small>بیلانس فعلی</small><strong>@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</strong><span>@currency</span>
+        </div>
         @if (Model.ReversedLoadingCount > 0)
         {
             @* فقط توضیح: مجموع رسیدگی و بردگی، اصل و برگشت این بارگیری‌ها را هر دو دارد. *@
@@ -279,15 +299,15 @@
     }
     else
     {
-        var leadColumns = 4 + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0)
+        var leadColumns = 3 + ((c.ShowRub && !isRub) ? 1 : 0) + (c.ShowAed ? 1 : 0)
             + (c.ShowOriginalAmount ? 2 : 0) + (c.ShowFxRate ? 1 : 0) + (c.ShowQuantity ? 1 : 0)
             + (c.ShowPlatts ? 1 : 0) + (c.ShowPremiumOrDiscount ? 1 : 0) + (c.ShowUnitPrice ? 1 : 0);
-        var totalColumns = leadColumns + 3;
+        var totalColumns = leadColumns + (showTrade ? 1 : 0) + moneyColumns + 1;
         <section class="statement-ledger" aria-label="دفتر تراکنش‌ها">
             <div class="statement-table-wrap">
                 <table class="statement-table">
                     <thead><tr>
-                        <th class="statement-col-no">#</th><th class="statement-col-date">تاریخ</th><th class="statement-col-ref">مرجع</th><th class="statement-col-description">شرح</th>
+                        <th class="statement-col-no">#</th><th class="statement-col-date">تاریخ</th><th class="statement-col-description">شرح معامله</th>
                         @if (c.ShowRub && !isRub) { <th>روبل</th> }
                         @if (c.ShowAed) { <th>AED</th> }
                         @if (c.ShowOriginalAmount) { <th>مبلغ اصلی</th><th>ارز</th> }
@@ -296,7 +316,9 @@
                         @if (c.ShowPlatts) { <th>Platts</th> }
                         @if (c.ShowPremiumOrDiscount) { <th>Premium / Discount</th> }
                         @if (c.ShowUnitPrice) { <th>نرخ واحد</th> }
-                        <th title="@s.Policy.ReceiptMeaning(isEn)">رسیدگی</th><th title="@s.Policy.OutflowMeaning(isEn)">بردگی</th><th>بیلانس</th>
+                        @if (showTrade) { <th class="statement-col-money">@labels.Trade(isEn)</th> }
+                        <th class="statement-col-money">@labels.Received(isEn)</th><th class="statement-col-money">@labels.Paid(isEn)</th>
+                        <th class="statement-col-money">بیلانس</th>
                     </tr></thead>
                     <tbody>
                     @if (ledgerRows.Count == 0)
@@ -307,14 +329,24 @@
                     {
                         @foreach (var row in ledgerRows)
                         {
+                            var rowAmounts = PartyStatementPresentation.AmountsFor(row, s.Party.PartyType, isRub);
+                            var documentLabel = row.DocumentLabelOrReference;
                             <tr class="@(row.IsOpeningBalance ? "is-opening-row" : row.IsReversalRow ? "is-reversal-row" : null)">
                                 <td class="statement-num">@(row.IsOpeningBalance ? "—" : row.Sequence)</td>
                                 <td class="statement-date">@row.Date.ToCalendarString("yyyy/MM/dd")</td>
-                                <td class="statement-ref">
-                                    @if (row.LedgerEntryId.HasValue) { <a asp-controller="Ledger" asp-action="Details" asp-route-id="@row.LedgerEntryId">@(row.Reference ?? $"#{row.LedgerEntryId}")</a> }
-                                    else { @(row.Reference ?? "—") }
+                                <td class="statement-description">
+                                    <span class="statement-row-title">@if (row.IsReversalRow) { <span class="ak-status is-inactive statement-row-status">برگشت‌شده</span> }@row.TitleFor(isEn)</span>
+                                    @{ var detailLine = PartyStatementPresentation.DescriptionSecondLine(row, currency, isEn); }
+                                    @if (!string.IsNullOrWhiteSpace(detailLine)) { <span class="statement-row-detail">@PartyStatementPresentation.IsolateLeftToRightSegments(detailLine)</span> }
+                                    @if (!string.IsNullOrWhiteSpace(documentLabel) || row.LedgerEntryId.HasValue || !string.IsNullOrWhiteSpace(row.VehicleLabel))
+                                    {
+                                        <span class="statement-row-document">
+                                            @if (row.LedgerEntryId.HasValue) { <a asp-controller="Ledger" asp-action="Details" asp-route-id="@row.LedgerEntryId">@(documentLabel ?? $"#{row.LedgerEntryId}")</a> }
+                                            else { @documentLabel }
+                                            @if (!string.IsNullOrWhiteSpace(row.VehicleLabel)) { @((row.LedgerEntryId.HasValue || !string.IsNullOrWhiteSpace(documentLabel) ? PartyStatementPresentation.DocumentVehicleSeparator : "") + row.VehicleLabel) }
+                                        </span>
+                                    }
                                 </td>
-                                <td class="statement-description">@if (row.IsReversalRow) { <span class="ak-status is-inactive statement-row-status">برگشت‌شده</span> }@row.DescriptionFor(isEn)</td>
                                 @if (c.ShowRub && !isRub) { <td class="statement-money">@(row.OriginalCurrency == "RUB" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
                                 @if (c.ShowAed) { <td class="statement-money">@(row.OriginalCurrency == "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td> }
                                 @if (c.ShowOriginalAmount) { <td class="statement-money">@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? OptionalAmount(row.OriginalAmount) : "—")</td><td>@(row.OriginalCurrency is not "USD" and not "RUB" and not "AED" ? row.OriginalCurrency : "—")</td> }
@@ -323,14 +355,19 @@
                                 @if (c.ShowPlatts) { <td class="statement-money">@OptionalAmount(row.PlattsPrice)</td> }
                                 @if (c.ShowPremiumOrDiscount) { <td class="statement-money">@OptionalAmount(row.PremiumOrDiscount)</td> }
                                 @if (c.ShowUnitPrice) { <td class="statement-money">@OptionalAmount(row.UnitPrice)</td> }
-                                <td class="statement-money statement-receipt">@(isRub ? Amount(row.ReceiptRub) : Amount(row.ReceiptBase))</td>
-                                <td class="statement-money statement-outflow">@(isRub ? Amount(row.OutflowRub) : Amount(row.OutflowBase))</td>
+                                @if (showTrade) { <td class="statement-money">@ColumnAmount(rowAmounts.Trade)</td> }
+                                <td class="statement-money statement-receipt">@ColumnAmount(rowAmounts.Received)</td><td class="statement-money statement-outflow">@ColumnAmount(rowAmounts.Paid)</td>
                                 <td class="statement-money statement-balance">@(isRub ? Amount(row.RunningBalanceRub) : Amount(row.RunningBalance))</td>
                             </tr>
                         }
                     }
                     </tbody>
-                    <tfoot><tr><th colspan="@leadColumns">جمع دوره</th><th class="statement-money statement-receipt">@BaseAmount(s.Summary.TotalReceipt, s.Summary.TotalReceiptRub)</th><th class="statement-money statement-outflow">@BaseAmount(s.Summary.TotalOutflow, s.Summary.TotalOutflowRub)</th><th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th></tr></tfoot>
+                    <tfoot><tr>
+                        <th colspan="@leadColumns">جمع دوره</th>
+                        @if (showTrade) { <th class="statement-money">@Amount(s.Summary.TradeTotalFor(isRub))</th> }
+                        <th class="statement-money statement-receipt">@Amount(s.Summary.ReceivedTotalFor(isRub))</th><th class="statement-money statement-outflow">@Amount(s.Summary.PaidTotalFor(isRub))</th>
+                        <th class="statement-money">@BaseAmount(s.Summary.ClosingBalance, s.Summary.ClosingBalanceRub)</th>
+                    </tr></tfoot>
                 </table>
             </div>
             @if (!Model.IsPrintMode && Model.ShowExpenseSummaryTabs)

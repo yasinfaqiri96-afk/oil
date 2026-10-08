@@ -51,7 +51,7 @@
                 <div class="ak-form-grid g-4">
                     <div class="ak-field">
                         <label class="ak-label">محموله / کشتی</label>
-                        <select name="shipmentId" class="ak-input" required>
+                        <select name="shipmentId" class="ak-input" data-ak-entity-combobox required>
                             <option value="">— انتخاب کنید —</option>
                             @foreach (var s in (SelectList)ViewBag.TransferShipments)
                             {

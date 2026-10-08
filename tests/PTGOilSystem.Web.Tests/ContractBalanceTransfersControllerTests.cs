@@ -408,7 +408,7 @@ public class ContractBalanceTransfersControllerTests
     [Fact]
     public void AddContractBalanceTransfers_Migration_Is_Additive_Only()
     {
-        var migration = ReadRepoFile("src/PTGOilSystem.Web/Migrations/20260513154138_AddContractBalanceTransfers.cs");
+        var migration = ReadRepoFile("src/PTGOilSystem.Migrations/Migrations/20260513154138_AddContractBalanceTransfers.cs");
         var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
         var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
         var up = migration[upStart..downStart];

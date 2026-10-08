@@ -24,38 +24,31 @@ public interface IGoodsInTransitReader
 ///   • حمل داخلی مخزن/ترمینال با باقیماندهٔ مثبت ⇒ <see cref="InventoryTransportLeg"/>
 ///   • موتر بارگیری‌شده که هنوز تخلیه نشده        ⇒ <see cref="TruckDispatch"/>
 ///
-/// هیچ مقداری اینجا دوباره محاسبه نمی‌شود: باقیماندهٔ حمل داخلی فقط از
-/// <see cref="ITransportQuantityService"/> می‌آید و باقیماندهٔ بارگیری همان فرمول
-/// صفحهٔ بارگیری است (بارگیری − رسید − کسری رسید). این کد بدون تغییر از
-/// <c>ReportsController.GoodsInTransit</c> منتقل شد تا راپور وب و داشبورد موبایل یک مرجع داشته باشند.
+/// مقدار هیچ ردیفی اینجا حساب نمی‌شود: مقدار در مسیرِ هر سه نوع فقط از
+/// <see cref="GoodsInTransitQuantityReader"/> می‌آید (همان مرجع بیلانس کلی شرکت). «تا تاریخ» فیلتر
+/// تاریخ گزارش است (بدون آن امروز) و «از تاریخ» فقط تاریخ حرکت را محدود می‌کند. این کلاس فقط نام،
+/// مسیر و وسیله را برای نمایش می‌خواند؛ راپور وب و داشبورد موبایل از همین می‌خوانند.
 /// </summary>
 public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBusinessClock businessClock) : IGoodsInTransitReader
 {
-    private const decimal GoodsInTransitEpsilon = 0.0001m;
-
     public async Task<GoodsInTransitSnapshot> ReadAsync(
         GoodsInTransitFilterViewModel filter,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var today = businessClock.Today.Date;
+        var asOf = (filter.ToDate ?? businessClock.Today).Date;
+        var quantities = (await new GoodsInTransitQuantityReader(db)
+                .ReadAsync(asOf, filter.Kind, filter.ProductId, cancellationToken))
+            .Where(q => !filter.FromDate.HasValue || q.DepartureDate.Date >= filter.FromDate.Value.Date)
+            .ToList();
+        IReadOnlyDictionary<int, GoodsInTransitQuantityRow> Of(GoodsInTransitKind kind)
+            => quantities.Where(q => q.Kind == kind).ToDictionary(q => q.SourceId);
+
         var rows = new List<GoodsInTransitRowViewModel>();
-
-        if (filter.Kind is null or GoodsInTransitKind.FromOrigin)
-        {
-            rows.AddRange(await LoadInTransitLoadingsAsync(filter, today, cancellationToken));
-        }
-
-        if (filter.Kind is null or GoodsInTransitKind.InternalTransfer)
-        {
-            rows.AddRange(await LoadInTransitTransportLegsAsync(filter, today, cancellationToken));
-        }
-
-        if (filter.Kind is null or GoodsInTransitKind.CustomerDelivery)
-        {
-            rows.AddRange(await LoadInTransitTruckDispatchesAsync(filter, today, cancellationToken));
-        }
+        rows.AddRange(await LoadInTransitLoadingsAsync(Of(GoodsInTransitKind.FromOrigin), asOf, cancellationToken));
+        rows.AddRange(await LoadInTransitTransportLegsAsync(Of(GoodsInTransitKind.InternalTransfer), asOf, cancellationToken));
+        rows.AddRange(await LoadInTransitTruckDispatchesAsync(Of(GoodsInTransitKind.CustomerDelivery), asOf, cancellationToken));
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
@@ -92,28 +85,18 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
 
     /// <summary>بارگیری‌هایی که هنوز کامل رسید نخورده‌اند — بار در راه از مبدأ.</summary>
     private async Task<List<GoodsInTransitRowViewModel>> LoadInTransitLoadingsAsync(
-        GoodsInTransitFilterViewModel filter,
-        DateTime today,
+        IReadOnlyDictionary<int, GoodsInTransitQuantityRow> quantities,
+        DateTime asOf,
         CancellationToken cancellationToken)
     {
-        var query = db.LoadingRegisters.AsNoTracking().AsQueryable();
-
-        if (filter.FromDate.HasValue)
+        if (quantities.Count == 0)
         {
-            query = query.Where(l => l.LoadingDate >= filter.FromDate.Value.Date);
+            return [];
         }
 
-        if (filter.ToDate.HasValue)
-        {
-            query = query.Where(l => l.LoadingDate <= filter.ToDate.Value.Date);
-        }
-
-        if (filter.ProductId.HasValue)
-        {
-            query = query.Where(l => l.ProductId == filter.ProductId.Value);
-        }
-
-        var items = await query
+        var ids = quantities.Keys.ToArray();
+        var items = await db.LoadingRegisters.AsNoTracking()
+            .Where(l => ids.Contains(l.Id))
             .Select(l => new
             {
                 l.Id,
@@ -132,27 +115,8 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
                 l.RwbNo,
                 CarrierName = l.LogisticsServiceProvider != null
                     ? l.LogisticsServiceProvider.Name
-                    : l.LogisticsCompanyName,
-                // همان فرمول باقیماندهٔ صفحهٔ بارگیری: بارگیری − رسید لغو‌نشده − کسری رسید.
-                RemainingMt = l.LoadedQuantityMt
-                    - (l.Receipts.Where(r => !r.IsCancelled).Sum(r => (decimal?)r.ReceivedQuantityMt) ?? 0m)
-                    - (db.InventoryTransportLegAllocations
-                        .Where(a => a.SourceLoadingRegisterId == l.Id
-                            && a.InventoryTransportLeg != null
-                            && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
-                        .Sum(a => (decimal?)a.QuantityMt) ?? 0m)
-                    - (db.LossEvents
-                        .Where(e => (e.LoadingRegisterId == l.Id
-                                || e.LoadingReceiptId.HasValue
-                                    && e.LoadingReceipt != null
-                                    && e.LoadingReceipt.LoadingRegisterId == l.Id)
-                            && !e.IsCancelled
-                            && e.Stage == LossEventStage.ReceiptShortage)
-                        .Sum(e => (decimal?)(e.DifferenceQuantityMt > 0m
-                            ? e.DifferenceQuantityMt
-                            : e.ChargeableLossMt > 0m ? e.ChargeableLossMt : 0m)) ?? 0m)
+                    : l.LogisticsCompanyName
             })
-            .Where(x => x.RemainingMt > GoodsInTransitEpsilon)
             .ToListAsync(cancellationToken);
 
         return items.Select(x => new GoodsInTransitRowViewModel
@@ -169,39 +133,26 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
             OriginLabel = x.OriginName,
             DestinationLabel = FirstOrNull(x.DestinationName, x.ConsigneeName),
             RouteNote = x.RouteDescription,
-            QuantityMt = decimal.Round(x.RemainingMt, 4, MidpointRounding.AwayFromZero),
+            QuantityMt = quantities[x.Id].RemainingMt,
             DepartureDate = x.LoadingDate,
-            DaysOnRoad = DaysBetween(x.LoadingDate, today)
+            DaysOnRoad = DaysBetween(x.LoadingDate, asOf)
         }).ToList();
     }
 
     /// <summary>حمل‌های داخلی بارگیری‌شده/در مسیر که هنوز باقیمانده دارند.</summary>
     private async Task<List<GoodsInTransitRowViewModel>> LoadInTransitTransportLegsAsync(
-        GoodsInTransitFilterViewModel filter,
-        DateTime today,
+        IReadOnlyDictionary<int, GoodsInTransitQuantityRow> quantities,
+        DateTime asOf,
         CancellationToken cancellationToken)
     {
-        var query = db.InventoryTransportLegs
-            .AsNoTracking()
-            .Where(l => l.Status == InventoryTransportLegStatus.Loaded
-                || l.Status == InventoryTransportLegStatus.InTransit);
-
-        if (filter.FromDate.HasValue)
+        if (quantities.Count == 0)
         {
-            query = query.Where(l => l.LoadedDate >= filter.FromDate.Value.Date);
+            return [];
         }
 
-        if (filter.ToDate.HasValue)
-        {
-            query = query.Where(l => l.LoadedDate <= filter.ToDate.Value.Date);
-        }
-
-        if (filter.ProductId.HasValue)
-        {
-            query = query.Where(l => l.ProductId == filter.ProductId.Value);
-        }
-
-        var items = await query
+        var ids = quantities.Keys.ToArray();
+        var items = await db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => ids.Contains(l.Id))
             .Select(l => new
             {
                 l.Id,
@@ -237,30 +188,16 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
             })
             .ToListAsync(cancellationToken);
 
-        if (items.Count == 0)
-        {
-            return [];
-        }
-
-        // تک‌منبع باقیماندهٔ حمل — هیچ فرمول موازی‌ای اینجا ساخته نمی‌شود.
-        var remainingByLeg = await new TransportQuantityService(db)
-            .GetRemainingMtAsync(items.Select(x => x.Id).ToList(), cancellationToken);
-
         var rows = new List<GoodsInTransitRowViewModel>();
         foreach (var x in items)
         {
-            var remaining = remainingByLeg.TryGetValue(x.Id, out var mt) ? mt : 0m;
-            if (remaining <= GoodsInTransitEpsilon)
-            {
-                continue;
-            }
-
             rows.Add(new GoodsInTransitRowViewModel
             {
                 Kind = GoodsInTransitKind.InternalTransfer,
-                Stage = x.Status == InventoryTransportLegStatus.InTransit
-                    ? GoodsInTransitStage.InTransit
-                    : GoodsInTransitStage.Loaded,
+                // حملی که امروز «رسیده» است فقط در گزارشِ تاریخ گذشته می‌آید، یعنی آن روز در مسیر بوده.
+                Stage = x.Status == InventoryTransportLegStatus.Loaded
+                    ? GoodsInTransitStage.Loaded
+                    : GoodsInTransitStage.InTransit,
                 SourceId = x.Id,
                 LinkController = "InventoryTransportLegs",
                 VehicleLabel = FirstText(x.TruckPlate, x.WagonPlate, x.VesselName, x.WagonNumber, x.RwbNo, x.BillOfLadingNumber),
@@ -273,11 +210,11 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
                     JoinPlace(x.DestinationTerminalName, x.DestinationTankCode),
                     x.DestinationLocationName),
                 RouteNote = x.RouteDescription,
-                QuantityMt = remaining,
+                QuantityMt = quantities[x.Id].RemainingMt,
                 DepartureDate = x.LoadedDate,
                 ExpectedArrivalDate = x.ExpectedArrivalDate,
-                DaysOnRoad = DaysBetween(x.LoadedDate, today),
-                IsDelayed = x.ExpectedArrivalDate.HasValue && x.ExpectedArrivalDate.Value.Date < today
+                DaysOnRoad = DaysBetween(x.LoadedDate, asOf),
+                IsDelayed = x.ExpectedArrivalDate.HasValue && x.ExpectedArrivalDate.Value.Date < asOf
             });
         }
 
@@ -286,36 +223,19 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
 
     /// <summary>موترهای بارگیری‌شده/در مسیر که هنوز تخلیه نشده‌اند.</summary>
     private async Task<List<GoodsInTransitRowViewModel>> LoadInTransitTruckDispatchesAsync(
-        GoodsInTransitFilterViewModel filter,
-        DateTime today,
+        IReadOnlyDictionary<int, GoodsInTransitQuantityRow> quantities,
+        DateTime asOf,
         CancellationToken cancellationToken)
     {
-        // دیسپچ سازگاریِ «ادامهٔ حمل» همان بارِ مرحلهٔ فرزند است؛ اگر اینجا هم بیاید، یک بار
-        // دو ردیف می‌شود و در جمعِ مقدار دوبار شمرده می‌شود.
-        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(db);
-
-        var query = db.TruckDispatches
-            .AsNoTracking()
-            .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
-                && !(d.InventoryTransportReceiptId != null
-                    && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
-
-        if (filter.FromDate.HasValue)
+        if (quantities.Count == 0)
         {
-            query = query.Where(d => d.DispatchDate >= filter.FromDate.Value.Date);
+            return [];
         }
 
-        if (filter.ToDate.HasValue)
-        {
-            query = query.Where(d => d.DispatchDate <= filter.ToDate.Value.Date);
-        }
-
-        if (filter.ProductId.HasValue)
-        {
-            query = query.Where(d => d.ProductId == filter.ProductId.Value);
-        }
-
-        var items = await query
+        // موترِ فروخته‌شده هم تا تخلیه فیزیکی در مسیر است، پس اینجا می‌آید (بیلانس آن را طلب می‌شمارد).
+        var ids = quantities.Keys.ToArray();
+        var items = await db.TruckDispatches.AsNoTracking()
+            .Where(d => ids.Contains(d.Id))
             .Select(d => new
             {
                 d.Id,
@@ -356,9 +276,9 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
             PartyName = d.CustomerName,
             OriginLabel = d.OriginTerminalName,
             DestinationLabel = FirstOrNull(d.DestinationName, d.CustomerName),
-            QuantityMt = decimal.Round(d.LoadedQuantityMt, 4, MidpointRounding.AwayFromZero),
+            QuantityMt = quantities[d.Id].RemainingMt,
             DepartureDate = d.DispatchDate,
-            DaysOnRoad = DaysBetween(d.DispatchDate, today)
+            DaysOnRoad = DaysBetween(d.DispatchDate, asOf)
         }).ToList();
     }
 

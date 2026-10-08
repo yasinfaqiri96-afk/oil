@@ -150,7 +150,7 @@ public sealed partial class ProfitAndLossService
         if (saleIds.Count > 0)
         {
             var sales = await _db.SalesTransactions.AsNoTracking()
-                .Where(s => !s.IsCancelled && s.ContractId.HasValue && saleIds.Contains(s.ContractId.Value))
+                .Where(s => (!_reportBefore.HasValue || s.SaleDate < _reportBefore.Value) && !s.IsCancelled && s.ContractId.HasValue && saleIds.Contains(s.ContractId.Value))
                 .Select(s => new { s.Id, ContractId = s.ContractId!.Value, s.SaleDate, s.InvoiceNumber, s.QuantityMt, s.TotalUsd })
                 .ToListAsync(ct);
             var saleIdList = sales.Select(s => s.Id).ToArray();
@@ -195,7 +195,7 @@ public sealed partial class ProfitAndLossService
         LoadContractExpensesAsync(IReadOnlyCollection<int> contractIds, IReadOnlyCollection<int> purchaseIds, CancellationToken ct)
     {
         var baseQuery = _db.ExpenseTransactions.AsNoTracking()
-            .Where(e => !e.IsCancelled
+            .Where(e => (!_reportBefore.HasValue || e.ExpenseDate < _reportBefore.Value) && !e.IsCancelled
                 && ((e.ContractId.HasValue && contractIds.Contains(e.ContractId.Value))
                     || (!e.ContractId.HasValue
                         && ((e.TransportLeg != null && purchaseIds.Contains(e.TransportLeg.SourcePurchaseContractId))
@@ -254,7 +254,7 @@ public sealed partial class ProfitAndLossService
         // مالکِ ضایعه: قرارداد خریدِ خودش، وگرنه قراردادِ مسیرِ حمل/بارگیری/رسید/حرکت/دیسپچش (همان دامنهٔ
         // پروندهٔ قرارداد)؛ هر ضایعه یک مالک دارد.
         var lossRows = (await _db.LossEvents.AsNoTracking()
-            .Where(le => !le.IsCancelled
+            .Where(le => (!_reportBefore.HasValue || le.EventDate < _reportBefore.Value) && !le.IsCancelled
                 && le.ChargeableLossMt > 0m
                 && ((le.ContractId.HasValue && purchaseIds.Contains(le.ContractId.Value))
                     || (le.TransportLeg != null && purchaseIds.Contains(le.TransportLeg.SourcePurchaseContractId))
@@ -325,10 +325,7 @@ public sealed partial class ProfitAndLossService
             .Where(e => !e.CustomsDeclarationId.HasValue || !countedCustomsIds.Contains(e.CustomsDeclarationId.Value))
             .GroupBy(e => e.ContractId)
             .ToDictionary(g => g.Key, g => g.Sum(e => e.AmountUsd));
-        var contractsWithOfficialWagonRent = expenseRows
-            .Where(e => ExpenseClassification.IsWagonRent(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description))
-            .Select(e => e.ContractId)
-            .ToHashSet();
+        var contractsWithOfficialWagonRent = ContractsWithOfficialWagonRent(expenseRows);
 
         return purchaseContracts.Select(c =>
         {
@@ -390,6 +387,7 @@ public sealed partial class ProfitAndLossService
     {
         var result = new Dictionary<int, (decimal SharedExpenseUsd, decimal SharedLossMt, decimal TransportShortageMt)>();
         var legs = await _db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => !_reportBefore.HasValue || l.LoadedDate < _reportBefore.Value)
             .Where(l => purchaseIds.Contains(l.SourcePurchaseContractId))
             .Select(l => new { l.Id, l.ShipmentId, ContractId = l.SourcePurchaseContractId, l.QuantityMt })
             .ToListAsync(ct);
@@ -408,7 +406,7 @@ public sealed partial class ProfitAndLossService
         {
             var contractByLeg = legs.ToDictionary(l => l.Id, l => l.ContractId);
             var shortageByContract = (await _db.InventoryTransportReceipts.AsNoTracking()
-                    .Where(r => !r.IsCancelled && legIds.Contains(r.InventoryTransportLegId))
+                    .Where(r => (!_reportBefore.HasValue || r.ReceiptDate < _reportBefore.Value) && !r.IsCancelled && legIds.Contains(r.InventoryTransportLegId))
                     .Select(r => new { r.Id, r.InventoryTransportLegId, r.ReceiptDate, r.ShortageQuantityMt })
                     .ToListAsync(ct))
                 .GroupBy(r => r.InventoryTransportLegId)
@@ -416,7 +414,7 @@ public sealed partial class ProfitAndLossService
                 .GroupBy(r => contractByLeg[r.InventoryTransportLegId])
                 .ToDictionary(g => g.Key, g => g.Sum(r => r.ShortageQuantityMt));
             var recordedLegLossByContract = (await _db.LossEvents.AsNoTracking()
-                    .Where(e => !e.IsCancelled && e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))
+                    .Where(e => (!_reportBefore.HasValue || e.EventDate < _reportBefore.Value) && !e.IsCancelled && e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))
                     .Select(e => new { LegId = e.TransportLegId!.Value, e.DifferenceQuantityMt, e.ChargeableLossMt })
                     .ToListAsync(ct))
                 .GroupBy(e => contractByLeg[e.LegId])
@@ -445,7 +443,7 @@ public sealed partial class ProfitAndLossService
         }
 
         var untaggedExpenseByShipment = await _db.ExpenseTransactions.AsNoTracking()
-            .Where(e => !e.IsCancelled
+            .Where(e => (!_reportBefore.HasValue || e.ExpenseDate < _reportBefore.Value) && !e.IsCancelled
                 && e.ShipmentId.HasValue && shipmentIds.Contains(e.ShipmentId.Value)
                 && !e.TransportLegId.HasValue
                 && !e.ContractId.HasValue
@@ -456,7 +454,7 @@ public sealed partial class ProfitAndLossService
             .Select(g => new { ShipmentId = g.Key, AmountUsd = g.Sum(e => e.AmountUsd) })
             .ToDictionaryAsync(x => x.ShipmentId, x => x.AmountUsd, ct);
         var untaggedLossByShipment = await _db.LossEvents.AsNoTracking()
-            .Where(e => !e.IsCancelled
+            .Where(e => (!_reportBefore.HasValue || e.EventDate < _reportBefore.Value) && !e.IsCancelled
                 && e.ShipmentId.HasValue && shipmentIds.Contains(e.ShipmentId.Value)
                 && !e.TransportLegId.HasValue
                 && !e.LoadingRegisterId.HasValue
@@ -553,10 +551,12 @@ public sealed partial class ProfitAndLossService
         var byContract = new Dictionary<int, decimal>();
         var counted = new HashSet<int>();
         var lrIdToContract = await _db.LoadingRegisters.AsNoTracking()
+            .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => purchaseIds.Contains(lr.ContractId))
             .Select(lr => new { lr.Id, lr.ContractId })
             .ToDictionaryAsync(x => x.Id, x => x.ContractId, ct);
         var legIdToContract = await _db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => !_reportBefore.HasValue || l.LoadedDate < _reportBefore.Value)
             .Where(l => purchaseIds.Contains(l.SourcePurchaseContractId))
             .Select(l => new { l.Id, ContractId = l.SourcePurchaseContractId })
             .ToDictionaryAsync(x => x.Id, x => x.ContractId, ct);
@@ -568,6 +568,7 @@ public sealed partial class ProfitAndLossService
         var lrIds = lrIdToContract.Keys.ToList();
         var legIds = legIdToContract.Keys.ToList();
         var rows = await _db.CustomsDeclarations.AsNoTracking()
+            .Where(cd => !_reportBefore.HasValue || cd.DeclarationDate < _reportBefore.Value)
             .Where(cd => (cd.LoadingRegisterId.HasValue && lrIds.Contains(cd.LoadingRegisterId.Value))
                 || (cd.TransportLegId.HasValue && legIds.Contains(cd.TransportLegId.Value)))
             .Select(cd => new { cd.Id, cd.LoadingRegisterId, cd.TransportLegId, cd.TotalUsd })
@@ -598,7 +599,7 @@ public sealed partial class ProfitAndLossService
     {
         var result = new Dictionary<int, decimal>();
         var deferredPairs = await _db.LoadingReceipts.AsNoTracking()
-            .Where(r => !r.IsCancelled
+            .Where(r => (!_reportBefore.HasValue || r.ReceiptDate < _reportBefore.Value) && !r.IsCancelled
                 && r.LossMode == ReceiptLossMode.DeferredTankSettlement
                 && r.ReceiptDestination == LoadingReceiptDestination.ToInventory
                 && r.StorageTankId != null
@@ -646,6 +647,16 @@ public sealed partial class ProfitAndLossService
 
         return result;
     }
+
+    /// <summary>
+    /// قراردادهایی که اجارهٔ واگن را با سند مصرف رسمی دارند؛ برای بارگیری قدیمی (بدون ردیف مصرف) فیلد
+    /// درون‌خطی خط‌آهن همان مبلغ است و کنار می‌رود. مرجع مشترک اقتصاد قرارداد و پایهٔ بهای موجودی.
+    /// </summary>
+    private static HashSet<int> ContractsWithOfficialWagonRent(IEnumerable<ContractExpenseRow> expenseRows)
+        => expenseRows
+            .Where(e => ExpenseClassification.IsWagonRent(e.ExpenseTypeCode, e.ExpenseTypeName, e.ExpenseTypeNamePersian, e.Description))
+            .Select(e => e.ContractId)
+            .ToHashSet();
 
     private sealed record ContractExpenseRow(
         int ContractId,

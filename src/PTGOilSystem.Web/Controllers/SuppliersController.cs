@@ -374,6 +374,7 @@ public partial class SuppliersController : Controller
         var contracts = await _db.Contracts
             .AsNoTracking()
             .Where(c => c.ContractType == ContractType.Purchase
+                && !c.IsArchived
                 && c.SupplierId.HasValue
                 && supplierIds.Contains(c.SupplierId.Value))
             .ToListAsync();
@@ -484,7 +485,8 @@ public partial class SuppliersController : Controller
         var contracts = await _db.Contracts
             .AsNoTracking()
             .Include(c => c.Product)
-            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == supplier.Id)
+            // قرارداد لغوشدهٔ آرشیف‌شده (حذف از فهرست) در پروفایل تأمین‌کننده نمی‌آید.
+            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == supplier.Id && !c.IsArchived)
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .ToListAsync();
@@ -503,6 +505,8 @@ public partial class SuppliersController : Controller
                 // انتساب مرکزی (همان قانونِ صورت‌حساب) تا کرایهٔ حمل و اسنادِ طرف دیگر
                 // در پروفایل/مانده تأمین‌کننده هم شمرده نشوند.
                 .Where(LedgerEntryOwnership.SupplierOwned(supplier.Id))
+                // جفت سند ثبت/برگشتِ قرارداد آرشیف‌شده صفر است؛ مثل صورت‌حساب نمایش داده نمی‌شود.
+                .Where(l => l.Contract == null || !l.Contract.IsArchived)
                 .OrderBy(l => l.EntryDate)
                 .ThenBy(l => l.Id)
                 .Select(l => new SupplierLedgerProjection

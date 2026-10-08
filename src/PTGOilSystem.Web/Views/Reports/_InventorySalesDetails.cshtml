@@ -1,0 +1,99 @@
+@using PTGOilSystem.Web.Models.Entities
+@model PTGOilSystem.Web.Models.Reports.InventorySalesReportViewModel
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    string PageUrl(int page) => Url.Action("InventorySales", new {
+        ProductId = Model.Stock.Filter.ProductId, TerminalId = Model.Stock.Filter.TerminalId,
+        StorageTankId = Model.Stock.Filter.StorageTankId,
+        ToDate = Model.Stock.Filter.ToDate?.ToString("yyyy-MM-dd"), showDetails = true, page
+    }) ?? "";
+    string DirectionName(MovementDirection direction) => direction switch {
+        MovementDirection.In => T("ورود", "In"),
+        MovementDirection.Out => T("خروج", "Out"),
+        MovementDirection.Transfer => T("انتقال", "Transfer"),
+        MovementDirection.Adjustment => T("اصلاح", "Adjustment"),
+        _ => direction.ToString()
+    };
+}
+@if (Model.ShowDetails)
+{
+    <section class="ak-list mt-3" aria-labelledby="inventory-movements-title">
+        <div class="ak-list-toolbar">
+            <h2 id="inventory-movements-title" class="h6 mb-0">@T("گردش موجودی", "Stock movements")</h2>
+        </div>
+        @if (!Model.CanViewMovements)
+        {
+            <p class="ak-note p-3">@T("نمایش ریز گردش‌ها به دسترسی بخش موجودی نیاز دارد.", "Movement details require Inventory access.")</p>
+        }
+        else if (!Model.Stock.Filter.ProductId.HasValue)
+        {
+            <p class="ak-note p-3">@T("برای دیدن ورود، خروج و مانده، یک جنس را از فیلتر بالا انتخاب کنید و «گردش و بررسی» را باز کنید.", "Select a product above, then open Movements & review to see its stock history.")</p>
+        }
+        else
+        {
+            <p class="ak-note px-3">@T("جدیدترین حرکت‌ها در بالا است. ماندهٔ هر ردیف مربوط به همان جنس، قرارداد، ترمینال و مخزن است؛ جمع مانده‌ها موجودی کل نیست.", "Newest movements first. Each balance belongs to its product, contract, terminal and tank; row balances are not additive.")</p>
+            <div class="ak-table-wrap" data-server-pagination="true">
+                <table class="ak-table" data-server-pagination="true">
+                    <thead><tr>
+                        <th>@T("تاریخ", "Date")</th><th>@T("حرکت", "Movement")</th>
+                        <th>@T("ترمینال / مخزن", "Terminal / tank")</th><th>@T("قرارداد", "Contract")</th>
+                        <th>@T("سند", "Document")</th><th class="ak-col-num">@T("تغییر (MT)", "Change (MT)")</th>
+                        <th class="ak-col-num">@T("مانده (MT)", "Balance (MT)")</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var row in Model.Movements)
+                        {
+                            <tr>
+                                <td>@row.MovementDate.ToDisplayDate()</td><td>@DirectionName(row.Direction)</td>
+                                <td>@row.TerminalName / @(row.StorageTankCode ?? "—")</td>
+                                <td>@(row.ContractNumber ?? "—")</td><td>@(row.ReferenceDocument ?? "—")</td>
+                                <td class="ak-col-num ak-num"><bdi>@row.SignedQuantityMt.ToString("N4")</bdi></td>
+                                <td class="ak-col-num ak-num"><bdi>@row.RunningBalanceMt.ToString("N4")</bdi></td>
+                            </tr>
+                        }
+                        @if (Model.TotalMovements == 0)
+                        {
+                            <tr><td colspan="7"><div class="ak-empty">@T("گردشی با این فیلتر پیدا نشد.", "No movements match these filters.")</div></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.PageCount > 1)
+            {
+                <nav class="d-flex gap-3 align-items-center justify-content-center p-3" aria-label="@T("صفحه‌های گردش", "Movement pages")">
+                    @if (Model.Page > 1) { <a class="btn btn-sm btn-light" href="@PageUrl(Model.Page - 1)">@T("قبلی", "Previous")</a> }
+                    <span>@Model.Page / @Model.PageCount</span>
+                    @if (Model.Page < Model.PageCount) { <a class="btn btn-sm btn-light" href="@PageUrl(Model.Page + 1)">@T("بعدی", "Next")</a> }
+                </nav>
+            }
+        }
+    </section>
+    @if (Model.Operations is { } operations)
+    {
+        <section class="ak-list mt-3" aria-labelledby="inventory-review-title">
+            <div class="ak-list-toolbar"><h2 id="inventory-review-title" class="h6 mb-0">@T("موارد نیازمند بررسی", "Items needing review")</h2></div>
+            <p class="ak-note px-3">@T("هشدارهای عمومی عملیات؛ بارگیری بدون رسید و ضایعات قابل شارژ الزاماً محدود به جنس یا مخزن انتخاب‌شده نیست.", "General operational warnings; unreceipted loadings and chargeable losses are not necessarily limited to the selected product or tank.")</p>
+            @if (operations.Warnings.Any())
+            {
+                <div class="ak-table-wrap"><table class="ak-table">
+                    <thead><tr><th>@T("مورد", "Item")</th><th>@T("شرح", "Description")</th><th class="ak-col-num">@T("تعداد", "Count")</th></tr></thead>
+                    <tbody>@foreach (var warning in operations.Warnings)
+                    {
+                        var canOpen = PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, warning.Controller);
+                        <tr><td>
+                            @if (canOpen)
+                            {
+                                <a class="ak-link" href="@Url.Action(warning.Action, warning.Controller, warning.RouteValues)">@warning.Title</a>
+                            }
+                            else { @warning.Title }
+                        </td><td>@warning.Description</td><td class="ak-col-num ak-num">@warning.Count</td></tr>
+                    }</tbody>
+                </table></div>
+            }
+            else
+            {
+                <p class="ak-note p-3">@T("موردی برای بررسی پیدا نشد.", "No items need review.")</p>
+            }
+        </section>
+    }
+}

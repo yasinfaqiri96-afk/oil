@@ -1506,7 +1506,7 @@ public partial class SalesController : Controller
             InvoiceNumber = sale.InvoiceNumber,
             SaleDate = sale.SaleDate,
             Notes = sale.Notes,
-            // Gap #4 — show existing values as context (edit POST only allows Notes changes)
+            // Gap #4 — show existing values as context (edit POST only allows Quantity and Notes changes)
             TicketSerialNumber = sale.TicketSerialNumber,
             StockSourceType = sale.StockSourceType,
             ReturnUrl = returnUrl
@@ -1551,11 +1551,23 @@ public partial class SalesController : Controller
             || model.SaleDate.Date != sale.SaleDate.Date
             || model.InvoiceNumber != sale.InvoiceNumber
             || model.Currency != sale.Currency
-            || model.QuantityMt != sale.QuantityMt
             || model.UnitPriceInCurrency != sale.UnitPriceInCurrency
-            || model.AppliedFxRateToUsd != sale.AppliedFxRateToUsd)
+            // فرم برای ارز پایه فیلد نرخ را خالی می‌فرستد (finance-forms.js)؛ خالی یعنی «تغییر نکرده».
+            || (model.AppliedFxRateToUsd.HasValue && model.AppliedFxRateToUsd != sale.AppliedFxRateToUsd))
         {
-            ModelState.AddModelError(string.Empty, "در نسخه فعلی فقط ویرایش یادداشت فروش مجاز است.");
+            ModelState.AddModelError(string.Empty, "در نسخه فعلی فقط مقدار و یادداشت فروش قابل ویرایش است.");
+        }
+
+        var quantityChanged = model.QuantityMt != sale.QuantityMt;
+        if (quantityChanged && ModelState.IsValid)
+        {
+            var blocker = model.QuantityMt <= 0m
+                ? "مقدار فروش باید بزرگ‌تر از صفر باشد."
+                : await GetQuantityEditBlockerAsync(sale, model.QuantityMt);
+            if (blocker is not null)
+            {
+                ModelState.AddModelError(nameof(model.QuantityMt), blocker);
+            }
         }
 
         if (!ModelState.IsValid)
@@ -1566,16 +1578,267 @@ public partial class SalesController : Controller
             return View("Create", model);
         }
 
-        sale.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
-        await _db.SaveChangesAsync();
+        var notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+        if (quantityChanged)
+        {
+            try
+            {
+                await ApplyQuantityEditAsync(sale, model.QuantityMt, notes);
+            }
+            catch (BusinessRuleException ex)
+            {
+                ModelState.AddModelError(nameof(model.QuantityMt), ex.Message);
+                ViewData["IsEdit"] = true;
+                ViewData["EditId"] = id;
+                await PopulateLookupsAsync(createModel: model);
+                return View("Create", model);
+            }
 
-        TempData["ok"] = "یادداشت فروش به‌روزرسانی شد.";
+            TempData["ok"] = "مقدار فروش ویرایش شد؛ موجودی و سند مالی با مقدار جدید اصلاح شد.";
+        }
+        else
+        {
+            sale.Notes = notes;
+            await _db.SaveChangesAsync();
+            TempData["ok"] = "یادداشت فروش به‌روزرسانی شد.";
+        }
+
         if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
         {
             return Redirect(localReturnUrl);
         }
 
         return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ویرایش مقدار فقط برای فروش عادیِ ثبت‌شده از یک مخزن ممکن است. هر چیزی که با مقدار قدیمی
+    // قفل شده و این مسیر نمی‌تواند دقیق برگرداند (ژورنال دفتر کل جدید، مصرف پیش‌دریافت، Lot، ضایعه،
+    // فروش گروهی/پیش‌فروش/موتر) ویرایش را می‌بندد و کاربر از مسیر «لغو و فروش جایگزین» می‌رود.
+    private async Task<string?> GetQuantityEditBlockerAsync(SalesTransaction sale, decimal newQuantityMt)
+    {
+        const string useCorrection = " این فروش را از دکمهٔ «لغو» و ثبت فروش جایگزین اصلاح کنید.";
+
+        if (sale.SaleStage != SaleStage.TerminalStock
+            || sale.SalesBatchId.HasValue
+            || sale.PreSaleOrderId.HasValue
+            || sale.TruckDispatchId.HasValue
+            || !sale.CompanyId.HasValue)
+        {
+            return "ویرایش مقدار فقط برای فروش عادی از مخزن ممکن است." + useCorrection;
+        }
+
+        var outs = await _db.InventoryMovements
+            .AsNoTracking()
+            .Where(m => m.SalesTransactionId == sale.Id && m.Direction == MovementDirection.Out)
+            .Select(m => new { m.Id, m.TerminalId, m.StorageTankId })
+            .ToListAsync();
+        if (outs.Count == 0
+            || outs.Any(m => !m.StorageTankId.HasValue)
+            || outs.Select(m => (m.TerminalId, m.StorageTankId)).Distinct().Count() != 1)
+        {
+            return "خروج موجودی این فروش از یک مخزن مشخص نیست." + useCorrection;
+        }
+
+        var outIds = outs.Select(m => (int?)m.Id).ToList();
+        if (await _db.InventoryMovements.AnyAsync(m => outIds.Contains(m.ReversalOfInventoryMovementId)))
+        {
+            return "خروج موجودی این فروش قبلاً برگشت خورده است." + useCorrection;
+        }
+
+        var createdEventId = Services.Accounting.SalesAccountingAdapter.BuildCreatedSourceEventId(sale.Id);
+        var cogsEventId = Services.Accounting.SalesAccountingAdapter.BuildCogsSourceEventId(sale.Id);
+        if (await _db.JournalEntries.AnyAsync(j =>
+                j.SourceModule == Services.Accounting.SalesAccountingAdapter.SourceModule
+                && (j.SourceEventId == createdEventId || j.SourceEventId == cogsEventId))
+            || await _db.SalesCostConsumptions.AnyAsync(c => c.SalesTransactionId == sale.Id))
+        {
+            return "برای این فروش سند حسابداری (درآمد/بهای تمام‌شده) ثبت شده است." + useCorrection;
+        }
+
+        if (await _db.CustomerPaymentAllocationApplications.AnyAsync(a =>
+                a.SalesTransactionId == sale.Id && a.Status == CustomerPaymentAllocationApplicationStatus.Active)
+            || await _db.SaleLotAllocations.AnyAsync(a => a.SalesTransactionId == sale.Id)
+            || await _db.LossEvents.AnyAsync(l => l.SalesTransactionId == sale.Id))
+        {
+            return "به این فروش پیش‌دریافت، Lot یا ضایعه وصل است." + useCorrection;
+        }
+
+        var paidUsd = await _db.PaymentTransactions
+            .Where(p => p.SalesTransactionId == sale.Id)
+            .SumAsync(p => (decimal?)p.AmountUsd) ?? 0m;
+        var newTotalUsd = decimal.Round(
+            decimal.Round(newQuantityMt * sale.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero)
+                * (sale.AppliedFxRateToUsd ?? 1m),
+            4,
+            MidpointRounding.AwayFromZero);
+        if (paidUsd > newTotalUsd)
+        {
+            return $"دریافت ثبت‌شده روی این فروش ({paidUsd:N2} USD) از مبلغ جدید ({newTotalUsd:N2} USD) بیشتر می‌شود.";
+        }
+
+        return null;
+    }
+
+    // همان فروش و همان شمارهٔ فاکتور می‌ماند؛ اسنادِ مقدارِ قبلی برگشت رسمی می‌خورند و با مقدارِ جدید
+    // از همان مسیرهای ثبت فروش دوباره ثبت می‌شوند — همه در یک تراکنش.
+    //   • موجودی: خروج قبلی با PostReversalAsync برمی‌گردد و از فروش جدا می‌شود (SalesTransactionId=null)
+    //     تا خواننده‌های «خروجِ این فروش» (COGS، لغو، گزارش‌ها) فقط خروجِ فعلی را ببینند.
+    //   • دفتر: سطر فروشِ قبلی برگشت می‌خورد و سطر تازه با مرجع «فاکتور/E{n}» ثبت می‌شود تا برگشتِ
+    //     بعدی (ویرایش یا لغو دوباره) با محافظ «دو بار برگشت» برخورد نکند.
+    private async Task ApplyQuantityEditAsync(SalesTransaction sale, decimal newQuantityMt, string? notes)
+    {
+        var oldOuts = await _db.InventoryMovements
+            .Where(m => m.SalesTransactionId == sale.Id && m.Direction == MovementDirection.Out)
+            .OrderBy(m => m.Id)
+            .ToListAsync();
+        var terminalId = oldOuts[0].TerminalId;
+        var storageTankId = oldOuts[0].StorageTankId!.Value;
+
+        var oldLedger = await _db.LedgerEntries
+            .AsNoTracking()
+            .Where(l => l.SourceType == "Sale" && l.SourceId == sale.Id)
+            .OrderByDescending(l => l.Id)
+            .FirstOrDefaultAsync()
+            ?? throw new BusinessRuleException("SALE_EDIT_LEDGER_MISSING", "سند مالی این فروش پیدا نشد؛ ویرایش انجام نشد.");
+        if (Services.CompanyFlow.CompanyFlowSourceTypes.IsReversalReference(oldLedger.Reference))
+        {
+            throw new BusinessRuleException("SALE_EDIT_LEDGER_REVERSED", "سند مالی این فروش قبلاً برگشت خورده است؛ ویرایش انجام نشد.");
+        }
+
+        var revision = await _db.LedgerEntries
+            .CountAsync(l => l.SourceType == "Sale" && l.SourceId == sale.Id && l.Id <= oldLedger.Id
+                && (l.Reference == null || !l.Reference.EndsWith(Services.CompanyFlow.CompanyFlowSourceTypes.ReversalReferenceSuffix)));
+
+        var conversion = await _currencyConversion.ResolveToBaseAsync(
+            sale.Currency,
+            sale.SaleDate.Date,
+            sale.AppliedFxRateToUsd);
+
+        var oldQuantityMt = sale.QuantityMt;
+        var oldTotalUsd = sale.TotalUsd;
+
+        IDbContextTransaction? transaction = null;
+        if (_db.Database.IsRelational())
+        {
+            transaction = await _db.Database.BeginTransactionAsync();
+        }
+
+        try
+        {
+            if (await LockStorageTankAsync(storageTankId) is null)
+            {
+                throw new BusinessRuleException("SALE_TERMINAL_STOCK_TANK_NOT_FOUND", "مخزن این فروش دیگر معتبر نیست.");
+            }
+
+            // ۱) موجودیِ مقدار قبلی به همان تاریخ به مخزن برمی‌گردد و از فروش جدا می‌شود.
+            var oldMovementIds = new List<int>();
+            foreach (var oldOut in oldOuts)
+            {
+                var reversal = await _movements.PostReversalAsync(
+                    oldOut,
+                    oldOut.MovementDate,
+                    $"Reversal for edited SaleId={sale.Id}: {oldQuantityMt:0.####} → {newQuantityMt:0.####} MT");
+                oldOut.SalesTransactionId = null;
+                oldMovementIds.Add(oldOut.Id);
+                if (reversal is not null)
+                {
+                    reversal.SalesTransactionId = null;
+                }
+            }
+
+            // ۲) سطر دفترِ مقدار قبلی برگشت می‌خورد (همان تاریخ فروش).
+            await LedgerReversalWriter.ReverseAsync(
+                _db,
+                oldLedger,
+                oldLedger.EntryDate,
+                $"ویرایش مقدار فروش #{sale.Id} ({oldQuantityMt:0.####} → {newQuantityMt:0.####} MT) | {oldLedger.Description}",
+                sale.InvoiceNumber);
+
+            // ۳) خود فروش با مقدار و مبالغ جدید؛ تخصیص منبعِ قبلی پاک و از خروج جدید دوباره ساخته می‌شود.
+            var totalInCurrency = decimal.Round(newQuantityMt * sale.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
+            sale.QuantityMt = newQuantityMt;
+            sale.TotalInCurrency = totalInCurrency;
+            sale.TotalUsd = conversion.ConvertToBase(totalInCurrency);
+            sale.Notes = notes;
+            _db.SalesTransactionSourceAllocations.RemoveRange(await _db.SalesTransactionSourceAllocations
+                .Where(a => a.SalesTransactionId == sale.Id)
+                .ToListAsync());
+            await _db.SaveChangesAsync();
+
+            // ۴) خروج جدید از همان مخزن؛ اول از همان قرارداد منبع، بعد FIFO (همان قاعدهٔ ثبت فروش).
+            var stockAllocations = await EnsureSufficientTerminalStockAsync(
+                sale.ProductId,
+                newQuantityMt,
+                sale.SaleDate,
+                terminalId,
+                storageTankId,
+                sale.CompanyId!.Value,
+                sale.SourcePurchaseContractId);
+            var stockOutMovements = stockAllocations.Select(allocation => new InventoryMovement
+            {
+                ProductId = sale.ProductId,
+                ContractId = allocation.ContractId,
+                TerminalId = terminalId,
+                StorageTankId = storageTankId,
+                SalesTransactionId = sale.Id,
+                Direction = MovementDirection.Out,
+                MovementDate = sale.SaleDate,
+                QuantityMt = allocation.QuantityMt,
+                ReferenceDocument = sale.InvoiceNumber,
+                Notes = BuildSaleInventoryNotes(
+                    sale.SaleStage,
+                    sale.InvoiceNumber,
+                    $"SaleId={sale.Id} | edited {oldQuantityMt:0.####} → {newQuantityMt:0.####} MT")
+            }).ToList();
+            await _movements.PostOutboundRangeAsync(stockOutMovements, StockGuard.Full);
+
+            var saleSourcePlan = await _sourceAllocations.BuildFromInventoryMovementsAsync(stockOutMovements, sale.QuantityMt);
+            _sourceAllocations.ApplyLegacyHeader(sale, saleSourcePlan);
+            await _sourceAllocations.PersistSaleAsync(sale, saleSourcePlan);
+            await _lineage.AllocateSaleAsync(sale, sale.SourcePurchaseContractId, terminalId, storageTankId);
+
+            // ۵) سطر دفتر تازه با مقدار جدید.
+            var ledgerEntry = Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(
+                    sale,
+                    conversion,
+                    contractId: sale.ContractId ?? sale.SourcePurchaseContractId)
+                with { Reference = $"{sale.InvoiceNumber}/E{revision}" });
+            await _db.SaveChangesAsync();
+
+            await PostSaleAccountingAsync(sale);
+
+            await _audit.LogAsync(
+                nameof(SalesTransaction),
+                sale.Id,
+                AuditAction.Update,
+                diff: AuditDiffFormatter.ForUpdate(
+                    ("QuantityMt", oldQuantityMt, sale.QuantityMt),
+                    ("TotalUsd", oldTotalUsd, sale.TotalUsd),
+                    ("InventoryMovementIds", string.Join(",", oldMovementIds), string.Join(",", stockOutMovements.Select(m => m.Id))),
+                    ("LedgerReference", oldLedger.Reference, ledgerEntry.Reference)));
+            await _db.SaveChangesAsync();
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+        }
+        catch
+        {
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync();
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
+        }
     }
 
     [HttpGet]

@@ -1,5 +1,15 @@
 # PTG Oil System
 
+Compilation ownership: Web references Persistence and Migrations; Migrations
+references only Persistence. Existing Entity/DbContext source paths/namespaces
+are linked into Persistence. Migration source lives in
+`src/PTGOilSystem.Migrations/Migrations/`. Daily builds must keep project
+references enabled so changed dependencies are compiled correctly; use normal
+Web `build --no-restore`, not `Rebuild` or `BuildProjectReferences=false`.
+EF commands target `src/PTGOilSystem.Migrations/PTGOilSystem.Migrations.csproj`
+with `--startup-project src/PTGOilSystem.Web/PTGOilSystem.Web.csproj`; use
+`--no-build` after a fresh build. See `docs/migrations-project.md`.
+
 ## Mandatory Rules
 
 - Read and understand the existing code before making changes.
@@ -10,7 +20,7 @@
 - Never guess business behavior.
 - First identify the root cause and related files.
 - Make the smallest safe change.
-- Run build and relevant tests after changes.
+- Batch changes, then run the minimum reliable build and related tests once (see Execution efficiency).
 - Keep final responses short and precise.
 
 ## UI/UX prohibitions (always apply)
@@ -34,18 +44,22 @@ Setup and limitations: `docs/ui-pick-workflow.md`.
 
 ## graphify
 
-This project has a knowledge graph at `graphify-out/`. For codebase questions, use the `graphify` skill before raw grep or source browsing; after modifying code, run `graphify update .`.
+Locate the relevant file and method directly with `rg`; Graphify is not a prerequisite for code search or delivery. Never run it for small bug fixes, UI/CSS/JS/View changes, small Controller changes, text edits, or test reruns. Run it only when explicitly requested, for a major architecture or dependency/service relationship change, or once at the end of a large feature when needed. This project policy overrides generic Graphify skill instructions.
 
 ## Execution efficiency
 
-- Start with only files directly related to the requested task.
-- Do not explore the entire repository unless necessary.
-- Do not use subagents, broad research, or review workflows unless explicitly needed.
-- Do not repeatedly run git status, git diff, build, or tests after every edit.
-- For UI-only changes, inspect the View + directly related CSS/JS first.
-- Run targeted tests when available.
-- Run one final build after implementation when code compilation may be affected.
-- Run the full test suite only for cross-cutting, accounting, inventory, migration, or explicitly requested changes.
-- Reuse information already discovered in the current task.
-- Do not reopen unchanged files without a reason.
-- Prefer direct implementation over prolonged planning for well-scoped tasks.
+- Follow `inspect once → batch edits → validate once`.
+- Inspect initial working-tree state and only files relevant to the request. Preserve unrelated edits. Stop exploring once the root cause is known and implement the scoped fix.
+- Do not scan/read the whole repository, generated files, migrations, or build outputs for an ordinary fix. In large files (`LoadingController.cs`, `SalesController.cs`, `Create.cshtml`), search symbols/text and read the method range plus surrounding lines. Read the entire file only for a concrete need.
+- Reuse discovered facts; do not repeatedly reread unchanged files. No subagents, extra research, or long plans for simple tasks.
+- Do not run build, tests, git diff, or git status after each edit. Batch edits and final validation. Repeat a check only after new changes, a failure, or a specific unresolved concern.
+- CSS/JS/text-only changes: `scripts/dev-verify.ps1 -Ui -Paths <task-files>`. Razor changes require one Web build; the UI mode detects Razor paths. Run only relevant structural/UI tests, when available.
+- Ordinary C# changes: `scripts/dev-verify.ps1 -Web -Filter 'FullyQualifiedName~RelatedClass'`. With a filter, it builds the test project once, including Web and required project references; then runs targeted tests with `--no-build --no-restore`. Without a filter, it builds only Web. A Web build alone does not refresh the test DLL.
+- For repeated tests after a successful fresh test build, use `dotnet test ... --no-build --no-restore --filter ...`. Existing test scripts also reuse the built assembly by default; pass `-Build` only when needed.
+- Controller changes: that Controller/class's tests. Service changes: that Service's tests. Full suite is forbidden for ordinary fixes; reserve it for accounting, inventory, ledger, migration, cross-cutting changes, or release/deploy verification.
+- Full solution build is forbidden for everyday Web changes; reserve it for shared projects, Entity/Migration architecture changes, or release validation. Use `scripts/dev-verify.ps1 -Full` for that scope, including the full suite and EF pending-model check. Never apply migrations during verification.
+- Use `--no-restore` after the initial restore. Restore only when dependencies/project/build imports change, assets are missing, or an explicit assets error requires it. Do not add an implicit restore to routine validation.
+- Keep Razor compilation/source generators, Debug symbols, and required checks enabled. Debug bundling is skipped; Release/Publish still generate production bundles. Debug outside Development requires `-p:PtgBuildBundles=true`.
+- Do not kill user-owned dotnet/watch/compiler/VS Code processes. Use `-IsolatedCompiler` on dev-verify only for compiler contention; it disables shared compilation/node reuse and limits build parallelism for that invocation.
+- Concurrent Claude/Codex writers must use separate Git worktrees or checkouts with appropriate branches. A second branch name inside the same checkout does not isolate files or build caches.
+- Detailed commands, validation boundaries, and measured timings: `docs/development-performance.md`.

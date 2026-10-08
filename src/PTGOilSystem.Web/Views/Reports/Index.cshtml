@@ -9,6 +9,7 @@
     // می‌دهد. اینجا نگهداری می‌شود تا کنترلر، مدل و منطق گزارش‌ها دست‌نخورده بماند.
     var avatarMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
+        ["Reports|CompanyBalance"] = "/images/stat-cards/ref-reports/rep-analysis.webp",
         ["Reports|CompanyOverview"] = "/images/stat-cards/ref-reports/rep-finance-pnl.webp",
         ["Reports|ContractPnl"] = "/images/stat-cards/ref-contract/contract-profit.webp",
         ["ShipmentPnl|Index"] = "/images/stat-cards/ref-shipment/profit.webp",
@@ -23,9 +24,7 @@
         ["Reports|FxDifference"] = "/images/stat-cards/ref-people/exchange-rate.webp",
         ["Expenses|Index"] = "/images/stat-cards/ref-blue/sale-expense.webp",
 
-        ["Reports|InventoryOperations"] = "/images/stat-cards/ref-reports/rep-inventory.webp",
-        ["Inventory|StockCard"] = "/images/stat-cards/ref-shipment/remaining.webp",
-        ["Reports|SellableStock"] = "/images/stat-cards/ref-reconciliation/recon-stock.webp",
+        ["Reports|InventorySales"] = "/images/stat-cards/ref-reports/rep-inventory.webp",
         ["Reports|NegativeStock"] = "/images/stat-cards/ref-shipment/losses.webp",
         ["Sales|PreSales"] = "/images/stat-cards/ref-contracts/contracts-total.webp",
         ["Reports|PreSaleDiscrepancies"] = "/images/stat-cards/ref-reconciliation/recon-documents.webp",

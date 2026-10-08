@@ -61,7 +61,7 @@
                 <input asp-for="ReturnUrl" type="hidden" />
                 <label>
                     <span>@T("محموله برای انتقال گروهی", "Shipment for batch transfer")</span>
-                    <select name="shipmentId" asp-items="batchShipments" class="ak-input" required>
+                    <select name="shipmentId" asp-items="batchShipments" class="ak-input" data-ak-entity-combobox required>
                         <option value="">@T("یک محموله را انتخاب کنید", "Select a shipment")</option>
                     </select>
                 </label>

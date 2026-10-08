@@ -153,6 +153,29 @@ public class LoadingFreightReconcileTests
     }
 
     [Fact]
+    public async Task Edit_Buyer_Freight_To_No_Transport_Type_Is_Rejected_And_Keeps_Payable()
+    {
+        await using var db = await SeedAsync();
+        await CreateProviderLoadingAsync(db, CostResponsibility.Buyer, providerId: 1, rate: 10m);
+
+        db.ChangeTracker.Clear();
+        var controller = NewLoadingController(db);
+        var result = await controller.Edit((await LoadingAsync(db)).Id, EditModel(await LoadingAsync(db), m =>
+        {
+            m.LogisticsMode = "none";
+            m.LogisticsServiceProviderId = null;
+        }));
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(
+            controller.ModelState.Values.SelectMany(v => v.Errors),
+            e => e.ErrorMessage.Contains("«نوعیت ترانسپورت» و طرف‌حساب کرایه", StringComparison.Ordinal));
+        db.ChangeTracker.Clear();
+        Assert.Equal(1, (await LoadingAsync(db)).LogisticsServiceProviderId);
+        Assert.Equal(300m, await ProviderOwedAsync(db, 1));
+    }
+
+    [Fact]
     public async Task Edit_Resave_Without_Changes_Creates_No_Duplicate_Posting()
     {
         await using var db = await SeedAsync();

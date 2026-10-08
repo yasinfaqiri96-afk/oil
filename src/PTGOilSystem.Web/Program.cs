@@ -81,6 +81,7 @@ builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =
 {
     options.UseNpgsql(BuildPostgresConnectionString(rawConnectionString!), npgsql =>
     {
+        npgsql.MigrationsAssembly(ApplicationDbContext.MigrationsAssemblyName);
         // عمداً کوتاه: هدف این است که کوئری کند سریع شکست بخورد و دیده شود،
         // نه اینکه با Timeout بلند پنهان بماند و اتصال را اشغال نگه دارد.
         npgsql.CommandTimeout(30);
@@ -611,6 +612,18 @@ if (args.Contains("--repair-loading-freight", StringComparer.OrdinalIgnoreCase))
     return exitCode;
 }
 
+// ---- Customs cash currency repair (CLI) -------------------------------------
+// `dotnet run -- --repair-customs-cash-currency [--dry-run]` تعمیرِ یک‌بارهٔ دادهٔ قدیمی است: مصرفِ گمرکِ
+// «نقد پرداخت شد» که پیش از این همیشه به USD ثبت می‌شد ولی صندوقش ارز دیگری دارد، با همان
+// CustomsDeclarationExpenseSync (مسیر ذخیرهٔ اظهارنامه) به ارزِ صندوق بازنویسی می‌شود. همان سند و همان
+// سطر دفتر کل درجا به‌روز می‌شوند (سند تازه ساخته نمی‌شود) و معادل دالری تغییر نمی‌کند؛ گروهی که
+// معادل افغانی/نرخ ندارد یا جمع دالری‌اش با سند فرق دارد دست نمی‌خورد. اجرای دوباره بی‌اثر است.
+if (args.Contains("--repair-customs-cash-currency", StringComparer.OrdinalIgnoreCase))
+{
+    var exitCode = await RunCustomsCashCurrencyRepairAsync(app, args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase));
+    return exitCode;
+}
+
 // `dotnet run -- --partner-reconciliation` prints, per partnership contract and partner, what the
 // partnership statement says, what the ledger's partner current account holds, and the named
 // reason for any difference. Read-only.
@@ -945,6 +958,121 @@ static async Task<int> RunLoadingFreightPartyRepairAsync(WebApplication app, int
         Console.WriteLine($"Provider ledger balance (credit - debit): {owed:N2} USD");
     }
 
+    return 0;
+}
+
+static async Task<int> RunCustomsCashCurrencyRepairAsync(WebApplication app, bool dryRun)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
+    var expenseAccounting = scope.ServiceProvider.GetService<IExpenseAccountingAdapter>();
+
+    var mismatched = (await db.ExpenseTransactions.AsNoTracking()
+            .Where(e => !e.IsCancelled
+                && e.CustomsDeclarationId != null
+                && e.CustomsComponentGroup != null
+                && e.SettlementMode == ExpenseSettlementMode.PaidImmediately
+                && e.CashAccountId != null)
+            .Join(
+                db.CashAccounts.AsNoTracking(),
+                e => e.CashAccountId,
+                a => (int?)a.Id,
+                (e, a) => new
+                {
+                    e.Id,
+                    DeclarationId = e.CustomsDeclarationId!.Value,
+                    Group = e.CustomsComponentGroup!.Value,
+                    e.Amount,
+                    e.Currency,
+                    e.AppliedFxRateToUsd,
+                    e.AmountUsd,
+                    CashAccountId = a.Id,
+                    CashCurrency = a.Currency
+                })
+            .ToListAsync())
+        .Where(x => SystemCurrency.Normalize(x.Currency) != SystemCurrency.Normalize(x.CashCurrency))
+        .OrderBy(x => x.DeclarationId)
+        .ThenBy(x => x.Id)
+        .ToList();
+
+    Console.WriteLine(dryRun ? "== Customs cash currency repair - DRY RUN ==" : "== Customs cash currency repair ==");
+    Console.WriteLine($"Paid customs expenses whose currency differs from their cash account: {mismatched.Count}");
+
+    var repaired = 0;
+    var skipped = 0;
+    foreach (var declarationRows in mismatched.GroupBy(x => x.DeclarationId))
+    {
+        var declaration = await db.CustomsDeclarations
+            .Include(d => d.Items)
+            .SingleAsync(d => d.Id == declarationRows.Key);
+        var (dutyUsd, serviceUsd) = PTGOilSystem.Web.Services.Customs.CustomsDeclarationExpenseSync.SplitUsd(declaration.Items);
+
+        var ready = true;
+        foreach (var row in declarationRows)
+        {
+            var groupUsd = row.Group == PTGOilSystem.Web.Services.Customs.CustomsComponentGroup.GovernmentDuty ? dutyUsd : serviceUsd;
+            var target = PTGOilSystem.Web.Services.Customs.CustomsDeclarationExpenseSync.ResolveCashAmount(
+                row.CashCurrency,
+                row.AmountUsd,
+                PTGOilSystem.Web.Services.Customs.CustomsDeclarationExpenseSync.GroupAfn(declaration.Items, row.Group));
+            var reason = groupUsd != row.AmountUsd
+                ? $"SKIP: declaration USD {groupUsd:N4} differs from expense USD {row.AmountUsd:N4}"
+                : target is null
+                    ? "SKIP: AFN amount or rate missing for this group"
+                    : $"-> {target.Amount:N4} {target.Currency} @ {target.RateToUsd} (USD {row.AmountUsd:N4} unchanged)";
+            ready &= groupUsd == row.AmountUsd && target is not null;
+            Console.WriteLine(
+                $"  declaration {row.DeclarationId} expense {row.Id} {row.Group}: {row.Amount:N4} {row.Currency} on cash account {row.CashAccountId} ({row.CashCurrency}) {reason}");
+        }
+
+        if (!ready)
+        {
+            skipped += declarationRows.Count();
+            continue;
+        }
+
+        if (dryRun)
+        {
+            repaired += declarationRows.Count();
+            continue;
+        }
+
+        var activeBefore = await db.ExpenseTransactions.CountAsync(e => e.CustomsDeclarationId == declaration.Id && !e.IsCancelled);
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        await PTGOilSystem.Web.Services.Customs.CustomsDeclarationExpenseSync.SyncAsync(db, declaration, expenseAccounting);
+
+        var expenseIds = declarationRows.Select(r => r.Id).ToList();
+        var after = await db.ExpenseTransactions.AsNoTracking()
+            .Where(e => expenseIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id);
+        var activeAfter = await db.ExpenseTransactions.CountAsync(e => e.CustomsDeclarationId == declaration.Id && !e.IsCancelled);
+        if (activeAfter != activeBefore || declarationRows.Any(r => after[r.Id].IsCancelled || after[r.Id].AmountUsd != r.AmountUsd))
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"ERROR: declaration {declaration.Id} changed more than the cash currency; rolled back.");
+            return 1;
+        }
+
+        foreach (var row in declarationRows)
+        {
+            var expense = after[row.Id];
+            await audit.LogAndSaveAsync(
+                nameof(ExpenseTransaction),
+                expense.Id,
+                AuditAction.Update,
+                diff: PTGOilSystem.Web.Services.Audit.AuditDiffFormatter.ForUpdate(
+                    ("Amount", row.Amount, expense.Amount),
+                    ("Currency", row.Currency, expense.Currency),
+                    ("AppliedFxRateToUsd", row.AppliedFxRateToUsd, expense.AppliedFxRateToUsd),
+                    ("Source", null, "Repair.CustomsCashCurrency")));
+        }
+
+        await transaction.CommitAsync();
+        repaired += declarationRows.Count();
+    }
+
+    Console.WriteLine($"Expenses {(dryRun ? "to repair" : "repaired")}: {repaired}, skipped: {skipped}");
     return 0;
 }
 

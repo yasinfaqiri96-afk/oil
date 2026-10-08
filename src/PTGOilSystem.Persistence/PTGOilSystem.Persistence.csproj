@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+    <!-- Preserve access to the existing internal context guard flags without
+         making them public or changing the guards. -->
+    <InternalsVisibleTo Include="PTGOilSystem.Web" />
+    <InternalsVisibleTo Include="PTGOilSystem.Web.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Keep the reviewed source files and namespaces in place; only their
+         compilation owner changes. Web must not compile these a second time. -->
+    <Compile Include="../PTGOilSystem.Web/Data/ApplicationDbContext.cs" Link="Data/ApplicationDbContext.cs" />
+    <Compile Include="../PTGOilSystem.Web/Data/Configurations/**/*.cs" Link="Data/Configurations/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../PTGOilSystem.Web/Models/Entities/**/*.cs" Link="Models/Entities/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../PTGOilSystem.Web/Security/CurrentUserContext.cs" Link="Security/CurrentUserContext.cs" />
+    <Compile Include="../PTGOilSystem.Web/Helpers/AfghanTextNormalizer.cs" Link="Helpers/AfghanTextNormalizer.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/Time/AfghanistanBusinessClock.cs" Link="Services/Time/AfghanistanBusinessClock.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/Customs/CustomsComponentGroupMap.cs" Link="Services/Customs/CustomsComponentGroupMap.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/ContractClosure/ContractClosureScope.cs" Link="Services/ContractClosure/ContractClosureScope.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/OperationalPeriod/OperationalPeriodScope.cs" Link="Services/OperationalPeriod/OperationalPeriodScope.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/OperationalPeriod/OperationalPeriodMessage.cs" Link="Services/OperationalPeriod/OperationalPeriodMessage.cs" />
+    <Compile Include="../PTGOilSystem.Web/Helpers/DateDisplay.cs" Link="Helpers/DateDisplay.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/Calendars/AppCalendarContext.cs" Link="Services/Calendars/AppCalendarContext.cs" />
+    <Compile Include="../PTGOilSystem.Web/Services/Calendars/AfghanSolarCalendar.cs" Link="Services/Calendars/AfghanSolarCalendar.cs" />
+  </ItemGroup>
+</Project>

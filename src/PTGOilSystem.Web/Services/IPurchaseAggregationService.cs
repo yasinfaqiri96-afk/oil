@@ -71,12 +71,29 @@ public interface IPurchaseAggregationService
     /// already eagerly load LoadingRegisters for view rendering so the
     /// aggregation does not re-query the database.
     /// </summary>
+    /// <param name="mirroredDriverExpenseAmounts">
+    /// Driver ExpenseTransactions that LoadingController mirrors into the
+    /// inline money fields of a line-based loading (see
+    /// <see cref="LoadMirroredDriverExpenseAmountsAsync"/>). Those amounts
+    /// are subtracted from the inline fields because the document itself is
+    /// already a contract expense. Null keeps the previous behavior.
+    /// </param>
     PurchaseAggregationSnapshot AggregateForLoadedRegisters(
         int contractId,
         IEnumerable<LoadingRegister> loadingRegisters,
         decimal? contractFinalPriceUsd,
         IReadOnlySet<int>? loadingRegisterIdsWithOfficialExpenses = null,
-        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null);
+        IReadOnlySet<int>? loadingRegisterIdsWithExpenseLines = null,
+        IReadOnlyDictionary<int, LoadingMirroredExpenseAmounts>? mirroredDriverExpenseAmounts = null);
+
+    /// <summary>
+    /// Active (non-cancelled, non-customs) driver ExpenseTransactions per
+    /// loading, split into the same four inline buckets LoadingController
+    /// mirrors them into (transport / storage / wagon rent / other).
+    /// </summary>
+    Task<IReadOnlyDictionary<int, LoadingMirroredExpenseAmounts>> LoadMirroredDriverExpenseAmountsAsync(
+        IReadOnlyCollection<int> loadingRegisterIds,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Returns true when the supplied price is a usable purchase price
@@ -86,6 +103,16 @@ public interface IPurchaseAggregationService
     static bool HasValidLoadingPrice(decimal? loadingPriceUsd)
         => loadingPriceUsd.HasValue && loadingPriceUsd.Value > 0m;
 }
+
+/// <summary>
+/// Amounts of documented driver expenses that are mirrored into the inline
+/// money fields of one loading, per inline bucket.
+/// </summary>
+public sealed record LoadingMirroredExpenseAmounts(
+    decimal TransportUsd,
+    decimal WarehouseUsd,
+    decimal RailwayUsd,
+    decimal OtherUsd);
 
 /// <summary>
 /// Read-only snapshot of purchase aggregation for a single contract.

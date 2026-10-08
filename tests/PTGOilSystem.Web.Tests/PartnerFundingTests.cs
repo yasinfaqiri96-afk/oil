@@ -175,7 +175,7 @@ public sealed class PartnerFundingTests
     }
 
     [Fact]
-    public async Task ManagementBalanceReport_MatchesThePartnerStatement()
+    public async Task ManagementBalanceReport_CountsActualFundingWithoutUnsoldCostAllocation()
     {
         await using var db = CreateDb();
         var scenario = await SeedPartnershipAsync(db);
@@ -196,8 +196,8 @@ public sealed class PartnerFundingTests
         var a = balances.Single(r => r.PartyType == PartyStatementPartyType.Partner && r.PartyId == scenario.PartnerA);
         var b = balances.Single(r => r.PartyType == PartyStatementPartyType.Partner && r.PartyId == scenario.PartnerB);
 
-        Assert.Equal(40_000m, a.ClosingBalanceUsd);
-        Assert.Equal(-40_000m, b.ClosingBalanceUsd);
+        Assert.Equal(PurchaseUsd, a.ClosingBalanceUsd);
+        Assert.Equal(ExpenseUsd, b.ClosingBalanceUsd);
     }
 
     [Fact]
@@ -221,10 +221,7 @@ public sealed class PartnerFundingTests
         var partnerRows = balances.Rows
             .Where(row => row.PartyType == nameof(PartyStatementPartyType.Partner))
             .ToList();
-        Assert.Equal(2, partnerRows.Count);
-        Assert.All(partnerRows, row => Assert.Equal(-60_000m, row.BalanceUsd));
-        Assert.Contains(partnerRows, row => row.PartyId == scenario.PartnerA);
-        Assert.Contains(partnerRows, row => row.PartyId == scenario.PartnerB);
+        Assert.Empty(partnerRows);
     }
 
     // ————————————————— صندوق شرکت و سود/زیان —————————————————

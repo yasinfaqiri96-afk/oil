@@ -9,8 +9,8 @@ namespace PTG.ContractReportingRepair;
 public sealed record ContractReportRepairSnapshot(
     decimal ExpenseUsd, decimal PhysicalLossMt, decimal GrossLossUsd,
     decimal RecoveredFreightUsd, decimal CompanyLossUsd, decimal? CompletedProfitUsd,
-    decimal SaleableRemainingMt, decimal TransportReceivedMt, decimal TransportShortageMt,
-    decimal TransportInTransitMt);
+    decimal LoadedQuantityMt, int LoadingCount, decimal SaleableRemainingMt,
+    decimal TransportReceivedMt, decimal TransportShortageMt, decimal TransportInTransitMt);
 
 public static class CompletedJourneyMath
 {
@@ -54,10 +54,20 @@ public sealed class ContractReportRepairService(ApplicationDbContext db, IProfit
             + economics.GeneralExpenseCostUsd + economics.SharedShipmentExpenseUsd;
         var metrics = model.SummaryMetrics;
         var useMetrics = model.IsInitialSummaryPayload && metrics.HasValues;
-        var loaded = useMetrics ? metrics.LoadingQuantityMt : model.LoadingItems.Sum(x => x.LoadedQuantityMt);
+        // Non-summary tabs load only their own paged rows. Derive contract-wide
+        // statistics from active source records so each tab displays the same facts.
+        var loadingTotals = await db.LoadingRegisters.AsNoTracking()
+            .Where(x => x.ContractId == model.ContractId && !x.IsCancelled)
+            .GroupBy(x => x.ContractId)
+            .Select(g => new { Quantity = g.Sum(x => x.LoadedQuantityMt), Count = g.Count() })
+            .SingleOrDefaultAsync(ct);
+        var loaded = loadingTotals?.Quantity ?? 0m;
+        var loadingCount = loadingTotals?.Count ?? 0;
         var sold = economics.SoldQuantityMt;
-        var physicalLoss = useMetrics ? metrics.LossQuantityMt
-            : model.LossItems.Sum(x => x.DifferenceQuantityMt > 0m ? x.DifferenceQuantityMt : Math.Max(x.ChargeableLossMt, 0m));
+        var physicalLoss = await db.LossEvents.AsNoTracking()
+            .Where(x => x.ContractId == model.ContractId && !x.IsCancelled)
+            .SumAsync(x => x.DifferenceQuantityMt > 0m ? x.DifferenceQuantityMt
+                : x.ChargeableLossMt > 0m ? x.ChargeableLossMt : 0m, ct);
         var average = economics.WeightedAveragePurchasePriceUsd;
         var grossLoss = Math.Round(physicalLoss * (average ?? 0m), 2, MidpointRounding.AwayFromZero);
         var legs = await db.InventoryTransportLegs.AsNoTracking()
@@ -87,6 +97,6 @@ public sealed class ContractReportRepairService(ApplicationDbContext db, IProfit
             sold, physicalLoss, model.Kpis.CurrentStockQuantityMt, model.PendingTankSettlementQuantityMt,
             economics.RevenueUsd, economics.PurchaseValueUsd, expense, model.MiniPnl.RealizedFxNetUsd);
         return new(expense, physicalLoss, grossLoss, recovered, Math.Max(grossLoss - recovered, 0m),
-            profit, Math.Max(loaded - sold - physicalLoss, 0m), received, shortage, inTransit);
+            profit, loaded, loadingCount, Math.Max(loaded - sold - physicalLoss, 0m), received, shortage, inTransit);
     }
 }

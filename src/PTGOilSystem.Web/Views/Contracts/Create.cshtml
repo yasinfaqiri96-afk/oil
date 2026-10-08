@@ -178,7 +178,7 @@
                                     var row = partnerRows[i];
                                     <tr data-partner-row>
                                         <td>
-                                            <select name="PartnerShares[@i].PartnerId" data-partner-field="PartnerShares[__index__].PartnerId" class="ak-input">
+                                            <select name="PartnerShares[@i].PartnerId" data-partner-field="PartnerShares[__index__].PartnerId" class="ak-input" data-ak-entity-combobox>
                                                 <option value="">@UiText.T(Context,"انتخاب کنید","Select")</option>
                                                 @foreach (var partner in partners)
                                                 {
@@ -214,7 +214,7 @@
                 <template id="partnerRowTemplate">
                     <tr data-partner-row>
                         <td>
-                            <select name="PartnerShares[__index__].PartnerId" data-partner-field="PartnerShares[__index__].PartnerId" class="ak-input">
+                            <select name="PartnerShares[__index__].PartnerId" data-partner-field="PartnerShares[__index__].PartnerId" class="ak-input" data-ak-entity-combobox>
                                 <option value="">@UiText.T(Context,"انتخاب کنید","Select")</option>
                                 @foreach (var partner in partners)
                                 {

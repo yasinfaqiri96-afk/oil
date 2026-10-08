@@ -396,7 +396,7 @@
                         <input type="hidden" name="returnUrl" value="@returnUrl" />
                         <div class="ak-field">
                             <label class="ak-label" for="holder-@contract.ContractId">عاید فروش نزد کدام شریک است؟</label>
-                            <select class="ak-input" id="holder-@contract.ContractId" name="partnerId">
+                            <select class="ak-input" data-ak-entity-combobox id="holder-@contract.ContractId" name="partnerId">
                                 <option value="">— ثبت نشده —</option>
                                 @foreach (var partner in contract.Partners)
                                 {

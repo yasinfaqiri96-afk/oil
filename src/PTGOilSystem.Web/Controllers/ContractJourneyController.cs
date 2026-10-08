@@ -315,6 +315,7 @@ public partial class ContractJourneyController : Controller
         var loadingById = loadingRegisters.ToDictionary(l => l.Id);
         var loadingIdsWithOfficialExpenses = await LoadLoadingIdsWithOfficialExpensesAsync(loadingIds);
         var loadingIdsWithExpenseLines = await LoadLoadingIdsWithExpenseLinesAsync(loadingIds);
+        var mirroredDriverExpenses = await _purchaseAggregation.LoadMirroredDriverExpenseAmountsAsync(loadingIds);
 
         // Single source of truth for purchase quantity / cost / averages.
         // Computed eagerly so every downstream aggregation (KPIs, mini
@@ -326,7 +327,8 @@ public partial class ContractJourneyController : Controller
             loadingRegisters,
             contractFinalPriceUsd,
             loadingIdsWithOfficialExpenses,
-            loadingIdsWithExpenseLines);
+            loadingIdsWithExpenseLines,
+            mirroredDriverExpenses);
         var rubSettlementSummary = BuildRubSettlementSummary(contract, loadingRegisters, contractFinalPriceUsd);
 
         decimal? ResolveEffectiveLoadingPriceUsd(LoadingRegister loading)
@@ -1905,8 +1907,9 @@ public partial class ContractJourneyController : Controller
         var pendingPurchaseQuantityMt = purchaseAgg.PendingPurchaseQuantityMt;
         // سود محقق‌شدهٔ بخش مالی پرونده قرارداد فقط از ProfitAndLossService می‌آید.
         // نگاشت فروش‌های قابل‌ردیابیِ این قرارداد (saleItems) کار همین کنترلر است،
-        // اما درآمد و COGS آن‌ها بازمحاسبه نمی‌شود.
-        var realisedContractPnl = await _profitAndLoss.BuildForSalesAsync(
+        // اما درآمد و COGS آن‌ها بازمحاسبه نمی‌شود؛ فقط سهمِ همین قرارداد از هر فروش شمرده می‌شود.
+        var realisedContractPnl = await _profitAndLoss.BuildForPurchaseContractSalesAsync(
+            contract.Id,
             saleItems.Select(s => s.SalesTransactionId).ToList());
         var miniPnl = await BuildMiniPnlAsync(
             contractId,
@@ -2845,12 +2848,14 @@ public partial class ContractJourneyController : Controller
         var loadingById = loadingRegisters.ToDictionary(l => l.Id);
         var loadingIdsWithOfficialExpenses = await LoadLoadingIdsWithOfficialExpensesAsync(loadingIds);
         var loadingIdsWithExpenseLines = await LoadLoadingIdsWithExpenseLinesAsync(loadingIds);
+        var mirroredDriverExpenses = await _purchaseAggregation.LoadMirroredDriverExpenseAmountsAsync(loadingIds);
         var purchaseAgg = _purchaseAggregation.AggregateForLoadedRegisters(
             contractId,
             loadingRegisters,
             contractFinalPriceUsd,
             loadingIdsWithOfficialExpenses,
-            loadingIdsWithExpenseLines);
+            loadingIdsWithExpenseLines,
+            mirroredDriverExpenses);
         var rubSettlementSummary = BuildRubSettlementSummary(contract, loadingRegisters, contractFinalPriceUsd);
 
         var receiptRows = await _db.LoadingReceipts

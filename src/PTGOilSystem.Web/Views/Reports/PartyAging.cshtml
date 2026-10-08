@@ -1,7 +1,7 @@
 @using PTGOilSystem.Web.Models.Reports
 @model PTGOilSystem.Web.Models.Reports.PartyAgingReportViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "سررسید طلبات و بدهی‌ها", "Receivable & Payable Aging");
+    ViewData["Title"] = UiText.T(Context, "سن طلبات و بدهی‌ها بر اساس آخرین حرکت", "Account Age Since Last Movement");
 
     string T(string fa, string en) => UiText.T(Context, fa, en);
 
@@ -11,6 +11,7 @@
         PartyAgingBucket.UpTo30 => T("تا ۳۰ روز", "Up to 30 days"),
         PartyAgingBucket.From31To60 => T("۳۱ تا ۶۰ روز", "31-60 days"),
         PartyAgingBucket.From61To90 => T("۶۱ تا ۹۰ روز", "61-90 days"),
+        PartyAgingBucket.Unknown => T("بدون تاریخ حرکت", "No movement date"),
         _ => T("بیشتر از ۹۰ روز", "Over 90 days")
     };
 
@@ -19,23 +20,23 @@
     {
         PartyAgingBucket.UpTo30 => "is-active",
         PartyAgingBucket.From31To60 => "is-pending",
-        _ => "is-danger"
+        _ => "is-pending"
     };
 
 }
 
 <div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((T("سررسید طلبات و بدهی‌ها", "Receivable & Payable Aging"), false,
+             model="@((T("سن طلبات و بدهی‌ها بر اساس آخرین حرکت", "Account Age Since Last Movement"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
                        T("گزارش‌ها", "Reports"), "bi-arrow-right", Url.Action("Index")))" />
 
     <p class="ak-note">
-        @T("هر حساب بر اساس اینکه چند روز است هیچ حرکتی نداشته دسته‌بندی می‌شود. حسابی که مدت زیادی بی‌حرکت مانده، اول باید پیگیری شود.",
-           "Each account is grouped by how many days it has had no movement. Accounts idle the longest need follow-up first.")
+        @T("سن حساب بر اساس روزهای سپری‌شده از آخرین حرکت است. موعد واقعی ثبت نشده است؛ بی‌حرکتی حساب به معنی سررسیدگذشته یا معوق نیست.",
+           "Account age is measured since its last movement. No actual due date is recorded; inactivity does not mean overdue.")
     </p>
 
-    <section class="ak-stat-grid" aria-label="@T("خلاصه سررسید", "Aging summary")">
+    <section class="ak-stat-grid" aria-label="@T("خلاصه سن حساب", "Account age summary")">
         @foreach (var metric in Model.Metrics.Take(4))
         {
             @await Html.PartialAsync("_ReferenceMetricCard", ("", metric.Icon, metric.Label, metric.Value, metric.Detail ?? "", metric.ToneClass))
@@ -49,7 +50,7 @@
                 .Where(i => !string.IsNullOrEmpty(i.Value)).Select(i => new AkFilterOption(i.Value, i.Text)).ToList();
 
             var agingFilter = new AkSearchFilterModel("", null,
-                T("فیلتر سررسید...", "Filter aging..."),
+                T("فیلتر سن حساب...", "Filter account age..."),
                 new List<AkFilterDefinition>
                 {
                     new("FromDate", T("بازه تاریخ", "Date range"), "daterange", null,

@@ -630,8 +630,9 @@ public sealed class PartyStatementReadServiceTests
         Assert.Contains("statement-table", view);
         Assert.DoesNotContain("data-statement-print", view);
         Assert.Contains("asp-controller=\"Ledger\"", view);
-        Assert.Contains("رسیدگی", view);
-        Assert.Contains("بردگی", view);
+        Assert.Contains("شرح معامله", view);
+        Assert.Contains("@labels.Received(isEn)", view);
+        Assert.Contains("@labels.Paid(isEn)", view);
         Assert.Contains("بیلانس", view);
         Assert.DoesNotContain("ClosingBalanceMeaningFor", view);
         Assert.DoesNotContain("ClosingBalanceAbsolute", view);
@@ -1064,7 +1065,8 @@ public sealed class PartyStatementReadServiceTests
         Assert.Equal("ثبت هزینه کرایه ریلی - مصرف انتقال", row.Description);
         Assert.DoesNotContain("GroupKey", row.Description, StringComparison.Ordinal);
         Assert.DoesNotContain("Share:", row.Description, StringComparison.Ordinal);
-        Assert.True(row.Description.Length <= PartyStatementFormatting.DescriptionMaxLength);
+        // متن انسانی در سند رسمی بریده نمی‌شود؛ خانهٔ شرح چندخطی است.
+        Assert.DoesNotContain("…", row.Description, StringComparison.Ordinal);
     }
 
     private static ExpenseTransaction ShipmentServiceExpense(
@@ -1374,6 +1376,111 @@ public sealed class PartyStatementReadServiceTests
         var groupRow = Assert.Single(grouping.Rows);
         Assert.Equal(contract.Id, groupRow.ContractId);
         Assert.Equal(statement.Summary.ClosingBalance, grouping.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task CustomerStatement_HidesCancelledSaleAndItsReversal_WithoutChangingActiveBalance()
+    {
+        await using var db = CreateDb();
+        var customer = new Customer { Name = "Haji Ezat" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+
+        var activeSale = new SalesTransaction
+        {
+            InvoiceNumber = "SALE-ACTIVE",
+            CustomerId = customer.Id,
+            SaleDate = new DateTime(2026, 10, 5),
+            TotalUsd = 100m
+        };
+        var cancelledSale = new SalesTransaction
+        {
+            InvoiceNumber = "SALE-CANCELLED",
+            CustomerId = customer.Id,
+            SaleDate = new DateTime(2026, 10, 5),
+            TotalUsd = 50m,
+            IsCancelled = true,
+            CancelReason = "duplicate"
+        };
+        db.SalesTransactions.AddRange(activeSale, cancelledSale);
+        await db.SaveChangesAsync();
+
+        db.LedgerEntries.AddRange(
+            Entry(new DateTime(2026, 10, 5), LedgerSide.Credit, 100m, customer.Id, "Sale", activeSale.Id),
+            Entry(new DateTime(2026, 10, 5), LedgerSide.Credit, 50m, customer.Id, "Sale", cancelledSale.Id),
+            new LedgerEntry
+            {
+                EntryDate = new DateTime(2026, 10, 5),
+                Side = LedgerSide.Debit,
+                AmountUsd = 50m,
+                Currency = "USD",
+                CustomerId = customer.Id,
+                SourceType = "Sale",
+                SourceId = cancelledSale.Id,
+                Reference = "SALE-CANCELLED-CANCEL",
+                Description = "لغو فروش"
+            });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Customer, customer.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = false });
+
+        var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Equal(activeSale.Id, row.SourceId);
+        Assert.Equal(100m, statement.Summary.TotalOutflow);
+        Assert.Equal(0m, statement.Summary.TotalReceipt);
+        Assert.Equal(100m, statement.Summary.ClosingBalance);
+    }
+
+    [Fact]
+    public async Task CustomerStatement_OfficialSaleDescription_IncludesProductQuantityAndEnteredRate()
+    {
+        await using var db = CreateDb();
+        var customer = new Customer { Name = "Haji Ezat" };
+        var product = new Product { Code = "OIL-1", Name = "White oil", NamePersian = "نفت سفید" };
+        db.AddRange(customer, product);
+        await db.SaveChangesAsync();
+
+        var sale = new SalesTransaction
+        {
+            InvoiceNumber = "SALE-DETAILS",
+            CustomerId = customer.Id,
+            ProductId = product.Id,
+            SaleDate = new DateTime(2026, 10, 6),
+            QuantityMt = 29.75m,
+            Currency = "USD",
+            UnitPriceInCurrency = 10.4m,
+            UnitPriceUsd = 10.4m,
+            TotalInCurrency = 309.4m,
+            TotalUsd = 309.4m
+        };
+        db.SalesTransactions.Add(sale);
+        await db.SaveChangesAsync();
+        db.LedgerEntries.Add(new LedgerEntry
+        {
+            EntryDate = sale.SaleDate,
+            Side = LedgerSide.Credit,
+            AmountUsd = sale.TotalUsd,
+            Currency = "USD",
+            CustomerId = customer.Id,
+            SourceType = "Sale",
+            SourceId = sale.Id,
+            Reference = sale.InvoiceNumber,
+            Description = "ثبت فروش"
+        });
+        await db.SaveChangesAsync();
+
+        var statement = await BuildService(db).GetStatementAsync(
+            new PartyRef(PartyStatementPartyType.Customer, customer.Id),
+            new PartyStatementFilter { IncludeOperationalColumns = true });
+
+        var row = Assert.Single(statement.Rows.Where(r => !r.IsOpeningBalance));
+        Assert.Contains("فروش نفت سفید", row.Description);
+        Assert.Contains("29.75 MT", row.Description);
+        Assert.Contains("10.4 USD/MT", row.Description);
+        Assert.Equal(29.75m, row.Quantity);
+        Assert.Equal(10.4m, row.UnitPrice);
     }
 
     [Fact]

@@ -123,7 +123,7 @@
                                                 <form method="post" asp-action="Mapping" class="d-flex gap-2 align-items-center">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="role" value="@row.Key" />
-                                                    <select name="accountId" class="ak-input" required
+                                                    <select name="accountId" class="ak-input" data-ak-entity-combobox required
                                                             aria-label="@UiText.T(Context, "سرفصل برای ", "Account for ")@UiText.T(Context, row.Label, row.LabelEn)">
                                                         @if (row.AccountId is null || row.Options.All(o => o.Id != row.AccountId))
                                                         {

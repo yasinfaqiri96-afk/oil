@@ -46,5 +46,12 @@ public interface ITabularExportService
         bool isEnglish,
         Stream destination,
         CancellationToken cancellationToken);
+
+    // «بیلانس کلی شرکت» — همان چیدمان صفحهٔ وب روی A4 عمودی؛ صفحهٔ اول همیشه خلاصهٔ مدیریتی است.
+    Task WriteCompanyBalancePdfAsync(
+        Models.Reports.CompanyBalanceReportViewModel model,
+        bool isEnglish,
+        Stream destination,
+        CancellationToken cancellationToken);
 }
 

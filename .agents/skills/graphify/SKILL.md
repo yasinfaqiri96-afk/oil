@@ -1,9 +1,13 @@
 ---
 name: graphify
-description: "Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, where the question should be treated as a graphify query first. Turns any input (code, docs, papers, images, videos) into a persistent knowledge graph with god nodes, community detection, and query/path/explain tools."
+description: "Use only for explicit Graphify requests or substantial architecture/dependency analysis. Optional knowledge graph tooling; never required for routine code search, small fixes, UI changes, or test reruns."
 ---
 
 # /graphify
+
+## PTG scope gate (takes precedence over the generic workflow below)
+
+Search relevant files/methods directly first. Invoke this skill only for an explicit user request, a major architecture change, an important dependency/service relationship change, or once at the end of a large feature when needed. Do not query or update Graphify for routine bug fixes, UI/CSS/JS/View changes, small Controller changes, text edits, or test reruns. The existence of `graphify-out/` alone is not a trigger. Follow the generic workflow below only after this gate applies.
 
 Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md.
 

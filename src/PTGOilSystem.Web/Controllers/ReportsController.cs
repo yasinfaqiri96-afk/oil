@@ -162,6 +162,14 @@ public partial class ReportsController : Controller
                 [
                     new()
                     {
+                        Action = nameof(CompanyBalance),
+                        TitleFa = "بیلانس کلی شرکت", TitleEn = "Company Balance Sheet",
+                        DescriptionFa = "دارایی‌ها، تعهدات و خالص وضعیت شرکت تا یک تاریخ، با مفاد یا ضرر دوره و نسخهٔ PDF.",
+                        DescriptionEn = "Assets, liabilities and net position up to a date, with period profit or loss and PDF.",
+                        Icon = "bi-journal-check", ToneClass = "tone-blue"
+                    },
+                    new()
+                    {
                         Action = nameof(CompanyOverview),
                         TitleFa = "وضعیت مالی شرکت", TitleEn = "Company Financial Status",
                         DescriptionFa = "پول نقد، طلبات، بدهی‌ها و مفاد شرکت در یک صفحه.",
@@ -221,7 +229,7 @@ public partial class ReportsController : Controller
                     new()
                     {
                         Action = nameof(PartyAging),
-                        TitleFa = "سررسید طلبات و بدهی‌ها", TitleEn = "Receivable & Payable Aging",
+                        TitleFa = "سن طلبات و بدهی‌ها بر اساس آخرین حرکت", TitleEn = "Account Age Since Last Movement",
                         DescriptionFa = "هر حساب چند روز است بی‌حرکت مانده: تا ۳۰، ۳۱ تا ۶۰، ۶۱ تا ۹۰ و بیشتر از ۹۰ روز.",
                         DescriptionEn = "How long each account has been idle: up to 30, 31-60, 61-90 and over 90 days.",
                         Icon = "bi-hourglass-split", ToneClass = "tone-rose"
@@ -285,27 +293,11 @@ public partial class ReportsController : Controller
                 [
                     new()
                     {
-                        Action = nameof(InventoryOperations),
-                        TitleFa = "موجودی و عملیات", TitleEn = "Inventory & Operations",
-                        DescriptionFa = "مقدار موجودی، گردش‌ها و مواردی که بررسی لازم دارند.",
-                        DescriptionEn = "Stock quantities, movements and items needing review.",
+                        Action = nameof(InventorySales),
+                        TitleFa = "موجودی و فروش", TitleEn = "Inventory & Sales",
+                        DescriptionFa = "موجودی، رزرو پیش‌فروش و مقدار قابل فروش؛ با جزئیات گردش‌ها.",
+                        DescriptionEn = "Physical stock, reservations and sellable quantities, with movement details.",
                         Icon = "bi-box-seam", ToneClass = "tone-teal"
-                    },
-                    new()
-                    {
-                        Controller = "Inventory", Action = "StockCard",
-                        TitleFa = "کارت موجودی", TitleEn = "Stock Card",
-                        DescriptionFa = "ورود و خروج هر جنس با مانده در هر تاریخ.",
-                        DescriptionEn = "In/out per product with running balance.",
-                        Icon = "bi-card-list", ToneClass = "tone-teal"
-                    },
-                    new()
-                    {
-                        Action = nameof(SellableStock),
-                        TitleFa = "موجودی قابل فروش", TitleEn = "Sellable Stock",
-                        DescriptionFa = "موجودی فزیکی منهای رزرو پیش‌فروش.",
-                        DescriptionEn = "Physical stock minus active pre-sale reservation.",
-                        Icon = "bi-box-arrow-up-right", ToneClass = "tone-teal"
                     },
                     new()
                     {
@@ -430,10 +422,13 @@ public partial class ReportsController : Controller
 
     private async Task<CompanyFinancialOverviewViewModel> BuildCompanyFinancialOverviewAsync(ManagementReportFilterViewModel filter)
     {
-        var companyPnl = await _profitAndLoss.BuildCompanyAsync(filter);
-        var revenueUsd = companyPnl.Sales.RevenueUsd;
-        var cogsUsd = companyPnl.Sales.CostOfGoodsSoldUsd;
-        var expenseUsd = companyPnl.OperatingExpenseUsd;
+        // عملکرد دوره فقط از موتور مشترک گزارش‌های مدیریتی؛ «بیلانس کلی شرکت» برای همین دوره همین
+        // فروش، بهای فروش، مصارف، نتیجهٔ ارزی و مفاد را نشان می‌دهد.
+        var period = await _profitAndLoss.BuildCompanyPeriodAsync(
+            filter, _businessClock.Today, ct: HttpContext?.RequestAborted ?? CancellationToken.None);
+        var revenueUsd = period.SalesRevenueUsd;
+        var cogsUsd = period.CostOfSalesUsd;
+        var expenseUsd = period.PeriodExpensesUsd;
 
         // «حرکت نقدی» همان خالصِ گزارش «گردش پول» برای همین فیلتر است: فقط حرکتِ واقعیِ
         // صندوق/بانک (مرجع: CashPositionReader)، نه همهٔ اسنادِ روزنامچه.
@@ -457,39 +452,27 @@ public partial class ReportsController : Controller
             .Take(5)
             .ToList();
 
-        // طلب و بدهی از همان ردیف‌های گزارش «طلبات و بدهی‌ها» می‌آید؛ علامت مانده
-        // همان قرارداد نمایشی سیستم است: مثبت = شرکت طلبکار، منفی = شرکت بدهکار.
-        //
-        // حساب شریک همچنان در گزارش کامل «طلبات و بدهی‌ها» و صورت‌حساب
-        // شریک می‌ماند، اما ماندهٔ سهم/سرمایه نباید با طلب و بدهی عملیاتی شرکت
-        // در کارت‌های مدیریتی یکجا شود. هیچ ردیف Ledger یا محاسبهٔ شریک حذف نمی‌شود.
-        var operationalPartyBalances = balances.Rows
-            .Where(r => r.PartyType != nameof(PartyStatementPartyType.Partner))
-            .ToList();
+        // All rows now represent actual company claims, including external partners.
+        // The shared reader excludes internal allocations and book-owner equity.
+        var operationalPartyBalances = balances.Rows.ToList();
         var topReceivables = operationalPartyBalances
-            .Where(r => r.BalanceUsd > 0m)
-            .OrderByDescending(r => r.BalanceUsd)
-            .Take(5)
+            .Where(r => r.CompanyClaimUsd > 0m)
+            .OrderByDescending(r => r.CompanyClaimUsd)
             .ToList();
         var topPayables = operationalPartyBalances
-            .Where(r => r.BalanceUsd < 0m)
-            .OrderBy(r => r.BalanceUsd)
-            .Take(5)
+            .Where(r => r.CompanyClaimUsd < 0m)
+            .OrderBy(r => r.CompanyClaimUsd)
             .ToList();
 
         // تا وقتی فروشِ بدون بهای تمام‌شده وجود دارد، COGS آن فروش‌ها صفر خوانده می‌شود و
         // «سود» بیش از واقع درمی‌آید. در آن حالت عدد سود منتشر نمی‌شود و به‌جایش دلیلش
-        // نوشته می‌شود؛ هیچ COGS حدسی (مثلاً بهای خرید) جایگزین نمی‌گردد.
-        var isProfitPublishable = companyPnl.Sales.UncostedSaleCount == 0
-            && companyPnl.Sales.Confidence == PnlConfidence.Verified;
+        // نوشته می‌شود؛ هیچ COGS حدسی جایگزین نمی‌گردد.
+        var isProfitPublishable = period.UncostedSaleCount == 0;
 
-        // ── مصارفی که در ExpenseTransaction نیستند و تا حالا از سود شرکت می‌افتادند ──
-        // مصارفِ درون‌خطیِ بارگیری (حمل/گدام/سایر/خط‌آهن) روی خودِ LoadingRegister ذخیره
-        // می‌شوند و برای سطرهای «بدون طرف‌حساب» هیچ ExpenseTransaction نمی‌سازند؛ ارزشِ
-        // ضایعاتِ قابلِ شارژ هم هیچ‌وقت سطرِ مصرف ندارد. هر دو از همان ردیف‌هایی خوانده
-        // می‌شوند که صفحهٔ «مفاد قراردادها» می‌سازد (pnl.PurchaseRows) تا دو صفحه یک عدد
-        // بدهند و هیچ فرمول موازی ساخته نشود. این‌ها با مصارفِ ثبت‌شده همپوشانی ندارند،
-        // پس دوباره‌شماری نمی‌شود.
+        // ── اطلاعات چرخهٔ کامل قراردادها (داخل مفاد دوره جمع نمی‌شود) ──
+        // مصارفِ درون‌خطیِ بارگیری و ارزشِ ضایعاتِ قابل شارژِ قراردادهای همین فیلتر، از همان
+        // ردیف‌های «مفاد قراردادها» (pnl.PurchaseRows). در مفاد دوره، کرایهٔ بی‌سندِ بارگیری از راه
+        // بهای فروش و گدام/سایرِ بی‌سند در مصارف دوره آمده است؛ این دو عدد فقط برای اطلاع‌اند.
         var loadingOperationalCostUsd = pnl.PurchaseRows.Sum(r =>
             r.TransportCostUsd + r.WarehouseCostUsd + r.OtherCostUsd + r.RailwayCostUsd);
         var lossCostUsd = pnl.PurchaseRows.Sum(r => r.LossCostUsd);
@@ -504,21 +487,21 @@ public partial class ReportsController : Controller
             LoadingOperationalCostUsd = loadingOperationalCostUsd,
             LossCostUsd = lossCostUsd,
             UnvaluedLossCount = unvaluedLossCount,
-            ExchangeGainUsd = companyPnl.ExchangeGainUsd,
-            ExchangeLossUsd = companyPnl.ExchangeLossUsd,
+            ExchangeGainUsd = period.ExchangeGainUsd,
+            ExchangeLossUsd = period.ExchangeLossUsd,
             NetCashMovementUsd = cashInUsd - cashOutUsd,
             CustomerReceivableUsd = balances.CustomerReceivableUsd,
             SupplierPayableUsd = balances.SupplierPayableUsd,
             SarrafNetUsd = balances.SarrafBalanceUsd,
             WarningCount = warnings.TotalIssueCount,
-            UncostedSaleCount = companyPnl.Sales.UncostedSaleCount,
-            PnlConfidence = companyPnl.Sales.Confidence,
+            UncostedSaleCount = period.UncostedSaleCount,
+            PnlConfidence = period.Confidence,
             TopContracts = topContracts,
             CashOnHandUsd = cashCards.CashAccountsBalanceUsd,
             TopReceivables = topReceivables,
             TopPayables = topPayables,
-            TotalReceivableUsd = operationalPartyBalances.Where(r => r.BalanceUsd > 0m).Sum(r => r.BalanceUsd),
-            TotalPayableUsd = -operationalPartyBalances.Where(r => r.BalanceUsd < 0m).Sum(r => r.BalanceUsd),
+            TotalReceivableUsd = balances.TotalReceivableUsd,
+            TotalPayableUsd = balances.TotalPayableUsd,
             // تاریخ مرجعِ «روز بدون حرکت» باید همان تاریخی باشد که ردیف‌های طلب و بدهی
             // با آن ساخته شده‌اند (filter.ToDate یا امروز)، وگرنه یک طرف‌حساب در این صفحه
             // و در «سررسید طلبات و بدهی‌ها» دو عدد روز متفاوت نشان می‌دهد.
@@ -530,7 +513,7 @@ public partial class ReportsController : Controller
                 new() { Label = "مصارف", Value = Money(expenseUsd), Detail = "Official expenses", Icon = "bi-receipt", ToneClass = "finance-negative" },
                 new() { Label = "مصارف بارگیری", Value = Money(loadingOperationalCostUsd), Detail = "Loading transport / warehouse / railway / other", Icon = "bi-truck", ToneClass = "finance-negative" },
                 new() { Label = "ارزش ضایعات", Value = Money(lossCostUsd), Detail = unvaluedLossCount > 0 ? $"{unvaluedLossCount:N0} loss event(s) cannot be valued" : "Chargeable loss valued at purchase price", Icon = "bi-droplet-half", ToneClass = "finance-negative" },
-                new() { Label = "سود خالص", Value = isProfitPublishable ? Money(companyPnl.NetProfitUsd) : "—", Detail = isProfitPublishable ? "Net profit" : $"COGS incomplete — {companyPnl.Sales.UncostedSaleCount:N0} sale(s) need COGS", Icon = "bi-graph-up-arrow", ToneClass = !isProfitPublishable ? "" : companyPnl.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
+                new() { Label = "سود خالص", Value = isProfitPublishable ? Money(period.NetProfitUsd) : "—", Detail = isProfitPublishable ? "Net profit" : $"COGS incomplete — {period.UncostedSaleCount:N0} sale(s) need COGS", Icon = "bi-graph-up-arrow", ToneClass = !isProfitPublishable ? "" : period.NetProfitUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "حرکت نقدی", Value = Money(cashInUsd - cashOutUsd), Detail = "Payment inflow - outflow", Icon = "bi-cash-stack", ToneClass = cashInUsd - cashOutUsd >= 0m ? "finance-positive" : "finance-negative" },
                 new() { Label = "مغایرت‌ها", Value = warnings.TotalIssueCount.ToString("N0"), Detail = "Open warnings", Icon = "bi-exclamation-triangle", ToneClass = warnings.TotalIssueCount == 0 ? "finance-positive" : "finance-negative" }
             ]
