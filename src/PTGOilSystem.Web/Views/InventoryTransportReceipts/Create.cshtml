@@ -144,6 +144,8 @@
                                 <label asp-for="SaleBuyerKey" class="ak-label">@T("خریدار", "Buyer") <b>*</b></label>
                                 <select asp-for="SaleBuyerKey" asp-items="ViewBag.Buyers" class="ak-input"><option value="">@T("انتخاب خریدار", "Select buyer")</option></select>
                                 <span asp-validation-for="SaleBuyerKey" class="ak-field-error"></span>
+                                <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
+                                <span asp-validation-for="SaleSupplierId" class="ak-field-error"></span>
                             </div>
                             <div class="ak-field">
                                 <label asp-for="ReceivedQuantityMt">@T("مقدار فروش", "Sale quantity") <b>*</b></label>
@@ -364,7 +366,13 @@
                         <i class="bi bi-chevron-down" aria-hidden="true"></i>
                     </label>
                     <div class="ak-form-grid" data-optional-body="directSale" @(focusedSale ? null : "hidden")>
-                        <div class="ak-field"><label asp-for="SaleBuyerKey" class="ak-label">@T("خریدار", "Buyer")</label><select asp-for="SaleBuyerKey" asp-items="ViewBag.Buyers" class="ak-input"><option value=""></option></select></div>
+                        <div class="ak-field">
+                            <label asp-for="SaleBuyerKey" class="ak-label">@T("خریدار", "Buyer")</label>
+                            <select asp-for="SaleBuyerKey" asp-items="ViewBag.Buyers" class="ak-input"><option value=""></option></select>
+                            <span asp-validation-for="SaleBuyerKey" class="ak-field-error"></span>
+                            <span asp-validation-for="SaleCustomerId" class="ak-field-error"></span>
+                            <span asp-validation-for="SaleSupplierId" class="ak-field-error"></span>
+                        </div>
                         <div class="ak-field"><label asp-for="SaleInvoiceNumber" class="ak-label">@T("شماره فاکتور", "Invoice number")</label><input asp-for="SaleInvoiceNumber" class="ak-input" /></div>
                         <div class="ak-field"><label asp-for="SaleDate" class="ak-label">@T("تاریخ فروش", "Sale date")</label><input asp-for="SaleDate" type="date" class="ak-input" /></div>
                         <div class="ak-field"><label asp-for="SaleCurrency" class="ak-label">@T("ارز", "Currency")</label><select asp-for="SaleCurrency" asp-items="ViewBag.Currencies" class="ak-input"></select></div>
