@@ -18,7 +18,7 @@
 
 **Master Data** — Products, Companies, Suppliers, Customers, ServiceProviders, Partners, Terminals, StorageTanks, Locations, ExpenseTypes, Vessels, Trucks, Wagons, Drivers, Employees, Currencies, Units, CashAccounts, Sarrafs, OperationalAssets
 
-**قرارداد و قیمت** — Contracts, ContractAmendments (immutable), ContractPricingRules, PlattsRates, DailyFxRates, `PricingService` (قیمت‌گذاری بر اساس تاریخ تراکنش + fallback)
+**قرارداد و قیمت** — Contracts, ContractAmendments (immutable), ContractPricingRules, PlattsRates, DailyFxRates و `PricingService`. در روش Platts، نرخ مرجع جای قیمت نهایی قطعی دستی را نمی‌گیرد. قواعد مالی و عملیات گروهی: [FINANCIAL-WORKFLOWS.md](FINANCIAL-WORKFLOWS.md).
 
 **عملیات** — Loading, LoadingReceipts, Inventory, InventoryTransportLegs / Receipts, Dispatch, Shipments, ShipmentContracts, TruckSettlements, LossEvents, CustomsDeclarations, InventoryReports/IlinkaStock
 
@@ -50,11 +50,11 @@ Backend، DB و queryها در این مهاجرت **تغییر نکردند**.
 | کنترلرهای بزرگ | `LoadingController` و `ContractJourneyController` منطق زیادی درون خود دارند؛ extraction به service layer انجام نشده. |
 | CSS بدون minify/bundle | فایل‌ها خام سرو می‌شوند. gzip/brotli سرور تنها فشرده‌سازی فعلی است. |
 | بلوک‌های مردهٔ CSS | داخل فایل‌های mixed (`09-pages`, `13-compat`, `14-master-details`) هنوز قواعد بی‌مصرف هست؛ حذف surgical ریسک brace-imbalance دارد. |
-| PostgreSQL integration tests | وجود ندارد؛ semantics تراکنش و locking روی provider واقعی تست نشده. |
+| PostgreSQL integration tests | اکنون fixtureهای دیتابیس موقت واقعی برای accounting، همزمانی و تبدیل انبوه وجود دارند. نتیجهٔ هر اجرا باید از گزارش همان اجرا خوانده شود؛ وضعیت قدیمی «وجود ندارد» معتبر نیست. |
 | permission ریزدانه | فقط policy سطح ماژول (`ManageData`…)؛ permission در سطح action/field نیست. |
 | pagination / performance | queryهای بزرگ و گزارش‌ها hardening نشده‌اند. |
 | soft delete / archive | سیاست عمومی ندارد؛ حذف سخت + `AuditLog`. |
-| rate limit / lockout | برای login وجود ندارد. |
+| rate limit / lockout | Rate limiter در `Program.cs` ثبت و فعال است. سیاست دقیق هر endpoint و تست‌های امنیتی مرجع وضعیت جاری‌اند؛ عبارت قدیمی «وجود ندارد» معتبر نیست. |
 | `restart-server.bat` | حذف شد (به فایل ناموجود `run-system.bat` ارجاع می‌داد). برای اجرا از `run-dev.bat` استفاده کنید. |
 
 ## اولویت بعدی
