@@ -95,8 +95,13 @@ public sealed class ExpenseAccountingAdapter(
         var settings = await db.AccountingSettings
             .AsNoTracking()
             .SingleAsync(x => x.CompanyId == companyId, cancellationToken);
-        var payableAccountId = await ResolvePayableAccountIdAsync(expense, companyId, cancellationToken);
-        var (partyType, partyId) = ResolveParty(expense);
+        var standaloneCash = await IsStandaloneCashExpenseAsync(expense, cancellationToken);
+        var payableAccountId = standaloneCash
+            ? settings.CashBankControlAccountId
+            : await ResolvePayableAccountIdAsync(expense, companyId, cancellationToken);
+        var (partyType, partyId) = standaloneCash || expense.SettlementMode == ExpenseSettlementMode.NonCash
+            ? ((AccountingPartyType?)null, (int?)null)
+            : ResolveParty(expense);
         var rate = expense.AppliedFxRateToUsd!.Value;
 
         var request = new AccountingPostRequest(
@@ -128,7 +133,8 @@ public sealed class ExpenseAccountingAdapter(
                     partyId,
                     ContractId: expense.ContractId,
                     ShipmentId: expense.ShipmentId,
-                    Description: "Expense liability accrued")
+                    CashAccountId: standaloneCash ? expense.CashAccountId : null,
+                    Description: standaloneCash ? "Expense paid from cash account" : "Expense liability accrued")
             ],
             SourceEventId: sourceEventId,
             SourceEntityType: SourceEntityType,
@@ -304,7 +310,24 @@ public sealed class ExpenseAccountingAdapter(
         if (!string.Equals(settings.FunctionalCurrencyCode?.Trim(), "USD", StringComparison.OrdinalIgnoreCase))
             return (companyId.Value, "UNSUPPORTED_FUNCTIONAL_CURRENCY");
 
-        var payableAccountId = await ResolvePayableAccountIdAsync(expense, companyId.Value, cancellationToken);
+        var standaloneCash = await IsStandaloneCashExpenseAsync(expense, cancellationToken);
+        if (standaloneCash)
+        {
+            var cash = await db.CashAccounts.AsNoTracking()
+                .Where(x => x.Id == expense.CashAccountId)
+                .Select(x => new { x.CompanyId, x.IsActive, x.Currency })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (cash is null || !cash.IsActive)
+                return (companyId.Value, "CASH_ACCOUNT_MISSING");
+            if (cash.CompanyId.HasValue && cash.CompanyId.Value != companyId.Value)
+                return (companyId.Value, "CASH_ACCOUNT_COMPANY_MISMATCH");
+            if (!string.Equals(SystemCurrency.Normalize(cash.Currency), SystemCurrency.Normalize(expense.Currency), StringComparison.Ordinal))
+                return (companyId.Value, "CASH_ACCOUNT_CURRENCY_MISMATCH");
+        }
+
+        var payableAccountId = standaloneCash
+            ? settings.CashBankControlAccountId
+            : await ResolvePayableAccountIdAsync(expense, companyId.Value, cancellationToken);
         if (payableAccountId is null)
             return (companyId.Value, "EXPENSE_PAYABLE_KIND_NOT_SET");
 
@@ -317,6 +340,17 @@ public sealed class ExpenseAccountingAdapter(
 
         return (companyId.Value, null);
     }
+
+    // CashPositionReader uses the same explicit payment link: an expense with its own payment
+    // must accrue its configured counter-account; the payment alone credits cash. Never infer
+    // the link from an equal amount/date, and never create a second payment here.
+    private Task<bool> IsStandaloneCashExpenseAsync(ExpenseTransaction expense, CancellationToken ct)
+        => expense.SettlementMode != ExpenseSettlementMode.PaidImmediately
+            ? Task.FromResult(false)
+            : IsUnlinkedCashExpenseAsync(expense, ct);
+
+    private async Task<bool> IsUnlinkedCashExpenseAsync(ExpenseTransaction expense, CancellationToken ct)
+        => !await db.PaymentTransactions.AsNoTracking().AnyAsync(p => p.ExpenseTransactionId == expense.Id, ct);
 
     private async Task<JournalEntry?> FindJournalAsync(
         int companyId,
