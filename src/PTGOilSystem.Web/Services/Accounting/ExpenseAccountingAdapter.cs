@@ -315,13 +315,14 @@ public sealed class ExpenseAccountingAdapter(
         {
             var cash = await db.CashAccounts.AsNoTracking()
                 .Where(x => x.Id == expense.CashAccountId)
-                .Select(x => new { x.CompanyId, x.IsActive, x.Currency })
+                .Select(x => new { x.CompanyId, x.IsActive, x.Currency, x.AccountType })
                 .SingleOrDefaultAsync(cancellationToken);
             if (cash is null || !cash.IsActive)
                 return (companyId.Value, "CASH_ACCOUNT_MISSING");
             if (cash.CompanyId.HasValue && cash.CompanyId.Value != companyId.Value)
                 return (companyId.Value, "CASH_ACCOUNT_COMPANY_MISMATCH");
-            if (!string.Equals(SystemCurrency.Normalize(cash.Currency), SystemCurrency.Normalize(expense.Currency), StringComparison.Ordinal))
+            if (cash.AccountType != CashAccountType.Mixed
+                && !string.Equals(SystemCurrency.Normalize(cash.Currency), SystemCurrency.Normalize(expense.Currency), StringComparison.Ordinal))
                 return (companyId.Value, "CASH_ACCOUNT_CURRENCY_MISMATCH");
         }
 

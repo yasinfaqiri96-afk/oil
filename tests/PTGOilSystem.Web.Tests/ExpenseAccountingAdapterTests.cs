@@ -102,6 +102,30 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
     }
 
     [Fact]
+    public async Task Standalone_Cash_Expense_Supports_Mixed_Currency_Account_With_Locked_Fx()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db, paymentCurrency: "RUB");
+        scope.CashAccount.AccountType = CashAccountType.Mixed;
+        scope.CashAccount.Currency = "USD";
+        await db.SaveChangesAsync();
+        var type = await AddExpenseTypeAsync(db, null);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+            e.Amount = 77m; e.Currency = "RUB";
+            e.AppliedFxRateToUsd = 0.012987012987m; e.AmountUsd = 1m;
+        });
+        Assert.Equal(PaymentPostingStatus.Posted, (await CreateAdapter(db, true).TryPostExpenseAsync(expense)).Status);
+        var credit = (await LoadJournalAsync(db, expense.Id)).Lines.Single(l => l.Credit > 0);
+        Assert.Equal(scope.Settings.CashBankControlAccountId, credit.AccountId);
+        Assert.Equal(0.012987012987m, credit.ExchangeRate);
+        Assert.Equal(1m, credit.Credit);
+        Assert.Equal("RUB", credit.TransactionCurrencyCode);
+    }
+
+    [Fact]
     public async Task Standalone_Paid_Expense_Credits_Cash_Once_Without_A_Payable_Or_New_Payment()
     {
         await using var db = fixture.CreateDbContext();
