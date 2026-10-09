@@ -334,7 +334,7 @@ public sealed class TransportsController : Controller
             return await RenderBulkAsync(model);
         }
 
-        if (result.CreatedCount == 0)
+        if (result.CompletedCount == 0)
         {
             foreach (var failure in DescribeFailures(result.Failures))
             {
@@ -343,7 +343,11 @@ public sealed class TransportsController : Controller
             return await RenderBulkAsync(model);
         }
 
-        TempData["ok"] = $"{result.CreatedCount:N0} بارگیری به حمل تبدیل شد.";
+        TempData["ok"] = result.Failures.Count == 0
+            ? $"همه ثبت شد: {result.CompletedCount:N0} بارگیری به حمل تبدیل شده است."
+            : $"بخشی ثبت شد: {result.CompletedCount:N0} بارگیری به حمل تبدیل شده است.";
+        if (result.PreviouslyCreatedLegIds.Count > 0)
+            TempData["ok"] += $" {result.PreviouslyCreatedLegIds.Count:N0} مورد در تلاش قبلی ثبت شده بود و دوباره ثبت نشد.";
         if (result.Failures.Count > 0)
         {
             TempData["err"] = "تبدیل نشد — " + string.Join(" | ", DescribeFailures(result.Failures));
@@ -351,6 +355,16 @@ public sealed class TransportsController : Controller
         return !string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
             ? Redirect(model.ReturnUrl)
             : RedirectToAction("Index", "InventoryTransportLegs");
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpGet]
+    public async Task<IActionResult> BulkFromLoadingProgress(string requestToken, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestToken) || requestToken.Length > 256)
+            return BadRequest("شناسهٔ درخواست معتبر نیست.");
+        var rows = await new TransportBulkRequestQuery(_db).GetCompletedRowsAsync(requestToken, ct);
+        return Json(new { completedCount = rows.Count, completedRows = rows });
     }
 
     /// <summary>
