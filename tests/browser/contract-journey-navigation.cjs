@@ -53,8 +53,25 @@ const server = http.createServer((req, res) => {
   await page.unroute('**/ContractJourney/Details?**tab=costs**');
   await retry.click();
   await page.waitForFunction(() => document.querySelector('[data-contract-journey-tab-content]').getAttribute('data-active-tab') === 'costs');
+  // A pending tab must never overwrite a different contract after SPA exit.
+  let pendingRoute;
+  const receivedRequest = new Promise(resolve => {
+    page.route('**/ContractJourney/Details?**tab=sales**', route => {
+      pendingRoute = route;
+      resolve();
+    });
+  });
+  await page.locator('[data-contract-journey-tab="sales"]').click();
+  await receivedRequest;
+  await page.evaluate(html => {
+    document.querySelector('[data-contract-journey-page]').outerHTML = html;
+  }, fragment('summary').replaceAll('contractId=17', 'contractId=18'));
+  await pendingRoute.fulfill({ status: 200, contentType: 'text/html', body: fragment('sales') });
+  await page.waitForTimeout(200);
+  const activeAfterExit = await page.locator('[data-contract-journey-tab-content]').getAttribute('data-active-tab');
+  if (activeAfterExit !== 'summary') throw new Error('Old tab response overwrote a different page');
   if (errors.length) throw new Error('Browser script errors: ' + errors.join('; '));
-  const result = { checks, retryRetainedContext: true, fallbackGetSucceeded: true, browserErrors: errors, fixture: 'Rendered navigation markup with repository CSS/JS; no database or financial write' };
+  const result = { checks, retryRetainedContext: true, fallbackGetSucceeded: true, oldResponseDiscardedAfterExit: true, browserErrors: errors, fixture: 'Rendered navigation markup with repository CSS/JS; no database or financial write' };
   fs.writeFileSync(`${output}/browser-checks.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
   await browser.close(); server.close();
