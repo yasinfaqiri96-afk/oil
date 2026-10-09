@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
@@ -128,6 +128,22 @@ public sealed class ProcessedFormTokenRetentionTests
 
         Assert.False(await db.ProcessedFormTokens.AnyAsync(t => t.Token == "expired"));
         Assert.True(await db.ProcessedFormTokens.AnyAsync(t => t.Token == "live"));
+    }
+
+    [Fact]
+    public async Task DurableBulkRowResults_ArePreservedAfterTheOrdinaryTokenWindow()
+    {
+        await using var db = NewDb();
+        var durable = Token("bulk-row", Now.UtcDateTime.AddDays(-200));
+        durable.Purpose = "Transport.BulkRow:request:fingerprint";
+        durable.ReferenceType = nameof(InventoryTransportLeg);
+        durable.ReferenceId = 42;
+        db.ProcessedFormTokens.AddRange(durable, Token("ordinary-expired", Now.UtcDateTime.AddDays(-200)));
+        await db.SaveChangesAsync();
+        Assert.Equal(1, await Service(db).PurgeExpiredAsync());
+        var remaining = await db.ProcessedFormTokens.SingleAsync();
+        Assert.Equal("bulk-row", remaining.Token);
+        Assert.Equal(42, remaining.ReferenceId);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

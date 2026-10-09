@@ -295,6 +295,29 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
         Assert.Empty(await verify.ProcessedFormTokens.ToListAsync());
     }
 
+    [Fact]
+    public async Task Progress_And_Retry_Cannot_Read_Another_Users_Request()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 1, loadedQuantityMt: 200m);
+        db.ChangeTracker.Clear();
+        var command = Command(1, "owned-request");
+        await BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(command);
+        var token = await db.ProcessedFormTokens.SingleAsync();
+        token.UserId = 42;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var query = new TransportBulkRequestQuery(db);
+        Assert.Empty(await query.GetCompletedRowsAsync(command.FormToken!, userId: 41));
+        Assert.Single(await query.GetCompletedRowsAsync(command.FormToken!, userId: 42));
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(command));
+        Assert.Equal("TRANSPORT_BULK_REQUEST_OWNER", error.Code);
+        Assert.Equal(1, await db.InventoryTransportLegs.CountAsync());
+    }
+
     private sealed class CancelAfterCommit(CancellationTokenSource source) : DbTransactionInterceptor
     {
         public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,

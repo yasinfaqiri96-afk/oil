@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Security;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -185,6 +186,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
     // اختیاری تا ساخت مستقیمِ سرویس در تست‌ها دست‌نخورده بماند؛ نبودش یعنی بدون محافظ
     // ضدتکراری (fail-open)، دقیقاً مثل بقیهٔ مسیرهای پروژه.
     private readonly IFormTokenGuard? _formTokens;
+    private readonly ICurrentUserContext? _currentUser;
 
     public TransportWorkflowService(
         ApplicationDbContext db,
@@ -192,7 +194,8 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         ITransportChainService chain,
         InventoryTransportReceiptService outcomes,
         ILossEventWorkflowService losses,
-        IFormTokenGuard? formTokens = null)
+        IFormTokenGuard? formTokens = null,
+        ICurrentUserContext? currentUser = null)
     {
         _db = db;
         _inventoryStarts = inventoryStarts;
@@ -200,6 +203,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         _outcomes = outcomes;
         _losses = losses;
         _formTokens = formTokens;
+        _currentUser = currentUser;
     }
 
     public Task<InventoryTransportBatch> StartFromInventoryAsync(
@@ -384,6 +388,8 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             var completed = await _db.ProcessedFormTokens.AsNoTracking()
                 .Where(t => t.Purpose.StartsWith(prefix))
                 .ToDictionaryAsync(t => t.Token, ct);
+            if (completed.Values.Any(token => token.UserId != _currentUser?.UserId))
+                throw Rule("TRANSPORT_BULK_REQUEST_OWNER", "این درخواست متعلق به کاربر دیگری است.");
             foreach (var row in rows)
                 if (completed.TryGetValue(row.RequestRowToken!, out var token)) ValidateCompletedRow(row, token);
             previousLegIds.AddRange(completed.Values.Where(t => t.ReferenceId.HasValue).Select(t => t.ReferenceId!.Value));
@@ -493,6 +499,8 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             var completed = rowTokens.Length == 0 ? new Dictionary<string, ProcessedFormToken>()
                 : await _db.ProcessedFormTokens.AsNoTracking()
                     .Where(t => rowTokens.Contains(t.Token)).ToDictionaryAsync(t => t.Token, ct);
+            if (completed.Values.Any(token => token.UserId != _currentUser?.UserId))
+                throw Rule("TRANSPORT_BULK_REQUEST_OWNER", "این درخواست متعلق به کاربر دیگری است.");
             var received = await ReceivedByLoadingAsync(idArray, ct);
             var shortage = await ShortageByLoadingAsync(idArray, ct);
             var transported = await TransportedByLoadingAsync(idArray, ct);
@@ -554,7 +562,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                 batches.Add(batch);
                 if (row.RequestRowToken is not null)
                 {
-                    (_formTokens ?? new FormTokenGuard(_db)).Stamp(row.RequestRowToken, row.RequestRowPurpose!, nameof(InventoryTransportLeg));
+                    (_formTokens ?? new FormTokenGuard(_db, _currentUser)).Stamp(row.RequestRowToken, row.RequestRowPurpose!, nameof(InventoryTransportLeg));
                     rowRecords.Add((_db.ProcessedFormTokens.Local.Last(t => t.Token == row.RequestRowToken), batch));
                 }
                 consumedInChunk[loading.Id] =
