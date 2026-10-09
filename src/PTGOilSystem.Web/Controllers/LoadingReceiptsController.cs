@@ -1760,16 +1760,10 @@ public partial class LoadingReceiptsController : Controller
 
                 // مرحله ۶ — Dual-write داخل همان Transaction قدیمی: کالای رسیده از «در راه»
                 // به موجودی منتقل می‌شود. Adapter خودش پست‌نشدنِ خریدِ متناظر را Skip می‌کند.
-                if (_purchaseAccounting is not null)
-                {
-                    var accountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
-                        .PostAsync([receipt]);
-                    if (receipt.ReceiptDestination == LoadingReceiptDestination.ToInventory)
-                        RecordReceiptAccountingOutcomes(accountingOutcomes);
-                }
+                var receiptAccountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
+                    .PostAsync([receipt]);
 
-                // مرحله ۷ — فروش مستقیمِ همین رسید. بعد از رسید صدا زده می‌شود تا کالا اول
-                // ارزش‌گذاری شده باشد و COGS بتواند از همان کاسه بردارد.
+                // فروش مستقیم موجودی مخزن نمی‌سازد؛ آداپتر فروش بهای منبع معتبر خودش را می‌خواند.
                 if (_salesAccounting is not null)
                 {
                     foreach (var directSale in directSaleDrafts.Select(d => d.Draft.Sale))
@@ -1913,6 +1907,9 @@ public partial class LoadingReceiptsController : Controller
                 {
                     await transaction.CommitAsync();
                 }
+
+                if (receipt.ReceiptDestination == LoadingReceiptDestination.ToInventory)
+                    RecordReceiptAccountingOutcomes(receiptAccountingOutcomes);
 
                 TempData["ok"] = model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
                     ? model.AllocationDestination switch
@@ -2297,8 +2294,6 @@ public partial class LoadingReceiptsController : Controller
 
                 var accountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
                     .PostAsync(createdRows.Select(x => x.Receipt).ToList());
-                RecordReceiptAccountingOutcomes(accountingOutcomes);
-
                 foreach (var row in createdRows)
                 {
                     await _audit.LogAsync(
@@ -2434,6 +2429,8 @@ public partial class LoadingReceiptsController : Controller
                 {
                     await transaction.CommitAsync();
                 }
+
+                RecordReceiptAccountingOutcomes(accountingOutcomes);
 
                 TempData["ok"] = createdLossEventCount > 0
                     ? $"رسید جمعی با موفقیت ثبت شد. {createdRows.Count:N0} رسید با مجموع {requestedQuantityMt:N4} MT و {createdLossEventCount:N0} رکورد کسری با مجموع {requestedLossMt:N4} MT ثبت شد."
