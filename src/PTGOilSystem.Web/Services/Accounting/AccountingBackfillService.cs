@@ -351,13 +351,15 @@ public sealed class AccountingBackfillService(
                 cancellationReason = CancellationReason(current);
                 if (cancellationReason is not null)
                 {
-                    AddSkip(entityId, AccountingBackfillItemStatus.Cancelled, cancellationReason, true);
                     if (transaction is not null)
                         await transaction.CommitAsync(cancellationToken);
+                    AddSkip(entityId, AccountingBackfillItemStatus.Cancelled, cancellationReason, true);
                     continue;
                 }
                 var result = await post(current, cancellationToken);
                 var (status, reason) = Describe(result);
+                if (transaction is not null)
+                    await transaction.CommitAsync(cancellationToken);
                 switch (status)
                 {
                     case PaymentPostingStatus.Posted:
@@ -372,8 +374,6 @@ public sealed class AccountingBackfillService(
                         AddSkip(entityId, AccountingBackfillItemStatus.Skipped, reason ?? "ADAPTER_SKIPPED", true);
                         break;
                 }
-                if (transaction is not null)
-                    await transaction.CommitAsync(cancellationToken);
             }
             catch (AccountingValidationException validation)
             {
