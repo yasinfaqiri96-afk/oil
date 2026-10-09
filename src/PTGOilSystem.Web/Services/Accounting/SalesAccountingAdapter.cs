@@ -530,7 +530,7 @@ public sealed class SalesAccountingAdapter(
                 && a.Status != LoadingReceiptAllocationStatus.Cancelled
                 && a.LoadingReceipt != null && !a.LoadingReceipt.IsCancelled
                 && a.LoadingReceipt.LoadingRegister != null && !a.LoadingReceipt.LoadingRegister.IsCancelled)
-            .Select(a => new { a.QuantityMt, a.SourcePurchaseContractId,
+            .Select(a => new { a.QuantityMt, a.SourcePurchaseContractId, a.LoadingReceiptId,
                 LoadingId = a.LoadingReceipt!.LoadingRegisterId,
                 LoadedMt = a.LoadingReceipt.LoadingRegister!.LoadedQuantityMt,
                 ProductId = a.LoadingReceipt.LoadingRegister.ProductId }).ToListAsync(ct);
@@ -538,6 +538,12 @@ public sealed class SalesAccountingAdapter(
         if (shares.Sum(a => a.QuantityMt) != sale.QuantityMt
             || shares.Any(a => a.QuantityMt <= 0m || a.LoadedMt <= 0m || a.ProductId != sale.ProductId))
             return Skipped(sale, "Cogs", companyId, "DIRECT_SALE_SOURCE_QUANTITY_MISMATCH");
+        var receiptIds = shares.Select(a => a.LoadingReceiptId).Distinct().ToArray();
+        if (await db.JournalEntries.AsNoTracking().AnyAsync(j => j.SourceModule == PurchaseAccountingAdapter.SourceModule
+            && j.SourceEntityType == nameof(LoadingReceipt) && j.SourceEntityId.HasValue && receiptIds.Contains(j.SourceEntityId.Value)
+            && !j.IsReversal && j.Status == JournalEntryStatus.Posted
+            && !db.JournalEntries.Any(r => r.ReversalOfJournalEntryId == j.Id), ct))
+            return Skipped(sale, "Cogs", companyId, "DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW");
         var settings = await db.AccountingSettings.AsNoTracking().SingleAsync(x => x.CompanyId == companyId, ct);
         if (!await db.Accounts.AsNoTracking().AnyAsync(a => a.Id == settings.InventoryInTransitAccountId
                 && a.CompanyId == companyId && a.IsActive, ct))
