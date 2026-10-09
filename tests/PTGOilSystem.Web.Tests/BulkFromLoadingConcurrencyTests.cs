@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
+using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
@@ -73,8 +76,11 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
         db.ChangeTracker.Clear();
 
         // ثبت دوبارهٔ همان فرم (کلیک دوم، رفرش، retry) نباید حمل تازه بسازد.
-        await Assert.ThrowsAsync<DbUpdateException>(
-            () => workflow.StartManyFromLoadingAsync(Command(4, token)));
+        var replay = await workflow.StartManyFromLoadingAsync(Command(4, token));
+        Assert.Equal(0, replay.CreatedCount);
+        Assert.Equal(4, replay.CompletedCount);
+        Assert.Equal(first.CreatedLegIds.OrderBy(x => x), replay.PreviouslyCreatedLegIds.OrderBy(x => x));
+        Assert.Empty(replay.Failures);
 
         await using var verify = fixture.CreateDbContext();
         Assert.Equal(4, await verify.InventoryTransportLegs.AsNoTracking().CountAsync());
@@ -161,6 +167,142 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
         Assert.Equal(3, await verify.InventoryTransportLegs.AsNoTracking().CountAsync());
         Assert.Equal(3, await verify.InventoryTransportBatches.AsNoTracking().CountAsync());
         Assert.Equal(3, await verify.InventoryTransportLegAllocations.AsNoTracking().CountAsync());
+    }
+
+    [Fact]
+    public async Task Retry_After_First_Chunk_Commits_Resumes_Without_Repeating_Any_Row()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using (var seed = fixture.CreateDbContext())
+            await BulkFromLoadingPerformanceTests.SeedAsync(seed, 4, loadedQuantityMt: 200m);
+        using var disconnect = new CancellationTokenSource();
+        var command = Command(4, "disconnect-resume") with { ChunkSize = 2 };
+        await using (var interrupted = fixture.CreateDbContext(new CancelAfterCommit(disconnect)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => BuildWorkflowWithTokens(interrupted).StartManyFromLoadingAsync(command, disconnect.Token));
+        await using var retry = fixture.CreateDbContext();
+        var recovered = await new TransportBulkRequestQuery(retry).GetCompletedRowsAsync(command.FormToken!);
+        Assert.Equal(2, recovered.Count);
+        Assert.All(recovered, row => Assert.Equal(100m, row.QuantityMt));
+        var result = await BuildWorkflowWithTokens(retry).StartManyFromLoadingAsync(command);
+        Assert.Equal(2, result.CreatedCount);
+        Assert.Equal(2, result.PreviouslyCreatedLegIds.Count);
+        Assert.Equal(4, result.CompletedCount);
+        Assert.Empty(result.Failures);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(4, await verify.InventoryTransportLegs.CountAsync());
+        Assert.Equal(400m, await verify.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+        Assert.Equal(4, await verify.ProcessedFormTokens.CountAsync(t => t.ReferenceId.HasValue));
+    }
+
+    [Fact]
+    public async Task Fallback_Records_Each_Success_And_Retry_Can_Fix_Only_Failed_Rows()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 4, loadedQuantityMt: 200m);
+        db.ChangeTracker.Clear();
+        var command = Command(4, "partial-fallback");
+        var broken = command with { Rows = command.Rows.Select(row => row.LoadingRegisterId == 3
+            ? row with { Reference = new string('X', 150) } : row).ToList() };
+        var initial = await BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(broken);
+        Assert.Equal(3, initial.CreatedCount);
+        Assert.Equal(3, Assert.Single(initial.Failures).LoadingRegisterId);
+        db.ChangeTracker.Clear();
+        var resumed = await BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(command);
+        Assert.Equal(1, resumed.CreatedCount);
+        Assert.Equal(3, resumed.PreviouslyCreatedLegIds.Count);
+        Assert.Empty(resumed.Failures);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(4, await verify.InventoryTransportLegs.CountAsync());
+        Assert.Equal(400m, await verify.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+        Assert.Equal(4, await verify.ProcessedFormTokens.CountAsync(t => t.ReferenceId.HasValue));
+    }
+
+    [Fact]
+    public async Task A_Completed_Row_Cannot_Be_Changed_Under_The_Same_Request_Identity()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 1, loadedQuantityMt: 200m);
+        db.ChangeTracker.Clear();
+        var command = Command(1, "unchanged-request");
+        await BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(command);
+        db.ChangeTracker.Clear();
+        var changed = command with { Rows = [command.Rows[0] with { QuantityMt = 99m }] };
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(changed));
+        Assert.Equal("TRANSPORT_BULK_REQUEST_CHANGED", error.Code);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(1, await verify.InventoryTransportLegs.CountAsync());
+        Assert.Equal(100m, await verify.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+    }
+
+    [Fact]
+    public async Task Subset_Retry_Uses_Stable_Ids_When_Two_Rows_Share_One_Loading()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using (var seed = fixture.CreateDbContext())
+            await BulkFromLoadingPerformanceTests.SeedAsync(seed, 1, loadedQuantityMt: 200m);
+        using var disconnect = new CancellationTokenSource();
+        var rowA = Command(1).Rows[0] with { QuantityMt = 50m, RequestRowId = "vehicle-A" };
+        var rowB = rowA with { RequestRowId = "vehicle-B", Reference = "second-vehicle" };
+        var command = new BulkStartTransportFromLoadingCommand
+        {
+            Rows = [rowA, rowB], TransportDate = TransportDate, FormToken = "subset-resume", ChunkSize = 1
+        };
+        await using (var interrupted = fixture.CreateDbContext(new CancelAfterCommit(disconnect)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => BuildWorkflowWithTokens(interrupted).StartManyFromLoadingAsync(command, disconnect.Token));
+        await using var retry = fixture.CreateDbContext();
+        var result = await BuildWorkflowWithTokens(retry).StartManyFromLoadingAsync(command with { Rows = [rowB] });
+        Assert.Equal(1, result.CreatedCount);
+        Assert.Equal(1, result.PreviouslyCreatedLegIds.Count);
+        Assert.Empty(result.Failures);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(2, await verify.InventoryTransportLegs.CountAsync());
+        Assert.Equal(100m, await verify.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+    }
+
+    [Fact]
+    public async Task Cancelled_Loadings_Cannot_Be_Revived_By_Single_Or_Bulk_Conversion()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 1);
+        var loading = await db.LoadingRegisters.SingleAsync();
+        loading.IsCancelled = true;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var workflow = BuildWorkflowWithTokens(db);
+        var single = await Assert.ThrowsAsync<BusinessRuleException>(() => workflow.StartFromLoadingAsync(new()
+        {
+            LoadingRegisterId = 1, QuantityMt = 100m, TransportType = LoadingTransportType.Truck,
+            TruckId = 1, TransportDate = TransportDate
+        }));
+        Assert.Equal("TRANSPORT_LOADING_INACTIVE", single.Code);
+        db.ChangeTracker.Clear();
+        var bulk = await workflow.StartManyFromLoadingAsync(Command(1, "cancelled-loading"));
+        Assert.Equal(0, bulk.CompletedCount);
+        Assert.Equal("TRANSPORT_LOADING_INACTIVE", Assert.Single(bulk.Failures).Code);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Empty(await verify.InventoryTransportLegs.ToListAsync());
+        Assert.Empty(await verify.ProcessedFormTokens.ToListAsync());
+    }
+
+    private sealed class CancelAfterCommit(CancellationTokenSource source) : DbTransactionInterceptor
+    {
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            source.Cancel();
+            return Task.CompletedTask;
+        }
     }
 
     private static BulkStartTransportFromLoadingCommand Command(int count = 3, string? token = null)
