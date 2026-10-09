@@ -121,7 +121,7 @@
                                 @PayerText(item)
                             }
                         </td>
-                        <td class="ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
+                        <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
                         <td>@(item.LedgerEntryId?.ToString() ?? "-")</td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
@@ -156,33 +156,35 @@
         @Model.PagerHtml
     </section>
 
-    <section class="ak-form-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                 model="@((T("خلاصه مالی", "Financial summary"), (string?)T("وضعیت پرداخت، بدهی و حاشیه سود", "Payment, liability, and margin status")))" />
-        <dl class="ak-list">
-            <div class="ak-list-row"><dt>@T("قابل پرداخت به تأمین‌کننده", "Total payable to supplier")</dt><dd class="ak-num">@Model.Summary.SupplierPayableTotalText</dd></div>
-            <div class="ak-list-row"><dt>@T("پرداخت/تسویه‌شده", "Paid or settled")</dt><dd class="ak-num">@Model.Summary.SupplierPaidText</dd></div>
-            <div class="ak-list-row"><dt>@T("مانده قابل پرداخت", "Remaining payable")</dt><dd class="ak-num @Model.Summary.SupplierRemainingToneClass">@Model.Summary.SupplierRemainingText</dd></div>
-            <div class="ak-list-row"><dt>@T("برآورد عملیاتی سود", "Operational margin estimate")</dt><dd class="ak-num @Model.Summary.GrossMarginToneClass">@Model.Summary.GrossMarginText</dd></div>
-        </dl>
-        <p class="ak-note">@Model.Summary.Note</p>
-    </section>
+    @* قابل پرداخت، پرداخت‌شده و مانده در کارت‌های آماری بالای همین تب است؛ بخش «خلاصه مالی»
+       که همان سه رقم را تکرار می‌کرد حذف شد. *@
 
-    @* سود محقق‌شده — تنها منبع رسمی: ProfitAndLossService (فروش معتبر منهای COGS فعال). *@
-    <section class="ak-form-section">
-        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                 model="@((T("سود محقق‌شدهٔ فروش", "Realised sales profit"), (string?)T("درآمد فروش معتبر منهای بهای تمام‌شدهٔ فعال", "Valid sales revenue less active cost of goods sold")))" />
+    @* مفاد تحقق‌یافته — همان موتور مفاد قرارداد (ProfitAndLossService.BuildContractEconomicsAsync).
+       به‌طور پیش‌فرض بسته است؛ رقم نهایی و وضعیت آن در خود عنوان دیده می‌شود. *@
+    <details class="ak-advanced" data-journey-realized-profit>
+        <summary class="ak-advanced-summary">
+            @T("مفاد تحقق‌یافته", "Realized profit"):
+            <span class="ak-num @Model.Summary.RealisedToneClass">@Model.Summary.RealisedGrossProfitText</span>
+            <span class="badge text-bg-@Model.Summary.RealisedConfidenceTone ms-2">@Model.Summary.RealisedConfidenceLabel</span>
+        </summary>
+        <div class="ak-advanced-body">
+        <p class="ak-section-desc">@T("فروش انجام‌شده منهای بهای خرید و مصارف همان مقدار", "Completed sales less purchase cost and expenses of that quantity")</p>
         <dl class="ak-list">
-            <div class="ak-list-row"><dt>@T("درآمد فروش معتبر", "Valid sales revenue")</dt><dd class="ak-num">@Model.Summary.RealisedRevenueText</dd></div>
-            <div class="ak-list-row"><dt>@T("بهای تمام‌شدهٔ فروش", "Cost of goods sold")</dt><dd class="ak-num">@Model.Summary.RealisedCogsText</dd></div>
+            <div class="ak-list-row"><dt>@T("فروش انجام‌شده", "Completed sales")</dt><dd class="ak-num">@Model.Summary.RealisedRevenueText</dd></div>
+            <div class="ak-list-row"><dt>@T("بهای تمام‌شدهٔ همین فروش", "Cost of these sales")</dt><dd class="ak-num">@Model.Summary.RealisedCogsText</dd></div>
             <div class="ak-list-row">
-                <dt>@T("سود ناخالص محقق‌شده", "Realised gross profit")</dt>
+                <dt>@T("مفاد تحقق‌یافته", "Realized profit")</dt>
                 <dd class="ak-num @Model.Summary.RealisedToneClass">
                     @Model.Summary.RealisedGrossProfitText
                     <span class="badge text-bg-@Model.Summary.RealisedConfidenceTone ms-2">@Model.Summary.RealisedConfidenceLabel</span>
                 </dd>
             </div>
         </dl>
+        @if (!string.IsNullOrWhiteSpace(Model.Summary.Note) && Model.Summary.Note != "-")
+        {
+            <p class="ak-note">@Model.Summary.Note</p>
+        }
+        <p class="ak-note">@T("راپور مفاد دوره‌ای شرکت مصارف را در تاریخ ثبتشان کسر می‌کند، نه هم‌زمان با فروش؛ از این رو رقم دوره‌ای می‌تواند با این مفاد فرق داشته باشد.", "The company period P&L deducts expenses when they are recorded, not with the sale, so a period figure can differ from this profit.")</p>
         @if (!string.IsNullOrEmpty(Model.Summary.RealisedUncostedWarning))
         {
             <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-octagon"></i> @Model.Summary.RealisedUncostedWarning</div>
@@ -195,8 +197,13 @@
                 <strong class="ak-num">@Model.Summary.RealisedVarianceText</strong> — @Model.Summary.RealisedVarianceReason
             </div>
         }
-    </section>
+        </div>
+    </details>
 
+    @* تسویهٔ صراف فقط وقتی ردیف دارد (یا جستجو فعال است) نمایش داده می‌شود؛ جدول خالی بخش اضافه بود.
+       ثبت تسویه و فهرست همهٔ تسویه‌ها در منوی سه‌نقطهٔ بالای همین تب است. *@
+    @if (Model.SarrafSettlements.Any() || !string.IsNullOrWhiteSpace(Context.Request.Query["settlementsQ"].ToString()))
+    {
     <section class="ak-form-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
                  model="@((T("تسویه‌های صراف", "Sarraf settlements"), (string?)T("ردیف‌های تسویه و کاهش بدهی", "Settlement rows and liability reductions")))" />
@@ -224,9 +231,9 @@
                             <a asp-controller="SarrafSettlements" asp-action="Details" asp-route-id="@item.SarrafSettlementId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Finance)" class="ak-name">@item.SarrafName</a>
                         </td>
                         <td>@item.SettlementDate.ToDisplayDate()</td>
-                        <td class="ak-num">@item.RequestedAmountUsd.ToString("N2") @UnitUsd()</td>
-                        <td class="ak-num">@item.SupplierAcceptedAmountUsd.ToString("N2") @UnitUsd()</td>
-                        <td class="ak-num">
+                        <td class="ak-col-num ak-num">@item.RequestedAmountUsd.ToString("N2") @UnitUsd()</td>
+                        <td class="ak-col-num ak-num">@item.SupplierAcceptedAmountUsd.ToString("N2") @UnitUsd()</td>
+                        <td class="ak-col-num ak-num">
                             @item.SupplierReductionAmountUsd.ToString("N2") @UnitUsd()
                             @if (item.SupplierReductionAmountRub.HasValue)
                             {
@@ -240,7 +247,7 @@
                         <td>
                             <span class="ak-status @(item.Status == SarrafSettlementStatus.Posted ?"is-active" : "is-inactive")">@SarrafSettlementLabels.ToPersian(item.Status)</span>
                         </td>
-                        <td class="ak-num">@(item.LedgerEntryId.HasValue ? $"#{item.LedgerEntryId.Value}" : "-")</td>
+                        <td class="ak-col-num ak-num">@(item.LedgerEntryId.HasValue ? $"#{item.LedgerEntryId.Value}" : "-")</td>
                     </tr>
                 }
                 @if (!Model.SarrafSettlements.Any())
@@ -258,4 +265,5 @@
             </table>
         </div>
     </section>
+    }
 </div>

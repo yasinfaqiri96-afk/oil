@@ -218,6 +218,146 @@ public class ContractEconomicsCanonicalTests
     }
 
     [Fact]
+    public async Task Direct_Sale_From_A_Transport_Leg_Carries_Only_That_Legs_Specific_Costs()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        SeedTwoLegScenario(db);
+        // فروش مستقیمِ کلِ حملِ ۴۰ تنی، بدون ورود به مخزن.
+        db.SalesTransactions.Add(Sale(100, 40m, 60_000m));
+        db.SalesTransactionSourceAllocations.Add(new SalesTransactionSourceAllocation
+        {
+            Id = 1,
+            SalesTransactionId = 100,
+            TransportLegId = 2,
+            SourcePurchaseContractId = PurchaseId,
+            QuantityMt = 40m,
+            AmountUsd = 60_000m
+        });
+        await db.SaveChangesAsync();
+
+        var e = await EconomicsAsync(db, PurchaseId);
+
+        Assert.Equal(40m, e.SoldQuantityMt);
+        Assert.Equal(36_000m, e.RealizedCostOfGoodsSoldUsd);
+        // عمومی (کرایهٔ بارگیری ۱۰۰) × ۴۰٪ = ۴۰؛ حملِ ۴۰ تنی کامل: ۸۰ + گمرک ۱٬۰۰۰؛
+        // هیچ سهمی از کرایه، گمرک، مصرف و ضایعهٔ حملِ ۵۰ تنی.
+        Assert.Equal(1_120m, e.RealizedOperationalCostUsd);
+        Assert.Equal(22_880m, e.RealizedNetProfitUsd);
+        // مبنای کامل دست‌نخورده: هر سند یک بار.
+        Assert.Equal(100m + 100m + 1_700m + 80m + 1_500m + 1_000m + 720m, e.OperationalCostBaseUsd);
+        // بهای دفتری = خرید + مصارفِ پولی؛ ارزشِ ضایعه (۷۲۰) دوباره روی خرید نمی‌آید.
+        Assert.Equal(4_480m, e.RecordedExpenseCostUsd);
+        Assert.Equal(94_480m, e.LifecycleTotalCostUsd);
+        Assert.Equal(57_360m, e.UnsoldCostUsd);
+    }
+
+    [Fact]
+    public async Task Sale_From_Tank_Carries_The_Costs_Of_The_Leg_That_Filled_The_Tank()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        SeedTwoLegScenario(db);
+        // حملِ ۵۰ تنی ۴۹ تن به مخزن داد؛ همان ۴۹ تن از مخزن فروخته شد. حملِ ۴۰ تنی هنوز در مسیر است.
+        db.InventoryTransportReceipts.Add(new InventoryTransportReceipt
+        {
+            Id = 1,
+            InventoryTransportLegId = 1,
+            ReceiptDate = new DateTime(2026, 4, 8),
+            ReceivedQuantityMt = 49m,
+            ShortageQuantityMt = 1m,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory
+        });
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            Id = 10,
+            ProductId = 1,
+            ContractId = PurchaseId,
+            TerminalId = 1,
+            StorageTankId = 1,
+            Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 4, 8),
+            QuantityMt = 49m
+        });
+        db.SalesTransactions.Add(Sale(100, 49m, 73_500m));
+        db.InventoryMovements.Add(StockOut(11, PurchaseId, saleId: 100, quantityMt: 49m));
+        await db.SaveChangesAsync();
+
+        var e = await EconomicsAsync(db, PurchaseId);
+
+        // حملِ ۵۰ تنی کامل (۱۰۰ + ۱٬۷۰۰ + ۱٬۵۰۰ + ۷۲۰) + عمومی ۱۰۰ × ۴۹٪؛ هیچ سهمی از حملِ ۴۰ تنیِ در مسیر.
+        Assert.Equal(4_020m + 49m, e.RealizedOperationalCostUsd);
+    }
+
+    [Fact]
+    public async Task Sale_From_Tank_Keeps_The_Sold_Share_Rule_For_Leg_Costs()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        SeedTwoLegScenario(db);
+        db.SalesTransactions.Add(Sale(100, 40m, 60_000m));
+        db.InventoryMovements.Add(StockOut(1, PurchaseId, saleId: 100, quantityMt: 40m));
+        await db.SaveChangesAsync();
+
+        var e = await EconomicsAsync(db, PurchaseId);
+
+        Assert.Equal(0.4m, e.SoldShareRatio);
+        Assert.Equal(decimal.Round(e.OperationalCostBaseUsd * 0.4m, 2), e.RealizedOperationalCostUsd);
+    }
+
+    /// <summary>
+    /// سناریوی P-001: دو بارگیریِ ۵۰ تنی × ۹۰۰؛ حملِ ۵۰ تنی (۱ تن ضایعه، ۰٫۸ قابل‌جبران، کرایهٔ خالص
+    /// ۱٬۷۰۰، گمرک ۱٬۵۰۰، مصرف ۱۰۰) و حملِ ۴۰ تنی (گمرک ۱٬۰۰۰، مصرف ۸۰).
+    /// </summary>
+    private static void SeedTwoLegScenario(ApplicationDbContext db)
+    {
+        db.LoadingRegisters.AddRange(Loading(1, PurchaseId, 50m, 900m), Loading(2, PurchaseId, 50m, 900m));
+        db.ExpenseTransactions.AddRange(
+            Expense(1, 50m, contractId: PurchaseId, loadingRegisterId: 1),
+            Expense(2, 50m, contractId: PurchaseId, loadingRegisterId: 2),
+            LegExpense(3, 100m, legId: 1),
+            LegExpense(4, 1_700m, legId: 1),
+            LegExpense(5, 80m, legId: 2));
+        db.InventoryTransportLegs.AddRange(
+            Leg(1, 50m),
+            Leg(2, 40m));
+        db.CustomsDeclarations.AddRange(
+            new CustomsDeclaration { Id = 1, TransportLegId = 1, DeclarationDate = new DateTime(2026, 4, 6), TotalUsd = 1_500m },
+            new CustomsDeclaration { Id = 2, TransportLegId = 2, DeclarationDate = new DateTime(2026, 4, 6), TotalUsd = 1_000m });
+        db.LossEvents.Add(new LossEvent
+        {
+            Id = 1,
+            Stage = LossEventStage.ReceiptShortage,
+            ProductId = 1,
+            ContractId = PurchaseId,
+            TransportLegId = 1,
+            EventDate = new DateTime(2026, 4, 8),
+            ExpectedQuantityMt = 50m,
+            ActualQuantityMt = 49m,
+            DifferenceQuantityMt = 1m,
+            AllowableLossMt = 0.2m,
+            ChargeableLossMt = 0.8m
+        });
+
+        static InventoryTransportLeg Leg(int id, decimal quantityMt) => new()
+        {
+            Id = id,
+            SourcePurchaseContractId = PurchaseId,
+            ProductId = 1,
+            LoadedDate = new DateTime(2026, 4, 5),
+            QuantityMt = quantityMt,
+            Status = InventoryTransportLegStatus.Received
+        };
+
+        static ExpenseTransaction LegExpense(int id, decimal amountUsd, int legId)
+        {
+            var expense = Expense(id, amountUsd, contractId: PurchaseId);
+            expense.TransportLegId = legId;
+            return expense;
+        }
+    }
+
+    [Fact]
     public async Task Contract_Pnl_Report_Shows_The_Canonical_Realized_And_Lifecycle_Values()
     {
         await using var db = NewDb();

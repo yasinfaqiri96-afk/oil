@@ -1269,8 +1269,9 @@ public partial class ReportsController : Controller
                 OtherCostUsd = e.OtherCostUsd,
                 RailwayCostUsd = e.RailwayCostUsd,
                 CustomsCostUsd = e.CustomsCostUsd,
-                // سهمِ مصرف/ضایعهٔ بدون تگِ محموله در همان ستون‌ها تا جمعِ ستون‌ها = بهای کل.
+                // سهمِ مصرفِ بدون تگِ محموله در همان ستون‌ها تا جمعِ ستون‌های پولی = بهای کل.
                 GeneralExpenseCostUsd = e.GeneralExpenseCostUsd + e.SharedShipmentExpenseUsd,
+                // ارزشِ ضایعه اطلاعی است: بهای همان نفت در ارزشِ خرید هست و در بهای کل دوباره نمی‌آید.
                 LossCostUsd = e.LossCostUsd + e.ShipmentLossCostUsd,
                 UnvaluedLossCount = e.UnvaluedLossCount,
                 PendingSettlementQuantityMt = e.PendingSettlementQuantityMt,

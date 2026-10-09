@@ -2514,16 +2514,17 @@ select.ak-input {
 
 /* Bulk-receipt loss fields: shown only while the "immediate loss" mode is picked.
    Hook-based (no page selector), same behaviour the deleted journey skin provided. */
-[data-bulk-receipt-form] .ak-loss-only {
+[data-bulk-receipt-form].ak-form .ak-field.ak-loss-only {
     display: none;
 }
 
-[data-bulk-receipt-form]:has(input[data-loss-mode="immediate"]:checked) .ak-loss-only {
-    display: grid;
+[data-bulk-receipt-form].ak-form:has(input[data-loss-mode="immediate"]:checked) .ak-field.ak-loss-only {
+    display: flex;
 }
 
-/* Contract journey / receipts: keep the awaiting-loadings list full width while
-   collapsed, then open the bulk receipt form beside it on desktop. */
+/* Contract journey / receipts: the awaiting-loadings list stays full width.
+   Bulk selection (checkbox column, select-all/clear) appears only after the
+   user opens "Bulk receipt"; the bulk form then opens below the table. */
 [data-bulk-receipt-form].ak-form {
     max-width: none;
 }
@@ -2532,61 +2533,32 @@ select.ak-input {
     min-width: 0;
 }
 
-[data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
-    gap: 24px;
-    align-items: start;
-}
-
-/* The client table pager is injected between the table and the panel at runtime.
-   Pin all three explicitly so that pager insertion cannot push the form down. */
-[data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace > .ak-table-wrap {
-    grid-column: 1;
-    grid-row: 1;
-}
-
-[data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace > .ptg-client-pager {
-    grid-column: 1;
-    grid-row: 2;
+[data-bulk-receipt-form]:not(.is-bulk-receipt-open) :is(.ak-col-check, [data-bulk-receipt-select-all], [data-bulk-receipt-clear]) {
+    display: none;
 }
 
 [data-bulk-receipt-form].is-bulk-receipt-open [data-bulk-receipt-panel] {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    min-width: 0;
-    padding-block: 0;
-    padding-inline-start: 24px;
-    border-inline-start: 1px solid var(--divider);
+    max-inline-size: 860px;
+    margin: 16px auto 0;
+    padding-block: 20px 0;
+    border-block-start: 1px solid var(--divider);
 }
 
-[data-bulk-receipt-form].is-bulk-receipt-open [data-bulk-receipt-panel] .ak-form-grid {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 18px;
+/* Keep the compact receipt fields in two columns within the full-width list. */
+[data-bulk-receipt-form].ak-form [data-bulk-receipt-panel] .ak-field:not(.ak-col-full) {
+    grid-column: span 6;
+}
+
+@media (max-width: 575.98px) {
+    [data-bulk-receipt-form].ak-form [data-bulk-receipt-panel] .ak-field:not(.ak-col-full) {
+        grid-column: 1 / -1;
+    }
 }
 
 /* The bulk-receipt switch colours and submit button used to be restated here
    with the same hex values (and an !important width) as the shared form system.
    Deleted: the switch and the submit now come from 76-form-system.css like
    every other form control, so there is one place to change them. */
-
-@media (max-width: 1099.98px) {
-    [data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    [data-bulk-receipt-form].is-bulk-receipt-open .ak-bulk-receipt-workspace > :is(.ak-table-wrap, .ptg-client-pager, [data-bulk-receipt-panel]) {
-        grid-column: 1;
-        grid-row: auto;
-    }
-
-    [data-bulk-receipt-form].is-bulk-receipt-open [data-bulk-receipt-panel] {
-        padding-block: 20px 0;
-        padding-inline-start: 0;
-        border-block-start: 1px solid var(--divider);
-        border-inline-start: 0;
-    }
-}
 
 /* ============================================================= *
  * Party profile pages (Suppliers/Customers/Sarrafs/… Details)

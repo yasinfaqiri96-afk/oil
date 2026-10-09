@@ -125,7 +125,8 @@ public class ContractJourneyViewStructureTests
             "آمار موجودی",
             "آمار نقل و انتقالات",
             "آمار فروشات",
-            "آمار مصرف و کسری",
+            "آمار مصارف",
+            "آمار کسری و ضایعات",
             "آمار پرداخت‌ها"
         };
 
@@ -134,8 +135,60 @@ public class ContractJourneyViewStructureTests
             Assert.Contains(label, view);
         }
 
-        Assert.Equal(32, view.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
-        Assert.Equal(32, view.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
+        // ۹ تب عملیاتی × ۴ کارت + کارت جایگزین قرارداد فروش در تب پرداخت‌ها
+        Assert.Equal(37, view.Split("<vc:stat-card", StringSplitOptions.None).Length - 1);
+        Assert.Equal(37, view.Split(" avatar=\"", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void ContractJourney_Tab_Stat_Cards_Use_Only_Data_Loaded_By_That_Tab()
+    {
+        var view = ReadContractJourneyDetailsMarkup();
+
+        // مسیرهای سبک تب‌ها Kpis، موتور مفاد و کسری‌ها را نمی‌خوانند؛ کارت‌هایی که از آن‌ها
+        // می‌خواندند در کلیک تب صفر یا غلط نشان می‌دادند.
+        Assert.DoesNotContain("value=\"@NumberDisplay.Quantity(currentStockMt)\"", view);
+        Assert.DoesNotContain("value=\"@NumberDisplay.Quantity(Model.Kpis.DispatchedQuantityMt)\"", view);
+        Assert.DoesNotContain("value=\"@NumberDisplay.Quantity(lifecycleSaleableQuantityMt)\"", view);
+        Assert.DoesNotContain("value=\"@NumberDisplay.Quantity(dispatchShortageWastageMt)\"", view);
+        Assert.DoesNotContain("value=\"@summaryExpenseTotalUsd.ToString(\"N0\")\"", view);
+        Assert.DoesNotContain("value=\"@summaryLossCostUsd.ToString(\"N0\")\"", view);
+        Assert.Contains("var inventoryBookBalanceMt = Model.InventoryMovementItems.Sum(m => m.SignedQuantityMt);", view);
+        Assert.Contains("T(\"قابل پرداخت به تأمین‌کننده\", \"Payable to supplier\")", view);
+        Assert.DoesNotContain("T(\"مبلغ قرارداد\", \"Contract amount\")", view);
+    }
+
+    [Fact]
+    public void ContractJourney_Losses_Stay_Accessible_From_Summary_On_The_Costs_Payload()
+    {
+        var view = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/Details.cshtml");
+
+        Assert.DoesNotContain("new() { Key = LossesPresentationTab", view);
+        Assert.Contains("href=\"@ReturnUrl(LossesPresentationTab)\"", view);
+        Assert.Contains("tab = ContractJourneyTabs.Details.Costs, lossesView = true", view);
+        Assert.Contains("ActiveTab = activeGroupTab,", view);
+        Assert.Contains("Key = ContractJourneyTabs.Details.Costs, Label", view);
+        Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(LossesPresentationTab)\"", view);
+
+        // Both record lists belong to the same costs payload, with no loss-only gate.
+        var costsBlock = view[view.LastIndexOf("case ContractJourneyTabs.Details.Costs:", StringComparison.Ordinal)..];
+        var expensesStart = costsBlock.IndexOf("expensesQ", StringComparison.Ordinal);
+        var lossesStart = costsBlock.IndexOf("data-journey-losses", StringComparison.Ordinal);
+        Assert.True(expensesStart >= 0);
+        Assert.True(lossesStart > expensesStart);
+        Assert.DoesNotContain("@if (!isLossesView)", costsBlock);
+        Assert.DoesNotContain("@if (isLossesView)", costsBlock);
+        Assert.True(costsBlock.IndexOf("asp-controller=\"LossEvents\"", StringComparison.Ordinal) > lossesStart);
+    }
+
+    [Fact]
+    public void ContractJourney_Finance_Tab_Drops_Duplicate_Summary_And_Collapses_Profit()
+    {
+        var finance = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyFinanceTab.cshtml");
+
+        Assert.DoesNotContain("T(\"خلاصه مالی\", \"Financial summary\")", finance);
+        Assert.Contains("<details class=\"ak-advanced\" data-journey-realized-profit>", finance);
+        Assert.Contains("@if (Model.SarrafSettlements.Any() || !string.IsNullOrWhiteSpace(Context.Request.Query[\"settlementsQ\"].ToString()))", finance);
     }
 
     [Fact]
@@ -161,7 +214,7 @@ public class ContractJourneyViewStructureTests
         {
             "cj-summary-page", "cj-final-net", "cj-overview-grid", "cj-status-card", "cj-stage-card",
             "lifecycle-status-card", "lifecycle-blue-panel", "lifecycle-pill", "StripedGauge",
-            "reference-dashboard", "reference-kpi", "octane-", "<style", "<svg"
+            "reference-dashboard", "reference-kpi", "octane-", "<style"
         })
         {
             Assert.DoesNotContain(legacy, summaryBlock);
@@ -193,22 +246,22 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
-    public void ContractJourney_Summary_Avoids_Heavy_Assets()
+    public void ContractJourney_Summary_Uses_Reference_Artwork_With_Live_Figures()
     {
         var contents = ReadContractJourneyDetailsMarkup();
         var summaryBlock = ExtractSummaryBlock(contents);
-
-        // تصاویر خلاصه فقط آواتارهای مشترک ثبت‌شده در StatCardAvatarRegistry‌اند؛
-        // هیچ تصویر سنگین یا محلی دیگری اجازه ندارد.
-        var imageTags = summaryBlock.Split("<img", StringSplitOptions.None).Skip(1).ToArray();
-        Assert.All(imageTags, tag =>
-        {
-            Assert.Contains("class=\"ak-cycle-avatar\"", tag[..Math.Min(tag.Length, 240)]);
-            Assert.Contains("src=\"@avatarPath\"", tag[..Math.Min(tag.Length, 240)]);
-        });
-
-        Assert.Contains("StatCardAvatarRegistry.ResolvePath(step.AvatarKey)", summaryBlock);
-        Assert.DoesNotContain("/img/contract-dashboard/", contents);
+        Assert.Contains("viewBox=\"@ReferenceAvatarViewBox(step.Number)\"", summaryBlock);
+        Assert.Contains("viewBox=\"@ReferenceAvatarViewBox(0)\"", summaryBlock);
+        Assert.Contains("~/images/contract-journey/cycle-artwork.png", summaryBlock);
+        Assert.Contains("LifecycleQuantityMarkup(step.FirstValue)", summaryBlock);
+        Assert.Contains("@step.Title", summaryBlock);
+        Assert.Contains("@TextOrDash(partner.PartnerName)", summaryBlock);
+        Assert.DoesNotContain("<img", summaryBlock);
+        Assert.DoesNotContain("data:image", summaryBlock);
+        // Inline SVG is limited to the two reusable avatar templates, never a page image or gauge.
+        Assert.Equal(2, summaryBlock.Split("<svg", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, summaryBlock.Split("<svg class=\"ak-cycle-avatar\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains("clipPathUnits=\"userSpaceOnUse\"", summaryBlock);
     }
 
     [Fact]
@@ -254,10 +307,10 @@ public class ContractJourneyViewStructureTests
         {
             "subContractsQ", "shipmentsQ", "loadingsQ", "pendingReceiptsQ", "receiptsQ",
             "inventoryQ", "transportLegsQ", "dispatchQ", "salesQ", "expensesQ",
-            "allocationsQ", "lossesQ", "paymentsQ", "settlementsQ"
+            "lossesQ", "paymentsQ", "settlementsQ"
         };
 
-        Assert.Equal(14, details.Split("_ContractJourneyListFilter", StringSplitOptions.None).Length - 1);
+        Assert.Equal(13, details.Split("_ContractJourneyListFilter", StringSplitOptions.None).Length - 1);
         Assert.All(searchKeys, key => Assert.Contains($"\"{key}\"", details));
         Assert.Contains("_AkSearchFilter", filter);
         Assert.Contains("Context.Request.Query", filter);
@@ -269,6 +322,24 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("filteredExpenseItems.Count", details);
         Assert.Contains("filteredLossItems.Count", details);
         Assert.Contains("filteredPaymentItems.Count", details);
+    }
+
+    [Fact]
+    public void ContractJourney_Costs_Tab_Shows_Transport_Expense_Breakdown_As_Collapsed_Detail()
+    {
+        var details = ReadContractJourneyDetailsMarkup();
+
+        Assert.DoesNotContain("allocationsQ", details);
+        Assert.DoesNotContain("allocationsPage", details);
+        Assert.DoesNotContain("Cargo flow expense allocation", details);
+        Assert.Contains("<details class=\"ak-advanced\" data-journey-leg-expense-breakdown>", details);
+        Assert.Contains("Show expense details by transport", details);
+        Assert.Contains(".Where(item => item.ExpenseCount > 0)", details);
+
+        var expensesNote = details.IndexOf("\"Cargo flow expenses\"", StringComparison.Ordinal);
+        var breakdown = details.IndexOf("data-journey-leg-expense-breakdown", StringComparison.Ordinal);
+        var lossSection = details.IndexOf("data-journey-losses", StringComparison.Ordinal);
+        Assert.True(expensesNote >= 0 && expensesNote < breakdown && breakdown < lossSection);
     }
 
     [Fact]
@@ -938,16 +1009,16 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("activeTab != ContractJourneyTabs.Details.Summary", contents);
         Assert.DoesNotContain("activeTab != ContractJourneyTabs.Details.Dispatch", contents);
         Assert.Contains("asp-action=\"CustomsBatch\"", contents);
-        Assert.Contains("summaryPnlExpenseTotalUsd = Model.MiniPnl.TraceableExpensesUsd", contents);
-        Assert.Contains("summaryExpenseTotalUsd = expenseTotalUsd + Model.LoadingOperationalExpenseUsd + Model.CustomsDeclarationTotalUsd", contents);
-        Assert.Contains("summaryLossCostUsd = Math.Max(summaryPnlExpenseTotalUsd - summaryExpenseTotalUsd, 0m)", contents);
-        Assert.Contains("summaryRegisteredExpenseUsd = expenseTotalUsd", contents);
-        Assert.Contains("summaryLoadingAndCustomsExpenseUsd = Model.LoadingOperationalExpenseUsd + Model.CustomsDeclarationTotalUsd", contents);
+        // مصارف و ارزش ضایعات از موتور مفاد؛ نه جمعی که گمرکِ دارای سند مصرف را دوباره بشمارد و
+        // نه ارزش ضایعه‌ای که باقی‌ماندهٔ دو جمع باشد.
+        Assert.Contains("summaryExpenseTotalUsd = Model.MiniPnl.RecordedExpensesUsd", contents);
+        Assert.Contains("summaryLossCostUsd = Model.MiniPnl.LossCostUsd", contents);
+        Assert.DoesNotContain("expenseTotalUsd + Model.LoadingOperationalExpenseUsd + Model.CustomsDeclarationTotalUsd", contents);
+        Assert.DoesNotContain("Math.Max(summaryPnlExpenseTotalUsd - summaryExpenseTotalUsd, 0m)", contents);
         Assert.DoesNotContain("summaryTransportExpenseUsd = Model.ContractTransportExpenseUsd", contents);
         Assert.DoesNotContain("summaryStorageRentExpenseUsd = Model.ContractStorageRentExpenseUsd", contents);
         Assert.DoesNotContain("referenceKpiCards", contents);
         Assert.DoesNotContain("referenceBarItems", contents);
-        Assert.Contains("CustomsDeclarationTotalUsd", contents);
         Assert.DoesNotContain("referenceDonutTotal", contents);
         Assert.Contains("loadingCount", contents);
         Assert.Contains("dispatchCount", contents);
@@ -963,7 +1034,18 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
-    public void ContractJourney_DetailTabs_Split_Loadings_And_Receipts()
+    public void ContractJourney_Summary_Uses_Full_Cycle_Profit_Without_Changing_Realized_Partner_Shares()
+    {
+        var view = ReadContractJourneyDetailsMarkup();
+        var controller = ReadRepoFile("src/PTGOilSystem.Web/Controllers/ContractJourneyController.cs");
+        Assert.Contains("LifecycleMarginUsd = economics.LifecycleMarginUsd", controller);
+        Assert.Contains("lifecycleProfitUsd = Model.MiniPnl.LifecycleMarginUsd", view);
+        Assert.Contains("FormatLifecycleUsd(lifecycleProfitUsd)", view);
+        Assert.Contains("ShareProfitUsd = pnlOperationalMarginUsd * partner.SharePercent / 100m", view);
+    }
+
+    [Fact]
+    public void ContractJourney_DetailTabs_Group_Operations_Without_Removing_Their_Routes()
     {
         var tabs = ReadRepoFile("src/PTGOilSystem.Web/Models/ContractJourney/ContractJourneyViewModels.cs");
         var view = ReadContractJourneyDetailsMarkup();
@@ -972,11 +1054,14 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("InventoryTransport => InventoryTransport", tabs);
         var detailTabsIndex = view.IndexOf("var detailTabs = Model.IsPurchaseContract", StringComparison.Ordinal);
         Assert.True(detailTabsIndex >= 0);
-        var receiptsTabIndex = view.IndexOf("Key = ContractJourneyTabs.Details.Receipts", detailTabsIndex, StringComparison.Ordinal);
+        var purchaseTabsEnd = view.IndexOf(": new ContractJourneyDetailTabLinkViewModel[]", detailTabsIndex, StringComparison.Ordinal);
+        var purchaseTabs = view[detailTabsIndex..purchaseTabsEnd];
+        Assert.Equal(7, purchaseTabs.Split("new() { Key =", StringSplitOptions.None).Length - 1);
+        var loadingsTabIndex = view.IndexOf("Key = ContractJourneyTabs.Details.Loadings", detailTabsIndex, StringComparison.Ordinal);
         var inventoryTabIndex = view.IndexOf("Key = ContractJourneyTabs.Details.Inventory,", detailTabsIndex, StringComparison.Ordinal);
         var inventoryTransportTabIndex = view.IndexOf("Key = ContractJourneyTabs.Details.InventoryTransport", detailTabsIndex, StringComparison.Ordinal);
-        Assert.True(receiptsTabIndex >= 0);
-        Assert.True(inventoryTabIndex > receiptsTabIndex);
+        Assert.True(loadingsTabIndex >= 0);
+        Assert.True(inventoryTabIndex > loadingsTabIndex);
         Assert.True(inventoryTransportTabIndex > inventoryTabIndex);
 
         Assert.Contains("case ContractJourneyTabs.Details.Loadings:", view);
@@ -989,7 +1074,18 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("case ContractJourneyTabs.Details.Finance:", view);
         Assert.DoesNotContain("case ContractJourneyTabs.Details.Operations:", view);
 
-        Assert.Contains("Key = ContractJourneyTabs.Details.Dispatch, Label = T(", view);
+        Assert.Contains("Label = T(\"بارگیری و رسید\", \"Loading & receipts\")", purchaseTabs);
+        Assert.Contains("Label = T(\"حمل و نقل\", \"Transport\")", purchaseTabs);
+        Assert.Contains("Label = T(\"حساب قرارداد\", \"Contract account\")", purchaseTabs);
+        Assert.DoesNotContain("Key = ContractJourneyTabs.Details.Receipts,", purchaseTabs);
+        Assert.DoesNotContain("Key = ContractJourneyTabs.Details.Dispatch,", purchaseTabs);
+        Assert.Contains("Key = ContractJourneyTabs.Details.Costs,", purchaseTabs);
+        Assert.Contains("Expenses & losses", purchaseTabs);
+        Assert.DoesNotContain("ContractJourneyTabs.Details.Finance => (Tab: ContractJourneyTabs.Details.Costs", view);
+        Assert.Contains("ContractJourneyTabs.Details.Receipts => ContractJourneyTabs.Details.Loadings", view);
+        Assert.Contains("ContractJourneyTabs.Details.Dispatch => ContractJourneyTabs.Details.InventoryTransport", view);
+        Assert.Contains("data-contract-journey-companion=\"@ReturnUrl(groupedSection.Tab)\"", view);
+        Assert.Contains("data-companion-before=", view);
         Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(ContractJourneyTabs.Details.Dispatch)\"", view);
         Assert.Contains("asp-route-returnUrl=\"@ReturnUrl(ContractJourneyTabs.Details.InventoryTransport)\"", view);
         Assert.Contains("asp-controller=\"Loading\" asp-action=\"Create\"", view);
@@ -1071,16 +1167,18 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("T(\"جنس\", \"Product\")", block);
         Assert.Contains("T(\"وسیله حمل\", \"Transport\")", block);
         Assert.Contains("T(\"مقدار بارگیری‌شده\", \"Loaded quantity\")", block);
-        Assert.Contains("T(\"قیمت فی تن\", \"Unit price\")", block);
-        Assert.Contains("T(\"ارزش بارگیری\", \"Loading value\")", block);
+        Assert.Contains("T(\"باقی‌مانده رسید\", \"Remaining to receive\")", block);
+        Assert.DoesNotContain("T(\"قیمت فی تن\", \"Unit price\")", block);
+        Assert.DoesNotContain("T(\"ارزش بارگیری\", \"Loading value\")", block);
         Assert.Contains("item.VehicleNumber", block);
         Assert.Contains("item.ProductName", block);
         Assert.Contains("item.TransportTypeLabel", block);
         Assert.Contains("item.LoadedQuantityMt", block);
-        Assert.Contains("item.LoadingPriceUsd", block);
-        Assert.Contains("item.LoadingValueUsd", block);
-        Assert.Equal(3, block.Split("<th class=\"ak-col-num text-end\">", StringSplitOptions.None).Length - 1);
-        Assert.Equal(3, block.Split("<td class=\"ak-col-num text-end\"><span class=\"ak-num\">", StringSplitOptions.None).Length - 1);
+        Assert.Contains("@NumberDisplay.Quantity(item.RemainingQuantityMt)", block);
+        Assert.DoesNotContain("item.LoadingPriceUsd", block);
+        Assert.DoesNotContain("item.LoadingValueUsd", block);
+        Assert.Equal(3, block.Split("<th class=\"ak-col-num\">", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, block.Split("<td class=\"ak-col-num\"><span class=\"ak-num\">", StringSplitOptions.None).Length - 1);
         Assert.Contains("name=\"LossMode\"", block);
         Assert.Contains("data-loss-mode=\"immediate\"", block);
         Assert.Contains("BulkReceiptLossMode.None", block);
@@ -1095,6 +1193,25 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("asp-action=\"Create\" asp-route-loadingId=\"@item.LoadingRegisterId\"", block);
         Assert.Contains("data-page-modal=\"true\"", block);
 
+        // دو بخش با عنوان و تعداد؛ ثبت رسید هر ردیف مستقیم، نه در منوی ⋮
+        Assert.Contains("T(\"بارگیری‌های منتظر رسید\", \"Loadings awaiting receipt\")} ({Model.PendingLoadingCount:N0})", block);
+        Assert.Contains("T(\"رسیدهای ثبت‌شده\", \"Registered receipts\")} ({Model.ReceiptCount:N0})", block);
+        Assert.Contains("class=\"btn btn-sm btn-light ak-secondary-action\" data-page-modal=\"true\"", block);
+        Assert.Contains("T(\"ثبت رسید\", \"Record receipt\")", block);
+        Assert.DoesNotContain("T(\"ثبت تکی\", \"Single receipt\")", block);
+
+        // انتخاب گروهی: هیچ ردیفی از پیش انتخاب نمی‌شود و مقدار کل خالی شروع می‌شود
+        var rowCheckbox = block[block.IndexOf("data-bulk-receipt-row", StringComparison.Ordinal)..];
+        rowCheckbox = rowCheckbox[..rowCheckbox.IndexOf("/>", StringComparison.Ordinal)];
+        Assert.DoesNotContain(" checked", rowCheckbox);
+        Assert.Contains("name=\"TotalReceivedQuantityMt\" class=\"ak-input ak-num\" value=\"\"", block);
+        Assert.Contains("T(\"مقدار انتخاب‌شده\", \"Selected quantity\")", block);
+        Assert.DoesNotContain("T(\"مانده\", \"Remaining\")", block);
+
+        // دکمهٔ عمومی «ثبت رسید جدید» که همیشه اولین بارگیری را باز می‌کرد حذف شده است
+        Assert.DoesNotContain("Model.FirstLoadingId", block);
+        Assert.DoesNotContain("T(\"ثبت رسید جدید\", \"New receipt\")", block);
+
         foreach (var legacy in new[] { "st-detail-table-card", "st-toolbar-btn", "st-quantity-pill", "journey-receipt-entry-grid", "journey-receipts-simple", "form-control", "form-select" })
         {
             Assert.DoesNotContain(legacy, block);
@@ -1102,8 +1219,13 @@ public class ContractJourneyViewStructureTests
 
         // نمایش فیلدهای ضایعات از قرارداد مشترک ak می‌آید، نه از CSS صفحه‌ای
         var akCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
-        Assert.Contains("[data-bulk-receipt-form] .ak-loss-only", akCss);
+        Assert.Contains("[data-bulk-receipt-form].ak-form .ak-field.ak-loss-only", akCss);
+        Assert.Contains("max-inline-size: 860px", akCss);
         Assert.Contains("input[data-loss-mode=\"immediate\"]:checked", akCss);
+        // ستون انتخاب و دکمه‌های انتخاب همه/پاک‌کردن فقط بعد از باز کردن رسید گروهی؛
+        // فرم گروهی زیر جدول باز می‌شود، نه کنار آن.
+        Assert.Contains("[data-bulk-receipt-form]:not(.is-bulk-receipt-open) :is(.ak-col-check, [data-bulk-receipt-select-all], [data-bulk-receipt-clear])", akCss);
+        Assert.DoesNotContain("grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr)", akCss);
 
         var coreJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/core.js");
         Assert.Contains("function syncStorageTankOptions()", coreJs);

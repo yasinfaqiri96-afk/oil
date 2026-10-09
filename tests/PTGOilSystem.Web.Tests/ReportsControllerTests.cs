@@ -1427,7 +1427,7 @@ public class ReportsControllerTests
     }
 
     [Fact]
-    public async Task ContractPnl_TotalCost_Sums_All_Cost_Sources_Including_Loss_And_GeneralExpense()
+    public async Task ContractPnl_TotalCost_Sums_Money_Cost_Sources_And_Shows_Loss_Value_Separately()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -1495,8 +1495,9 @@ public class ReportsControllerTests
         Assert.Equal(5m, row.OtherCostUsd);
         Assert.Equal(10m, row.RailwayCostUsd);
         Assert.Equal(30m, row.GeneralExpenseCostUsd);
-        Assert.Equal(50m, row.LossCostUsd); // 0.5 × 100
-        Assert.Equal(1170m, row.TotalCostUsd); // 1000 + 50 + 25 + 5 + 10 + 0 (customs) + 30 + 50
+        Assert.Equal(50m, row.LossCostUsd); // 0.5 × 100 — اطلاعی
+        // ارزشِ ضایعه بهای همان نفتی است که در ارزشِ خرید آمده؛ در بهای کل دوباره جمع نمی‌شود.
+        Assert.Equal(1120m, row.TotalCostUsd); // 1000 + 50 + 25 + 5 + 10 + 0 (customs) + 30
     }
 
     [Fact]

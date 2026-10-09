@@ -71,7 +71,7 @@
     }
 
     /* Important supporting text never falls below the readable caption size. */
-    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(small, .ak-section-desc, .form-text, .field-note, .ak-field-error, .ak-entity-meta, .ak-entity-empty, .ak-cycle-label, .loading-date-week, .ak-input-unit > span, .ak-summary-list dt, .ak-hub-tile-desc, .dash-mix-item, .finance-section-header p, .finance-action-group p, .finance-action-group small, .finance-more-actions small, .finance-close-steps a > span, .finance-close-steps small, .finance-status-strip dt, .finance-fiscal-facts dt, .coa-field, .coa-parent-name, .dash-chart-loading, .dash-chart-empty),
+    body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(small, .ak-section-desc, .form-text, .field-note, .ak-field-error, .ak-entity-meta, .ak-entity-empty, .loading-date-week, .ak-input-unit > span, .ak-summary-list dt, .ak-hub-tile-desc, .dash-mix-item, .finance-section-header p, .finance-action-group p, .finance-action-group small, .finance-more-actions small, .finance-close-steps a > span, .finance-close-steps small, .finance-status-strip dt, .finance-fiscal-facts dt, .coa-field, .coa-parent-name, .dash-chart-loading, .dash-chart-empty),
     body.ptg-modal-document .ptg-modal-body-shell :where(
         small,
         .ak-section-desc,
@@ -80,7 +80,6 @@
         .ak-field-error,
         .ak-entity-meta,
         .ak-entity-empty,
-        .ak-cycle-label,
         .loading-date-week,
         .ak-input-unit > span,
         .ak-summary-list dt,

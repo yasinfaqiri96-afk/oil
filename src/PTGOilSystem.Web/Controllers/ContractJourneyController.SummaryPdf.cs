@@ -64,19 +64,22 @@ public partial class ContractJourneyController
                 ? loss.DifferenceQuantityMt
                 : Math.Max(loss.ChargeableLossMt, 0m));
 
-        var summaryPnlExpenseTotalUsd = model.MiniPnl.TraceableExpensesUsd;
-        var summaryRegisteredExpenseUsd = expenseTotalUsd;
-        var summaryLoadingAndCustomsExpenseUsd = model.LoadingOperationalExpenseUsd + model.CustomsDeclarationTotalUsd;
-        var summaryExpenseTotalUsd = expenseTotalUsd + summaryLoadingAndCustomsExpenseUsd;
-        var summaryLossCostUsd = Math.Max(summaryPnlExpenseTotalUsd - summaryExpenseTotalUsd, 0m);
+        // همان اعداد صفحه: مصارف و ارزش ضایعات از موتور مفاد قرارداد (گمرک یک بار شمرده می‌شود).
+        var summaryExpenseTotalUsd = model.MiniPnl.RecordedExpensesUsd;
+        var summaryLoadingAndCustomsExpenseUsd = Math.Min(
+            model.LoadingOperationalExpenseUsd + model.CustomsDeclarationTotalUsd,
+            Math.Max(summaryExpenseTotalUsd, 0m));
+        var summaryRegisteredExpenseUsd = summaryExpenseTotalUsd - summaryLoadingAndCustomsExpenseUsd;
+        var summaryLossCostUsd = model.MiniPnl.LossCostUsd;
         decimal? summaryExpensePerLoadedMt = loadingQuantityMt > 0m ? summaryExpenseTotalUsd / loadingQuantityMt : null;
         decimal? salesAverageUsd = soldQuantityMt > 0m ? salesTotalUsd / soldQuantityMt : null;
 
         var remainingToLoadMt = Math.Max(model.ContractQuantityMt - loadingQuantityMt, 0m);
         var remainingToReceiveMt = Math.Max(loadingQuantityMt - receiptQuantityMt, 0m);
         var currentStockMt = model.Kpis.CurrentStockQuantityMt;
-        var lifecycleSaleableQuantityMt = model.ContractQuantityMt - soldQuantityMt;
-        var pnlOperationalMarginUsd = model.MiniPnl.GrossMarginUsd;
+        var lifecycleSaleableQuantityMt = model.ContractQuantityMt - soldQuantityMt - totalDisplayLossMt;
+        // همان مفاد تحقق‌یافتهٔ صفحه (فروش‌های انجام‌شده منهای بهای همان مقدار).
+        var pnlOperationalMarginUsd = model.MiniPnl.RealizedNetProfitUsd;
 
         // همان تعریفِ صفحهٔ تعاملی (ViewModel)؛ در payload خلاصه هم رقمِ آمادهٔ کنترلر را می‌خواند.
         var supplierPayableTotalUsd = model.SupplierPayableTotalUsd;
@@ -132,8 +135,8 @@ public partial class ContractJourneyController
         var partnerLabel = model.IsPurchaseContract ? T("تأمین‌کننده", "Supplier") : T("مشتری", "Customer");
         var partnerName = model.IsPurchaseContract ? model.SupplierName : model.CustomerName;
         var contractNetLabel = pnlOperationalMarginUsd < 0m
-            ? T("ضرر خالص قرارداد", "Contract NET loss")
-            : T("سود خالص قرارداد", "Contract NET profit");
+            ? T("زیان تحقق‌یافته", "Realized loss")
+            : T("مفاد تحقق‌یافته", "Realized profit");
 
         var stages = new List<ContractJourneySummaryPdfStage>
         {
@@ -165,7 +168,7 @@ public partial class ContractJourneyController
             [
                 new(T("مقدار ضایعات", "Loss quantity"), Qty(totalDisplayLossMt), unitMt,
                     Tone: totalDisplayLossMt > 0m ? ContractJourneySummaryPdfTone.Negative : ContractJourneySummaryPdfTone.Neutral),
-                new(T("ارزش ضایعات", "Loss cost"), Money(summaryLossCostUsd), UnitUsd,
+                new(T("ارزش کسری قابل‌جبران", "Chargeable loss cost"), Money(summaryLossCostUsd), UnitUsd,
                     Tone: summaryLossCostUsd > 0m ? ContractJourneySummaryPdfTone.Negative : ContractJourneySummaryPdfTone.Neutral)
             ]),
             new(6, T("پرداخت‌ها", "Payments"), StageStatus(paymentTone), paymentTone,
@@ -256,6 +259,7 @@ public partial class ContractJourneyController
         quantityLines.Add(new(T("فروخته‌شده", "Sold"), Qty(soldQuantityMt), unitMt,
             $"{salesCount} {T("فروش", "sales")}"));
         quantityLines.Add(new(T("موجودی فعلی", "Current stock"), Qty(currentStockMt), unitMt));
+        quantityLines.Add(new(T("باقی در بارگیری", "Still at loading"), Qty(model.OriginRemainingQuantityMt), unitMt));
         quantityLines.Add(new(
             T("ضایعات", "Losses"), Qty(totalDisplayLossMt), unitMt,
             $"{lossEventCount} {T("رویداد", "events")}",
@@ -272,7 +276,7 @@ public partial class ContractJourneyController
                 summaryExpensePerLoadedMt.HasValue
                     ? $"{T("بر تن", "per MT")} {Chunk($"{Money(summaryExpensePerLoadedMt.Value)} {UnitUsd}/MT")}"
                     : null),
-            new(T("ارزش ضایعات", "Loss cost"), Money(summaryLossCostUsd), UnitUsd, null,
+            new(T("ارزش کسری قابل‌جبران", "Chargeable loss cost"), Money(summaryLossCostUsd), UnitUsd, null,
                 summaryLossCostUsd > 0m ? ContractJourneySummaryPdfTone.Negative : ContractJourneySummaryPdfTone.Neutral),
             new(T("فروش", "Sales"), Money(salesTotalUsd), UnitUsd,
                 salesAverageUsd.HasValue

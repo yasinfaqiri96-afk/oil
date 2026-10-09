@@ -23,18 +23,15 @@
 
 <div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
 
-    @* ─── بارگیری‌های در انتظار رسید + فرم رسید گروهی ─── *@
+    @* ─── بارگیری‌های منتظر رسید + فرم رسید گروهی ─── *@
     @if (showPendingSection)
     {
         @* عنوان و توضیح بیرون از فرم می‌مانند تا نوار جستجو بتواند هم‌ردیف دکمه‌های
            گروهی بنشیند: پارشیال جستجو خودش یک <form method="get"> است و اگر داخل
            فرم POST برود، HTML نامعتبر می‌شود و مرورگر آن را حذف می‌کند. *@
-        <section class="ak-form-section">
-            <div class="ak-section-head">
-                <div>
-                    <p class="ak-section-desc">@T("بارگیری‌ها را انتخاب کنید و رسید گروهی ثبت کنید.", "Select loadings and record a bulk receipt.")</p>
-                </div>
-            </div>
+        <section class="ak-form-section" data-journey-pending-receipts>
+            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                     model="@(($"{T("بارگیری‌های منتظر رسید", "Loadings awaiting receipt")} ({Model.PendingLoadingCount:N0})", (string?)T("بارگیری‌هایی که هنوز تمام مقدارشان رسید نشده است؛ رسید هر ردیف جداگانه یا چند ردیف با «ثبت رسید گروهی» ثبت می‌شود.", "Loadings not yet fully received; record each row separately, or several rows with Bulk receipt.")))" />
 
             <div class="ak-list-toolbar ak-bulk-receipt-toolbar">
                 <partial name="_ContractJourneyListFilter"
@@ -81,10 +78,9 @@
                                 <th>@T("تاریخ", "Date")</th>
                                 <th>@T("جنس", "Product")</th>
                                 <th>@T("وسیله حمل", "Transport")</th>
-                                <th class="ak-col-num text-end">@T("مقدار بارگیری‌شده", "Loaded quantity")</th>
-                                <th class="ak-col-num text-end">@T("قیمت فی تن", "Unit price")</th>
-                                <th class="ak-col-num text-end">@T("ارزش بارگیری", "Loading value")</th>
-                                <th class="ak-col-actions">@T("عملیات", "Actions")</th>
+                                <th class="ak-col-num">@T("مقدار بارگیری‌شده", "Loaded quantity")</th>
+                                <th class="ak-col-num">@T("باقی‌مانده رسید", "Remaining to receive")</th>
+                                <th class="ak-col-actions"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -92,7 +88,7 @@
                             {
                                 <tr>
                                     <td class="ak-col-check">
-                                        <input class="ak-check" type="checkbox" name="LoadingRegisterIds" value="@item.LoadingRegisterId" data-bulk-receipt-row data-bulk-receipt-qty="@item.RemainingQuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)" checked aria-label="@T("انتخاب بارگیری", "Select loading") #@item.LoadingRegisterId" />
+                                        <input class="ak-check" type="checkbox" name="LoadingRegisterIds" value="@item.LoadingRegisterId" data-bulk-receipt-row data-bulk-receipt-qty="@item.RemainingQuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)" aria-label="@T("انتخاب بارگیری", "Select loading") #@item.LoadingRegisterId" />
                                     </td>
                                     <td class="ak-col-grow">
                                         <a asp-controller="Loading" asp-action="Details" asp-route-id="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="ak-name">@TextOrDash(item.VehicleNumber)</a>
@@ -101,22 +97,12 @@
                                     <td>@item.LoadingDate.ToDisplayDate()</td>
                                     <td>@TextOrDash(item.ProductName)</td>
                                     <td>@TextOrDash(item.TransportTypeLabel)</td>
-                                    <td class="ak-col-num text-end"><span class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) @UnitMt()</span></td>
-                                    <td class="ak-col-num text-end"><span class="ak-num">@(item.LoadingPriceUsd.HasValue ? $"{item.LoadingPriceUsd.Value:N2} {T("دالر", "USD")}/{UnitMt()}" : "-")</span></td>
-                                    <td class="ak-col-num text-end"><span class="ak-num">@(item.LoadingValueUsd.HasValue ? $"{item.LoadingValueUsd.Value:N2} {T("دالر", "USD")}" : "-")</span></td>
-                                    <td class="ak-col-actions">
-                                        <div class="dropdown ak-row-menu">
-                                            <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
-                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="dropdown-item" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@item.LoadingRegisterId">
-                                                        <i class="bi bi-box-arrow-in-down"></i> @T("ثبت تکی", "Single receipt")
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
+                                    <td class="ak-col-num"><span class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) @UnitMt()</span></td>
+                                    <td class="ak-col-num"><span class="ak-num">@NumberDisplay.Quantity(item.RemainingQuantityMt) @UnitMt()</span></td>
+                                    <td class="ak-col-actions no-print">
+                                        <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@item.LoadingRegisterId" asp-route-returnUrl="@receiptsReturnUrl" class="btn btn-sm btn-light ak-secondary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@item.LoadingRegisterId">
+                                            @T("ثبت رسید", "Record receipt")
+                                        </a>
                                     </td>
                                 </tr>
                             }
@@ -124,7 +110,7 @@
                     </table>
                     </div>
 
-                    @* فرم ثبت رسید گروهی — پهلوی لیست، پیش‌فرض مخفی *@
+                    @* فرم ثبت رسید گروهی — زیر لیست، پیش‌فرض مخفی؛ هیچ ردیفی از پیش انتخاب نشده است *@
                     <div id="bulkReceiptPanel-@Model.ContractId" class="ak-section-body" data-bulk-receipt-panel hidden>
                     <div class="ak-form-grid">
                         <div class="ak-field">
@@ -134,7 +120,7 @@
 
                         <div class="ak-field">
                             <label class="ak-label" for="bulkReceiptTotal-@Model.ContractId">@T("مقدار رسید", "Received quantity") (@UnitMt())</label>
-                            <input id="bulkReceiptTotal-@Model.ContractId" name="TotalReceivedQuantityMt" class="ak-input ak-num" value="@Model.BulkReceiptDefaultQuantityMt.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" data-bulk-receipt-total-input />
+                            <input id="bulkReceiptTotal-@Model.ContractId" name="TotalReceivedQuantityMt" class="ak-input ak-num" value="" placeholder="0" data-bulk-receipt-total-input />
                         </div>
 
                         <div class="ak-field">
@@ -199,9 +185,9 @@
                         </div>
 
                         <p class="ak-note ak-col-full">
-                            @T("انتخاب", "Selected"): <strong data-bulk-receipt-selected-count>0</strong>
+                            @T("بارگیری انتخاب‌شده", "Selected loadings"): <strong data-bulk-receipt-selected-count>0</strong>
                             ·
-                            @T("مانده", "Remaining"): <strong data-bulk-receipt-selected-qty>0.0000</strong> @UnitMt()
+                            @T("مقدار انتخاب‌شده", "Selected quantity"): <strong data-bulk-receipt-selected-qty>0.0000</strong> @UnitMt()
                         </p>
                     </div>
 
@@ -223,25 +209,16 @@
     }
 
     @* ─── رسیدهای ثبت‌شده ─── *@
-    <section class="ak-form-section">
-        <div class="ak-section-head">
-            <div>
-                <p class="ak-section-desc">@T("رسید جنس در مخزن", "Goods received into storage")</p>
-            </div>
-        </div>
+    @* ثبت رسید (اول، مرحله‌ای یا تکمیلی) فقط از ردیف همان بارگیری در لیست بالا انجام
+       می‌شود؛ تا وقتی باقی‌مانده دارد در آن لیست می‌ماند. دکمهٔ عمومی «ثبت رسید جدید»
+       همیشه اولین بارگیری قرارداد را باز می‌کرد و حذف شد. *@
+    <section class="ak-form-section" data-journey-registered-receipts>
+        <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                 model="@(($"{T("رسیدهای ثبت‌شده", "Registered receipts")} ({Model.ReceiptCount:N0})", (string?)null))" />
 
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
                      model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو در رسیدهای ثبت‌شده...", "Search registered receipts..."), "receiptsPage"))" />
-            @if (!contractIsClosed && !Model.BulkReceiptCandidates.Any() && Model.FirstLoadingId.HasValue)
-            {
-                <div class="ak-list-toolbar-actions no-print">
-                    <a asp-controller="LoadingReceipts" asp-action="Create" asp-route-loadingId="@Model.FirstLoadingId.Value" asp-route-returnUrl="@receiptsReturnUrl" class="btn btn-primary ak-primary-action" data-page-modal="true" data-page-modal-title="@T("ثبت رسید بارگیری", "New loading receipt") #@Model.FirstLoadingId.Value">
-                        <i class="bi bi-box-arrow-in-down"></i>
-                        <span>@T("ثبت رسید جدید", "New receipt")</span>
-                    </a>
-                </div>
-            }
         </div>
 
         <div class="ak-table-wrap">
@@ -268,7 +245,7 @@
                         </td>
                         <td>@item.ReceiptDate.ToDisplayDate()</td>
                         <td>@item.TerminalName / @(item.StorageTankCode ?? "—")</td>
-                        <td class="ak-num">@NumberDisplay.Quantity(item.ReceivedQuantityMt)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(item.ReceivedQuantityMt)</td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
                                 <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">

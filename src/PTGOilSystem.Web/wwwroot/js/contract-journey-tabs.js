@@ -3,6 +3,8 @@
 
     var tabCache = new Map();
     var pendingTabs = new Map();
+    var navigationVersion = 0;
+    var cacheRevision = 0;
 
     function ready(callback) {
         if (document.readyState === "loading") {
@@ -24,6 +26,7 @@
         window.PTG.contractJourneyTabsReady = true;
         window.PTG.refreshContractJourneyTabs = function () {
             cacheCurrentTab();
+            loadGroupedSection();
         };
         window.PTG.reloadContractJourneyTab = function (url) {
             var targetUrl = url || location.href;
@@ -91,6 +94,7 @@
     function loadTab(url, pushState, forceReload) {
         var key = cacheKey(url);
         if (!key) return;
+        var version = ++navigationVersion;
 
         var cached = forceReload ? null : tabCache.get(key);
         if (cached) {
@@ -101,10 +105,12 @@
         setLoading(true);
         prefetchTab(url, forceReload)
             .then(function (parsed) {
+                if (version !== navigationVersion) return;
                 setLoading(false);
                 applyTab(parsed, url, pushState);
             })
             .catch(function () {
+                if (version !== navigationVersion) return;
                 setLoading(false);
                 showError();
             });
@@ -124,6 +130,7 @@
         var pending = pendingTabs.get(key);
         if (pending) return pending;
 
+        var revision = cacheRevision;
         var request = fetch(url, {
             method: "GET",
             credentials: "same-origin",
@@ -139,15 +146,55 @@
             })
             .then(function (html) {
                 var parsed = parseTabResponse(html);
-                tabCache.set(key, parsed);
+                if (revision === cacheRevision) tabCache.set(key, parsed);
                 return parsed;
             })
             .finally(function () {
-                pendingTabs.delete(key);
+                if (pendingTabs.get(key) === request) pendingTabs.delete(key);
             });
 
         pendingTabs.set(key, request);
         return request;
+    }
+
+    // Only the companion of the visible group is fetched. Existing endpoints
+    // retain their own permissions, filters, pagers, forms and calculations.
+    function loadGroupedSection() {
+        var content = document.querySelector("[data-contract-journey-tab-content]");
+        var host = content && content.querySelector("[data-contract-journey-companion]");
+        if (!host || host.getAttribute("data-companion-state")) return;
+
+        if (host.getAttribute("data-companion-before") === "true") {
+            content.prepend(host);
+        }
+        host.setAttribute("data-companion-state", "loading");
+        var fallback = host.querySelector("[data-companion-fallback]");
+        fallback.hidden = true;
+        prefetchTab(host.getAttribute("data-contract-journey-companion"))
+            .then(function (parsed) {
+                if (!host.isConnected) return;
+                var fragment = new DOMParser().parseFromString(parsed.contentHtml, "text/html");
+                var records = fragment.querySelector("#journey-tab-lists");
+                if (!records) throw new Error("Companion records not found");
+                // Insert the records only, never the companion's own group
+                // placeholder or its second row of statistics.
+                records.removeAttribute("id");
+                host.querySelector("[data-companion-content]").append(records);
+                host.querySelector("[data-companion-loading]").remove();
+                host.setAttribute("data-companion-state", "ready");
+                host.setAttribute("aria-busy", "false");
+                if (typeof window.__ptgReinit === "function") window.__ptgReinit();
+                window.dispatchEvent(new CustomEvent("ptg:page-ready", {
+                    detail: { url: location.href, source: "contract-journey-group" }
+                }));
+            })
+            .catch(function () {
+                if (!host.isConnected) return;
+                host.setAttribute("data-companion-state", "error");
+                host.setAttribute("aria-busy", "false");
+                host.querySelector("[data-companion-loading]").textContent = content.getAttribute("data-error-text");
+                fallback.hidden = false;
+            });
     }
 
     function cacheCurrentTab() {
@@ -221,6 +268,8 @@
             window.__ptgReinit();
         }
 
+        loadGroupedSection();
+
         window.dispatchEvent(new CustomEvent("ptg:page-ready", {
             detail: { url: url, source: "contract-journey-tabs" }
         }));
@@ -270,8 +319,19 @@
     }
 
     function invalidateContractTab(url) {
-        var key = cacheKey(url);
-        if (key) tabCache.delete(key);
+        // A receipt/payment edit can affect both lists in the visible group.
+        // Refresh this contract's cached sections together, leaving others alone.
+        var target = new URL(url, location.href);
+        cacheRevision++;
+        [tabCache, pendingTabs].forEach(function (cache) {
+            cache.forEach(function (_, key) {
+                var cached = new URL(key, location.href);
+                if (cached.pathname === target.pathname
+                    && cached.searchParams.get("contractId") === target.searchParams.get("contractId")) {
+                    cache.delete(key);
+                }
+            });
+        });
     }
 
     function readAttributes(element) {

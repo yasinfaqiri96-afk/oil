@@ -46,18 +46,35 @@
     var totalDisplayLossMt = useSummaryMetrics ? summaryMetrics.LossQuantityMt : Model.LossItems.Sum(DisplayLossQuantityMt);
     decimal? salesAverageUsd = soldQuantityMt > 0m ? salesTotalUsd / soldQuantityMt : null;
     decimal? expensePerLoadedMt = loadingQuantityMt > 0m ? contractLevelExpenseTotalUsd / loadingQuantityMt : null;
-    var summaryPnlExpenseTotalUsd = Model.MiniPnl.TraceableExpensesUsd;
-    var summaryExpenseTotalUsd = expenseTotalUsd + Model.LoadingOperationalExpenseUsd + Model.CustomsDeclarationTotalUsd;
-    var summaryLossCostUsd = Math.Max(summaryPnlExpenseTotalUsd - summaryExpenseTotalUsd, 0m);
+    // مصارف و ارزش ضایعات مستقیم از موتور مفاد قرارداد: گمرکی که هم اظهارنامه و هم سند مصرف دارد
+    // یک بار شمرده می‌شود و ارزش ضایعات باقی‌ماندهٔ دو جمع نیست.
+    var summaryExpenseTotalUsd = Model.MiniPnl.RecordedExpensesUsd;
+    var summaryLossCostUsd = Model.MiniPnl.LossCostUsd;
     decimal? summaryExpensePerLoadedMt = loadingQuantityMt > 0m ? summaryExpenseTotalUsd / loadingQuantityMt : null;
-    var summaryRegisteredExpenseUsd = expenseTotalUsd;
-    var summaryLoadingAndCustomsExpenseUsd = Model.LoadingOperationalExpenseUsd + Model.CustomsDeclarationTotalUsd;
+    // ضایعهٔ فزیکی = قابل‌جبران (بر عهدهٔ حمل‌کننده) + بخشیده‌شده (در حد تلورانس)؛ کسریِ بدون سند ضایعه
+    // در هیچ‌کدام نیست.
+    decimal LossChargeableMt(ContractJourneyLossItemViewModel loss)
+        => Math.Min(Math.Max(loss.ChargeableLossMt, 0m), DisplayLossQuantityMt(loss));
+    decimal LossAllowedMt(ContractJourneyLossItemViewModel loss)
+        => Math.Max(DisplayLossQuantityMt(loss) - Math.Max(loss.ChargeableLossMt, 0m), 0m);
+    var summaryChargeableLossMt = useSummaryMetrics ? summaryMetrics.ChargeableLossQuantityMt : Model.LossItems.Sum(LossChargeableMt);
+    var summaryAllowedLossMt = useSummaryMetrics ? summaryMetrics.AllowedLossQuantityMt : Model.LossItems.Sum(LossAllowedMt);
     var remainingToLoadMt = Math.Max(Model.ContractQuantityMt - loadingQuantityMt, 0m);
     var receiptQuantityMt = useSummaryMetrics ? summaryMetrics.ReceiptQuantityMt : Model.ReceiptItems.Sum(r => r.ReceivedQuantityMt);
     var remainingToReceiveMt = Math.Max(loadingQuantityMt - receiptQuantityMt, 0m);
     var currentStockMt = Model.Kpis.CurrentStockQuantityMt;
-    var pnlOperationalMarginUsd = Model.MiniPnl.GrossMarginUsd;
-    var pnlToneClass = Model.MiniPnl.GrossMarginUsd >= 0m ? "text-success" : "text-danger";
+    // کارت‌های تب موجودی و نقل و انتقالات فقط از ردیف‌هایی ساخته می‌شوند که مسیر سبک همان تب
+    // می‌خواند؛ Kpis و ردیف‌های حمل در آن مسیرها پر نمی‌شوند و صفر نشان می‌دادند.
+    var inventoryBookBalanceMt = Model.InventoryMovementItems.Sum(m => m.SignedQuantityMt);
+    var inventoryTotalInMt = Model.InventoryMovementItems.Where(m => m.SignedQuantityMt >= 0m).Sum(m => m.QuantityMt);
+    var inventoryTotalOutMt = Model.InventoryMovementItems.Where(m => m.SignedQuantityMt < 0m).Sum(m => m.QuantityMt);
+    var dispatchDischargedMt = Model.DispatchItems.Sum(d => d.DischargedQuantityMt ?? 0m);
+    // مفاد تحقق‌یافته: فقط فروش‌های انجام‌شده منهای بهای تمام‌شدهٔ همان مقدار (موتور مفاد قرارداد؛
+    // همان رقمِ تب پرداخت‌ها، PDF، راپور مفاد قرارداد و حساب شرکا).
+    var pnlOperationalMarginUsd = Model.MiniPnl.RealizedNetProfitUsd;
+    var lifecycleProfitUsd = Model.MiniPnl.LifecycleMarginUsd;
+    var pnlToneClass = pnlOperationalMarginUsd >= 0m ? "text-success" : "text-danger";
+    var profitIsEstimate = Model.MiniPnl.Confidence != PTGOilSystem.Web.Services.Reporting.PnlConfidence.Verified;
     // پرداختِ تأمین‌کننده یک تعریف دارد (ViewModel)؛ PDF هم همان را می‌خواند.
     var supplierPayableTotalUsd = Model.SupplierPayableTotalUsd;
     var supplierPaidNetUsd = Model.SupplierPaidNetUsd;
@@ -72,7 +89,10 @@
     var bulkReceiptStorageTanks = ViewBag.BulkReceiptStorageTanks as IEnumerable<ContractJourneyBulkReceiptStorageTankOptionViewModel> ?? Enumerable.Empty<ContractJourneyBulkReceiptStorageTankOptionViewModel>();
     const string LossesPresentationTab = "losses";
     var activeTab = Model.ActiveTab;
-    // تب کسری با تب خزینه ادغام شده — lossesView=true به تب costs هدایت می‌شود
+    // «کسری و ضایعات» تب نمایشیِ جدا روی همان دادهٔ تب مصارف است: مسیرش tab=costs&lossesView=true
+    // است تا کنترلر و payload تب مصارف بدون تغییر بمانند.
+    var isLossesView = string.Equals(activeTab, LossesPresentationTab, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Context.Request.Query["lossesView"].ToString(), "true", StringComparison.OrdinalIgnoreCase);
     if (string.Equals(activeTab, LossesPresentationTab, StringComparison.OrdinalIgnoreCase))
     {
         activeTab = ContractJourneyTabs.Details.Costs;
@@ -160,18 +180,29 @@
 
     var pageDirection = T("rtl", "ltr");
 
+    // Artwork is displayed directly from the user's reference; figures remain live Razor data.
+    string ReferenceAvatarViewBox(int stage) => stage switch
+    {
+        1 => "1238 175 126 146",
+        2 => "795 178 114 133",
+        3 => "322 185 133 108",
+        4 => "334 379 123 132",
+        5 => "794 377 112 142",
+        6 => "1238 379 119 140",
+        7 => "1237 586 117 137",
+        _ => "62 591 111 111"
+    };
+
     var detailTabs = Model.IsPurchaseContract
         ? new ContractJourneyDetailTabLinkViewModel[]
         {
             new() { Key = ContractJourneyTabs.Details.Summary, Label = T("خلاصه", "Summary"), Icon = SidebarPageIcon("summary") },
-            new() { Key = ContractJourneyTabs.Details.Loadings, Label = T("بارگیری", "Loadings"), Icon = SidebarPageIcon("loading") },
-            new() { Key = ContractJourneyTabs.Details.Receipts, Label = T("رسید بارگیری", "Loading receipts"), Icon = SidebarPageIcon("receipt") },
+            new() { Key = ContractJourneyTabs.Details.Loadings, Label = T("بارگیری و رسید", "Loading & receipts"), Icon = SidebarPageIcon("loading") },
             new() { Key = ContractJourneyTabs.Details.Inventory, Label = T("موجودی", "Inventory"), Icon = SidebarPageIcon("inventory") },
-            new() { Key = ContractJourneyTabs.Details.InventoryTransport, Label = T("جریان حمل بار", "Cargo Flow"), Icon = SidebarPageIcon("inventoryTransport") },
-            new() { Key = ContractJourneyTabs.Details.Dispatch, Label = T("نقل و انتقالات", "Transfers"), Icon = SidebarPageIcon("dispatch") },
+            new() { Key = ContractJourneyTabs.Details.InventoryTransport, Label = T("حمل و نقل", "Transport"), Icon = SidebarPageIcon("inventoryTransport") },
             new() { Key = ContractJourneyTabs.Details.Sales, Label = T("فروشات", "Sales"), Icon = SidebarPageIcon("sales") },
-            new() { Key = ContractJourneyTabs.Details.Costs, Label = T("مصرف و کسری", "Expenses & Losses"), Icon = SidebarPageIcon("costs") },
-            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("پرداخت‌ها", "Payments"), Icon = SidebarPageIcon("finance") }
+            new() { Key = ContractJourneyTabs.Details.Costs, Label = T("مصارف و ضایعات", "Expenses & losses"), Icon = SidebarPageIcon("costs") },
+            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("حساب قرارداد", "Contract account"), Icon = SidebarPageIcon("finance") }
         }
         : new ContractJourneyDetailTabLinkViewModel[]
         {
@@ -180,10 +211,42 @@
             new() { Key = ContractJourneyTabs.Details.Finance, Label = T("پرداخت‌ها", "Payments"), Icon = SidebarPageIcon("finance") }
         };
 
-    if (!detailTabs.Any(t => t.Key == activeTab))
+    // گروه‌بندی فقط نمایشی است؛ URLها و payloadهای مستقل هر عملیات حفظ می‌شوند.
+    var activeGroupTab = Model.IsPurchaseContract
+        ? activeTab switch
+        {
+            ContractJourneyTabs.Details.Receipts => ContractJourneyTabs.Details.Loadings,
+            ContractJourneyTabs.Details.Dispatch => ContractJourneyTabs.Details.InventoryTransport,
+            _ => activeTab
+        }
+        : activeTab;
+    if (!detailTabs.Any(t => t.Key == activeGroupTab))
     {
         activeTab = ContractJourneyTabs.Details.Summary;
+        activeGroupTab = activeTab;
     }
+    isLossesView = isLossesView && activeTab == ContractJourneyTabs.Details.Costs;
+
+    var groupedSection = Model.IsPurchaseContract && !isLossesView
+        ? activeTab switch
+        {
+            ContractJourneyTabs.Details.Loadings => (Tab: ContractJourneyTabs.Details.Receipts, Title: T("رسید بارگیری", "Loading receipts"), Before: false),
+            ContractJourneyTabs.Details.Receipts => (Tab: ContractJourneyTabs.Details.Loadings, Title: T("سوابق بارگیری", "Loading records"), Before: true),
+            ContractJourneyTabs.Details.InventoryTransport => (Tab: ContractJourneyTabs.Details.Dispatch, Title: T("انتقال با موتر", "Truck transfers"), Before: false),
+            ContractJourneyTabs.Details.Dispatch => (Tab: ContractJourneyTabs.Details.InventoryTransport, Title: T("حمل بین ترمینال‌ها", "Transport between terminals"), Before: true),
+            _ => (Tab: (string?)null, Title: string.Empty, Before: false)
+        }
+        : (Tab: (string?)null, Title: string.Empty, Before: false);
+    var primarySectionTitle = activeTab switch
+    {
+        ContractJourneyTabs.Details.Loadings => T("سوابق بارگیری", "Loading records"),
+        ContractJourneyTabs.Details.Receipts => T("رسید بارگیری", "Loading receipts"),
+        ContractJourneyTabs.Details.InventoryTransport => T("حمل بین ترمینال‌ها", "Transport between terminals"),
+        ContractJourneyTabs.Details.Dispatch => T("انتقال با موتر", "Truck transfers"),
+        ContractJourneyTabs.Details.Costs => T("مصارف و ضایعات", "Expenses & losses"),
+        ContractJourneyTabs.Details.Finance => T("پرداخت‌ها و تسویه‌ها", "Payments & settlements"),
+        _ => string.Empty
+    };
 
     string FormatMt(decimal value) => $"{NumberDisplay.Quantity(value)} {UnitMt()}";
     string TextOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
@@ -258,15 +321,24 @@
         var absolute = NumberDisplay.Raw(Math.Abs(value), 2);
         return value < 0m ? $"($ {absolute})" : $"$ {absolute}";
     }
+    Microsoft.AspNetCore.Html.IHtmlContent LifecycleQuantityMarkup(string formatted)
+    {
+        var suffix = $" {UnitMt()}";
+        var number = formatted.EndsWith(suffix, StringComparison.Ordinal) ? formatted[..^suffix.Length] : formatted;
+        return new Microsoft.AspNetCore.Html.HtmlContentBuilder()
+            .AppendHtml("<bdi dir=\"ltr\">").Append(number).AppendHtml("</bdi><span>")
+            .Append(UnitMt()).AppendHtml("</span>");
+    }
     string FormatRubRate(decimal? value)
         => value.HasValue ? $"{NumberDisplay.FxRate(value.Value)} RUB/USD" : "-";
     string FormatLifecycleRate(decimal? value)
         => value.HasValue ? FormatLifecycleUsd(value.Value) : "-";
 
-    var lifecycleSaleableQuantityMt = Model.ContractQuantityMt - soldQuantityMt;
+    // ضایعهٔ فزیکی دیگر قابل فروش نیست.
+    var lifecycleSaleableQuantityMt = Model.ContractQuantityMt - soldQuantityMt - totalDisplayLossMt;
     var contractNetLabel = pnlOperationalMarginUsd < 0m
-        ? T("ضرر خالص قرارداد", "Contract NET Loss")
-        : T("سود خالص قرارداد", "Contract NET Profit");
+        ? T("زیان تحقق‌یافته", "Realized loss")
+        : T("مفاد تحقق‌یافته", "Realized profit");
     // قیمت هر بارگیری مستقل است: وقتی بارگیری‌ها قیمت‌های متفاوت دارند، ارزش قرارداد
     // جمع ارزش بارگیری‌ها است، نه مقدار قرارداد × نرخ قرارداد.
     var contractDisplayValueUsd = Model.HasMixedLoadingPrices && Model.LoadingsValueUsd > 0m
@@ -362,7 +434,7 @@
     {
         ContractId = Model.ContractId,
         LockContract = Model.LockContract,
-        ActiveTab = activeTab,
+        ActiveTab = activeGroupTab,
         AriaLabel = T("تب‌های مرکز عملیات قرارداد", "Contract operations center tabs"),
         Tabs = detailTabs
     };
@@ -526,15 +598,9 @@
         .Take(journeyListPageSize)
         .ToList();
 
-    var allocationsSearch = ReadListSearch("allocationsQ");
-    var filteredExpenseAllocations = Model.InventoryTransportExpenseAllocations
-        .Where(item => MatchesListSearch(allocationsSearch, item.TransportLegId, item.LoadedDate.ToDisplayDate(), item.TransportTypeName, item.TransportReference, item.RwbNo, item.SourceLocation, item.DestinationLocation))
-        .ToList();
-    var allocationsPageCount = PageCountFor(filteredExpenseAllocations.Count);
-    var allocationsPage = Math.Min(ReadPositivePage("allocationsPage"), allocationsPageCount);
-    var pagedExpenseAllocations = filteredExpenseAllocations
-        .Skip((allocationsPage - 1) * journeyListPageSize)
-        .Take(journeyListPageSize)
+    // همان اسناد جدول مصارف، فقط به تفکیک حمل؛ حمل بدون مصرف نمایش داده نمی‌شود.
+    var transportLegExpenseBreakdown = Model.InventoryTransportExpenseAllocations
+        .Where(item => item.ExpenseCount > 0)
         .ToList();
     var lossesSearch = ReadListSearch("lossesQ");
     var filteredLossItems = Model.LossItems
@@ -586,6 +652,8 @@
         PageDirection = pageDirection,
         FirstLoadingId = firstLoading?.Id,
         BulkReceiptDefaultQuantityMt = pagedBulkReceiptCandidates.Sum(item => item.RemainingQuantityMt),
+        PendingLoadingCount = bulkReceiptCandidates.Count,
+        ReceiptCount = receiptCount,
         NoRecordsText = T("داده‌ای ثبت نشده است.", "No records yet."),
         PagerHtml = await DetailPager("receiptsPage", receiptPage, receiptPageCount),
         PendingPagerHtml = await DetailPager("pendingReceiptsPage", pendingReceiptPage, pendingReceiptPageCount),
@@ -690,21 +758,16 @@
             SupplierRemainingToneClass = supplierRemainingToneClass,
             GrossMarginText = $"{Model.MiniPnl.GrossMarginUsd:N2} {UnitUsd()}",
             GrossMarginToneClass = pnlToneClass,
-            RealisedRevenueText = $"{Model.MiniPnl.Realised.RevenueUsd:N2} {UnitUsd()}",
-            RealisedCogsText = $"{Model.MiniPnl.Realised.CostOfGoodsSoldUsd:N2} {UnitUsd()}",
-            RealisedGrossProfitText = $"{Model.MiniPnl.Realised.GrossProfitUsd:N2} {UnitUsd()}",
-            RealisedToneClass = Model.MiniPnl.Realised.GrossProfitUsd >= 0m ? "text-success" : "text-danger",
-            RealisedConfidenceLabel = Model.MiniPnl.Realised.ConfidenceLabelFa,
-            RealisedConfidenceTone = Model.MiniPnl.Realised.ConfidenceTone,
-            RealisedUncostedWarning = Model.MiniPnl.Realised.HasUncostedSales
-                ? $"{Model.MiniPnl.Realised.UncostedSaleCount} فروش بدون بهای تمام‌شدهٔ فعال؛ سود این بخش قطعی نیست."
-                : null,
-            RealisedVarianceText = Model.MiniPnl.HasOperationalVsRealisedVariance
-                ? $"{Model.MiniPnl.OperationalVsRealisedVarianceUsd:N2} {UnitUsd()}"
-                : null,
-            RealisedVarianceReason = Model.MiniPnl.HasOperationalVsRealisedVariance
-                ? Model.MiniPnl.OperationalVsRealisedVarianceReasonFa
-                : null,
+            // همان مفاد تحقق‌یافتهٔ کارت خلاصه (موتور مفاد قرارداد)؛ دو رقمِ مفاد در یک صفحه نمی‌آید.
+            RealisedRevenueText = $"{Model.MiniPnl.TraceableSalesRevenueUsd:N2} {UnitUsd()}",
+            RealisedCogsText = $"{Model.MiniPnl.CostOfGoodsSoldUsd + Model.MiniPnl.ExpensesForSoldUsd:N2} {UnitUsd()}",
+            RealisedGrossProfitText = $"{pnlOperationalMarginUsd:N2} {UnitUsd()}",
+            RealisedToneClass = pnlToneClass,
+            RealisedConfidenceLabel = profitIsEstimate ? T("برآوردی", "Estimate") : T("قطعی", "Final"),
+            RealisedConfidenceTone = profitIsEstimate ? "warning" : "success",
+            RealisedUncostedWarning = null,
+            RealisedVarianceText = null,
+            RealisedVarianceReason = null,
             Note = LocalizeDisplay(Model.MiniPnl.Note)
         },
         Items = pagedPaymentItems,
@@ -744,9 +807,11 @@
 
             case ContractJourneyTabs.Details.Receipts:
             <section class="ak-stat-grid" aria-label="@T("آمار رسید بارگیری", "Receipt statistics")">
-                <vc:stat-card title="@T("وسایط منتظر رسید", "Awaiting receipt")" value="@bulkReceiptCandidates.Count.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="transported" state="@(bulkReceiptCandidates.Count > 0 ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("رسیدهای ثبت‌شده", "Registered receipts")" value="@receiptCount.ToString("N0")" unit="@T("رسید", "receipts")" avatar="documents"></vc:stat-card>
+                @* تعداد بارگیری‌های منتظر و رسیدهای ثبت‌شده در عنوان دو بخش همین تب آمده است؛ کارت‌ها
+                   تطبیق مقدار را نشان می‌دهند: بارگیری‌شده = رسیده + منتظر رسید + کسری رسید. *@
+                <vc:stat-card title="@T("مقدار بارگیری‌شده", "Loaded quantity")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار رسیده", "Received quantity")" value="@NumberDisplay.Quantity(receiptQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("منتظر رسید", "Awaiting receipt")" value="@NumberDisplay.Quantity(bulkReceiptDefaultQuantityMt)" unit="@UnitMt()" avatar="transported" state="@(bulkReceiptDefaultQuantityMt > 0m ? "warning" : null)"></vc:stat-card>
                 <vc:stat-card title="@T("کسری رسید", "Receipt shortage")" value="@NumberDisplay.Quantity(receiptShortageWastageMt)" unit="@UnitMt()" avatar="losses" state="@(receiptShortageWastageMt > 0m ? "warning" : null)"></vc:stat-card>
             </section>
                 break;
@@ -762,9 +827,11 @@
 
             case ContractJourneyTabs.Details.Inventory:
             <section class="ak-stat-grid" aria-label="@T("آمار موجودی", "Inventory statistics")">
-                <vc:stat-card title="@T("موجودی فعلی قرارداد", "Current stock")" value="@NumberDisplay.Quantity(currentStockMt)" unit="@UnitMt()" avatar="warehouse" state="@(currentStockMt < 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار در مسیر", "In transit")" value="@NumberDisplay.Quantity(transportLegInTransitMt)" unit="@UnitMt()" avatar="in-transit"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار خارج‌شده", "Dispatched out")" value="@NumberDisplay.Quantity(Model.Kpis.DispatchedQuantityMt)" unit="@UnitMt()" avatar="loading-terminal"></vc:stat-card>
+                @* هر سه رقم از همان حرکات موجودی این تب جمع می‌شود (مسیر سبک تب فقط حرکات را می‌خواند)،
+                   پس با ستون‌های موجودی/ورودی/خروجی جدول همین تب یکی است. *@
+                <vc:stat-card title="@T("موجودی دفتری", "Book stock")" value="@NumberDisplay.Quantity(inventoryBookBalanceMt)" unit="@UnitMt()" avatar="warehouse" state="@(inventoryBookBalanceMt < 0m ? "warning" : null)"></vc:stat-card>
+                <vc:stat-card title="@T("مجموع ورودی", "Total in")" value="@NumberDisplay.Quantity(inventoryTotalInMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
+                <vc:stat-card title="@T("مجموع خروجی", "Total out")" value="@NumberDisplay.Quantity(inventoryTotalOutMt)" unit="@UnitMt()" avatar="loading-terminal"></vc:stat-card>
                 <vc:stat-card title="@T("تعداد حرکات موجودی", "Movements")" value="@inventoryMovementCount.ToString("N0")" unit="@T("حرکت", "moves")" avatar="ledger"></vc:stat-card>
             </section>
                 break;
@@ -774,7 +841,8 @@
                 <vc:stat-card title="@T("تعداد انتقال‌ها", "Transfers")" value="@dispatchCount.ToString("N0")" unit="@T("انتقال", "transfers")" avatar="transported"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار انتقال‌یافته", "Transferred quantity")" value="@NumberDisplay.Quantity(dispatchQuantityMt)" unit="@UnitMt()" avatar="total-inventory"></vc:stat-card>
                 <vc:stat-card title="@T("تحویل‌شده", "Delivered")" value="@Model.DispatchItems.Count(d => string.Equals(d.StatusName, "Delivered", StringComparison.OrdinalIgnoreCase)).ToString("N0")" unit="@T("انتقال", "transfers")" avatar="dispatch-station"></vc:stat-card>
-                <vc:stat-card title="@T("کسری انتقال", "Transfer shortage")" value="@NumberDisplay.Quantity(dispatchShortageWastageMt)" unit="@UnitMt()" avatar="losses" state="@(dispatchShortageWastageMt > 0m ? "warning" : null)"></vc:stat-card>
+                @* کسری انتقال در تب «کسری و ضایعات» است؛ مسیر سبک این تب رویدادهای کسری را نمی‌خواند. *@
+                <vc:stat-card title="@T("مقدار تخلیه‌شده", "Discharged quantity")" value="@NumberDisplay.Quantity(dispatchDischargedMt)" unit="@UnitMt()" avatar="warehouse"></vc:stat-card>
             </section>
                 break;
 
@@ -782,26 +850,50 @@
             <section class="ak-stat-grid" aria-label="@T("آمار فروشات", "Sales statistics")">
                 <vc:stat-card title="@T("مقدار فروخته‌شده", "Sold quantity")" value="@NumberDisplay.Quantity(soldQuantityMt)" unit="@UnitMt()" avatar="sold-quantity"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل فروش", "Sales value")" value="@salesTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="sales-value"></vc:stat-card>
-                <vc:stat-card title="@T("مانده قابل فروش", "Saleable remaining")" value="@NumberDisplay.Quantity(lifecycleSaleableQuantityMt)" unit="@UnitMt()" avatar="warehouse"></vc:stat-card>
-                <vc:stat-card title="@contractNetLabel" value="@pnlOperationalMarginUsd.ToString("N0")" unit="@UnitUsd()" avatar="profit-loss" trend-direction="@(pnlOperationalMarginUsd >= 0m ? "up" : "down")"></vc:stat-card>
+                @* مفاد تحقق‌یافته در تب خلاصه و پرداخت‌ها است؛ مسیر سبک این تب موتور مفاد و کسری‌ها را
+                   نمی‌خواند، پس کارت‌ها فقط از ردیف‌های فروش همین تب ساخته می‌شوند. *@
+                <vc:stat-card title="@T("اوسط نرخ فروش", "Average sale price")" value="@(salesAverageUsd.HasValue ? salesAverageUsd.Value.ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد فروش‌ها", "Sales")" value="@salesCount.ToString("N0")" unit="@T("فروش", "sales")" avatar="documents"></vc:stat-card>
             </section>
                 break;
 
             case ContractJourneyTabs.Details.Costs:
-            <section class="ak-stat-grid" aria-label="@T("آمار مصرف و کسری", "Expense and loss statistics")">
-                <vc:stat-card title="@T("مجموع مصارف", "Total expenses")" value="@summaryExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
-                <vc:stat-card title="@T("مصرف هر تن", "Expense per MT")" value="@(summaryExpensePerLoadedMt.HasValue ? summaryExpensePerLoadedMt.Value.ToString("N2") : "—")" unit="@($"{UnitUsd()}/{UnitMt()}")" avatar="analysis"></vc:stat-card>
-                <vc:stat-card title="@T("مقدار کسری", "Loss quantity")" value="@NumberDisplay.Quantity(totalDisplayLossMt)" unit="@UnitMt()" avatar="losses" state="@(totalDisplayLossMt > 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("مبلغ کسری", "Loss cost")" value="@summaryLossCostUsd.ToString("N0")" unit="@UnitUsd()" avatar="statement"></vc:stat-card>
+                @* مسیر سبک تب مصارف موتور مفاد و بارگیری‌ها را نمی‌خواند؛ کارت‌ها فقط از اسناد همین تب
+                   جمع می‌شوند و با جمع جدول یکی‌اند. مجموع مصارفِ موتور مفاد در کارت ۴ خلاصه است. *@
+                @if (isLossesView)
+                {
+            <section class="ak-stat-grid" aria-label="@T("آمار کسری و ضایعات", "Loss statistics")">
+                <vc:stat-card title="@T("ضایعهٔ فزیکی", "Physical loss")" value="@NumberDisplay.Quantity(totalDisplayLossMt)" unit="@UnitMt()" avatar="losses" state="@(totalDisplayLossMt > 0m ? "warning" : null)"></vc:stat-card>
+                <vc:stat-card title="@T("قابل‌جبران", "Chargeable")" value="@NumberDisplay.Quantity(summaryChargeableLossMt)" unit="@UnitMt()" avatar="statement"></vc:stat-card>
+                <vc:stat-card title="@T("بخشیده‌شده", "Allowed")" value="@NumberDisplay.Quantity(summaryAllowedLossMt)" unit="@UnitMt()" avatar="rules-checklist"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد رویدادها", "Loss records")" value="@Model.LossItems.Count.ToString("N0")" unit="@T("مورد", "records")" avatar="documents"></vc:stat-card>
             </section>
+                }
+                else
+                {
+            <section class="ak-stat-grid" aria-label="@T("آمار مصارف", "Expense statistics")">
+                <vc:stat-card title="@T("مجموع اسناد مصرف", "Expense documents total")" value="@expenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="expenses"></vc:stat-card>
+                <vc:stat-card title="@T("مصارف عمومی قرارداد", "Contract-level expenses")" value="@contractLevelExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="analysis"></vc:stat-card>
+                <vc:stat-card title="@T("مصارف جریان حمل بار", "Cargo flow expenses")" value="@inventoryTransportExpenseTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="transported"></vc:stat-card>
+                <vc:stat-card title="@T("تعداد اسناد مصرف", "Expense documents")" value="@expenseCount.ToString("N0")" unit="@T("سند", "documents")" avatar="documents"></vc:stat-card>
+            </section>
+                }
                 break;
 
             case ContractJourneyTabs.Details.Finance:
             <section class="ak-stat-grid" aria-label="@T("آمار پرداخت‌ها", "Payment statistics")">
-                <vc:stat-card title="@T("مبلغ قرارداد", "Contract amount")" value="@supplierPayableTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="contract-signed"></vc:stat-card>
-                <vc:stat-card title="@T("پرداخت‌شده", "Paid")" value="@supplierPaidNetUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments-out"></vc:stat-card>
-                <vc:stat-card title="@T("مانده تأمین‌کننده", "Supplier remaining")" value="@supplierRemainingUsd.ToString("N0")" unit="@UnitUsd()" avatar="receivables" state="@(supplierRemainingUsd > 0m ? "warning" : null)"></vc:stat-card>
-                <vc:stat-card title="@T("تعداد پرداخت‌ها", "Payments")" value="@paymentCount.ToString("N0")" unit="@T("پرداخت", "payments")" avatar="cash-flow"></vc:stat-card>
+                @if (Model.IsPurchaseContract)
+                {
+                    @* «قابل پرداخت» ارزش خرید قیمت‌دار قرارداد است، نه ارزش کل قرارداد. *@
+                    <vc:stat-card title="@T("قابل پرداخت به تأمین‌کننده", "Payable to supplier")" value="@supplierPayableTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="contract-signed"></vc:stat-card>
+                    <vc:stat-card title="@T("پرداخت/تسویه‌شده", "Paid or settled")" value="@supplierPaidNetUsd.ToString("N0")" unit="@UnitUsd()" avatar="payments-out"></vc:stat-card>
+                    <vc:stat-card title="@T("مانده قابل پرداخت", "Remaining payable")" value="@supplierRemainingUsd.ToString("N0")" unit="@UnitUsd()" avatar="receivables" state="@(supplierRemainingUsd > 0m ? "warning" : null)"></vc:stat-card>
+                }
+                else
+                {
+                    <vc:stat-card title="@T("جمع اسناد ثبت‌شده", "Recorded documents total")" value="@paymentTotalUsd.ToString("N0")" unit="@UnitUsd()" avatar="cash-flow"></vc:stat-card>
+                }
+                <vc:stat-card title="@T("تعداد پرداخت‌ها", "Payments")" value="@paymentCount.ToString("N0")" unit="@T("پرداخت", "payments")" avatar="documents"></vc:stat-card>
             </section>
                 break;
         }
@@ -814,6 +906,17 @@
          data-active-tab="@activeTab"
          data-loading-text="@T("در حال بارگذاری...", "Loading...")"
          data-error-text="@T("خطا در دریافت اطلاعات. دوباره تلاش کنید.", "Could not load this tab. Try again.")">
+
+    @if (groupedSection.Tab is not null || isLossesView)
+    {
+        <header class="ak-section-head" data-contract-journey-section-title>
+            <h2 class="ak-section-title">@primarySectionTitle</h2>
+            @if (isLossesView)
+            {
+                <a href="@ReturnUrl(ContractJourneyTabs.Details.Summary)" data-contract-journey-tab-link="true" data-no-spa="true" class="ak-name">@T("بازگشت به خلاصه", "Back to summary")</a>
+            }
+        </header>
+    }
 
     @if (activeTab == ContractJourneyTabs.Details.Summary)
     {
@@ -843,7 +946,7 @@
                         : (supplierPaidNetUsd > 0m || supplierPayableTotalUsd > 0m ? StepDone : StepPending);
                     var resultState = soldQuantityMt <= 0m
                         ? StepPending
-                        : (pnlOperationalMarginUsd < 0m ? StepLoss : StepGain);
+                        : (lifecycleProfitUsd < 0m ? StepLoss : StepGain);
 
                     string StepBadgeText(string state) => state switch
                     {
@@ -855,39 +958,39 @@
                         _ => T("در انتظار", "Pending")
                     };
 
-                    string StepBadgeIcon(string state) => state switch
+                    string StepBadgeIcon(int number, string state) => state switch
                     {
                         StepDone => "bi-check-circle-fill",
-                        StepCurrent => "bi-arrow-repeat",
-                        StepWarn => "bi-exclamation-triangle-fill",
-                        StepGain => "bi-graph-up-arrow",
-                        StepLoss => "bi-graph-down-arrow",
-                        _ => "bi-clock"
+                        StepCurrent => "bi-clock",
+                        StepWarn => number == 5 ? "bi-exclamation-circle-fill" : "bi-exclamation-triangle-fill",
+                        StepGain => "bi-arrow-up-circle-fill",
+                        StepLoss => "bi-arrow-down-circle-fill",
+                        _ => "bi-hourglass-split"
                     };
 
                     var journeySteps = new List<(int Number, string AvatarKey, string Title, string State, string FirstLabel, string FirstValue, string SecondLabel, string SecondValue)>
                     {
-                        (1, "contract-signed", T("قرارداد", "Contract"), StepDone,
+                        (1, "contract-document", T("قرارداد", "Contract"), StepDone,
                             T("مقدار کل قرارداد", "Contract quantity"), FormatLifecycleQuantity(Model.ContractQuantityMt),
                             T("ارزش قرارداد", "Contract value"), FormatHeaderValueUsd(contractDisplayValueUsd)),
-                        (2, "contract-loaded", T("بارگیری و موجودی", "Loading & stock"), loadingState,
+                        (2, "products", T("بارگیری و موجودی", "Loading & stock"), loadingState,
                             T("بارگیری‌شده", "Loaded"), FormatLifecycleQuantity(loadingQuantityMt),
                             T("باقی‌مانده بارگیری", "Remaining to load"), FormatLifecycleQuantity(remainingToLoadMt)),
-                        (3, "contract-sales", T("فروشات", "Sales"), salesState,
+                        (3, "flow-truck", T("فروشات", "Sales"), salesState,
                             T("فروخته‌شده", "Sold"), FormatLifecycleQuantity(soldQuantityMt),
                             T("ارزش فروخته‌شده", "Sold value"), FormatLifecycleUsd(salesTotalUsd)),
-                        (4, "contract-expenses", T("هزینه‌ها", "Expenses"), expenseState,
+                        (4, "flow-calculator", T("هزینه‌ها", "Expenses"), expenseState,
                             T("مجموع مصارف", "Total expenses"), FormatLifecycleUsd(summaryExpenseTotalUsd),
                             T("اوسط مصرف بر تن", "Expense per MT"), FormatLifecycleRate(summaryExpensePerLoadedMt)),
                         (5, "contract-losses", T("ضایعات", "Losses"), lossState,
                             T("مقدار ضایعات", "Loss quantity"), FormatLifecycleQuantity(totalDisplayLossMt),
-                            T("ارزش ضایعات", "Loss cost"), FormatLifecycleUsd(summaryLossCostUsd)),
+                            T("ارزش کسری قابل‌جبران", "Chargeable loss cost"), FormatLifecycleUsd(summaryLossCostUsd)),
                         (6, "payments-out", T("پرداخت‌ها", "Payments"), paymentState,
                             T("پرداخت‌شده", "Paid"), FormatLifecycleUsd(supplierPaidNetUsd),
                             T("مانده قابل پرداخت", "Remaining payable"), FormatLifecycleUsd(supplierRemainingUsd)),
                         (7, "contract-profit", T("سود و زیان", "Profit & loss"), resultState,
-                            contractNetLabel, FormatLifecycleUsd(pnlOperationalMarginUsd),
-                            T("حاشیه سود", "Margin"), $"{NumberDisplay.Number(marginPercent, 2)}%")
+                            T("سود کلی قرارداد", "Total contract profit"), FormatLifecycleUsd(lifecycleProfitUsd),
+                            T("حاشیه سود", "Margin"), $"{NumberDisplay.Number(salesTotalUsd > 0m ? lifecycleProfitUsd / salesTotalUsd * 100m : 0m, 2)}%")
                     };
 
                     // جهت فلش‌ها: ردیف اول راست→چپ، ردیف دوم چپ→راست، ردیف سوم دوباره راست→چپ
@@ -913,28 +1016,38 @@
                         })
                         .ToList();
                 }
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                         model="@((T("چرخه قرارداد", "Contract lifecycle"), (string?)null))" />
+                <header class="ak-section-head ak-journey-head">
+                    <h2 class="ak-section-title"><i class="bi bi-diagram-2" aria-hidden="true"></i>@T("چرخه قرارداد", "Contract lifecycle")</h2>
+                </header>
                 <ol class="ak-journey-flow">
                     @foreach (var step in journeySteps)
                     {
-                        var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath(step.AvatarKey);
+                        var avatarCrop = ReferenceAvatarViewBox(step.Number).Split(' ');
                         var arrowIcon = step.Number is 3 or 6
                             ? "bi-chevron-down"
                             : (step.Number < 3 ? forwardArrowIcon : backwardArrowIcon);
                         <li class="ak-journey-step ak-journey-step--@step.Number @step.State">
                             <span class="ak-journey-step-num">@step.Number</span>
-                            @if (!string.IsNullOrEmpty(avatarPath))
-                            {
-                                <img class="ak-cycle-avatar" src="@avatarPath" alt="" aria-hidden="true" loading="lazy" decoding="async" width="56" height="56" />
-                            }
+                            <svg class="ak-cycle-avatar" viewBox="@ReferenceAvatarViewBox(step.Number)" aria-hidden="true" focusable="false" width="140" height="140">
+                                <defs><clipPath id="journey-cycle-art-@step.Number" clipPathUnits="userSpaceOnUse"><rect x="@avatarCrop[0]" y="@avatarCrop[1]" width="@avatarCrop[2]" height="@avatarCrop[3]" /></clipPath></defs>
+                                <image href="@Url.Content("~/images/contract-journey/cycle-artwork.png")" width="1417" height="787" clip-path="url(#journey-cycle-art-@step.Number)" />
+                            </svg>
                             <div class="ak-cycle-body">
                                 <div class="ak-journey-step-head">
-                                    <h3 class="ak-cycle-title">@step.Title</h3>
-                                    <span class="ak-journey-badge"><i class="bi @StepBadgeIcon(step.State)" aria-hidden="true"></i>@StepBadgeText(step.State)</span>
+                                    <h3 class="ak-cycle-title">
+                                        @if (step.Number == 5)
+                                        {
+                                            <a href="@ReturnUrl(LossesPresentationTab)" data-contract-journey-tab-link="true" data-no-spa="true">@step.Title</a>
+                                        }
+                                        else
+                                        {
+                                            @step.Title
+                                        }
+                                    </h3>
+                                    <span class="ak-journey-badge"><i class="bi @StepBadgeIcon(step.Number, step.State)" aria-hidden="true"></i>@StepBadgeText(step.State)</span>
                                 </div>
-                                <div class="ak-cycle-row"><span class="ak-cycle-label">@step.FirstLabel</span><span class="ak-cycle-value">@step.FirstValue</span></div>
-                                <div class="ak-cycle-row"><span class="ak-cycle-label">@step.SecondLabel</span><span class="ak-cycle-value">@step.SecondValue</span></div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@step.FirstLabel</span><span class="ak-cycle-value @(step.Number is 1 or 2 or 3 or 5 ? "ak-cycle-quantity" : null)">@(step.Number is 1 or 2 or 3 or 5 ? LifecycleQuantityMarkup(step.FirstValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.FirstValue))</span></div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@step.SecondLabel</span><span class="ak-cycle-value @(step.Number == 2 ? "ak-cycle-quantity" : null)">@(step.Number == 2 ? LifecycleQuantityMarkup(step.SecondValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.SecondValue))</span></div>
                             </div>
                             @if (step.Number < journeySteps.Count)
                             {
@@ -944,20 +1057,25 @@
                     }
                     @foreach (var partner in partnerShareCards)
                     {
-                        var avatarPath = PTGOilSystem.Web.Models.StatCards.StatCardAvatarRegistry.ResolvePath("partners");
-                        <li class="ak-journey-step" data-partner-share="true">
-                            @if (!string.IsNullOrEmpty(avatarPath))
-                            {
-                                <img class="ak-cycle-avatar" src="@avatarPath" alt="" aria-hidden="true" loading="lazy" decoding="async" width="56" height="56" />
-                            }
+                        var partnerAvatarCrop = ReferenceAvatarViewBox(0).Split(' ');
+                        var partnerAvatarId = $"journey-partner-art-{partnerShareCards.IndexOf(partner)}";
+                        @* کارت شریک: متن در ابتدای سطر و کاشی آواتار با درصد سهم در انتهای آن. *@
+                        <li class="ak-journey-step ak-journey-partner" data-partner-share="true">
                             <div class="ak-cycle-body">
                                 <div class="ak-journey-step-head">
                                     <h3 class="ak-cycle-title">@TextOrDash(partner.PartnerName)</h3>
-                                    <span class="ak-journey-badge"><i class="bi bi-pie-chart-fill" aria-hidden="true"></i>@T("سهم", "Share") @NumberDisplay.Number(partner.SharePercent, 2)%</span>
                                 </div>
-                                <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم مقدار", "Share quantity")</span><span class="ak-cycle-value">@FormatLifecycleQuantity(partner.ShareQuantityMt)</span></div>
+                                <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم مقدار", "Share quantity")</span><span class="ak-cycle-value ak-cycle-quantity">@LifecycleQuantityMarkup(FormatLifecycleQuantity(partner.ShareQuantityMt))</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم ارزش", "Share value")</span><span class="ak-cycle-value">@FormatHeaderValueUsd(partner.ShareValueUsd)</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@partnerShareProfitLabel</span><span class="ak-cycle-value">@FormatLifecycleUsd(partner.ShareProfitUsd)</span></div>
+                            </div>
+                            <div class="ak-journey-partner-tile">
+                                <svg class="ak-cycle-avatar" viewBox="@ReferenceAvatarViewBox(0)" aria-hidden="true" focusable="false" width="120" height="120">
+                                    <defs><clipPath id="@partnerAvatarId" clipPathUnits="userSpaceOnUse"><rect x="@partnerAvatarCrop[0]" y="@partnerAvatarCrop[1]" width="@partnerAvatarCrop[2]" height="@partnerAvatarCrop[3]" /></clipPath></defs>
+                                    <image href="@Url.Content("~/images/contract-journey/cycle-artwork.png")" width="1417" height="787" clip-path="url(#@partnerAvatarId)" />
+                                </svg>
+                                <span class="ak-journey-partner-icon" aria-hidden="true"><i class="bi bi-people-fill"></i></span>
+                                <span class="ak-journey-partner-share"><span class="visually-hidden">@T("سهم", "Share") </span>@NumberDisplay.Number(partner.SharePercent, 2)%</span>
                             </div>
                         </li>
                     }
@@ -990,10 +1108,10 @@
                                             <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@subContract.ContractId">@subContract.DisplayLabel</a>
                                             <span class="ak-muted">· @subContract.StatusName</span>
                                         </td>
-                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.QuantityMt)</td>
-                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.LoadedQuantityMt)</td>
-                                        <td class="ak-num">@NumberDisplay.Quantity(subContract.RemainingQuantityMt)</td>
-                                        <td class="ak-num">@NumberDisplay.Money(subContract.LoadingsValueUsd)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(subContract.QuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(subContract.LoadedQuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(subContract.RemainingQuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Money(subContract.LoadingsValueUsd)</td>
                                     </tr>
                                 }
                                 @if (!filteredSubContractItems.Any())
@@ -1037,8 +1155,8 @@
                                 {
                                     <tr>
                                         <td class="ak-col-grow">@scenario.ShipmentCode @(string.IsNullOrWhiteSpace(scenario.VesselName) ? "" : $"· {scenario.VesselName}")</td>
-                                        <td class="ak-num">@NumberDisplay.Quantity(scenario.AllocatedQuantityMt)</td>
-                                        <td class="ak-num">@NumberDisplay.Quantity(scenario.SoldQuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(scenario.AllocatedQuantityMt)</td>
+                                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(scenario.SoldQuantityMt)</td>
                                         <td class="ak-col-actions">
                                             <div class="dropdown ak-row-menu">
                                                 <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
@@ -1117,10 +1235,10 @@
                                     </td>
                                     <td>@leg.LoadedDate.ToDisplayDate()</td>
                                     <td>@TextOrDash(leg.SourceTerminalName) → @TextOrDash(TransportDestinationTerminal(leg))</td>
-                                    <td class="ak-num">@FormatMt(leg.QuantityMt)</td>
-                                    <td class="ak-num">@FormatMt(TransportInTransitQuantity(leg))</td>
-                                    <td class="ak-num">@FormatMt(leg.ReceivedQuantityMt)</td>
-                                    <td class="ak-num">@FormatMt(leg.ShortageQuantityMt)</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(leg.QuantityMt)</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(TransportInTransitQuantity(leg))</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(leg.ReceivedQuantityMt)</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(leg.ShortageQuantityMt)</td>
                                     <td><span class="ak-status @TransportStatusToneClass(leg.StatusName)">@LocalizeDisplay(leg.StatusName)</span></td>
                                     <td class="ak-col-actions">
                                         <div class="dropdown ak-row-menu">
@@ -1168,6 +1286,7 @@
         case ContractJourneyTabs.Details.Costs:
             <div id="journey-tab-lists" class="ak-tab-panel">
                 <section class="ak-form-section ak-detail-section">
+                    <h2 class="ak-section-title">@T("مصارف", "Expenses")</h2>
                     <div class="ak-list-toolbar">
                         <partial name="_ContractJourneyListFilter"
                                  model="@(("expensesQ", (string?)expensesSearch, T("جستجو در مصارف...", "Search expenses..."), "expensesPage"))" />
@@ -1212,9 +1331,9 @@
                                         </button>
                                     </td>
                                     <td class="ak-col-grow"><span class="ak-name">@group.TypeName</span></td>
-                                    <td class="ak-num">@group.Items.Count.ToString("N0")</td>
+                                    <td class="ak-col-num ak-num">@group.Items.Count.ToString("N0")</td>
                                     <td>@group.LastDate.ToDisplayDate()</td>
-                                    <td class="ak-num">@group.TotalUsd.ToString("N2") @UnitUsd()</td>
+                                    <td class="ak-col-num ak-num">@group.TotalUsd.ToString("N2") @UnitUsd()</td>
                                 </tr>
                                 <tr class="collapse" id="@groupDetailId">
                                     <td colspan="5">
@@ -1237,7 +1356,7 @@
                                                         </a>
                                                     </td>
                                                     <td>@item.ExpenseDate.ToDisplayDate()</td>
-                                                    <td class="ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
+                                                    <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
                                                     <td class="ak-col-actions">
                                                         <div class="dropdown ak-row-menu">
                                                             <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
@@ -1277,9 +1396,9 @@
                                     <tr>
                                         <td class="no-print"></td>
                                         <td class="ak-col-grow">@T("مجموع اسناد مصرف", "Expense documents total")</td>
-                                        <td class="ak-num">@filteredExpenseItems.Count.ToString("N0")</td>
+                                        <td class="ak-col-num ak-num">@filteredExpenseItems.Count.ToString("N0")</td>
                                         <td></td>
-                                        <td class="ak-num">@filteredExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
+                                        <td class="ak-col-num ak-num">@filteredExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
                                     </tr>
                                 </tfoot>
                             }
@@ -1292,13 +1411,42 @@
                         @T("مصرف عمومی قرارداد", "Contract-level expenses"): @contractLevelExpenseTotalUsd.ToString("N2") @UnitUsd() ·
                         @T("مصارف جریان حمل بار", "Cargo flow expenses"): @inventoryTransportExpenseTotalUsd.ToString("N2") @UnitUsd()
                     </p>
+                    @if (transportLegExpenseBreakdown.Any())
+                    {
+                        <details class="ak-advanced" data-journey-leg-expense-breakdown>
+                            <summary class="ak-advanced-summary">@T("نمایش جزئیات مصارف به تفکیک حمل", "Show expense details by transport")</summary>
+                            <div class="ak-advanced-body ak-table-wrap">
+                                <table class="ak-table ak-detail-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="ak-col-grow">@T("حمل", "Transport")</th>
+                                            <th class="ak-col-num">@T("مجموع مصرف", "Expense total")</th>
+                                            <th class="ak-col-num">@T("مصرف هر تن", "Expense per MT")</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    @foreach (var allocation in transportLegExpenseBreakdown)
+                                    {
+                                        <tr>
+                                            <td class="ak-col-grow">
+                                                <a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@allocation.TransportLegId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="ak-name">@allocation.TransportTypeName / @allocation.TransportReference</a>
+                                            </td>
+                                            <td class="ak-col-num ak-num">@allocation.ExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
+                                            <td class="ak-col-num ak-num">@(allocation.ExpensePerMtUsd.HasValue ? $"{allocation.ExpensePerMtUsd.Value:N2} {UnitUsd()}/{UnitMt()}" : "-")</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    }
                 </section>
 
                 @if (Model.InternalTransportCostItems.Any())
                 {
                     <section class="ak-form-section ak-detail-section" data-journey-internal-transport-costs>
                         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                                 model="@((T("کرایه/مصرف داخلی ترانسپورت", "Internal transport cost"), (string?)T("ترانسپورت شخصی شرکت؛ بدون بدهی بیرونی و بدون Ledger. همین مبلغ یک‌بار در کارت «مجموع مصارف» بالای این تب و در مفاد قرارداد حساب شده است؛ در جدول اسناد مصرف بالا نیست چون سند مصرف ندارد.", "Company-owned transport; no external payable or ledger. Counted once in the Total expenses card above and in contract P&L; not in the expense documents table because it has no expense document.")))" />
+                                 model="@((T("کرایه/مصرف داخلی ترانسپورت", "Internal transport cost"), (string?)T("ترانسپورت شخصی شرکت؛ بدون بدهی بیرونی و بدون Ledger. همین مبلغ یک‌بار در کارت «هزینه‌ها»ی تب خلاصه و در مفاد قرارداد حساب شده است؛ در جدول اسناد مصرف بالا نیست چون سند مصرف ندارد.", "Company-owned transport; no external payable or ledger. Counted once in the Expenses card of the Summary tab and in contract P&L; not in the expense documents table because it has no expense document.")))" />
                         <div class="ak-table-wrap">
                             <table class="ak-table ak-detail-table">
                                 <thead>
@@ -1323,16 +1471,16 @@
                                             }
                                         </td>
                                         <td>@rent.RentDate.ToDisplayDate()</td>
-                                        <td class="ak-num">@(rent.QuantityMt.HasValue ? $"{NumberDisplay.Quantity(rent.QuantityMt.Value)} {UnitMt()}" : "-")</td>
-                                        <td class="ak-num">@(rent.RateUsdPerMt.HasValue ? $"{rent.RateUsdPerMt.Value:N2} {UnitUsd()}/{UnitMt()}" : "-")</td>
-                                        <td class="ak-num">@rent.AmountUsd.ToString("N2") @UnitUsd()</td>
+                                        <td class="ak-col-num ak-num">@(rent.QuantityMt.HasValue ? $"{NumberDisplay.Quantity(rent.QuantityMt.Value)} {UnitMt()}" : "-")</td>
+                                        <td class="ak-col-num ak-num">@(rent.RateUsdPerMt.HasValue ? $"{rent.RateUsdPerMt.Value:N2} {UnitUsd()}/{UnitMt()}" : "-")</td>
+                                        <td class="ak-col-num ak-num">@rent.AmountUsd.ToString("N2") @UnitUsd()</td>
                                     </tr>
                                 }
                                 </tbody>
                                 <tfoot>
                                     <tr>
                                         <td class="ak-col-grow" colspan="5">@T("مجموع", "Total")</td>
-                                        <td class="ak-num">@Model.InternalTransportCostItems.Sum(r => r.AmountUsd).ToString("N2") @UnitUsd()</td>
+                                        <td class="ak-col-num ak-num">@Model.InternalTransportCostItems.Sum(r => r.AmountUsd).ToString("N2") @UnitUsd()</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -1340,63 +1488,10 @@
                     </section>
                 }
 
-                <section class="ak-form-section ak-detail-section">
-                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                             model="@((T("تخصیص مصارف جریان حمل بار", "Cargo flow expense allocation"), (string?)null))" />
-                    <partial name="_ContractJourneyListFilter"
-                             model="@(("allocationsQ", (string?)allocationsSearch, T("جستجو در تخصیص مصارف...", "Search expense allocations..."), "allocationsPage"))" />
-                    <div class="ak-table-wrap">
-                        <table class="ak-table ak-detail-table">
-                            <thead>
-                                <tr>
-                                    <th class="ak-col-grow">@T("حمل", "Transport")</th>
-                                    <th>@T("تاریخ", "Date")</th>
-                                    <th>@T("مسیر", "Route")</th>
-                                    <th class="ak-col-num">@T("وزن حمل", "Transport weight")</th>
-                                    <th class="ak-col-num">@T("جمع مصرف", "Expense total")</th>
-                                    <th class="ak-col-num">@T("مصرف هر تن", "Expense per MT")</th>
-                                    <th class="ak-col-num">@T("تعداد", "Count")</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (var allocation in pagedExpenseAllocations)
-                            {
-                                <tr>
-                                    <td class="ak-col-grow">
-                                        <a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@allocation.TransportLegId" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)" class="ak-name">@allocation.TransportTypeName / @allocation.TransportReference</a>
-                                    </td>
-                                    <td>@allocation.LoadedDate.ToDisplayDate()</td>
-                                    <td>@allocation.SourceLocation → @allocation.DestinationLocation</td>
-                                    <td class="ak-num">@NumberDisplay.Quantity(allocation.QuantityMt) @UnitMt()</td>
-                                    <td class="ak-num">@allocation.ExpenseTotalUsd.ToString("N2") @UnitUsd()</td>
-                                    <td class="ak-num">@(allocation.ExpensePerMtUsd.HasValue ? $"{allocation.ExpensePerMtUsd.Value:N2} {UnitUsd()}/{UnitMt()}" : "-")</td>
-                                    <td class="ak-num">@allocation.ExpenseCount.ToString("N0")</td>
-                                </tr>
-                            }
-                            @if (!pagedExpenseAllocations.Any())
-                            {
-                                <tr>
-                                    <td colspan="7">
-                                        <div class="ak-empty ak-detail-empty-state">
-                                            <i class="bi bi-truck-front"></i>
-                                            @T("جریان حمل بار برای این قرارداد ثبت نشده است.", "No cargo flow has been recorded for this contract.")
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                    @(await DetailPager("allocationsPage", allocationsPage, allocationsPageCount))
-                </section>
-
-                @* ─── بخش کسری و ضایعات (ادغام‌شده با تب هزینه) ─── *@
-                <section class="ak-form-section ak-detail-section">
-                    <div class="ak-section-head ak-detail-section-header">
-                        <div>
-                            <p class="ak-section-desc">@T("تلفات، کسری اندازه‌گیری و ضایعات", "Measured shortages and wastage")</p>
-                        </div>
-                    </div>
+                @* Loss records share the expenses tab; legacy loss links remain valid. *@
+                @* ضایعهٔ فزیکی/قابل‌جبران/بخشیده‌شده در کارت‌های آماری بالای همین تب است. *@
+                <section class="ak-form-section ak-detail-section" data-journey-losses>
+                    <h2 class="ak-section-title">@T("ضایعات", "Losses")</h2>
                     <div class="ak-list-toolbar">
                         <partial name="_ContractJourneyListFilter"
                                  model="@(("lossesQ", (string?)lossesSearch, T("جستجو در کسری و ضایعات...", "Search losses and wastage..."), "lossesPage"))" />
@@ -1406,7 +1501,7 @@
                                 <a asp-controller="LossEvents"
                                    asp-action="Create"
                                    asp-route-contractId="@Model.ContractId"
-                                   asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Costs)"
+                                   asp-route-returnUrl="@ReturnUrl(LossesPresentationTab)"
                                    class="btn btn-primary ak-primary-action">
                                     <i class="bi bi-dash-circle"></i>
                                     <span>@T("ثبت کسری جدید", "New loss")</span>
@@ -1422,6 +1517,8 @@
                                     <th>@T("تاریخ", "Date")</th>
                                     <th>@T("نوع", "Type")</th>
                                     <th class="ak-col-num">@T("مقدار (MT)", "Quantity (MT)")</th>
+                                    <th class="ak-col-num">@T("قابل‌جبران", "Chargeable")</th>
+                                    <th class="ak-col-num">@T("بخشیده‌شده", "Allowed")</th>
                                     <th class="ak-col-num">%</th>
                                     <th>@T("مسئول", "Responsible")</th>
                                     <th>@T("وضعیت", "Status")</th>
@@ -1444,8 +1541,10 @@
                                     </td>
                                     <td>@item.EventDate.ToDisplayDate()</td>
                                     <td>@item.StageName</td>
-                                    <td class="ak-num">@DisplayLossQuantityMt(item).ToString("N2") @UnitMt()</td>
-                                    <td class="ak-num">@(item.ExpectedQuantityMt > 0m ? (DisplayLossQuantityMt(item) / item.ExpectedQuantityMt * 100m).ToString("N2") + "%" : "-")</td>
+                                    <td class="ak-col-num ak-num">@DisplayLossQuantityMt(item).ToString("N2") @UnitMt()</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(LossChargeableMt(item))</td>
+                                    <td class="ak-col-num ak-num">@FormatMt(LossAllowedMt(item))</td>
+                                    <td class="ak-col-num ak-num">@(item.ExpectedQuantityMt > 0m ? (DisplayLossQuantityMt(item) / item.ExpectedQuantityMt * 100m).ToString("N2") + "%" : "-")</td>
                                     <td>@(!string.IsNullOrWhiteSpace(item.TraceKind) ? item.TraceKind : "-")</td>
                                     <td>
                                         <span class="ak-status @(item.RelatedMovementId.HasValue ?"is-active" : "is-inactive")">
@@ -1486,7 +1585,7 @@
                             @if (!Model.LossItems.Any())
                             {
                                 <tr>
-                                    <td colspan="8">
+                                    <td colspan="10">
                                         <div class="ak-empty ak-detail-empty-state">
                                             <i class="bi bi-exclamation-diamond"></i>
                                             @T("داده‌ای ثبت نشده است.", "No records yet.")
@@ -1508,5 +1607,19 @@
 
     }
 
+    @if (groupedSection.Tab is not null)
+    {
+        <section class="ak-journey-group-section"
+                 data-contract-journey-companion="@ReturnUrl(groupedSection.Tab)"
+                 data-companion-before="@(groupedSection.Before ? "true" : "false")"
+                 aria-busy="true">
+            <header class="ak-section-head">
+                <h2 class="ak-section-title">@groupedSection.Title</h2>
+            </header>
+            <p class="ak-section-desc" data-companion-loading role="status">@T("در حال دریافت معلومات…", "Loading records…")</p>
+            <a href="@ReturnUrl(groupedSection.Tab)" class="ak-name" data-companion-fallback data-contract-journey-tab-link="true" data-no-spa="true">@T("باز کردن این بخش", "Open this section")</a>
+            <div data-companion-content></div>
+        </section>
+    }
     </div>
 </div>

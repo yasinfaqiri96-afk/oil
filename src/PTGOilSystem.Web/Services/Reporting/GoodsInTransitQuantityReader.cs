@@ -63,16 +63,35 @@ public sealed class GoodsInTransitQuantityReader(ApplicationDbContext db)
         return rows;
     }
 
+    /// <summary>
+    /// بارِ هنوز در مبدأ/بارگیریِ یک قرارداد خرید تا یک تاریخ؛ همان قاعدهٔ «بارگیری از مبدأ» بالا، فقط
+    /// محدود به بارگیری‌های همان قرارداد.
+    /// </summary>
+    public async Task<decimal> ReadOriginRemainingForContractAsync(
+        int contractId,
+        DateTime asOfDate,
+        CancellationToken ct = default)
+    {
+        var asOfExclusive = DateTime.SpecifyKind(asOfDate.Date.AddDays(1), DateTimeKind.Utc);
+        return (await ReadOriginLoadsAsync(asOfExclusive, productId: null, ct, contractId))
+            .Sum(r => r.RemainingMt);
+    }
+
     private async Task<List<GoodsInTransitQuantityRow>> ReadOriginLoadsAsync(
         DateTime asOfExclusive,
         int? productId,
-        CancellationToken ct)
+        CancellationToken ct,
+        int? contractId = null)
     {
         var query = db.LoadingRegisters.AsNoTracking()
             .Where(l => !l.IsCancelled && l.LoadingDate < asOfExclusive && l.LoadedQuantityMt > 0m);
         if (productId.HasValue)
         {
             query = query.Where(l => l.ProductId == productId.Value);
+        }
+        if (contractId.HasValue)
+        {
+            query = query.Where(l => l.ContractId == contractId.Value);
         }
 
         var loads = await query
@@ -83,14 +102,17 @@ public sealed class GoodsInTransitQuantityReader(ApplicationDbContext db)
             return [];
         }
 
+        var loadIds = contractId.HasValue ? loads.Select(l => l.Id).ToList() : null;
         var received = await db.LoadingReceipts.AsNoTracking()
             .Where(r => !r.IsCancelled && r.ReceiptDate < asOfExclusive)
+            .Where(r => loadIds == null || loadIds.Contains(r.LoadingRegisterId))
             .GroupBy(r => r.LoadingRegisterId)
             .Select(g => new { LoadingId = g.Key, Mt = g.Sum(r => r.ReceivedQuantityMt) })
             .ToDictionaryAsync(x => x.LoadingId, x => x.Mt, ct);
 
         var allocated = await db.InventoryTransportLegAllocations.AsNoTracking()
             .Where(a => a.SourceLoadingRegisterId != null
+                && (loadIds == null || loadIds.Contains(a.SourceLoadingRegisterId.Value))
                 && a.InventoryTransportLeg != null
                 && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled
                 && a.InventoryTransportLeg.LoadedDate < asOfExclusive)
@@ -104,6 +126,9 @@ public sealed class GoodsInTransitQuantityReader(ApplicationDbContext db)
                     && e.Stage == LossEventStage.ReceiptShortage
                     && e.EventDate < asOfExclusive
                     && (e.LoadingRegisterId != null || e.LoadingReceipt != null)
+                    && (loadIds == null
+                        || (e.LoadingRegisterId != null && loadIds.Contains(e.LoadingRegisterId.Value))
+                        || (e.LoadingReceipt != null && loadIds.Contains(e.LoadingReceipt.LoadingRegisterId)))
                     && (e.LoadingReceipt == null || !e.LoadingReceipt.IsCancelled))
                 .Select(e => new
                 {

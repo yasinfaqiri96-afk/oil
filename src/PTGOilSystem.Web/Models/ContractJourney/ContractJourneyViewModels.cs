@@ -158,6 +158,16 @@ public sealed class ContractJourneyDetailsViewModel
     // وضعیت موقت: مقدار رسیدهای «ضایعات بعداً از تسویه مخزن» که هنوز در مخزن است
     // و ضایعهٔ نهایی‌شان مشخص نشده. مشتق از موجودی؛ ContractJourney فقط نمایش است.
     public decimal PendingTankSettlementQuantityMt { get; init; }
+    /// <summary>بارِ بارگیری‌شده‌ای که هنوز در مبدأ/بارگیری مانده (GoodsInTransitQuantityReader).</summary>
+    public decimal OriginRemainingQuantityMt { get; init; }
+    /// <summary>کرایهٔ ناخالصِ رسیدهای حملِ موجودیِ این قرارداد.</summary>
+    public decimal TransportFreightGrossUsd { get; init; }
+    /// <summary>مبلغِ کسری که از کرایهٔ راننده کم شده (جبرانِ خسارت؛ فقط یک بار، داخلِ کرایهٔ خالص).</summary>
+    public decimal TransportShortageDeductionUsd { get; init; }
+    /// <summary>کرایهٔ خالصِ قابل پرداخت به راننده/حمل‌کننده.</summary>
+    public decimal TransportFreightPayableUsd { get; init; }
+    /// <summary>مقدارِ کسری که از کرایه کم شده (مبنای نرخِ کسرات).</summary>
+    public decimal TransportDeductedShortageMt { get; init; }
     public bool HasPendingTankSettlement => PendingTankSettlementQuantityMt > 0m;
     public decimal InventoryInQuantityMt { get; init; }
     public decimal InventoryOutQuantityMt { get; init; }
@@ -268,6 +278,10 @@ public sealed class ContractJourneySummaryMetricsViewModel
     // پرداخت خالص به تأمین‌کننده در payload خلاصه (PaymentItems در این حالت بارگذاری نمی‌شود).
     public decimal SupplierPaidNetUsd { get; init; }
     public decimal LossQuantityMt { get; init; }
+    /// <summary>بخشِ قابل‌جبرانِ ضایعاتِ ثبت‌شده (بر عهدهٔ راننده/حمل‌کننده).</summary>
+    public decimal ChargeableLossQuantityMt { get; init; }
+    /// <summary>بخشِ بخشیده‌شده (در حدِ تلورانس) از ضایعاتِ ثبت‌شده.</summary>
+    public decimal AllowedLossQuantityMt { get; init; }
     public IReadOnlyList<ContractJourneyStorageOverviewItemViewModel> StorageOverviewItems { get; init; } = [];
     public IReadOnlyList<ContractJourneyTransportOverviewItemViewModel> TransportOverviewItems { get; init; } = [];
     public IReadOnlyList<ContractJourneySalesOverviewItemViewModel> SalesOverviewItems { get; init; } = [];
@@ -867,6 +881,18 @@ public sealed class ContractJourneyMiniPnlViewModel
     [Display(Name = "مصرف قابل‌ردیابی")]
     public decimal TraceableExpensesUsd { get; init; }
 
+    /// <summary>مصارفِ پولیِ قرارداد (بارگیری، گمرک، مصارف ثبت‌شده)؛ هر سند یک بار، بی‌ارزشِ ضایعات.</summary>
+    public decimal RecordedExpensesUsd { get; init; }
+
+    /// <summary>ارزشِ ضایعاتِ قابل‌شارژی که در مفاد قرارداد کسر می‌شود (همان رقمِ موتور مفاد).</summary>
+    public decimal LossCostUsd { get; init; }
+
+    /// <summary>بهای تمام‌شدهٔ کالای هنوز فروخته‌نشده؛ مفاد نمی‌سازد (همان رقمِ حساب شرکا).</summary>
+    public decimal UnsoldCostUsd { get; init; }
+
+    /// <summary>اطمینانِ مفادِ قرارداد از موتور مفاد؛ غیرِ «قطعی» یعنی رقم برآوردی است.</summary>
+    public PTGOilSystem.Web.Services.Reporting.PnlConfidence Confidence { get; init; } = PTGOilSystem.Web.Services.Reporting.PnlConfidence.Verified;
+
     // سودِ محققِ قرارداد — همهٔ اعداد از ProfitAndLossService.BuildContractEconomicsAsync (همان مرجعِ
     // گزارش مفاد قراردادها و صورت‌حساب شراکت). این ViewModel هیچ فرمولی ندارد.
     /// <summary>بهای کالای فروخته‌شده = مقدار فروش × میانگین وزنی قیمت خرید.</summary>
@@ -881,6 +907,9 @@ public sealed class ContractJourneyMiniPnlViewModel
     public decimal RealizedFxNetUsd { get; init; }
     [Display(Name = "سود محقق قرارداد")]
     public decimal RealizedNetProfitUsd { get; init; }
+
+    /// <summary>Full-cycle contract margin from the canonical engine; includes all recorded purchase and operational costs.</summary>
+    public decimal LifecycleMarginUsd { get; init; }
 
     // ===== سود محقق‌شدهٔ حسابداری: تنها منبع مجاز ProfitAndLossService =====
     // اعداد بالا برآورد عملیاتی قرارداد هستند (میانگین وزنی خرید + تسهیم مصارف).

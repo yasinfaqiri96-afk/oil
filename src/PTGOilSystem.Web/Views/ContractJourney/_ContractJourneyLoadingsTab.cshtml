@@ -80,9 +80,6 @@
                         <th class="ak-col-num">@T("مقدار رسید‌شده", "Received Qty")</th>
                         <th class="ak-col-num">@T("قیمت فی تن", "Unit Price")</th>
                         <th class="ak-col-num">@T("ارزش بارگیری", "Loading Value")</th>
-                        <th class="ak-col-num">@T("هر 1 دالر چند روبل است؟", "RUB per 1 USD")</th>
-                        <th>@T("وضعیت نرخ روبل", "RUB rate status")</th>
-                        <th class="ak-col-num">@T("معادل روبلی", "RUB equivalent")</th>
                         <th class="ak-col-actions">@T("عملیات", "Actions")</th>
                     </tr>
                 </thead>
@@ -97,15 +94,20 @@
                         <td>@item.LoadingDate.ToDisplayDate()</td>
                         <td>@item.ProductName</td>
                         <td>@item.TransportTypeLabel</td>
-                        <td class="ak-num">@item.LoadedQuantityMt.ToString("N3")</td>
-                        <td class="ak-num">@item.TotalReceivedQuantityMt.ToString("N3")</td>
-                        <td class="ak-num">@(item.LoadingPriceUsd.HasValue ? item.LoadingPriceUsd.Value.ToString("N2") : "-")</td>
-                        <td class="ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") : "-")</td>
-                        <td class="ak-num">@RubRateText(item)</td>
-                        <td>
-                            <span class="ak-status @(item.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Locked ?"is-active" : "is-inactive")">@RubStatusText(item)</span>
+                        <td class="ak-col-num ak-num">@item.LoadedQuantityMt.ToString("N3")</td>
+                        <td class="ak-col-num ak-num">@item.TotalReceivedQuantityMt.ToString("N3")</td>
+                        <td class="ak-col-num ak-num">@(item.LoadingPriceUsd.HasValue ? item.LoadingPriceUsd.Value.ToString("N2") : "-")</td>
+                        <td class="ak-col-num">
+                            <span class="ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") : "-")</span>
+                            <details class="ak-advanced m-0" data-loading-rub-details>
+                                <summary class="ak-advanced-summary">@T("جزئیات روبل", "RUB details")</summary>
+                                <dl class="ak-list">
+                                    <div class="ak-list-row"><dt>@T("هر 1 دالر چند روبل است؟", "RUB per 1 USD")</dt><dd class="ak-num">@RubRateText(item)</dd></div>
+                                    <div class="ak-list-row"><dt>@T("وضعیت نرخ روبل", "RUB rate status")</dt><dd><span class="ak-status @(item.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Locked ?"is-active" : "is-inactive")">@RubStatusText(item)</span></dd></div>
+                                    <div class="ak-list-row"><dt>@T("معادل روبلی", "RUB equivalent")</dt><dd class="ak-num">@RubAmountText(item)</dd></div>
+                                </dl>
+                            </details>
                         </td>
-                        <td class="ak-num">@RubAmountText(item)</td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
                                 <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
@@ -125,7 +127,7 @@
                 @if (!Model.Items.Any())
                 {
                     <tr>
-                        <td colspan="12">
+                        <td colspan="9">
                             <div class="ak-empty">
                                 <i class="bi bi-truck"></i>
                                 @Model.NoRecordsText

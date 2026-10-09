@@ -71,7 +71,8 @@
           data-inventory-receipt-form
           data-loaded-quantity="@Model.LoadedQuantityMt.ToString(System.Globalization.CultureInfo.InvariantCulture)"
           data-is-truck="@Model.IsTruckOrWagonTransport.ToString().ToLowerInvariant()"
-          data-focused-inventory="@focusedInventory.ToString().ToLowerInvariant()">
+          data-focused-inventory="@focusedInventory.ToString().ToLowerInvariant()"
+          data-remaining-quantity="@(focusedInventory ? remainingMt?.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)">
         @Html.AntiForgeryToken()
         <input asp-for="InventoryTransportLegId" type="hidden" />
         @if (focusedInventory)
@@ -511,7 +512,20 @@
                 const el = field(id);
                 if (el) el.value = Number.isFinite(number) ? number : 0;
             };
-            // کسری دیگر خودکار = «بارگیری منهای تخلیه» نیست؛ کاربر آن را دستی وارد می‌کند و باقیمانده در وسیله می‌ماند.
+            // فقط در مسیر «تحویل در مقصد»: کسری خودکار = باقی‌مانده قابل تحویل منهای مقدار تحویل‌شده
+            // تا وقتی کاربر خودش فیلد کسری را ویرایش نکرده است. در مسیر عمومی کسری دستی می‌ماند.
+            const remainingQuantity = parseFloat(form?.dataset.remainingQuantity ?? "");
+            let shortageEditedByUser = false;
+            const autoFillShortage = () => {
+                if (!focusedInventory || !isTruck || shortageEditedByUser || !Number.isFinite(remainingQuantity)) return;
+                const shortage = Math.round((remainingQuantity - value("ReceivedQuantityMt")) * 10000) / 10000;
+                setValue("ShortageQuantityMt", shortage);
+                const shortageToggle = document.querySelector('[data-optional-toggle="shortage"]');
+                if (shortage !== 0 && shortageToggle && !shortageToggle.checked) {
+                    shortageToggle.checked = true;
+                    refreshOptionalSections();
+                }
+            };
             const calculateTruckReceipt = () => {
                 const received = value("ReceivedQuantityMt");
                 const shortage = value("ShortageQuantityMt");
@@ -679,6 +693,11 @@
             field("SaleUnitPriceInCurrency")?.addEventListener("input", refreshOperationSummary);
             document.querySelector("[data-receipt-party-type]")?.addEventListener("change", refreshPartyFields);
             terminalSelect?.addEventListener("change", rebuildTanks);
+            field("ReceivedQuantityMt")?.addEventListener("input", autoFillShortage);
+            field("ShortageQuantityMt")?.addEventListener("input", () => {
+                shortageEditedByUser = true;
+                calculateTruckReceipt();
+            });
             ["ReceivedQuantityMt", "AllowanceMt", "FreightCostUsd", "ShortageRateUsd"].forEach(id => {
                 field(id)?.addEventListener("input", calculateTruckReceipt);
             });

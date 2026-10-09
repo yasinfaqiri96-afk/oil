@@ -1134,7 +1134,8 @@ public sealed class PartnershipStatementService : IPartnershipStatementService
             var purchaseCostUsd = Round(economics.ContractType == ContractType.Purchase
                 ? economics.PurchaseValueUsd
                 : economics.RealizedCostOfGoodsSoldUsd);
-            var operationalExpenseUsd = Round(economics.OperationalCostBaseUsd);
+            // مصارفِ پولی؛ ارزشِ ضایعه بهای همان نفتی است که در خرید آمده و دوباره شمرده نمی‌شود.
+            var operationalExpenseUsd = Round(economics.RecordedExpenseCostUsd);
 
             var contractFunding = fundingRows.Where(f => f.ContractId == contractId).ToList();
             var fundingByPartner = contractFunding

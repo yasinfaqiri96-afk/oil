@@ -21,16 +21,15 @@
         <vc:stat-card title="@UiText.T(Context, "کارمندان فعال", "Active employees")" value="@Model.ActiveEmployees.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar-path="/images/stat-cards/ref-people/emp-schedule.webp"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "حاضر امروز", "Present today")" value="@Model.PresentToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="rules-checklist"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "غایب امروز", "Absent today")" value="@Model.AbsentToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="ledger"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "در رخصتی", "On leave")" value="@Model.OnLeaveToday.ToString("N0")" unit="@UiText.T(Context, "نفر", "people")" avatar="documents"></vc:stat-card>
-        @if (Model.CanViewSalary)
-        {
-            <vc:stat-card title="@payrollTitle" value="@payrollValue" avatar="purchase-value"></vc:stat-card>
-        }
     </section>
 
     <section class="ak-form-section">
         <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml" model="@((UiText.T(Context, "هشدارها", "Alerts"), (string?)null))" />
         <dl class="ak-list">
+            <div class="ak-list-row">
+                <dt><a asp-controller="Leave" asp-action="Index">@UiText.T(Context, "در رخصتی", "On leave")</a></dt>
+                <dd>@Model.OnLeaveToday.ToString("N0") @UiText.T(Context, "نفر", "people")</dd>
+            </div>
             <div class="ak-list-row">
                 <dt><a asp-controller="Leave" asp-action="Index" asp-route-status="pending">@UiText.T(Context, "درخواست رخصتیِ در انتظار", "Leave requests awaiting approval")</a></dt>
                 <dd><span class="ak-status @(Model.PendingLeaveRequests > 0 ? "is-warning" : "is-active")">@Model.PendingLeaveRequests.ToString("N0")</span></dd>
@@ -49,6 +48,10 @@
             </div>
             @if (Model.CanViewSalary)
             {
+                <div class="ak-list-row">
+                    <dt>@payrollTitle</dt>
+                    <dd class="ak-num">@payrollValue</dd>
+                </div>
                 <div class="ak-list-row">
                     <dt><a asp-controller="HrReports" asp-action="Index" asp-route-report="payable">@UiText.T(Context, "معاشِ پرداخت‌نشده", "Unpaid salaries")</a></dt>
                     <dd class="ak-num">@HrDashboardViewModel.Amounts(Model.UnpaidSalaries)</dd>

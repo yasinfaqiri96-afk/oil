@@ -71,7 +71,7 @@
                         <td>@item.DispatchDate.ToDisplayDate()</td>
                         <td>@item.TruckPlateNumber</td>
                         <td><span class="ak-status @StatusToneClass(item.StatusName)">@LocalizeDisplay(item.StatusName)</span></td>
-                        <td class="ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) @UnitMt()</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(item.LoadedQuantityMt) @UnitMt()</td>
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
                                 <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">

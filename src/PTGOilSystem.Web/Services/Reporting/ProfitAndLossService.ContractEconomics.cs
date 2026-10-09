@@ -59,6 +59,19 @@ public sealed record ContractEconomicsSnapshot
     /// </summary>
     public decimal ShipmentLossCostUsd { get; init; }
 
+    /// <summary>
+    /// هزینه‌های اختصاصیِ هر حملِ موجودی (مصرف و گمرکِ ثبت‌شده روی همان حمل و ارزشِ ضایعهٔ همان حمل)
+    /// با مقدارِ فروشِ مستقیمِ همان حمل. این هزینه‌ها بخشی از <see cref="OperationalCostBaseUsd"/> هستند؛
+    /// فقط تسهیمِ سهمِ فروخته‌شده‌شان فرق می‌کند (<see cref="RealizedOperationalCostUsd"/>).
+    /// </summary>
+    public IReadOnlyList<TransportLegSpecificCost> TransportLegCosts { get; init; } = [];
+
+    /// <summary>مقدارِ واردشده به موجودیِ مخزنِ همین قرارداد (حرکتِ ورود، بی‌برگشتِ فروش).</summary>
+    public decimal TankReceivedMt { get; init; }
+
+    /// <summary>مقدارِ فروخته‌شده از موجودیِ مخزنِ همین قرارداد (حرکتِ خروجِ فروش‌های همین قرارداد).</summary>
+    public decimal TankSoldMt { get; init; }
+
     /// <summary>بهای تمام‌شدهٔ استخرِ موجودی برای فروش‌های قرارداد فروش (قرارداد فروش مبنای خرید ندارد).</summary>
     public decimal PoolCostOfGoodsSoldUsd { get; init; }
     public int UncostedSaleCount { get; init; }
@@ -71,10 +84,30 @@ public sealed record ContractEconomicsSnapshot
             + CustomsCostUsd + GeneralExpenseCostUsd + LossCostUsd
             + SharedShipmentExpenseUsd + ShipmentLossCostUsd;
 
+    /// <summary>
+    /// مصارفِ پولیِ قرارداد (بارگیری، گمرک، اسناد مصرف، سهمِ محموله). ارزشِ ضایعه اینجا نیست: نفتِ
+    /// ضایع‌شده پولِ تازه نیست و بهایش در ارزشِ خرید (<see cref="PurchaseValueUsd"/>) هست.
+    /// </summary>
+    public decimal RecordedExpenseCostUsd => OperationalCostBaseUsd - LossCostUsd - ShipmentLossCostUsd;
+
     // ── سودِ چرخهٔ کامل ──────────────────────────────────────────────────
+    /// <summary>
+    /// هزینهٔ دفتریِ کامل = خرید + مصارفِ پولی. ارزشِ ضایعه دوباره روی خرید اضافه نمی‌شود.
+    /// </summary>
     public decimal LifecycleTotalCostUsd => ContractType == ContractType.Purchase
-        ? PurchaseValueUsd + OperationalCostBaseUsd + Fx.SupplierShortfallUsd + Fx.LossUsd - Fx.GainUsd
-        : RealizedCostOfGoodsSoldUsd + OperationalCostBaseUsd + Fx.SupplierShortfallUsd + Fx.LossUsd - Fx.GainUsd;
+        ? PurchaseValueUsd + RecordedExpenseCostUsd + Fx.SupplierShortfallUsd + Fx.LossUsd - Fx.GainUsd
+        : RealizedCostOfGoodsSoldUsd + RecordedExpenseCostUsd + Fx.SupplierShortfallUsd + Fx.LossUsd - Fx.GainUsd;
+
+    /// <summary>
+    /// بهای تمام‌شدهٔ کالای هنوز فروخته‌نشده (موجودی، بارِ در بارگیری/مسیر و سهمِ مصارفش) = خرید + مصارفِ
+    /// پولی − بهای فروش‌های انجام‌شده. مفاد نمی‌سازد؛ فقط ارزشِ دفتریِ باقی‌مانده است.
+    /// </summary>
+    public decimal UnsoldCostUsd => ContractType == ContractType.Purchase && WeightedAveragePurchasePriceUsd.HasValue
+        ? decimal.Round(
+            PurchaseValueUsd + RecordedExpenseCostUsd - RealizedCostOfGoodsSoldUsd - RealizedOperationalCostUsd,
+            2,
+            MidpointRounding.AwayFromZero)
+        : 0m;
 
     public decimal LifecycleMarginUsd => PnlMath.GrossProfit(RevenueUsd, LifecycleTotalCostUsd);
 
@@ -96,10 +129,44 @@ public sealed record ContractEconomicsSnapshot
     /// <summary>
     /// سهمِ فروخته‌شدهٔ هزینه‌های عملیاتی. تا وقتی هیچ بارِ قیمت‌داری نیست تسهیم ممکن نیست و کلِ هزینه
     /// کم می‌شود (محافظه‌کارانه؛ با وضعیتِ «نیازمند بررسی»).
+    /// هزینهٔ عمومی به نسبتِ <see cref="SoldShareRatio"/> تسهیم می‌شود. هزینهٔ اختصاصیِ یک حمل دنبالِ
+    /// بارِ همان حمل می‌رود: بخشِ فروشِ مستقیم کامل، بخشِ واردشده به مخزن به نسبتِ فروش از مخزن، و بخشِ
+    /// دیگر (در مسیر و …) به نسبتِ بقیهٔ فروش‌ها. پس هزینهٔ یک حمل به بارِ حملِ دیگر یا بارِ هنوز در
+    /// بارگیری نمی‌رسد.
     /// </summary>
     public decimal RealizedOperationalCostUsd => ContractType == ContractType.Purchase && WeightedAveragePurchasePriceUsd.HasValue
-        ? decimal.Round(OperationalCostBaseUsd * SoldShareRatio, 2, MidpointRounding.AwayFromZero)
+        ? decimal.Round(
+            (OperationalCostBaseUsd - TransportLegCosts.Sum(l => l.CostUsd)) * SoldShareRatio + RealizedTransportLegCostUsd,
+            2,
+            MidpointRounding.AwayFromZero)
         : OperationalCostBaseUsd;
+
+    private decimal RealizedTransportLegCostUsd
+    {
+        get
+        {
+            if (TransportLegCosts.Count == 0)
+            {
+                return 0m;
+            }
+
+            // بی‌حرکتِ ورود به مخزن (دادهٔ قدیمی) سهمِ مخزن جدا نمی‌شود و همان قاعدهٔ «بقیهٔ فروش‌ها» است.
+            var hasTankFlow = TankReceivedMt > 0m;
+            var directlySoldMt = TransportLegCosts.Sum(l => l.DirectlySoldMt);
+            var tankSoldRatio = hasTankFlow ? Math.Clamp(TankSoldMt / TankReceivedMt, 0m, 1m) : 0m;
+            var otherSoldMt = Math.Max(SoldQuantityMt - directlySoldMt - (hasTankFlow ? TankSoldMt : 0m), 0m);
+            var otherPoolMt = PricedLoadedMt - directlySoldMt - (hasTankFlow ? TankReceivedMt : 0m);
+            var otherSoldRatio = otherPoolMt > 0m
+                ? Math.Clamp(otherSoldMt / otherPoolMt, 0m, 1m)
+                : otherSoldMt > 0m ? 1m : 0m;
+            return TransportLegCosts.Sum(l =>
+            {
+                var tankRatio = hasTankFlow ? l.TankShareRatio : 0m;
+                var otherRatio = Math.Max(1m - l.DirectSoldRatio - tankRatio, 0m);
+                return l.CostUsd * (l.DirectSoldRatio + tankRatio * tankSoldRatio + otherRatio * otherSoldRatio);
+            });
+        }
+    }
 
     public decimal RealizedGrossMarginUsd => RevenueUsd - RealizedCostOfGoodsSoldUsd - RealizedOperationalCostUsd;
 
@@ -114,6 +181,17 @@ public sealed record ContractEconomicsSnapshot
             : PnlConfidence.Estimated
         : UncostedSaleCount > 0 ? PnlConfidence.NeedsReview : PnlConfidence.Verified;
 }
+
+/// <summary>
+/// هزینهٔ اختصاصیِ یک حملِ موجودی و سرنوشتِ بارش. <see cref="DirectSoldRatio"/> = فروشِ مستقیم ÷
+/// (مقدارِ حمل − ضایعهٔ همان حمل) و <see cref="TankShareRatio"/> = واردشده به مخزن ÷ همان مبنا؛ هر دو ۰ تا ۱.
+/// </summary>
+public sealed record TransportLegSpecificCost(
+    int TransportLegId,
+    decimal CostUsd,
+    decimal DirectlySoldMt,
+    decimal DirectSoldRatio,
+    decimal TankShareRatio = 0m);
 
 public sealed partial class ProfitAndLossService
 {
@@ -215,7 +293,8 @@ public sealed partial class ProfitAndLossService
                     e.ExpenseType != null ? e.ExpenseType.Code : null,
                     e.ExpenseType != null ? e.ExpenseType.Name : null,
                     e.ExpenseType != null ? e.ExpenseType.NamePersian : null,
-                    e.CustomsDeclarationId))
+                    e.CustomsDeclarationId,
+                    e.TransportLegId))
                 .ToListAsync(ct))
             .Where(r => contractIds.Contains(r.ContractId))
             .ToList();
@@ -276,6 +355,7 @@ public sealed partial class ProfitAndLossService
                     ?? (le.TruckDispatch != null ? (int?)le.TruckDispatch.ContractId : null)
                     ?? 0,
                 le.ChargeableLossMt,
+                le.TransportLegId,
                 UsesContractAverage = le.TransportLegId.HasValue || le.Stage == LossEventStage.TankFinalSettlement,
                 LoadingRegisterId = le.LoadingRegisterId
                     ?? (le.LoadingReceipt != null ? (int?)le.LoadingReceipt.LoadingRegisterId : null)
@@ -298,7 +378,7 @@ public sealed partial class ProfitAndLossService
                 .Where(lr => lossRegisterIds.Contains(lr.Id))
                 .Select(lr => new { lr.Id, lr.ContractId, lr.LoadingPriceUsd })
                 .ToDictionaryAsync(lr => lr.Id, lr => (ContractId: lr.ContractId, PriceUsd: lr.LoadingPriceUsd), ct);
-        var lossByContract = lossRows
+        var valuedLossRows = lossRows
             .Select(x =>
             {
                 decimal? price = x.UsesContractAverage
@@ -306,8 +386,10 @@ public sealed partial class ProfitAndLossService
                     : x.LoadingRegisterId.HasValue && registerPrice.TryGetValue(x.LoadingRegisterId.Value, out var register)
                         ? EffectiveLoadingPriceUsd(register.ContractId, register.PriceUsd)
                         : null;
-                return new { x.ContractId, x.ChargeableLossMt, Price = price };
+                return new { x.ContractId, x.ChargeableLossMt, x.TransportLegId, Price = price };
             })
+            .ToList();
+        var lossByContract = valuedLossRows
             .GroupBy(x => x.ContractId)
             .ToDictionary(
                 g => g.Key,
@@ -318,14 +400,90 @@ public sealed partial class ProfitAndLossService
 
         var pendingTankSettlement = await LoadPendingTankSettlementAsync(purchaseIds, ct);
         var shipmentShares = await LoadShipmentCostSharesAsync(purchaseIds, ct);
-        var (customsByContract, countedCustomsIds) = await LoadCustomsByContractAsync(purchaseIds, ct);
+        var (customsByContract, countedCustomsIds, customsByLeg) = await LoadCustomsByContractAsync(purchaseIds, ct);
 
         // «مصارف عمومی» همان پولی را که ستون «گمرک» از اظهارنامه شمرده دوباره نمی‌شمارد.
-        var generalExpenseByContract = expenseRows
+        var generalExpenseRows = expenseRows
             .Where(e => !e.CustomsDeclarationId.HasValue || !countedCustomsIds.Contains(e.CustomsDeclarationId.Value))
+            .ToList();
+        var generalExpenseByContract = generalExpenseRows
             .GroupBy(e => e.ContractId)
             .ToDictionary(g => g.Key, g => g.Sum(e => e.AmountUsd));
         var contractsWithOfficialWagonRent = ContractsWithOfficialWagonRent(expenseRows);
+
+        // هزینهٔ اختصاصیِ هر حمل: همان ردیف‌هایی که بالا در مصرف/گمرک/ضایعه شمرده شده‌اند، فقط وقتی حمل
+        // مالِ همان قرارداد است. چیزی دوباره شمرده نمی‌شود؛ فقط مسیرِ تسهیم به فروش جدا می‌شود.
+        var legRows = await _db.InventoryTransportLegs.AsNoTracking()
+            .Where(l => (!_reportBefore.HasValue || l.LoadedDate < _reportBefore.Value)
+                && purchaseIds.Contains(l.SourcePurchaseContractId))
+            .Select(l => new { l.Id, ContractId = l.SourcePurchaseContractId, l.QuantityMt })
+            .ToListAsync(ct);
+        var legById = legRows.ToDictionary(l => l.Id);
+        var legIds = legRows.Select(l => l.Id).ToList();
+        var legCostById = new Dictionary<int, decimal>();
+        void AddLegCost(int? legId, int contractId, decimal amountUsd)
+        {
+            if (legId.HasValue && legById.TryGetValue(legId.Value, out var leg) && leg.ContractId == contractId && amountUsd != 0m)
+            {
+                legCostById[legId.Value] = legCostById.GetValueOrDefault(legId.Value) + amountUsd;
+            }
+        }
+        foreach (var row in generalExpenseRows)
+        {
+            AddLegCost(row.TransportLegId, row.ContractId, row.AmountUsd);
+        }
+        foreach (var (legId, amountUsd) in customsByLeg)
+        {
+            AddLegCost(legId, legById[legId].ContractId, amountUsd);
+        }
+        foreach (var row in valuedLossRows.Where(x => x.Price is > 0m))
+        {
+            AddLegCost(row.TransportLegId, row.ContractId,
+                decimal.Round(row.ChargeableLossMt * row.Price!.Value, 4, MidpointRounding.AwayFromZero));
+        }
+
+        var legLossMtById = legIds.Count == 0
+            ? new Dictionary<int, decimal>()
+            : (await _db.LossEvents.AsNoTracking()
+                    .Where(e => (!_reportBefore.HasValue || e.EventDate < _reportBefore.Value) && !e.IsCancelled
+                        && e.TransportLegId.HasValue && legIds.Contains(e.TransportLegId.Value))
+                    .Select(e => new { LegId = e.TransportLegId!.Value, e.DifferenceQuantityMt, e.ChargeableLossMt })
+                    .ToListAsync(ct))
+                .GroupBy(e => e.LegId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Sum(e => e.DifferenceQuantityMt > 0m ? e.DifferenceQuantityMt : Math.Max(e.ChargeableLossMt, 0m)));
+        var directSaleByLeg = await LoadTransportLegDirectSalesAsync(legIds, ct);
+        var tankReceiptMtByLeg = legIds.Count == 0
+            ? new Dictionary<int, decimal>()
+            : (await _db.InventoryTransportReceipts.AsNoTracking()
+                    .Where(r => !r.IsCancelled
+                        && r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
+                        && legIds.Contains(r.InventoryTransportLegId)
+                        && (!_reportBefore.HasValue || r.ReceiptDate < _reportBefore.Value))
+                    .Select(r => new { r.InventoryTransportLegId, r.ReceivedQuantityMt })
+                    .ToListAsync(ct))
+                .GroupBy(r => r.InventoryTransportLegId)
+                .ToDictionary(g => g.Key, g => g.Sum(r => r.ReceivedQuantityMt));
+        var tankMovements = await _db.InventoryMovements.AsNoTracking()
+            .Where(m => m.ContractId.HasValue && purchaseIds.Contains(m.ContractId.Value)
+                && (!_reportBefore.HasValue || m.MovementDate < _reportBefore.Value)
+                && ((m.Direction == MovementDirection.In && m.SalesTransactionId == null)
+                    || (m.Direction == MovementDirection.Out && m.SalesTransactionId != null)))
+            .Select(m => new { ContractId = m.ContractId!.Value, m.Direction, m.SalesTransactionId, m.QuantityMt })
+            .ToListAsync(ct);
+        // حملِ زنجیره‌ای: بارِ حملِ مادر که به حملِ بعدی رفته و آنجا مستقیم فروخته شده، فروشِ مستقیمِ
+        // حملِ مادر هم هست (به نسبتِ مقدارِ منتقل‌شده).
+        var legSourceRows = legIds.Count == 0
+            ? []
+            : (await _db.InventoryTransportLegAllocations.AsNoTracking()
+                    .Where(a => a.SourceTransportLegId.HasValue
+                        && legIds.Contains(a.InventoryTransportLegId)
+                        && legIds.Contains(a.SourceTransportLegId.Value))
+                    .Select(a => new { ChildLegId = a.InventoryTransportLegId, SourceLegId = a.SourceTransportLegId!.Value, a.QuantityMt })
+                    .ToListAsync(ct))
+                .Select(a => (a.ChildLegId, a.SourceLegId, a.QuantityMt))
+                .ToList();
 
         return purchaseContracts.Select(c =>
         {
@@ -337,6 +495,56 @@ public sealed partial class ProfitAndLossService
             var shipmentLossMt = shipment.SharedLossMt + shipment.TransportShortageMt;
             var averagePriceUsd = agg?.WeightedAveragePurchasePriceUsd;
             var shipmentLossValued = shipmentLossMt > 0m && averagePriceUsd is > 0m;
+            var contractSaleIds = sales.For(c.Id).Select(s => s.SalesTransactionId).ToHashSet();
+            var ownDirectMtByLeg = legRows
+                .Where(l => l.ContractId == c.Id)
+                .ToDictionary(
+                    l => l.Id,
+                    l => directSaleByLeg.TryGetValue(l.Id, out var legSales)
+                        ? legSales.Where(x => contractSaleIds.Contains(x.SaleId)).Sum(x => x.QuantityMt)
+                        : 0m);
+            (decimal DirectMt, decimal TankMt) EffectiveOutcomeMt(int legId, HashSet<int> visiting)
+            {
+                if (!visiting.Add(legId))
+                {
+                    return (0m, 0m);
+                }
+
+                var directMt = ownDirectMtByLeg.GetValueOrDefault(legId);
+                var tankMt = tankReceiptMtByLeg.GetValueOrDefault(legId);
+                foreach (var child in legSourceRows.Where(r => r.SourceLegId == legId))
+                {
+                    var childQuantityMt = legById.TryGetValue(child.ChildLegId, out var childLeg) ? childLeg.QuantityMt : 0m;
+                    if (childQuantityMt > 0m)
+                    {
+                        var share = Math.Min(child.QuantityMt / childQuantityMt, 1m);
+                        var childOutcome = EffectiveOutcomeMt(child.ChildLegId, visiting);
+                        directMt += childOutcome.DirectMt * share;
+                        tankMt += childOutcome.TankMt * share;
+                    }
+                }
+
+                visiting.Remove(legId);
+                return (directMt, tankMt);
+            }
+            var transportLegCosts = legRows
+                .Where(l => l.ContractId == c.Id)
+                .Select(l =>
+                {
+                    var netMt = l.QuantityMt - legLossMtById.GetValueOrDefault(l.Id);
+                    var directlySoldMt = netMt > 0m ? Math.Clamp(ownDirectMtByLeg[l.Id], 0m, netMt) : 0m;
+                    var outcome = EffectiveOutcomeMt(l.Id, []);
+                    var effectiveDirectMt = netMt > 0m ? Math.Clamp(outcome.DirectMt, 0m, netMt) : 0m;
+                    var effectiveTankMt = netMt > 0m ? Math.Clamp(outcome.TankMt, 0m, netMt - effectiveDirectMt) : 0m;
+                    return new TransportLegSpecificCost(
+                        l.Id,
+                        legCostById.GetValueOrDefault(l.Id),
+                        directlySoldMt,
+                        netMt > 0m ? effectiveDirectMt / netMt : 0m,
+                        netMt > 0m ? effectiveTankMt / netMt : 0m);
+                })
+                .Where(l => l.CostUsd != 0m || l.DirectlySoldMt > 0m)
+                .ToList();
             return new ContractEconomicsSnapshot
             {
                 ContractId = c.Id,
@@ -367,9 +575,63 @@ public sealed partial class ProfitAndLossService
                 ShipmentLossCostUsd = shipmentLossValued
                     ? decimal.Round(shipmentLossMt * averagePriceUsd!.Value, 4, MidpointRounding.AwayFromZero)
                     : 0m,
+                TransportLegCosts = transportLegCosts,
+                TankReceivedMt = tankMovements
+                    .Where(m => m.ContractId == c.Id && m.Direction == MovementDirection.In)
+                    .Sum(m => m.QuantityMt),
+                TankSoldMt = tankMovements
+                    .Where(m => m.ContractId == c.Id && m.Direction == MovementDirection.Out
+                        && contractSaleIds.Contains(m.SalesTransactionId!.Value))
+                    .Sum(m => m.QuantityMt),
                 Fx = fx.GetValueOrDefault(c.Id, ContractRealizedFxSnapshot.Zero)
             };
         }).ToList();
+    }
+
+    /// <summary>
+    /// فروشِ مستقیمِ هر حمل (بی‌ورود به مخزن): سهمِ ثبت‌شدهٔ فروش روی همان حمل
+    /// (<c>SalesTransactionSourceAllocations.TransportLegId</c>)، و برای فروشی که چنین سهمی ندارد رسیدِ
+    /// «فروش مستقیم» همان حمل. هر جفتِ فروش/حمل یک بار شمرده می‌شود.
+    /// </summary>
+    private async Task<Dictionary<int, List<(int SaleId, decimal QuantityMt)>>> LoadTransportLegDirectSalesAsync(
+        List<int> legIds,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<int, List<(int SaleId, decimal QuantityMt)>>();
+        if (legIds.Count == 0)
+        {
+            return result;
+        }
+
+        var allocations = await _db.SalesTransactionSourceAllocations.AsNoTracking()
+            .Where(a => a.TransportLegId.HasValue && legIds.Contains(a.TransportLegId.Value)
+                && a.SalesTransaction != null && !a.SalesTransaction.IsCancelled
+                && (!_reportBefore.HasValue || a.SalesTransaction.SaleDate < _reportBefore.Value))
+            .Select(a => new { LegId = a.TransportLegId!.Value, a.SalesTransactionId, a.QuantityMt })
+            .ToListAsync(ct);
+        var receipts = await _db.InventoryTransportReceipts.AsNoTracking()
+            .Where(r => !r.IsCancelled
+                && r.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale
+                && r.SalesTransactionId.HasValue
+                && legIds.Contains(r.InventoryTransportLegId)
+                && r.SalesTransaction != null && !r.SalesTransaction.IsCancelled
+                && (!_reportBefore.HasValue || r.SalesTransaction.SaleDate < _reportBefore.Value))
+            .Select(r => new { LegId = r.InventoryTransportLegId, SalesTransactionId = r.SalesTransactionId!.Value, QuantityMt = r.ReceivedQuantityMt })
+            .ToListAsync(ct);
+
+        var allocatedPairs = allocations.Select(a => (a.LegId, a.SalesTransactionId)).ToHashSet();
+        foreach (var row in allocations
+            .Concat(receipts.Where(r => !allocatedPairs.Contains((r.LegId, r.SalesTransactionId)))))
+        {
+            if (!result.TryGetValue(row.LegId, out var list))
+            {
+                result[row.LegId] = list = [];
+            }
+
+            list.Add((row.SalesTransactionId, row.QuantityMt));
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -544,12 +806,13 @@ public sealed partial class ProfitAndLossService
     /// گمرکِ هر قرارداد خرید از اظهارنامه‌ها؛ هر اظهارنامه یک بار (اول مسیرِ حمل، بعد بارگیری —
     /// همان ترتیبِ CustomsDeclarationExpenseSync).
     /// </summary>
-    private async Task<(Dictionary<int, decimal> ByContract, HashSet<int> CountedDeclarationIds)> LoadCustomsByContractAsync(
+    private async Task<(Dictionary<int, decimal> ByContract, HashSet<int> CountedDeclarationIds, Dictionary<int, decimal> ByTransportLeg)> LoadCustomsByContractAsync(
         List<int> purchaseIds,
         CancellationToken ct)
     {
         var byContract = new Dictionary<int, decimal>();
         var counted = new HashSet<int>();
+        var byLeg = new Dictionary<int, decimal>();
         var lrIdToContract = await _db.LoadingRegisters.AsNoTracking()
             .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => purchaseIds.Contains(lr.ContractId))
@@ -562,7 +825,7 @@ public sealed partial class ProfitAndLossService
             .ToDictionaryAsync(x => x.Id, x => x.ContractId, ct);
         if (lrIdToContract.Count == 0 && legIdToContract.Count == 0)
         {
-            return (byContract, counted);
+            return (byContract, counted, byLeg);
         }
 
         var lrIds = lrIdToContract.Keys.ToList();
@@ -587,9 +850,13 @@ public sealed partial class ProfitAndLossService
 
             byContract[contractId.Value] = byContract.GetValueOrDefault(contractId.Value) + row.TotalUsd;
             counted.Add(row.Id);
+            if (row.TransportLegId.HasValue && legIdToContract.ContainsKey(row.TransportLegId.Value))
+            {
+                byLeg[row.TransportLegId.Value] = byLeg.GetValueOrDefault(row.TransportLegId.Value) + row.TotalUsd;
+            }
         }
 
-        return (byContract, counted);
+        return (byContract, counted, byLeg);
     }
 
     /// <summary>
@@ -665,5 +932,6 @@ public sealed partial class ProfitAndLossService
         string? ExpenseTypeCode,
         string? ExpenseTypeName,
         string? ExpenseTypeNamePersian,
-        int? CustomsDeclarationId);
+        int? CustomsDeclarationId,
+        int? TransportLegId);
 }

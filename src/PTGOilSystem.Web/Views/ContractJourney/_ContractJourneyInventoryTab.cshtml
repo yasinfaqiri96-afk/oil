@@ -49,8 +49,6 @@
                         <th class="ak-col-grow">@T("ترمینال", "Terminal")</th>
                         <th>@T("مخزن", "Tank")</th>
                         <th class="ak-col-num">@T("موجودی", "Balance")</th>
-                        <th class="ak-col-num">@T("ورودی", "In")</th>
-                        <th class="ak-col-num">@T("خروجی", "Out")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,14 +58,12 @@
                         <td class="ak-col-grow">@TextOrDash(tank.TerminalName)</td>
                         <td>@TextOrDash(tank.TankName)</td>
                         <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.CurrentBalance) @UnitMt()</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.TotalIn) @UnitMt() (@tank.InCount)</td>
-                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(tank.TotalOut) @UnitMt() (@tank.OutCount)</td>
                     </tr>
                 }
                 @if (!tankGroups.Any())
                 {
                     <tr>
-                        <td colspan="5">
+                        <td colspan="3">
                             <div class="ak-empty">
                                 <i class="bi bi-inbox"></i>
                                 @Model.NoRecordsText

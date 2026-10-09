@@ -39,6 +39,11 @@
     display: block;
 }
 
+/* Customs has a multi-column expense table; use the shared operational canvas. */
+.ptg-page-frame > .customs-create-page {
+    --ak-form-content-max: var(--layout-content-max);
+}
+
 .ak-form-page:has(> form.ak-form) > .ak-page-header,
 .ak-form-page:has(> form.ak-form) > form.ak-form,
 .ak-form-page-content {

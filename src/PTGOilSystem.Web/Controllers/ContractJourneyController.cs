@@ -69,12 +69,17 @@ public partial class ContractJourneyController : Controller
             PendingPurchaseQuantityMt = economics.PendingLoadedMt,
             WeightedAveragePurchasePriceUsd = economics.WeightedAveragePurchasePriceUsd,
             TraceableExpensesUsd = economics.OperationalCostBaseUsd,
+            RecordedExpensesUsd = economics.RecordedExpenseCostUsd,
+            LossCostUsd = economics.LossCostUsd + economics.ShipmentLossCostUsd,
+            UnsoldCostUsd = economics.UnsoldCostUsd,
+            Confidence = economics.Confidence,
             CostOfGoodsSoldUsd = economics.RealizedCostOfGoodsSoldUsd,
             SoldShareRatio = economics.SoldShareRatio,
             ExpensesForSoldUsd = economics.RealizedOperationalCostUsd,
             GrossMarginUsd = economics.RealizedGrossMarginUsd,
             RealizedFxNetUsd = economics.RealizedFxNetUsd,
             RealizedNetProfitUsd = economics.RealizedNetProfitUsd,
+            LifecycleMarginUsd = economics.LifecycleMarginUsd,
             Note = note
         };
     }
@@ -3782,12 +3787,31 @@ public partial class ContractJourneyController : Controller
             PaymentTotalUsd = paymentTotalUsd,
             SupplierPaidNetUsd = supplierPaidNetUsd,
             LossQuantityMt = totalLossQuantityMt,
+            ChargeableLossQuantityMt = activeLosses.Sum(e =>
+                Math.Min(Math.Max(e.ChargeableLossMt, 0m), DisplayLossQuantity(e.DifferenceQuantityMt, e.ChargeableLossMt))),
+            AllowedLossQuantityMt = activeLosses.Sum(e =>
+                Math.Max(DisplayLossQuantity(e.DifferenceQuantityMt, e.ChargeableLossMt) - Math.Max(e.ChargeableLossMt, 0m), 0m)),
             StorageOverviewItems = storageOverviewItems,
             TransportOverviewItems = transportOverviewItems,
             SalesOverviewItems = salesOverviewItems
         };
 
         var pendingTankSettlementQuantityMt = await GetPendingTankSettlementQuantityMtAsync(contract.Id);
+        // بارِ هنوز در بارگیری: همان قاعدهٔ «بار در مسیر از مبدأ» (بی‌محدودیتِ تاریخ).
+        var originRemainingQuantityMt = await new GoodsInTransitQuantityReader(_db)
+            .ReadOriginRemainingForContractAsync(contract.Id, DateTime.UtcNow.Date.AddYears(100));
+        // کرایهٔ رسیدهای حمل: ناخالص، کسرِ کسری از راننده (جبران؛ یک بار) و خالصِ قابل پرداخت.
+        var transportFreightRows = await _db.InventoryTransportReceipts
+            .AsNoTracking()
+            .Where(r => !r.IsCancelled && inventoryTransportLegIds.Contains(r.InventoryTransportLegId))
+            .Select(r => new
+            {
+                GrossUsd = r.FreightCostUsd ?? 0m,
+                DeductionUsd = r.ShortageChargeUsd ?? 0m,
+                PayableUsd = r.FreightPayableUsd ?? 0m,
+                DeductedMt = (r.ShortageChargeUsd ?? 0m) > 0m ? r.ChargeableShortageMt ?? 0m : 0m
+            })
+            .ToListAsync();
 
         return new ContractJourneyDetailsViewModel
         {
@@ -3843,6 +3867,11 @@ public partial class ContractJourneyController : Controller
             TankLossMt = tankLossMt,
             SalesLossMt = salesLossMt,
             PendingTankSettlementQuantityMt = pendingTankSettlementQuantityMt,
+            OriginRemainingQuantityMt = originRemainingQuantityMt,
+            TransportFreightGrossUsd = transportFreightRows.Sum(r => r.GrossUsd),
+            TransportShortageDeductionUsd = transportFreightRows.Sum(r => r.DeductionUsd),
+            TransportFreightPayableUsd = transportFreightRows.Sum(r => r.PayableUsd),
+            TransportDeductedShortageMt = transportFreightRows.Sum(r => r.DeductedMt),
             InventoryInQuantityMt = inventoryInQuantityMt,
             InventoryOutQuantityMt = inventoryOutQuantityMt,
             HasNegativeStockWarning = hasNegativeStockWarning,

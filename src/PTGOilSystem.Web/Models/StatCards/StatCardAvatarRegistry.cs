@@ -97,6 +97,8 @@ public static class StatCardAvatarRegistry
         ["contract-sales"]    = "ref-contract/contract-sales",    // tanker truck + handshake
         ["contract-losses"]   = "ref-contract/contract-losses",   // open drum + spilled product
         ["contract-profit"]   = "ref-contract/contract-profit",   // growth chart + net result
+        ["contract-document"] = "ref-icons/r2c4",                 // signed contract sheet
+        ["partner-person"]    = "ref-icons/r5c2",                 // single partner in a suit
 
         // ── Report pages ────────────────────────────────────
         ["report-inventory"]   = "ref-reports/rep-inventory",   // barrel + stock chart

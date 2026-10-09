@@ -185,6 +185,8 @@ public sealed class ContractJourneyReceiptsTabViewModel
     public string PageDirection { get; init; } = "rtl";
     public int? FirstLoadingId { get; init; }
     public decimal BulkReceiptDefaultQuantityMt { get; init; }
+    public int PendingLoadingCount { get; init; }
+    public int ReceiptCount { get; init; }
     public string NoRecordsText { get; init; } = string.Empty;
     public IHtmlContent PagerHtml { get; init; } = HtmlString.Empty;
     public IHtmlContent PendingPagerHtml { get; init; } = HtmlString.Empty;
