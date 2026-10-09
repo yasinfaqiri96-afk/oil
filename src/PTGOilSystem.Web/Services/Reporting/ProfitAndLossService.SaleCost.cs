@@ -78,11 +78,7 @@ public sealed partial class ProfitAndLossService
                     .ToList());
 
         var saleIds = sales.Keys.ToArray();
-        var poolCostBySale = await _db.SalesCostConsumptions.AsNoTracking()
-            .Where(c => c.Status == SalesCostConsumptionStatus.Active && saleIds.Contains(c.SalesTransactionId))
-            .GroupBy(c => c.SalesTransactionId)
-            .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-            .ToDictionaryAsync(c => c.SaleId, c => c.CostUsd, ct);
+        var poolCostBySale = await LoadVerifiedSaleCostsAsync(saleIds, ct);
 
         return new SaleCostInputs(sales, sharesBySale, poolCostBySale);
     }

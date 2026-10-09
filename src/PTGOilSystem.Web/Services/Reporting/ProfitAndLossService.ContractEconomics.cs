@@ -232,13 +232,7 @@ public sealed partial class ProfitAndLossService
                 .Select(s => new { s.Id, ContractId = s.ContractId!.Value, s.SaleDate, s.InvoiceNumber, s.QuantityMt, s.TotalUsd })
                 .ToListAsync(ct);
             var saleIdList = sales.Select(s => s.Id).ToArray();
-            var costBySale = saleIdList.Length == 0
-                ? new Dictionary<int, decimal>()
-                : await _db.SalesCostConsumptions.AsNoTracking()
-                    .Where(c => c.Status == SalesCostConsumptionStatus.Active && saleIdList.Contains(c.SalesTransactionId))
-                    .GroupBy(c => c.SalesTransactionId)
-                    .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-                    .ToDictionaryAsync(c => c.SaleId, c => c.CostUsd, ct);
+            var costBySale = await LoadVerifiedSaleCostsAsync(saleIdList, ct);
 
             foreach (var contractId in saleIds)
             {
