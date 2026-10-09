@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Expenses;
+using PTGOilSystem.Web.Services.Operations;
 using PTGOilSystem.Web.Services.Ledger;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 using PTGOilSystem.Web.Services.Time;
@@ -41,6 +42,7 @@ public partial class ExpensesController : Controller
     private readonly IExpenseLedgerPoster _expenseLedger;
     // PTG-P1-04 — تنها مالکِ قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد».
     private readonly IExpenseSettlementValidator _settlementValidator;
+    private readonly GroupExpensePostingService _groupExpensePosting;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private const string DefaultWagonRentExpenseName = "Wagon Rent";
@@ -71,6 +73,7 @@ public partial class ExpensesController : Controller
         _ledger = ledgerPosting ?? new LedgerPostingService(db);
         _expenseLedger = expenseLedger ?? new ExpenseLedgerPoster(_ledger);
         _settlementValidator = settlementValidator ?? new ExpenseSettlementValidator();
+        _groupExpensePosting = new GroupExpensePostingService(db, _settlementValidator, _expenseLedger, audit, expenseAccounting);
     }
 
     public ExpensesController(
@@ -2578,6 +2581,16 @@ public partial class ExpensesController : Controller
             .ToListAsync();
 
         var items = new List<GroupExpenseOperationItem>();
+        var loadingSources = await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync();
+        items.AddRange(loadingSources.Where(l => CargoOperationEligibility.Evaluate(l, CargoAction.Expense).Allowed)
+            .Select(l => new GroupExpenseOperationItem
+            {
+                Kind = "Loading", Id = l.Id, OperationLabel = "بارگیری",
+                VehicleKind = l.VehicleLabel, Number = l.Number, Route = l.Route,
+                ProductName = l.ProductName, ContractNumber = l.ContractNumber,
+                QuantityMt = l.OriginalQuantityMt, StatusLabel = l.RemainingQuantityMt > 0 ? "مانده دارد" : "دریافت یا تخصیص شده",
+                MoveDate = l.Date
+            }));
 
         items.AddRange(legs.Select(l => new GroupExpenseOperationItem
         {
@@ -2648,6 +2661,10 @@ public partial class ExpensesController : Controller
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code)
                 .Select(c => new { c.Code }).ToListAsync(),
             "Code", "Code", model.Currency);
+        ViewBag.CashAccounts = new SelectList(await _db.CashAccounts.AsNoTracking()
+            .Where(c => c.IsActive).OrderBy(c => c.Name)
+            .Select(c => new { c.Id, Label = c.Name + " (" + c.Currency + ")" }).ToListAsync(),
+            "Id", "Label", model.CashAccountId);
     }
 
     // محاسبهٔ سهم هر عملیات سمت سرور (به ورودی کلاینت اعتماد نمی‌شود).
@@ -2904,9 +2921,27 @@ public partial class ExpensesController : Controller
             ModelState.AddModelError(nameof(model.Currency), "ارز انتخاب‌شده معتبر نیست.");
         }
 
+        if (model.SettlementMode == ExpenseSettlementMode.Unknown
+            || (model.SettlementMode.HasValue && !Enum.IsDefined(model.SettlementMode.Value)))
+            ModelState.AddModelError(nameof(model.SettlementMode), "نوع تسویه معتبر نیست.");
+        if (model.SettlementMode == ExpenseSettlementMode.Payable
+            && lineContexts.Any(c => c.Provider is null))
+            ModelState.AddModelError(nameof(model.ServiceProviderId), "برای مصرف پرداخت‌نشده، شرکت خدماتی را مشخص کنید.");
+        if (model.SettlementMode == ExpenseSettlementMode.PaidImmediately)
+        {
+            var cash = await _db.CashAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == model.CashAccountId && c.IsActive);
+            if (cash is null)
+                ModelState.AddModelError(nameof(model.CashAccountId), "صندوق یا بانک فعال را انتخاب کنید.");
+            else if (SystemCurrency.Normalize(cash.Currency) != model.Currency)
+                ModelState.AddModelError(nameof(model.CashAccountId), "ارز مصرف باید با ارز صندوق یا بانک یکسان باشد.");
+        }
+        else if (model.CashAccountId.HasValue)
+            ModelState.AddModelError(nameof(model.CashAccountId), "حساب نقدی فقط برای مصرف پرداخت‌شده انتخاب می‌شود.");
+
         // انتخاب‌ها: dedupe + بارگذاری عملیات‌های معتبرِ در جریان.
         var selections = (model.Items ?? [])
-            .Where(i => i.Id > 0 && (i.Kind == "Leg" || i.Kind == "Dispatch"))
+            .Where(i => i.Id > 0 && (i.Kind == "Leg" || i.Kind == "Dispatch" || i.Kind == "Loading"))
             .GroupBy(i => (i.Kind, i.Id))
             .Select(g => g.First())
             .ToList();
@@ -2916,6 +2951,10 @@ public partial class ExpensesController : Controller
             ModelState.AddModelError(string.Empty, "حداقل یک عملیات در جریان را انتخاب کنید.");
         }
 
+        var loadingIds = selections.Where(i => i.Kind == "Loading").Select(i => i.Id).ToList();
+        var loadingSources = await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync(loadingIds);
+        var loadings = loadingSources.Where(l => CargoOperationEligibility.Evaluate(l, CargoAction.Expense).Allowed)
+            .ToDictionary(l => l.Id);
         var legIds = selections.Where(i => i.Kind == "Leg").Select(i => i.Id).ToList();
         var dispatchIds = selections.Where(i => i.Kind == "Dispatch").Select(i => i.Id).ToList();
 
@@ -2936,7 +2975,7 @@ public partial class ExpensesController : Controller
                              && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
             .ToDictionaryAsync(d => d.Id);
 
-        if (legs.Count != legIds.Count || dispatches.Count != dispatchIds.Count)
+        if (legs.Count != legIds.Count || dispatches.Count != dispatchIds.Count || loadings.Count != loadingIds.Count)
         {
             ModelState.AddModelError(string.Empty, "بعضی از عملیات‌های انتخاب‌شده دیگر در جریان نیستند. لیست را تازه کنید.");
         }
@@ -2976,7 +3015,8 @@ public partial class ExpensesController : Controller
         if (ModelState.IsValid)
         {
             var resolved = selections
-                .Select(i => (Input: i, QuantityMt: i.Kind == "Leg" ? legs[i.Id].QuantityMt : dispatches[i.Id].LoadedQuantityMt))
+                .Select(i => (Input: i, QuantityMt: i.Kind == "Loading" ? loadings[i.Id].OriginalQuantityMt
+                    : i.Kind == "Leg" ? legs[i.Id].QuantityMt : dispatches[i.Id].LoadedQuantityMt))
                 .ToList();
 
             for (var li = 0; li < lineContexts.Count; li++)
@@ -3024,6 +3064,16 @@ public partial class ExpensesController : Controller
 
         try
         {
+            // Keep eligibility and cancellation ordered on the same loading row as receipts/transport.
+            if (_db.Database.IsRelational() && loadingIds.Count > 0)
+            {
+                foreach (var loadingId in loadingIds.Order())
+                    await _db.LoadingRegisters.FromSqlInterpolated($"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = {loadingId} FOR UPDATE").ToListAsync();
+                var current = await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync(loadingIds);
+                if (current.Count != loadingIds.Count || current.Any(l => !CargoOperationEligibility.Evaluate(l, CargoAction.Expense).Allowed))
+                    throw new BusinessRuleException("GROUP_EXPENSE_SOURCE_CHANGED", "بارگیری انتخاب‌شده لغو یا بایگانی شده است. فهرست را تازه کنید.");
+            }
+
             // PTG-P0-01 — توکن یک‌بار برای کل ثبت؛ همهٔ خط‌ها در همین Transaction ثبت می‌شوند.
             _formTokens.Stamp(formToken, "Expense.CreateGroup", nameof(ExpenseBatch));
 
@@ -3079,10 +3129,12 @@ public partial class ExpensesController : Controller
                 {
                     var selection = selections[i];
                     var isLeg = selection.Kind == "Leg";
+                    var isLoading = selection.Kind == "Loading";
+                    var loading = isLoading ? loadings[selection.Id] : null;
                     var leg = isLeg ? legs[selection.Id] : null;
-                    var dispatch = isLeg ? null : dispatches[selection.Id];
+                    var dispatch = isLeg || isLoading ? null : dispatches[selection.Id];
 
-                    var opLabel = isLeg
+                    var opLabel = isLoading ? $"بارگیری #{selection.Id}" : isLeg
                         ? $"حمل از موجودی #{selection.Id}"
                         : $"ارسال موتر #{selection.Id}";
 
@@ -3090,10 +3142,11 @@ public partial class ExpensesController : Controller
                     {
                         ExpenseTypeId = expenseType.Id,
                         ExpenseBatchId = batch.Id,
-                        ContractId = isLeg ? leg!.SourcePurchaseContractId : dispatch!.ContractId,
+                        ContractId = isLoading ? loading!.ContractId : isLeg ? leg!.SourcePurchaseContractId : dispatch!.ContractId,
                         ShipmentId = isLeg ? leg!.ShipmentId : null,
                         TransportLegId = isLeg ? selection.Id : null,
-                        TruckDispatchId = isLeg ? null : selection.Id,
+                        TruckDispatchId = isLeg || isLoading ? null : selection.Id,
+                        LoadingRegisterId = isLoading ? selection.Id : null,
                         ServiceProviderId = serviceProvider?.Id,
                         ExpenseDate = model.ExpenseDate.Date,
                         Amount = shares[i],
@@ -3104,22 +3157,8 @@ public partial class ExpensesController : Controller
                         CostResponsibility = model.CostResponsibility
                     };
 
-                    // PTG-P1-04 — هویت تسویه: شرکت خدماتیِ انتخاب‌شده ⇒ Payable، وگرنه بدونِ
-                    // طرف‌حسابِ بیرونی.
-                    ExpenseLedgerPoster.ApplyCounterpartySettlement(expense);
-                    _settlementValidator.Validate(expense);
-
-                    _db.ExpenseTransactions.Add(expense);
-                    await _db.SaveChangesAsync();
-
-                    var ledgerEntry = _expenseLedger.Post(new ExpenseLedgerRequest
-                    {
-                        Expense = expense,
-                        ExpenseType = expenseType,
-                        FxRateDate = conversion.EffectiveDate.Date,
-                        FxRateSource = conversion.SourceDescription
-                    });
-                    await _db.SaveChangesAsync();
+                    await _groupExpensePosting.PostShareAsync(expense, expenseType, conversion,
+                        model.SettlementMode, model.CashAccountId);
                 }
 
                 await _audit.LogAndSaveAsync(
@@ -3208,17 +3247,25 @@ public partial class ExpensesController : Controller
             .Select(e => new GroupExpenseShareViewModel
             {
                 ExpenseId = e.Id,
-                OperationLabel = e.TransportLegId.HasValue ? "حمل از موجودی" : "ارسال موتر",
-                VehicleKind = e.TransportLeg != null
+                OperationLabel = e.LoadingRegisterId.HasValue ? "بارگیری" : e.TransportLegId.HasValue ? "حمل از موجودی" : "ارسال موتر",
+                VehicleKind = e.LoadingRegister != null
+                    ? (e.LoadingRegister.TransportType == LoadingTransportType.Wagon ? "واگن"
+                        : e.LoadingRegister.TransportType == LoadingTransportType.Truck ? "موتر" : "کشتی")
+                    : e.TransportLeg != null
                     ? (e.TransportLeg.TransportType == LoadingTransportType.Wagon ? "واگن"
                         : e.TransportLeg.TransportType == LoadingTransportType.Truck ? "موتر" : "نامشخص")
                     : "موتر",
-                Number = e.TransportLeg != null
+                Number = e.LoadingRegister != null
+                    ? (e.LoadingRegister.WagonNumber ?? (e.LoadingRegister.Truck != null ? e.LoadingRegister.Truck.PlateNumber : null)
+                        ?? e.LoadingRegister.RwbNo ?? ("#" + e.LoadingRegisterId))
+                    : e.TransportLeg != null
                     ? (e.TransportLeg.WagonNumber ?? e.TransportLeg.RwbNo ?? ("#" + e.TransportLegId))
                     : (e.TruckDispatch != null && e.TruckDispatch.Truck != null
                         ? e.TruckDispatch.Truck.PlateNumber
                         : ("#" + e.TruckDispatchId)),
-                Route = e.TransportLeg != null
+                Route = e.LoadingRegister != null
+                    ? (e.LoadingRegister.RouteDescription ?? e.LoadingRegister.DestinationName ?? "-")
+                    : e.TransportLeg != null
                     ? ((e.TransportLeg.SourceTerminal != null ? e.TransportLeg.SourceTerminal.Name : "؟")
                         + " ← "
                         + (e.TransportLeg.DestinationTerminal != null ? e.TransportLeg.DestinationTerminal.Name
@@ -3226,14 +3273,15 @@ public partial class ExpensesController : Controller
                     : (e.TruckDispatch != null && e.TruckDispatch.DestinationLocation != null
                         ? e.TruckDispatch.DestinationLocation.Name
                         : "-"),
-                QuantityMt = e.TransportLeg != null
+                QuantityMt = e.LoadingRegister != null ? e.LoadingRegister.LoadedQuantityMt : e.TransportLeg != null
                     ? e.TransportLeg.QuantityMt
                     : (e.TruckDispatch != null ? e.TruckDispatch.LoadedQuantityMt : 0m),
                 Amount = e.Amount,
                 AmountUsd = e.AmountUsd,
                 IsCancelled = e.IsCancelled,
                 TruckDispatchId = e.TruckDispatchId,
-                TransportLegId = e.TransportLegId
+                TransportLegId = e.TransportLegId,
+                LoadingRegisterId = e.LoadingRegisterId
             })
             .ToListAsync();
 

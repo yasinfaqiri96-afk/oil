@@ -163,6 +163,23 @@
                             </select>
                         </div>
                         <div class="ak-field">
+                            <label asp-for="SettlementMode"></label>
+                            <select asp-for="SettlementMode" class="ak-input">
+                                <option value="">مطابق طرف‌حساب مصرف</option>
+                                <option value="1">بدهی به شرکت خدماتی</option>
+                                <option value="2">پرداخت‌شده از صندوق یا بانک</option>
+                                <option value="3">بدون حرکت پول</option>
+                            </select>
+                            <span asp-validation-for="SettlementMode"></span>
+                        </div>
+                        <div class="ak-field">
+                            <label asp-for="CashAccountId"></label>
+                            <select asp-for="CashAccountId" asp-items="ViewBag.CashAccounts" class="ak-input">
+                                <option value="">فقط برای مصرف پرداخت‌شده انتخاب کنید</option>
+                            </select>
+                            <span asp-validation-for="CashAccountId"></span>
+                        </div>
+                        <div class="ak-field">
                             <label asp-for="ExpenseDate">تاریخ مصرف <em>*</em></label>
                             <input asp-for="ExpenseDate" type="date" class="ak-input" />
                         </div>

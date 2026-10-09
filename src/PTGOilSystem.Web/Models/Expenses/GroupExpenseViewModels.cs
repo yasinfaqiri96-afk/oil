@@ -7,7 +7,7 @@ namespace PTGOilSystem.Web.Models.Expenses;
 // یک عملیات در جریان (ارسال موتر یا حمل از موجودی) برای انتخاب در ثبت مصرف گروهی.
 public sealed class GroupExpenseOperationItem
 {
-    public string Kind { get; init; } = "";          // "Dispatch" | "Leg"
+    public string Kind { get; init; } = "";          // "Dispatch" | "Leg" | "Loading"
     public int Id { get; init; }
     public string OperationLabel { get; init; } = ""; // حمل / ارسال موتر
     public string VehicleKind { get; init; } = "";    // واگن / موتر
@@ -108,6 +108,12 @@ public sealed class GroupExpenseCreateViewModel
     [Display(Name = "مصرف بدوش کیست")]
     public CostResponsibility? CostResponsibility { get; set; }
 
+    [Display(Name = "نوع تسویه")]
+    public ExpenseSettlementMode? SettlementMode { get; set; }
+
+    [Display(Name = "صندوق یا بانک")]
+    public int? CashAccountId { get; set; }
+
     public List<GroupExpenseSelectedInput> Items { get; set; } = [];
 
     // چند مصرف در یک ثبت. اگر خالی باشد، فیلدهای بالا یک خط می‌سازند (سازگاری با فرم قبلی).
@@ -144,6 +150,7 @@ public sealed class GroupExpenseShareViewModel
     public bool IsCancelled { get; init; }
     public int? TruckDispatchId { get; init; }
     public int? TransportLegId { get; init; }
+    public int? LoadingRegisterId { get; init; }
 }
 
 public sealed class GroupExpenseDetailsViewModel
