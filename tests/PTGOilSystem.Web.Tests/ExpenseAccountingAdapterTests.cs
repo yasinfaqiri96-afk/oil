@@ -102,6 +102,27 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
     }
 
     [Fact]
+    public async Task Accounting_Rejects_Payment_For_Expense_Already_Posted_To_Cash()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccruedExpense);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+        });
+        Assert.Equal(PaymentPostingStatus.Posted, (await CreateAdapter(db, true).TryPostExpenseAsync(expense)).Status);
+        var secondPayment = await AddExpensePaymentAsync(db, scope, expense, PaymentKind.ExpensePayment);
+        var result = await PaymentAccountingAdapterTests.CreateAdapter(db,
+            PaymentAccountingAdapterTests.PilotsFor(expensePayment: true)).TryPostPaymentAsync(secondPayment);
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("EXPENSE_ALREADY_PAID_CASH", result.Reason);
+        Assert.Equal(0, await db.JournalEntries.CountAsync(j => j.SourceModule == PaymentAccountingAdapter.SourceModule
+            && j.SourceEntityId == secondPayment.Id));
+    }
+
+    [Fact]
     public async Task Standalone_Cash_Expense_Supports_Mixed_Currency_Account_With_Locked_Fx()
     {
         await using var db = fixture.CreateDbContext();

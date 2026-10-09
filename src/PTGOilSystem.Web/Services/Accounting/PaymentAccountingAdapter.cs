@@ -673,6 +673,19 @@ public sealed class PaymentAccountingAdapter(
                 .SingleOrDefaultAsync(x => x.Id == payment.ExpenseTransactionId.Value, cancellationToken);
             if (expense is null)
                 return (companyId.Value, "EXPENSE_NOT_FOUND", null);
+            if (expense.IsCancelled)
+                return (companyId.Value, "EXPENSE_CANCELLED", null);
+            if (expense.SettlementMode == ExpenseSettlementMode.NonCash)
+                return (companyId.Value, "EXPENSE_NON_CASH", null);
+            // An already-posted standalone cash expense owns this cash movement. A paired
+            // commission keeps its accrual journal instead, so its payment remains eligible.
+            var expenseCreatedEventId = ExpenseAccountingAdapter.BuildCreatedSourceEventId(expense.Id);
+            if (expense.SettlementMode == ExpenseSettlementMode.PaidImmediately
+                && await db.JournalEntries.AsNoTracking().AnyAsync(j =>
+                    j.SourceModule == ExpenseAccountingAdapter.SourceModule
+                    && j.SourceEventId == expenseCreatedEventId
+                    && j.Lines.Any(l => l.CashAccountId != null && l.Credit > 0m), cancellationToken))
+                return (companyId.Value, "EXPENSE_ALREADY_PAID_CASH", null);
 
             var payableAccountId = await expenseAccounting.ResolvePayableAccountIdAsync(
                 expense,
