@@ -24,7 +24,7 @@ public static class ProportionalQuantityAllocator
             allocated[index] = floor;
             return new { Index = index, Capacity = capacity, Remainder = numerator - (decimal)floor * total };
         }).Where(x => allocated[x.Index] < x.Capacity)
-          .OrderByDescending(x => x.Remainder).ThenBy(x => x.Index);
+          .OrderByDescending(x => x.Remainder).ThenBy(x => x.Index).ToArray();
 
         // The sum of fractional remainders is less than the number of sources. Each ranked
         // source receives at most one extra unit; never repeatedly favor the first source.
