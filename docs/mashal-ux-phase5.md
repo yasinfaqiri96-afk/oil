@@ -26,3 +26,13 @@
 گروه چهارم «اسناد و تاریخچه» به‌عنوان تب جدید ساخته نشد: در این نسخه payload و مسیر مستقل معتبر برای آن وجود ندارد. اسناد و عملیات موجود در جای فعلی خود حفظ شدند. ادغام یا انتقال آن‌ها به مسیر تازه، به بررسی مجوزها و مدل گزارش جداگانه نیاز دارد.
 
 فرم‌های گروهی فروش و مصارف متعلق به اصلاحات همان جریان‌ها هستند و در این تغییر دست‌کاری نشدند. هیچ Entity، Migration، نرخ، حسابداری، تراکنش موجودی یا دادهٔ تاریخی تغییر نکرد.
+
+## سه انتظار قدیمی تست و قرارداد واقعی نسخهٔ فعلی
+
+بررسی شکست‌های Baseline نشان داد که این سه انتظار، implementation قبلی را می‌خواستند. منطق معتبر فعلی به عقب برگردانده نشد:
+
+1. `InventoryTransportReceipt_Focused_DirectSale_Keeps_Required_Fields_Clear_And_Optional_Sections_Closed`: فرم فعلی از `SaleBuyerKey` استفاده می‌کند. getter/setter همین مدل آن را به `SaleCustomerId` یا `SaleSupplierId` تبدیل می‌کند؛ کنترلر گزینه‌های مشتری و فروشندهٔ فعال را می‌سازد. الزام دوبارهٔ select قدیمی Customer پشتیبانی از خریدار فروشنده را از بین می‌برد. تست اکنون selector فعلی، علامت ضرورت، ارز/مقدار/قیمت و بخش‌های اختیاری بسته را حفظ می‌کند. مشکل واقعی همراه آن اصلاح شد: خطاهای business validation با کلید Customer/Supplier، علاوه بر خلاصهٔ فرم، کنار selector نیز نمایش داده می‌شوند.
+2. `Loading_Create_Exposes_Excel_Transport_And_Cost_Fields`: تمام فیلدهای مورد انتظار Excel وجود دارند. تنها انتظار initializer قدیمی `AkHeaderMenuItem.ModalTarget` اشتباه بود؛ دکمهٔ هر ردیف از قبل `data-bs-target` و URL معتبر `EditExpenses` دارد. تست اکنون modal target واقعی، URL ردیف، فعال‌بودن assets و دریافت `event.relatedTarget` توسط loader را بررسی می‌کند. هیچ قابلیت واردکردن یا ثبت مصرف تغییر نکرد.
+3. `Contracts_List_Uses_The_Shared_Row_Selection_Contract`: انتخاب ردیف و نام قرارداد درست بودند. فرم حذف قطعی قبلی با `_LifecycleActionForms` جایگزین شده بود؛ `ContractsController.Lifecycle` برای لغو `CancelAsync` و برای حذف از فهرست `ArchiveAsync` را فراخوانی می‌کند. تست اکنون وجود همان partial، مجوز مدیریت، POST بومی، دو AntiForgeryToken، دلیل اجباری لغو، حفظ returnUrl و تأیید کاربر را کنترل می‌کند و نبود hard-delete در فهرست را الزام می‌سازد. فرم حذف قطعی به‌خاطر سبزشدن تست برگردانده نشد.
+
+مسیرهای شواهد: `Models/InventoryTransport/InventoryTransportLegViewModels.cs`، `Controllers/InventoryTransportReceiptsController.cs`، `Services/InventoryTransportReceiptService.cs`، `Views/Loading/Index.cshtml`، `wwwroot/js/loading-expense-editor.js`، `Views/Shared/_LifecycleActionForms.cshtml` و `Controllers/ContractsController.Lifecycle.cs`.

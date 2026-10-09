@@ -699,10 +699,21 @@ public class ShellViewStructureTests
         Assert.Contains("class=\"ak-col-grow\"", view);
         Assert.Contains(">@item.DisplayLabel</a>", view);
         Assert.DoesNotContain("<div class=\"ak-muted\" dir=\"ltr\">@item.ContractNumber</div>", view);
-        Assert.Contains("<form asp-action=\"Delete\" asp-route-id=\"@item.Id\" method=\"post\" data-no-spa=\"true\"", view);
-        Assert.Contains("@Html.AntiForgeryToken()", view);
-        Assert.Contains("data-ptg-confirm-title=\"@T(\"حذف کامل قرارداد\", \"Permanently delete contract\")\"", view);
-        Assert.Contains("class=\"dropdown-item ak-danger\"", view);
+        // Current list operations cancel and archive through the lifecycle
+        // service; restoring the former hard-delete form would discard history.
+        Assert.Contains("<partial name=\"_LifecycleActionForms\"", view);
+        Assert.Contains("item.Status == ContractStatus.Cancelled, currentReturnUrl", view);
+        Assert.Contains("RoleAccessRules.CanManageData(User)", view);
+        Assert.DoesNotContain("asp-action=\"Delete\"", view);
+        var lifecycle = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_LifecycleActionForms.cshtml");
+        Assert.Contains("RoleAccessRules.CanManageData(User)", lifecycle);
+        Assert.Contains("asp-action=\"Cancel\" method=\"post\" data-no-spa=\"true\"", lifecycle);
+        Assert.Contains("asp-action=\"DeleteCancelled\" method=\"post\" data-no-spa=\"true\"", lifecycle);
+        Assert.Equal(2, lifecycle.Split("@Html.AntiForgeryToken()", StringSplitOptions.None).Length - 1);
+        Assert.Contains("name=\"reason\" class=\"ak-input\" required", lifecycle);
+        Assert.Contains("name=\"returnUrl\" value=\"@Model.ReturnUrl\"", lifecycle);
+        Assert.Contains("data-ptg-confirm=\"true\"", lifecycle);
+        Assert.Contains("class=\"dropdown-item ak-danger\"", lifecycle);
     }
 
     [Fact]
