@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -1262,84 +1262,10 @@ public partial class LoadingReceiptsController : Controller
         IReadOnlyList<BulkReceiptOpenLoading> openLoadings,
         decimal requestedQuantityMt)
     {
-        var totalRequestedUnits = ToQuantityUnits(requestedQuantityMt);
-        var weightedRows = openLoadings
-            .Select((openLoading, index) => new
-            {
-                OpenLoading = openLoading,
-                Index = index,
-                RemainingUnits = ToQuantityUnits(openLoading.RemainingQuantityMt)
-            })
-            .Where(row => row.RemainingUnits > 0)
-            .ToList();
-
-        var totalRemainingUnits = weightedRows.Sum(row => row.RemainingUnits);
-        if (totalRequestedUnits <= 0 || totalRemainingUnits <= 0 || totalRequestedUnits > totalRemainingUnits)
-        {
-            return [];
-        }
-
-        var provisional = weightedRows
-            .Select(row =>
-            {
-                var numerator = (decimal)totalRequestedUnits * row.RemainingUnits;
-                var baseUnits = (long)decimal.Floor(numerator / totalRemainingUnits);
-                var remainder = numerator - (baseUnits * totalRemainingUnits);
-
-                return new
-                {
-                    row.OpenLoading,
-                    row.Index,
-                    row.RemainingUnits,
-                    Units = Math.Min(baseUnits, row.RemainingUnits),
-                    Remainder = remainder
-                };
-            })
-            .ToList();
-
-        var allocations = provisional
-            .Select(row => new
-            {
-                row.OpenLoading,
-                row.Index,
-                row.RemainingUnits,
-                row.Remainder,
-                Units = row.Units
-            })
-            .ToList();
-
-        var assignedUnits = allocations.Sum(row => row.Units);
-        var unitsToDistribute = totalRequestedUnits - assignedUnits;
-        while (unitsToDistribute > 0)
-        {
-            var target = allocations
-                .Where(row => row.Units < row.RemainingUnits)
-                .OrderByDescending(row => row.Remainder)
-                .ThenBy(row => row.Index)
-                .FirstOrDefault();
-
-            if (target is null)
-            {
-                break;
-            }
-
-            var targetIndex = allocations.IndexOf(target);
-            allocations[targetIndex] = new
-            {
-                target.OpenLoading,
-                target.Index,
-                target.RemainingUnits,
-                target.Remainder,
-                Units = target.Units + 1
-            };
-            unitsToDistribute--;
-        }
-
-        return allocations
-            .Where(row => row.Units > 0)
-            .OrderBy(row => row.Index)
-            .Select(row => new BulkReceiptQuantityAllocation(row.OpenLoading, FromQuantityUnits(row.Units)))
-            .ToList();
+        var quantities = ProportionalQuantityAllocator.Allocate(
+            openLoadings.Select(x => x.RemainingQuantityMt).ToArray(), requestedQuantityMt);
+        return openLoadings.Select((row, index) => new BulkReceiptQuantityAllocation(row, quantities[index]))
+            .Where(x => x.QuantityMt > 0m).ToList();
     }
 
     private static string? BuildBulkReceiptReference(string? normalizedReference, LoadingRegister loading)
@@ -1681,11 +1607,9 @@ public partial class LoadingReceiptsController : Controller
 
         try
         {
-            IDbContextTransaction? transaction = null;
-            if (_db.Database.IsRelational())
-            {
-                transaction = await _db.Database.BeginTransactionAsync();
-            }
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync()
+                : null;
 
             try
             {
@@ -1838,7 +1762,10 @@ public partial class LoadingReceiptsController : Controller
                 // به موجودی منتقل می‌شود. Adapter خودش پست‌نشدنِ خریدِ متناظر را Skip می‌کند.
                 if (_purchaseAccounting is not null)
                 {
-                    await _purchaseAccounting.TryPostInventoryReceiptAsync(receipt);
+                    var accountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
+                        .PostAsync([receipt]);
+                    if (receipt.ReceiptDestination == LoadingReceiptDestination.ToInventory)
+                        RecordReceiptAccountingOutcomes(accountingOutcomes);
                 }
 
                 // مرحله ۷ — فروش مستقیمِ همین رسید. بعد از رسید صدا زده می‌شود تا کالا اول
@@ -2052,8 +1979,12 @@ public partial class LoadingReceiptsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> BulkCreate(LoadingReceiptBulkCreateViewModel model)
+    public async Task<IActionResult> BulkCreate(
+        LoadingReceiptBulkCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        if (await IsReceiptRequestProcessedAsync(formToken, "LoadingReceipt.BulkCreate"))
+            return BulkReceiptAlreadyProcessed(model);
         model.ReferenceDocument = NormalizeNullable(model.ReferenceDocument);
         model.Notes = NormalizeNullable(model.Notes);
         model.LoadingRegisterIds = (model.LoadingRegisterIds ?? [])
@@ -2216,17 +2147,20 @@ public partial class LoadingReceiptsController : Controller
 
         try
         {
-            IDbContextTransaction? transaction = null;
-            if (_db.Database.IsRelational())
-            {
-                transaction = await _db.Database.BeginTransactionAsync();
-            }
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync()
+                : null;
 
             try
             {
                 // قفل و خواندن مقادیر ثبت‌شده به‌صورت دسته‌ای انجام می‌شود تا به‌ازای هر بارگیری
                 // چند رفت‌وبرگشت جداگانه به دیتابیس نداشته باشیم.
                 var lockedLoadingsById = await LockLoadingRegistersAsync(selectedLoadingIds);
+                if (await IsReceiptRequestProcessedAsync(formToken, "LoadingReceipt.BulkCreate"))
+                {
+                    if (transaction is not null) await transaction.RollbackAsync();
+                    return BulkReceiptAlreadyProcessed(model);
+                }
                 var committedSnapshotsByLoadingId = await GetCommittedReceiptQuantitySnapshotsAsync(
                     lockedLoadingsById.Values
                         .Where(l => l.ContractId == model.ContractId)
@@ -2356,9 +2290,14 @@ public partial class LoadingReceiptsController : Controller
                     createdRows.Add((receipt, movement, allocation));
                 }
 
+                _formTokens.Stamp(formToken, "LoadingReceipt.BulkCreate", nameof(LoadingReceipt));
                 _db.LoadingReceipts.AddRange(createdRows.Select(r => r.Receipt));
                 _db.LoadingReceiptAllocations.AddRange(createdRows.Select(r => r.Allocation));
                 await _movements.PostInboundRangeAsync(createdRows.Select(r => r.Movement).ToList());
+
+                var accountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
+                    .PostAsync(createdRows.Select(x => x.Receipt).ToList());
+                RecordReceiptAccountingOutcomes(accountingOutcomes);
 
                 foreach (var row in createdRows)
                 {
@@ -2499,7 +2438,7 @@ public partial class LoadingReceiptsController : Controller
                 TempData["ok"] = createdLossEventCount > 0
                     ? $"رسید جمعی با موفقیت ثبت شد. {createdRows.Count:N0} رسید با مجموع {requestedQuantityMt:N4} MT و {createdLossEventCount:N0} رکورد کسری با مجموع {requestedLossMt:N4} MT ثبت شد."
                     : $"رسید جمعی با موفقیت ثبت شد. {createdRows.Count:N0} رسید جداگانه با مجموع {requestedQuantityMt:N4} MT ساخته شد.";
-                return RedirectAfterBulkReceipt(model);
+                return RedirectAfterBulkReceipt(model, accountingOutcomes);
             }
             catch
             {
@@ -2511,12 +2450,43 @@ public partial class LoadingReceiptsController : Controller
                 throw;
             }
         }
+        catch (DbUpdateException ex) when (_formTokens.IsDuplicate(ex))
+        {
+            return BulkReceiptAlreadyProcessed(model);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create bulk loading receipts for contract {ContractId}.", model.ContractId);
             ModelState.AddModelError(string.Empty, "ثبت رسید جمعی انجام نشد. داده‌ها را بررسی کنید و دوباره تلاش کنید.");
             return RedirectAfterBulkReceiptError(model);
         }
+    }
+
+    private Task<bool> IsReceiptRequestProcessedAsync(string? token, string purpose)
+        => string.IsNullOrWhiteSpace(token) ? Task.FromResult(false)
+            : _db.ProcessedFormTokens.AsNoTracking().AnyAsync(x => x.Token == token.Trim() && x.Purpose == purpose);
+
+    private IActionResult BulkReceiptAlreadyProcessed(LoadingReceiptBulkCreateViewModel model)
+    {
+        TempData["ok"] = "این درخواست قبلاً ثبت شده است؛ رسید تازه ساخته نشد.";
+        return RedirectAfterBulkReceipt(model, duplicate: true);
+    }
+
+    private void RecordReceiptAccountingOutcomes(IReadOnlyList<Services.Accounting.ReceiptAccountingOutcome> outcomes)
+    {
+        var skipped = outcomes.Where(x => x.Status == Services.Accounting.PaymentPostingStatus.Skipped.ToString()).ToList();
+        foreach (var outcome in skipped)
+            _logger.LogWarning("Receipt {ReceiptId} accounting skipped: {Reason}; event {SourceEventId}",
+                outcome.ReceiptId, outcome.Reason, outcome.SourceEventId);
+        if (skipped.Count == 0) return;
+        var reasons = skipped.Select(x => x.Reason switch
+        {
+            "ACCOUNTING_DISABLED" or "PILOT_DISABLED" or "ACCOUNTING_ADAPTER_UNAVAILABLE" => "حسابداری این عملیات فعال نیست",
+            "PURCHASE_NOT_POSTED" => "سند حسابداری خرید هنوز ثبت نشده است",
+            "PRICE_NOT_FINAL" or "PRICE_PENDING" or "MISSING_PRICE" => "قیمت خرید هنوز قطعی نشده است",
+            _ => "قیمت، تنظیمات حسابداری یا شرایط سند نیاز به بررسی دارد"
+        }).Distinct();
+        TempData["warn"] = $"رسید عملیاتی ثبت شد، اما حسابداری {skipped.Count:N0} رسید ثبت نشد: {string.Join("؛ ", reasons)}.";
     }
 
     private IActionResult RedirectAfterBulkReceiptError(LoadingReceiptBulkCreateViewModel model)
@@ -2537,7 +2507,10 @@ public partial class LoadingReceiptsController : Controller
         return RedirectAfterBulkReceipt(model);
     }
 
-    private IActionResult RedirectAfterBulkReceipt(LoadingReceiptBulkCreateViewModel model)
+    private IActionResult RedirectAfterBulkReceipt(
+        LoadingReceiptBulkCreateViewModel model,
+        IReadOnlyList<Services.Accounting.ReceiptAccountingOutcome>? accounting = null,
+        bool duplicate = false)
     {
         var redirectUrl = TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl)
             ? localReturnUrl
@@ -2553,6 +2526,9 @@ public partial class LoadingReceiptsController : Controller
             {
                 success = true,
                 redirectUrl,
+                duplicate,
+                accounting,
+                accountingWarning = TempData.Peek("warn")?.ToString(),
                 message = TempData["ok"]?.ToString() ?? "رسید با موفقیت ثبت شد."
             });
         }
