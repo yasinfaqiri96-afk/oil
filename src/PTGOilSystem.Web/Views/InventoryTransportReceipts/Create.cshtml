@@ -74,7 +74,9 @@
           data-focused-inventory="@focusedInventory.ToString().ToLowerInvariant()"
           data-remaining-quantity="@(focusedInventory ? remainingMt?.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)">
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="InventoryTransportLegId" type="hidden" />
+        <input asp-for="ExpectedRemainingMt" type="hidden" />
         @if (focusedInventory)
         {
             <input type="hidden" name="ReceiptDestination" id="ReceiptDestination" value="@toInventoryValue" data-receipt-destination />

@@ -40,6 +40,7 @@
 
         <div class="ak-section-body p-4 p-md-5">
             @Html.AntiForgeryToken()
+        @Html.FormToken()
             <input asp-for="GroupKey" type="hidden" />
             <input asp-for="TransportReference" type="hidden" />
             <input asp-for="TotalLoadedQuantityMt" type="hidden" />
