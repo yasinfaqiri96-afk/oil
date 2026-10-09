@@ -38,6 +38,7 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
         Assert.Equal(70m, await verify.InventoryTransportReceipts.SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt));
         Assert.Equal(70m, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).SumAsync(m => m.QuantityMt));
         Assert.Equal(30m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
+        Assert.True((await verify.InventoryTransportLegs.SingleAsync()).Version > 1);
         Assert.Equal(1, await verify.InventoryTransportLegAllocations.CountAsync());
         Assert.Equal(1, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).Select(m => m.ContractId).SingleAsync());
     }
