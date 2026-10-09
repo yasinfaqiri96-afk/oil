@@ -54,6 +54,8 @@ public class PaymentsControllerTests
         Assert.Empty(await db.PaymentTransactions.ToListAsync());
         Assert.Empty(await db.LedgerEntries.ToListAsync());
         Assert.Equal(100m, (await db.ExpenseTransactions.SingleAsync()).AmountUsd);
+        var cashTotals = await new PTGOilSystem.Web.Services.Reporting.CashPositionReader(db).ReadAccountTotalsAsync();
+        Assert.Equal(mode == ExpenseSettlementMode.PaidImmediately ? 100m : 0m, cashTotals.Sum(t => t.UsdOut));
     }
 
     [Fact]

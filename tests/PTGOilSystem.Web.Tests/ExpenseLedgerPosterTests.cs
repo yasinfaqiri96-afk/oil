@@ -47,6 +47,22 @@ public sealed class ExpenseLedgerPosterTests
 
     // ---------------------------------------------------------------- جهت
 
+    [Theory]
+    [InlineData(ExpenseSettlementMode.PaidImmediately)]
+    [InlineData(ExpenseSettlementMode.NonCash)]
+    public void Paid_Or_NonCash_Expense_Keeps_Service_Provider_Trace_Without_Creating_A_Ledger_Debt(ExpenseSettlementMode mode)
+    {
+        using var db = CreateDb();
+        var expense = Expense(e => { e.ServiceProviderId = 7; e.DriverId = 8; e.SettlementMode = mode; });
+        var poster = CreatePoster(db);
+        var request = poster.BuildRequest(new ExpenseLedgerRequest { Expense = expense, ExpenseType = Type() });
+        Assert.Equal(LedgerSide.Debit, request.Side);
+        Assert.Null(request.ServiceProviderId);
+        Assert.Null(request.DriverId);
+        Assert.Equal(7, expense.ServiceProviderId);
+        Assert.Equal(8, expense.DriverId);
+    }
+
     [Fact]
     public void Expense_Without_A_Counterparty_Is_A_Debit()
     {

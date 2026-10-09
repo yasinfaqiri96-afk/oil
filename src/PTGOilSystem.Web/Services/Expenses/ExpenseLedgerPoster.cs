@@ -105,8 +105,8 @@ public sealed class ExpenseLedgerPoster(ILedgerPostingService ledger) : IExpense
             // ارجاعات همیشه از خودِ سند خوانده می‌شوند تا هیچ مسیری نتواند یکی را جا بیندازد.
             ContractId = expense.ContractId,
             ShipmentId = expense.ShipmentId,
-            ServiceProviderId = expense.ServiceProviderId,
-            DriverId = expense.DriverId,
+            ServiceProviderId = HasCounterparty(expense) ? expense.ServiceProviderId : null,
+            DriverId = HasCounterparty(expense) ? expense.DriverId : null,
 
             // فیلدهایی که مسیرِ مصرف هرگز تعیین نمی‌کند.
             CustomerId = request.CarryFrom?.CustomerId,
@@ -129,7 +129,8 @@ public sealed class ExpenseLedgerPoster(ILedgerPostingService ledger) : IExpense
     /// همان ترتیبی که <c>ExpenseAccountingAdapter</c> برای سطرِ طرف در دفتر کل جدید دارد.
     /// </summary>
     public static bool HasCounterparty(ExpenseTransaction expense)
-        => expense.ServiceProviderId.HasValue || expense.DriverId.HasValue;
+        => expense.SettlementMode is not (ExpenseSettlementMode.PaidImmediately or ExpenseSettlementMode.NonCash)
+            && (expense.ServiceProviderId.HasValue || expense.DriverId.HasValue);
 
     /// <summary>
     /// PTG-P1-04 — هویت تسویه برای مصرفی که طرف‌حسابش از فیلدهای خودِ سند خوانده می‌شود.
