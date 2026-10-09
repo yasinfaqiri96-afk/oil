@@ -102,6 +102,60 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
     }
 
     [Fact]
+    public async Task Group_Expense_For_MultiSource_Transport_Preserves_Contract_Shares_And_Exact_Total()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var secondContract = new Contract { CompanyId = scope.Company.Id, ProductId = scope.Product.Id,
+            SupplierId = scope.Supplier.Id, ContractNumber = PaymentAccountingAdapterTests.Unique("MULTI"),
+            ContractType = ContractType.Purchase, Status = ContractStatus.Active, ContractDate = ExpenseDate,
+            QuantityMt = 100m, PricingMethod = PricingMethod.Fixed, UnitPriceUsd = 500m };
+        db.Contracts.Add(secondContract); await db.SaveChangesAsync();
+        var firstLoading = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 40m, LoadingDate = ExpenseDate };
+        var secondLoading = new LoadingRegister { ContractId = secondContract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 60m, LoadingDate = ExpenseDate };
+        db.LoadingRegisters.AddRange(firstLoading, secondLoading); await db.SaveChangesAsync();
+        var leg = new InventoryTransportLeg { SourcePurchaseContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            SourceTerminalId = scope.Terminal.Id, TransportType = LoadingTransportType.Truck,
+            QuantityMt = 100m, LoadedDate = ExpenseDate, Status = InventoryTransportLegStatus.Loaded,
+            Allocations = [new InventoryTransportLegAllocation { SourcePurchaseContractId = scope.Contract.Id,
+                SourceLoadingRegisterId = firstLoading.Id, QuantityMt = 40m },
+                new InventoryTransportLegAllocation { SourcePurchaseContractId = secondContract.Id,
+                    SourceLoadingRegisterId = secondLoading.Id, QuantityMt = 60m }] };
+        db.InventoryTransportLegs.Add(leg); await db.SaveChangesAsync();
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccountsPayable);
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateAdapter(db, true))
+        { ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider()) };
+        var result = await controller.CreateGroup(new GroupExpenseCreateViewModel {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = ExpenseSettlementMode.Payable,
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id, ServiceProviderId = scope.ServiceProvider.Id,
+                AllocationMethod = ExpenseAllocationMethod.FixedPerOperation, AmountPerOperation = 100.01m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Leg", Id = leg.Id }] }, Guid.NewGuid().ToString("N"));
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        var expenses = await db.ExpenseTransactions.Where(e => e.TransportLegId == leg.Id).OrderBy(e => e.ContractId).ToListAsync();
+        Assert.Equal(2, expenses.Count);
+        Assert.Equal(new[] { scope.Contract.Id, secondContract.Id }, expenses.Select(e => e.ContractId!.Value));
+        Assert.Equal(new[] { 40m, 60.01m }, expenses.Select(e => e.Amount));
+        Assert.Equal(100.01m, expenses.Sum(e => e.AmountUsd));
+        Assert.Equal(1, (await db.ExpenseBatches.SingleAsync(b => b.Id == expenses[0].ExpenseBatchId)).OperationCount);
+        Assert.Equal(2, await db.InventoryTransportLegAllocations.CountAsync(a => a.InventoryTransportLegId == leg.Id
+            && (a.SourceLoadingRegisterId == firstLoading.Id || a.SourceLoadingRegisterId == secondLoading.Id)));
+        Assert.Equal(0, await db.InventoryMovements.CountAsync(m => m.ContractId == secondContract.Id));
+        foreach (var expense in expenses)
+        {
+            var journal = await LoadJournalAsync(db, expense.Id);
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Debit));
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Credit));
+            Assert.All(journal.Lines, l => Assert.Equal(expense.ContractId, l.ContractId));
+        }
+    }
+
+    [Fact]
     public async Task Accounting_Rejects_Payment_For_Expense_Already_Posted_To_Cash()
     {
         await using var db = fixture.CreateDbContext();
