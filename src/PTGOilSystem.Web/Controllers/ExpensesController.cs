@@ -3242,6 +3242,11 @@ public partial class ExpensesController : Controller
             _logger.LogError(ex, "Failed to create group expense batch.");
             ModelState.AddModelError(string.Empty, "ثبت مصرف گروهی انجام نشد. دوباره تلاش کنید.");
         }
+        finally
+        {
+            if (transaction is not null)
+                await transaction.DisposeAsync();
+        }
 
         return await BackToFormAsync();
     }
@@ -3432,6 +3437,11 @@ public partial class ExpensesController : Controller
 
             _logger.LogError(ex, "Failed to cancel group expense batch {BatchId}.", id);
             TempData["err"] = "لغو مصرف گروهی انجام نشد. دوباره تلاش کنید.";
+        }
+        finally
+        {
+            if (transaction is not null)
+                await transaction.DisposeAsync();
         }
 
         return BackToCaller();
