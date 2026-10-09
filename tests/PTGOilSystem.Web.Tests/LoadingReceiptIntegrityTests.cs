@@ -56,7 +56,7 @@ public sealed class LoadingReceiptIntegrityTests(AccountingPostgreSqlFixture fix
             Assert.True(await db.AuditLogs.AnyAsync(x => x.EntityName == nameof(LoadingReceipt) && x.EntityId == receipt.Id));
             Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryPostInventoryReceiptAsync(receipt)).Status);
         }
-        var pool = await db.InventoryValuationPools.AsNoTracking().SingleAsync(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id && x.TerminalId == scope.Terminal.Id);
+        var pool = await db.InventoryAverageCosts.AsNoTracking().SingleAsync(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id && x.TerminalId == scope.Terminal.Id);
         Assert.Equal(100m, pool.QuantityMt);
         Assert.Equal(50_000m, pool.TotalValueUsd);
         Assert.Equal(100m, await new StockService(db).GetFreeQuantityMtAsync(scope.Product.Id, terminalId: scope.Terminal.Id, storageTankId: scope.Tank.Id));
@@ -95,7 +95,7 @@ public sealed class LoadingReceiptIntegrityTests(AccountingPostgreSqlFixture fix
         var retry = Assert.IsType<OkObjectResult>(await Controller(db, Adapter(db)).BulkCreate(Bulk(scope, [loading.Id], 30m), token));
         Assert.Equal(true, retry.Value!.GetType().GetProperty("duplicate")!.GetValue(retry.Value));
         Assert.Single(await db.LoadingReceipts.Where(x => x.LoadingRegisterId == loading.Id).ToListAsync());
-        Assert.Equal(30m, await db.InventoryValuationPools.Where(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id).SumAsync(x => x.QuantityMt));
+        Assert.Equal(30m, await db.InventoryAverageCosts.Where(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id).SumAsync(x => x.QuantityMt));
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class LoadingReceiptIntegrityTests(AccountingPostgreSqlFixture fix
         Assert.Empty(await db.InventoryMovements.Where(x => x.ProductId == scope.Product.Id).ToListAsync());
         Assert.Empty(await db.LoadingReceiptAllocations.Where(x => x.SourcePurchaseContractId == scope.Contract.Id).ToListAsync());
         Assert.False(await db.JournalEntries.AnyAsync(x => x.CompanyId == scope.Company.Id && x.SourceEntityType == nameof(LoadingReceipt)));
-        Assert.False(await db.InventoryValuationPools.AnyAsync(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id));
+        Assert.False(await db.InventoryAverageCosts.AnyAsync(x => x.CompanyId == scope.Company.Id && x.ProductId == scope.Product.Id));
         Assert.False(await db.ProcessedFormTokens.AnyAsync(x => x.Token == token));
     }
 

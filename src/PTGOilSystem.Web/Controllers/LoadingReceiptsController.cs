@@ -2483,7 +2483,7 @@ public partial class LoadingReceiptsController : Controller
         {
             "ACCOUNTING_DISABLED" or "PILOT_DISABLED" or "ACCOUNTING_ADAPTER_UNAVAILABLE" => "حسابداری این عملیات فعال نیست",
             "PURCHASE_NOT_POSTED" => "سند حسابداری خرید هنوز ثبت نشده است",
-            "PRICE_NOT_FINAL" or "PRICE_PENDING" or "MISSING_PRICE" => "قیمت خرید هنوز قطعی نشده است",
+            "PURCHASE_PRICE_PENDING" or "PRICE_NOT_FINAL" or "PRICE_PENDING" or "MISSING_PRICE" => "قیمت خرید هنوز قطعی نشده است",
             _ => "قیمت، تنظیمات حسابداری یا شرایط سند نیاز به بررسی دارد"
         }).Distinct();
         TempData["warn"] = $"رسید عملیاتی ثبت شد، اما حسابداری {skipped.Count:N0} رسید ثبت نشد: {string.Join("؛ ", reasons)}.";
@@ -2529,7 +2529,7 @@ public partial class LoadingReceiptsController : Controller
                 duplicate,
                 accounting,
                 accountingWarning = TempData.Peek("warn")?.ToString(),
-                message = TempData["ok"]?.ToString() ?? "رسید با موفقیت ثبت شد."
+                message = string.Join(" ", new[] { TempData["ok"]?.ToString() ?? "رسید با موفقیت ثبت شد.", TempData.Peek("warn")?.ToString() }.Where(x => !string.IsNullOrWhiteSpace(x)))
             });
         }
 
