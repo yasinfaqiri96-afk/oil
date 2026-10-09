@@ -580,7 +580,7 @@ public partial class SalesController
             }).ToList(),
             Payments = payments,
             AllocatablePayments = allocatablePayments,
-            Sources = (await LoadSellableSourcesAsync())
+            Sources = (await LoadSellableSourcesAsync(includeLoadings: false))
                 .Where(s => s.Kind != GroupSaleSourceKind.TerminalStock || s.ProductId == order.ProductId)
                 .ToList()
         };

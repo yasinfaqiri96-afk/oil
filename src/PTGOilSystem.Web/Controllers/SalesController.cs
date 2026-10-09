@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Services.LoadingReceipts;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -130,7 +131,8 @@ public partial class SalesController : Controller
         InventoryTransportReceiptService? receiptService = null,
         ITransportQuantityService? quantities = null,
         IInventoryMovementWriter? movements = null,
-        ITransportSourceAllocationService? sourceAllocations = null)
+        ITransportSourceAllocationService? sourceAllocations = null,
+        ILoadingReceiptCancellationService? loadingReceiptCancellation = null)
     {
         _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
@@ -148,6 +150,9 @@ public partial class SalesController : Controller
         _formTokens = formTokens ?? new FormTokenGuard(db);
         _movements = movements ?? new InventoryMovementWriter(db, stock);
         _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
+        _loadingReceiptCancellation = loadingReceiptCancellation ?? new LoadingReceiptCancellationService(
+            db, audit, Microsoft.Extensions.Logging.Abstractions.NullLogger<LoadingReceiptCancellationService>.Instance,
+            stock: _stock, salesAccounting: _salesAccounting, movements: _movements);
         // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
         _receiptService = receiptService
             ?? new InventoryTransportReceiptService(
@@ -159,6 +164,7 @@ public partial class SalesController : Controller
                 sourceAllocations: _sourceAllocations);
     }
 
+    private readonly ILoadingReceiptCancellationService _loadingReceiptCancellation;
     private readonly InventoryTransportReceiptService _receiptService;
     // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
     private readonly ITransportQuantityService _quantities;
@@ -973,6 +979,18 @@ public partial class SalesController : Controller
             TempData["ok"] = "این فروش قبلاً لغو شده است.";
             if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
                 return Redirect(returnUrl);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var directReceiptId = await FindSingleDirectLoadingReceiptAsync(sale.Id);
+        if (directReceiptId.HasValue)
+        {
+            // A direct loading sale consumes the receipt itself. Cancelling only the sale would
+            // leave that receipt consuming the source forever; use the existing cancellation owner.
+            var cancellation = await _loadingReceiptCancellation.CancelAsync([directReceiptId.Value], reason, CurrentUserIdOrNull());
+            TempData[cancellation.Succeeded ? "ok" : "err"] = cancellation.Succeeded
+                ? "فروش مستقیم بارگیری لغو شد و ماندهٔ بار آزاد گردید."
+                : string.Join(" ", cancellation.Blockers.Select(b => b.Reason));
             return RedirectToAction(nameof(Details), new { id });
         }
 

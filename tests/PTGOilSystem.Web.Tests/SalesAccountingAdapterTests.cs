@@ -467,6 +467,71 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
         await db.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task Direct_Loading_Cogs_Uses_Posted_Purchase_And_Reverses_Without_Inventory_Pool()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loading = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadingDate = SaleDate.AddDays(-2), LoadedQuantityMt = 100m, LoadingPriceUsd = 250m };
+        db.LoadingRegisters.Add(loading); await db.SaveChangesAsync();
+        var options = Options.Create(new AccountingOptions { Enabled = true,
+            Pilots = new AccountingPilotOptions { Purchase = true } });
+        var purchaseAdapter = new PurchaseAccountingAdapter(db,
+            new AccountingPostingService(db, new PeriodGuard(db, new FiscalCalendarService(db)), options, new SystemCompanyProvider(db)),
+            new AccountingJournalNumberGenerator(), new PricingService(db), new InventoryValuationService(db),
+            options, NullLogger<PurchaseAccountingAdapter>.Instance);
+        Assert.Equal(PaymentPostingStatus.Posted, (await purchaseAdapter.TryPostPurchaseAsync(loading)).Status);
+        var sale = await AddSaleAsync(db, scope, 70m, 35000m);
+        var receipt = new LoadingReceipt { LoadingRegisterId = loading.Id, TerminalId = scope.Terminal.Id,
+            ReceiptDate = SaleDate, ReceivedQuantityMt = 70m, ReceiptDestination = LoadingReceiptDestination.DirectDispatch };
+        db.LoadingReceiptAllocations.Add(new LoadingReceiptAllocation { LoadingReceipt = receipt,
+            SalesTransactionId = sale.Id, SourcePurchaseContractId = scope.Contract.Id,
+            Destination = LoadingReceiptAllocationDestination.DirectSale, Status = LoadingReceiptAllocationStatus.Completed,
+            QuantityMt = 70m, TerminalId = scope.Terminal.Id });
+        await db.SaveChangesAsync();
+        // Changing the source price later must not silently rewrite the already-posted purchase basis.
+        loading.LoadingPriceUsd = 999m; await db.SaveChangesAsync();
+        var adapter = CreateAdapter(db, cogs: true);
+        var posted = await adapter.TryPostCogsAsync(sale);
+        Assert.Equal(PaymentPostingStatus.Posted, posted.Status);
+        Assert.Equal(17500m, posted.Journal!.Lines.Sum(l => l.Debit));
+        Assert.Equal(scope.Settings.InventoryInTransitAccountId, posted.Journal.Lines.Single(l => l.Credit > 0m).AccountId);
+        Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryPostCogsAsync(sale)).Status);
+        Assert.Empty(await db.InventoryMovements.Where(m => m.SalesTransactionId == sale.Id).ToListAsync());
+        Assert.Empty(await db.SalesCostConsumptions.Where(c => c.SalesTransactionId == sale.Id).ToListAsync());
+        Assert.False(await db.InventoryAverageCosts.AnyAsync(c => c.CompanyId == scope.Company.Id));
+        sale.IsCancelled = true; await db.SaveChangesAsync();
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryReverseCogsAsync(sale, SaleDate.AddDays(1))).Status);
+        Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryReverseCogsAsync(sale, SaleDate.AddDays(1))).Status);
+        Assert.False(await db.InventoryAverageCosts.AnyAsync(c => c.CompanyId == scope.Company.Id));
+        var sourceEvents = await db.JournalEntries.Include(j => j.Lines)
+            .Where(j => j.SourceEntityType == nameof(SalesTransaction) && j.SourceEntityId == sale.Id).ToListAsync();
+        Assert.Equal(2, sourceEvents.Count);
+        Assert.Equal(0m, sourceEvents.SelectMany(j => j.Lines).Where(l => l.AccountId == scope.Settings.InventoryInTransitAccountId)
+            .Sum(l => l.Debit - l.Credit));
+    }
+
+    [Fact]
+    public async Task Direct_Loading_Cogs_Without_Posted_Purchase_Reports_Explicit_Skip()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var sale = await AddSaleAsync(db, scope, 10m, 5000m);
+        var loading = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadingDate = SaleDate.AddDays(-2), LoadedQuantityMt = 100m };
+        db.LoadingReceiptAllocations.Add(new LoadingReceiptAllocation {
+            LoadingReceipt = new LoadingReceipt { LoadingRegister = loading, TerminalId = scope.Terminal.Id,
+                ReceiptDate = SaleDate, ReceivedQuantityMt = 10m, ReceiptDestination = LoadingReceiptDestination.DirectDispatch },
+            SalesTransactionId = sale.Id, SourcePurchaseContractId = scope.Contract.Id,
+            Destination = LoadingReceiptAllocationDestination.DirectSale, QuantityMt = 10m, TerminalId = scope.Terminal.Id });
+        await db.SaveChangesAsync();
+        var result = await CreateAdapter(db, cogs: true).TryPostCogsAsync(sale);
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("SOURCE_PURCHASE_NOT_POSTED_AT_SALE", result.Reason);
+        Assert.False(await db.JournalEntries.AnyAsync(j => j.SourceEntityType == nameof(SalesTransaction) && j.SourceEntityId == sale.Id));
+    }
+
     private static SalesAccountingAdapter CreateAdapter(
         ApplicationDbContext db,
         bool sale = false,
