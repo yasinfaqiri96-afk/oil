@@ -36,10 +36,10 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
         await using var verify = fixture.CreateDbContext();
         Assert.Equal(1, await verify.InventoryTransportReceipts.CountAsync());
         Assert.Equal(70m, await verify.InventoryTransportReceipts.SumAsync(r => r.ReceivedQuantityMt + r.ShortageQuantityMt));
-        Assert.Equal(70m, await verify.InventoryMovements.Where(m => m.MovementType == InventoryMovementType.In).SumAsync(m => m.QuantityMt));
+        Assert.Equal(70m, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).SumAsync(m => m.QuantityMt));
         Assert.Equal(30m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
         Assert.Equal(1, await verify.InventoryTransportLegAllocations.CountAsync());
-        Assert.Equal(1, await verify.InventoryMovements.Where(m => m.MovementType == InventoryMovementType.In).Select(m => m.ContractId).SingleAsync());
+        Assert.Equal(1, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).Select(m => m.ContractId).SingleAsync());
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
         model.ShortageQuantityMt = -1m;
         await service.ApplyAsync(model, leg, null);
         await using var verify = fixture.CreateDbContext();
-        Assert.Equal(101m, await verify.InventoryMovements.Where(m => m.MovementType == InventoryMovementType.In).SumAsync(m => m.QuantityMt));
+        Assert.Equal(101m, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).SumAsync(m => m.QuantityMt));
         Assert.Equal(0m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
         Assert.Equal(-1m, await verify.LossEvents.SumAsync(e => e.DifferenceQuantityMt));
     }
