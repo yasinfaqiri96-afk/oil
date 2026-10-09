@@ -491,7 +491,9 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
             QuantityMt = 70m, TerminalId = scope.Terminal.Id });
         await db.SaveChangesAsync();
         // Changing the source price later must not silently rewrite the already-posted purchase basis.
-        loading.LoadingPriceUsd = 999m; await db.SaveChangesAsync();
+        loading.LoadingPriceUsd = 999m;
+        loading.LoadedQuantityMt = 125m; // revised later; the old purchase quantity was 100
+        await db.SaveChangesAsync();
         Assert.Equal(PaymentPostingStatus.Posted, (await purchaseAdapter.TryPostPurchaseAsync(loading)).Status);
         var adapter = CreateAdapter(db, cogs: true);
         var posted = await adapter.TryPostCogsAsync(sale);
@@ -531,6 +533,39 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
         Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
         Assert.Equal("SOURCE_PURCHASE_NOT_POSTED_AT_SALE", result.Reason);
         Assert.False(await db.JournalEntries.AnyAsync(j => j.SourceEntityType == nameof(SalesTransaction) && j.SourceEntityId == sale.Id));
+    }
+
+    [Fact]
+    public async Task Historical_Direct_Cogs_Without_Quantity_Snapshot_Needs_Review_After_Loading_Edit()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loading = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadingDate = SaleDate.AddDays(-2), LoadedQuantityMt = 20m, LoadingPriceUsd = 500m };
+        db.LoadingRegisters.Add(loading); await db.SaveChangesAsync();
+        var options = Options.Create(new AccountingOptions { Enabled = true });
+        var posting = new AccountingPostingService(db, new PeriodGuard(db, new FiscalCalendarService(db)),
+            options, new SystemCompanyProvider(db));
+        await posting.PostAsync(new AccountingPostRequest(scope.Company.Id,
+            PaymentAccountingAdapterTests.Unique("LEGACY-PURCHASE"), SaleDate, SaleDate, SaleDate, "Purchase",
+            [new AccountingPostLine(scope.Settings.InventoryInTransitAccountId, 10000m, 0m, "USD", 10000m, 1m),
+             new AccountingPostLine(scope.Settings.AccountsPayableAccountId, 0m, 10000m, "USD", 10000m, 1m,
+                AccountingPartyType.Supplier, scope.Supplier.Id)],
+            SourceEventId: PurchaseAccountingAdapter.BuildCreatedSourceEventId(loading.Id, 0),
+            SourceEntityType: nameof(LoadingRegister), SourceEntityId: loading.Id,
+            Description: "Historical purchase without a quantity snapshot"));
+        var sale = await AddSaleAsync(db, scope, 5m, 4000m);
+        db.LoadingReceiptAllocations.Add(new LoadingReceiptAllocation {
+            LoadingReceipt = new LoadingReceipt { LoadingRegisterId = loading.Id, TerminalId = scope.Terminal.Id,
+                ReceiptDate = SaleDate, ReceivedQuantityMt = 5m, ReceiptDestination = LoadingReceiptDestination.DirectDispatch },
+            SalesTransactionId = sale.Id, SourcePurchaseContractId = scope.Contract.Id,
+            Destination = LoadingReceiptAllocationDestination.DirectSale, QuantityMt = 5m, TerminalId = scope.Terminal.Id });
+        await db.SaveChangesAsync();
+        loading.LoadedQuantityMt = 25m; await db.SaveChangesAsync();
+        var outcome = await CreateAdapter(db, cogs: true).TryPostCogsAsync(sale);
+        Assert.Equal(PaymentPostingStatus.Skipped, outcome.Status);
+        Assert.Equal("DIRECT_SALE_HISTORICAL_QUANTITY_NEEDS_REVIEW", outcome.Reason);
+        Assert.False(await db.JournalEntries.AnyAsync(j => j.SourceEventId == SalesAccountingAdapter.BuildCogsSourceEventId(sale.Id)));
     }
 
     private static SalesAccountingAdapter CreateAdapter(
