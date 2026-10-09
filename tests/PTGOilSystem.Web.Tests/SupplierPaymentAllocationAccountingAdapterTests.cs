@@ -18,6 +18,34 @@ public sealed class SupplierPaymentAllocationAccountingAdapterTests(AccountingPo
     private static readonly DateTime AllocationDate = new(2026, 7, 15);
 
     [Fact]
+    public async Task PostgreSql_RoundTrip_Keeps_Large_Allocation_Fx_And_Previous_Locked_Amounts()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await CreateScopeAsync(db);
+        scope.DestinationContract.Currency = "AFN";
+        await db.SaveChangesAsync();
+        var service = CreateService(db, true);
+        var historical = await service.CreateAsync(new SupplierPaymentAllocationCreateRequest(
+            scope.Payment.Id, scope.DestinationContract.Id, AllocationDate, 100m, 80m, null, null, null));
+        var current = await service.CreateAsync(new SupplierPaymentAllocationCreateRequest(
+            scope.Payment.Id, scope.DestinationContract.Id, AllocationDate, 900000m, 77m, null, null, null));
+        db.ChangeTracker.Clear();
+        var reloaded = await db.SupplierPaymentAllocations.SingleAsync(a => a.Id == current.Id);
+        Assert.Equal(0.012987012987m, reloaded.ContractCurrencyFxRateToUsd);
+        Assert.Equal(77m, reloaded.ContractCurrencyPerUsdRate);
+        Assert.Equal(reloaded.AllocatedValueUsdAtAllocation, decimal.Round(
+            reloaded.AllocatedContractCurrencyAmount * reloaded.ContractCurrencyFxRateToUsd, 4, MidpointRounding.AwayFromZero));
+        var old = await db.SupplierPaymentAllocations.SingleAsync(a => a.Id == historical.Id);
+        Assert.Equal(historical.AllocatedContractCurrencyAmount, old.AllocatedContractCurrencyAmount);
+        Assert.Equal(historical.ContractCurrencyFxRateToUsd, old.ContractCurrencyFxRateToUsd);
+        Assert.Equal(historical.AllocatedBookAmountUsd, old.AllocatedBookAmountUsd);
+        var journal = await db.JournalEntries.Include(j => j.Lines).SingleAsync(j =>
+            j.SourceEventId == SupplierPaymentAllocationAccountingAdapter.BuildCreatedSourceEventId(current.Id));
+        Assert.Equal(journal.Lines.Sum(l => l.Debit), journal.Lines.Sum(l => l.Credit));
+        Assert.Equal(1, await db.PaymentTransactions.CountAsync(p => p.Id == scope.Payment.Id));
+    }
+
+    [Fact]
     public void SourceEventId_Formats_Are_Stable()
     {
         Assert.Equal(
