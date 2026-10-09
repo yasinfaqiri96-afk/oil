@@ -25,6 +25,7 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class SalesController
 {
     private const decimal QtyEpsilon = 0.0001m;
+    private readonly Dictionary<string, int> _groupAccountingSkippedReasons = new(StringComparer.Ordinal);
 
     // مالکِ ردیفِ فروشی که با primitiveهای زیر ساخته می‌شود: یا یک SalesBatch (فروش گروهی)
     // یا یک PreSaleOrder (تحویل پیش‌فروش). خودِ ردیف در هر دو حالت SalesTransaction عادی است.
@@ -405,6 +406,7 @@ public partial class SalesController
     public async Task<IActionResult> CreateGroup(GroupSaleCreateViewModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        _groupAccountingSkippedReasons.Clear();
         model.Currency = SystemCurrency.Normalize(model.Currency);
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
         model.PaymentNote = string.IsNullOrWhiteSpace(model.PaymentNote) ? null : model.PaymentNote.Trim();
@@ -566,6 +568,9 @@ public partial class SalesController
             }
 
             TempData["ok"] = $"فروش گروهی {batch.BatchNumber} برای {selections.Count} منبع ثبت شد.";
+            if (_groupAccountingSkippedReasons.Count > 0)
+                TempData["warn"] = "فروش ثبت شد؛ برخی اسناد حسابداری ثبت نشده‌اند: "
+                    + string.Join("؛ ", _groupAccountingSkippedReasons.Select(r => $"{r.Key} ({r.Value} مورد)"));
             return RedirectToAction(nameof(GroupDetails), new { id = batch.Id });
         }
         catch (Exception ex) when (_formTokens.IsDuplicate(ex))
@@ -642,7 +647,30 @@ public partial class SalesController
         await _db.SaveChangesAsync();
         Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(sale, draft.Conversion, loading.ContractId));
         await _db.SaveChangesAsync();
-        await PostSaleAccountingAsync(sale);
+        if (_salesAccounting is null)
+            RecordGroupAccountingSkip("حسابداری این مسیر فعال نیست");
+        else
+        {
+            var revenue = await _salesAccounting.TryPostSaleAsync(sale);
+            var cogs = await _salesAccounting.TryPostCogsAsync(sale);
+            foreach (var result in new[] { revenue, cogs })
+            {
+                if (result.Status != Services.Accounting.PaymentPostingStatus.Skipped) continue;
+                RecordGroupAccountingSkip(result.Reason switch
+                {
+                    "ACCOUNTING_DISABLED" or "PILOT_DISABLED" => "ثبت حسابداری این عملیات فعال نیست",
+                    "SOURCE_PURCHASE_NOT_POSTED_AT_SALE" => "قیمت یا سند خرید در زمان فروش قطعی نشده بود",
+                    "SOURCE_PURCHASE_NOT_VALUED" => "بهای خرید منبع مشخص نیست",
+                    "DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW" => "سند تاریخی رسید نیاز به بررسی مالی دارد",
+                    "DIRECT_SALE_SOURCE_QUANTITY_MISMATCH" => "مقدار فروش با سهم بار منبع مطابقت ندارد",
+                    "ACCOUNTING_SETTINGS_MISSING" or "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS" or "IN_TRANSIT_ACCOUNT_MISSING" => "حساب‌های لازم برای ثبت مالی تنظیم نشده‌اند",
+                    "SALE_COMPANY_UNKNOWN" => "شرکت مالک فروش مشخص نیست",
+                    "INVALID_SALE_FX" or "INVALID_SALE_CONVERSION" => "نرخ یا تبدیل ارز فروش نیاز به بررسی دارد",
+                    "SALE_CANCELLED" => "فروش لغو شده است",
+                    _ => "ثبت حسابداری این فروش نیاز به بررسی مالی دارد"
+                });
+            }
+        }
         await _audit.LogAndSaveAsync(nameof(LoadingReceipt), receipt.Id, AuditAction.Insert,
             diff: AuditDiffFormatter.ForCreate(("LoadingRegisterId", loading.Id),
                 ("ReceivedQuantityMt", quantity), ("ReceiptDestination", receipt.ReceiptDestination)));
@@ -651,6 +679,9 @@ public partial class SalesController
                 ("SourcePurchaseContractId", loading.ContractId), ("SalesTransactionId", sale.Id), ("QuantityMt", quantity)));
         return sale;
     }
+
+    private void RecordGroupAccountingSkip(string reason)
+        => _groupAccountingSkippedReasons[reason] = _groupAccountingSkippedReasons.GetValueOrDefault(reason) + 1;
 
     private async Task<SalesTransaction> CreateTerminalStockLineAsync(
         SaleLineOwner owner,
