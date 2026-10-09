@@ -533,6 +533,7 @@ public sealed class SalesAccountingAdapter(
             .Select(a => new { a.QuantityMt, a.SourcePurchaseContractId, a.LoadingReceiptId,
                 LoadingId = a.LoadingReceipt!.LoadingRegisterId,
                 LoadedMt = a.LoadingReceipt.LoadingRegister!.LoadedQuantityMt,
+                LoadingUpdatedAtUtc = a.LoadingReceipt.LoadingRegister.UpdatedAtUtc,
                 ProductId = a.LoadingReceipt.LoadingRegister.ProductId }).ToListAsync(ct);
         if (shares.Count == 0) return Skipped(sale, "Cogs", companyId, "NO_OUTBOUND_MOVEMENT");
         if (shares.Sum(a => a.QuantityMt) != sale.QuantityMt
@@ -563,8 +564,15 @@ public sealed class SalesAccountingAdapter(
                         && r.CreatedAtUtc <= sale.CreatedAtUtc))
                 .OrderByDescending(j => j.CreatedAtUtc).ThenByDescending(j => j.Id).FirstOrDefaultAsync(ct);
             if (purchase is null) return Skipped(sale, "Cogs", companyId, "SOURCE_PURCHASE_NOT_POSTED_AT_SALE");
+            var hasQuantitySnapshot = PurchaseQuantitySnapshot.TryRead(purchase.Description, out var purchaseQuantityMt);
+            if (!hasQuantitySnapshot)
+            {
+                if (share.LoadingUpdatedAtUtc > sale.CreatedAtUtc)
+                    return Skipped(sale, "Cogs", companyId, "DIRECT_SALE_HISTORICAL_QUANTITY_NEEDS_REVIEW");
+                purchaseQuantityMt = share.LoadedMt;
+            }
             var purchaseCost = purchase.Lines.Where(l => l.AccountId == settings.InventoryInTransitAccountId).Sum(l => l.Debit);
-            var cost = decimal.Round(purchaseCost * share.QuantityMt / share.LoadedMt, 4, MidpointRounding.AwayFromZero);
+            var cost = decimal.Round(purchaseCost * share.QuantityMt / purchaseQuantityMt, 4, MidpointRounding.AwayFromZero);
             if (cost <= 0m) return Skipped(sale, "Cogs", companyId, "SOURCE_PURCHASE_NOT_VALUED");
             totalCost += cost;
             lines.Add(new AccountingPostLine(settings.CostOfGoodsSoldAccountId, cost, 0m,

@@ -661,7 +661,7 @@ public partial class SalesController
                     "ACCOUNTING_DISABLED" or "PILOT_DISABLED" => "ثبت حسابداری این عملیات فعال نیست",
                     "SOURCE_PURCHASE_NOT_POSTED_AT_SALE" => "قیمت یا سند خرید در زمان فروش قطعی نشده بود",
                     "SOURCE_PURCHASE_NOT_VALUED" => "بهای خرید منبع مشخص نیست",
-                    "DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW" => "سند تاریخی رسید نیاز به بررسی مالی دارد",
+                    "DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW" or "DIRECT_SALE_HISTORICAL_QUANTITY_NEEDS_REVIEW" => "سند تاریخی رسید نیاز به بررسی مالی دارد",
                     "DIRECT_SALE_SOURCE_QUANTITY_MISMATCH" => "مقدار فروش با سهم بار منبع مطابقت ندارد",
                     "ACCOUNTING_SETTINGS_MISSING" or "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS" or "IN_TRANSIT_ACCOUNT_MISSING" => "حساب‌های لازم برای ثبت مالی تنظیم نشده‌اند",
                     "SALE_COMPANY_UNKNOWN" => "شرکت مالک فروش مشخص نیست",
@@ -1224,6 +1224,10 @@ public partial class SalesController
                 throw new BusinessRuleException("GROUP_SALE_LOADING_CANCEL_BLOCKED", string.Join(" ", result.Blockers.Select(b => b.Reason)));
             return;
         }
+
+        if (await _db.LoadingReceiptAllocations.AsNoTracking().AnyAsync(a => a.SalesTransactionId == sale.Id))
+            throw new BusinessRuleException("GROUP_SALE_MIXED_RECEIPT_CANCEL_REQUIRED",
+                "این فروش بخشی از یک رسید چندبخشی است؛ لغو یا اصلاح را از صفحهٔ همان رسید انجام دهید.");
 
         // لجرِ معکوس (مطابق لغوِ فروش تکی).
         var originalLedger = await _db.LedgerEntries
