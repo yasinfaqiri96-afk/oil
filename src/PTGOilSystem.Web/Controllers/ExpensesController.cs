@@ -3067,11 +3067,34 @@ public partial class ExpensesController : Controller
             // Keep eligibility and cancellation ordered on the same loading row as receipts/transport.
             if (_db.Database.IsRelational() && loadingIds.Count > 0)
             {
-                foreach (var loadingId in loadingIds.Order())
-                    await _db.LoadingRegisters.FromSqlInterpolated($"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = {loadingId} FOR UPDATE").ToListAsync();
+                var lockedLoadingIds = loadingIds.Order().ToArray();
+                await _db.LoadingRegisters.FromSqlInterpolated(
+                    $"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = ANY ({lockedLoadingIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
                 var current = await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync(loadingIds);
                 if (current.Count != loadingIds.Count || current.Any(l => !CargoOperationEligibility.Evaluate(l, CargoAction.Expense).Allowed))
                     throw new BusinessRuleException("GROUP_EXPENSE_SOURCE_CHANGED", "بارگیری انتخاب‌شده لغو یا بایگانی شده است. فهرست را تازه کنید.");
+            }
+
+            if (_db.Database.IsRelational() && legIds.Count > 0)
+            {
+                var lockedLegIds = legIds.Order().ToArray();
+                await _db.InventoryTransportLegs.FromSqlInterpolated(
+                    $"SELECT * FROM \"InventoryTransportLegs\" WHERE \"Id\" = ANY ({lockedLegIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
+                var validCount = await _db.InventoryTransportLegs.AsNoTracking().CountAsync(l => legIds.Contains(l.Id)
+                    && (l.Status == InventoryTransportLegStatus.Loaded || l.Status == InventoryTransportLegStatus.InTransit));
+                if (validCount != legIds.Count)
+                    throw new BusinessRuleException("GROUP_EXPENSE_SOURCE_CHANGED", "حمل انتخاب‌شده دیگر در جریان نیست. فهرست را تازه کنید.");
+            }
+            if (_db.Database.IsRelational() && dispatchIds.Count > 0)
+            {
+                var lockedDispatchIds = dispatchIds.Order().ToArray();
+                await _db.TruckDispatches.FromSqlInterpolated(
+                    $"SELECT * FROM \"TruckDispatches\" WHERE \"Id\" = ANY ({lockedDispatchIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
+                var validCount = await _db.TruckDispatches.AsNoTracking().CountAsync(d => dispatchIds.Contains(d.Id)
+                    && (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
+                    && !(d.InventoryTransportReceiptId != null && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
+                if (validCount != dispatchIds.Count)
+                    throw new BusinessRuleException("GROUP_EXPENSE_SOURCE_CHANGED", "ارسال موتر انتخاب‌شده دیگر در جریان نیست. فهرست را تازه کنید.");
             }
 
             // PTG-P0-01 — توکن یک‌بار برای کل ثبت؛ همهٔ خط‌ها در همین Transaction ثبت می‌شوند.
