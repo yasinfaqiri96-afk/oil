@@ -193,7 +193,9 @@ public sealed class PurchaseAccountingAdapter(
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
             SourceEntityId: loading.Id,
-            Description: $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}");
+            Description: PurchaseQuantitySnapshot.Append(
+                $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}",
+                loading.LoadedQuantityMt));
 
         try
         {
@@ -968,7 +970,9 @@ public sealed class PurchaseAccountingAdapter(
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
             SourceEntityId: loading.Id,
-            Description: $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}");
+            Description: PurchaseQuantitySnapshot.Append(
+                $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}",
+                loading.LoadedQuantityMt));
     }
 
     private async Task<PurchaseContext> ResolvePurchaseContextAsync(
