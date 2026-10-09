@@ -16,6 +16,14 @@ public sealed class LoadingDirectSaleDraftService(ICurrencyConversionService cur
             throw new BusinessRuleException("DIRECT_SALE_SOURCE_CONTRACT_REQUIRED", "قرارداد خرید منبع باید مشخص باشد.");
         var conversion = await currencyConversion.ResolveToBaseAsync(line.SaleCurrency,
             line.SaleDate!.Value.Date, line.SaleAppliedFxRateToUsd);
+        return Build(line, loading, conversion);
+    }
+
+    public static LoadingDirectSaleDraft Build(LoadingReceiptAllocationLineInput line,
+        LoadingRegister loading, CurrencyConversionResult conversion)
+    {
+        if (loading.Contract is null)
+            throw new BusinessRuleException("DIRECT_SALE_SOURCE_CONTRACT_REQUIRED", "قرارداد خرید منبع باید مشخص باشد.");
         var totalInCurrency = decimal.Round(line.QuantityMt * line.SaleUnitPriceInCurrency!.Value,
             4, MidpointRounding.AwayFromZero);
         return new(new SalesTransaction

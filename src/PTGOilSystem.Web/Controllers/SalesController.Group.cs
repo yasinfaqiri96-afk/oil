@@ -530,7 +530,7 @@ public partial class SalesController
                     GroupSaleSourceKind.TruckDispatch =>
                         await CreateTruckDispatchLineAsync(owner, selection, model, conversion, invoice),
                     GroupSaleSourceKind.LoadingRegister =>
-                        await CreateLoadingLineAsync(owner, selection, model, invoice,
+                        await CreateLoadingLineAsync(owner, selection, model, conversion, invoice,
                             loadingSources.GetValueOrDefault(selection.Id), sourceLoadings.GetValueOrDefault(selection.Id)),
                     GroupSaleSourceKind.WagonLeg or GroupSaleSourceKind.TransportLeg =>
                         await CreateLegLineAsync(owner, selection, model, conversion, invoice, receiptService),
@@ -603,7 +603,7 @@ public partial class SalesController
     // ---------- ساخت ردیف‌ها (هر کدام از primitiveهای فروشِ موجود) ----------
 
     private async Task<SalesTransaction> CreateLoadingLineAsync(
-        SaleLineOwner owner, GroupSaleSelectedInput input, GroupSaleCreateViewModel model, string invoice,
+        SaleLineOwner owner, GroupSaleSelectedInput input, GroupSaleCreateViewModel model, CurrencyConversionResult conversion, string invoice,
         CargoSourceSnapshot? source, LoadingRegister? loading)
     {
         if (source is null || loading is null)
@@ -616,13 +616,13 @@ public partial class SalesController
             throw new BusinessRuleException("GROUP_SALE_LOADING_QUANTITY", "مقدار فروش بارگیری باید مثبت و حداکثر چهار رقم اعشار باشد.");
         if (quantity > source.RemainingQuantityMt)
             throw new BusinessRuleException("GROUP_SALE_LOADING_REMAINDER", "مقدار فروش از ماندهٔ معتبر بارگیری بیشتر است.");
-        var draft = await new LoadingDirectSaleDraftService(_currencyConversion).BuildAsync(new LoadingReceiptAllocationLineInput
+        var draft = LoadingDirectSaleDraftService.Build(new LoadingReceiptAllocationLineInput
         {
             QuantityMt = quantity, SaleDate = model.SaleDate, SaleCurrency = model.Currency,
-            SaleAppliedFxRateToUsd = model.AppliedFxRateToUsd, SaleUnitPriceInCurrency = model.UnitPriceInCurrency,
+            SaleAppliedFxRateToUsd = conversion.AppliedRateToBase, SaleUnitPriceInCurrency = model.UnitPriceInCurrency,
             SaleCustomerId = model.CustomerId, SaleSupplierId = model.SupplierId,
             SaleInvoiceNumber = invoice, SaleNotes = model.Notes
-        }, loading);
+        }, loading, conversion);
         var sale = draft.Sale;
         sale.SalesBatchId = owner.SalesBatchId;
         sale.PreSaleOrderId = owner.PreSaleOrderId;
