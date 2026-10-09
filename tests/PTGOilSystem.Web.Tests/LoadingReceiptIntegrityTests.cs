@@ -146,6 +146,7 @@ public sealed class LoadingReceiptIntegrityTests(AccountingPostgreSqlFixture fix
 
     private static async Task<List<LoadingRegister>> AddLoadings(ApplicationDbContext db, PaymentAccountingAdapterTests.PaymentScope scope, int count, decimal? price = 500m)
     {
+        scope.Contract.QuantityMt = count * 100m;
         var rows = Enumerable.Range(0, count).Select(_ => new LoadingRegister
         {
             ContractId = scope.Contract.Id, ProductId = scope.Product.Id, LoadedQuantityMt = 100m,
