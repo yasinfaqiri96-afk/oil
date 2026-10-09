@@ -22,6 +22,8 @@ public class ContractJourneyViewStructureTests
         Assert.Contains(".ak-navigation-group", css);
         Assert.Contains("flex: 1 1 100%;", css);
         Assert.Contains("href=\"@ReturnUrl(stepTab)\"", view);
+        Assert.Contains("step.Number == 5 && Model.IsPurchaseContract", view);
+        Assert.Contains("T(\"مصارف\", \"Expenses\"), expenseState", view);
         Assert.Contains("href=\"@ReturnUrl(LossesPresentationTab)\"", view);
     }
 
