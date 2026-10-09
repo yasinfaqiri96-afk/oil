@@ -296,8 +296,10 @@ public class HomeControllerTests
         Assert.Equal(250m, model.TotalExpensesUsd);
     }
 
-    [Fact]
-    public async Task Index_Builds_Recent_Activities_And_Order_Rows_From_Real_Operational_Data()
+    [Theory]
+    [InlineData("fa", "فروش های اخیر", "بارگیری های اخیر")]
+    [InlineData("en", "Recent Sales", "Recent Loading")]
+    public async Task Index_Builds_Recent_Activities_And_Order_Rows_From_Real_Operational_Data(string language, string salesTitle, string loadingTitle)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -348,7 +350,9 @@ public class HomeControllerTests
 
         await db.SaveChangesAsync();
 
-        var dashboardService = new DashboardService(db, new HttpContextAccessor());
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = $"ptg-ui-lang={language}";
+        var dashboardService = new DashboardService(db, new HttpContextAccessor { HttpContext = context });
         var controller = new HomeController(dashboardService, NullLogger<HomeController>.Instance);
 
         var result = await controller.Index();
@@ -358,8 +362,8 @@ public class HomeControllerTests
 
         Assert.Contains(model.RecentActivities, row => row.Name.Contains("INV-100", StringComparison.Ordinal));
         Assert.Contains(model.RecentActivities, row => row.Name.Contains("RWB-100", StringComparison.Ordinal));
-        Assert.Equal("Recent Sales", model.OutboundOrderPanel.Title);
-        Assert.Equal("Recent Loading", model.InboundOrderPanel.Title);
+        Assert.Equal(salesTitle, model.OutboundOrderPanel.Title);
+        Assert.Equal(loadingTitle, model.InboundOrderPanel.Title);
         Assert.Contains(model.OutboundOrderPanel.Rows, row => row.Reference == "INV-100");
         Assert.Contains(model.InboundOrderPanel.Rows, row => row.Reference == "RWB-100");
     }
