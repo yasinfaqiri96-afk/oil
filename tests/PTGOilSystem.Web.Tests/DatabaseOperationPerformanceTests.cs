@@ -148,12 +148,47 @@ public sealed class DatabaseOperationPerformanceTests(
         }
     }
 
-    private async Task<IActionResult> MeasureAsync(
+    [Fact]
+    public async Task Stock_Summary_Aggregates_Thousand_Movements_Without_Writing_Data()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        var counter = new BulkFromLoadingPerformanceTests.CommandCounter();
+        await using var db = fixture.CreateDbContext(counter);
+        var scope = await CreateScopeAsync(db);
+        db.InventoryMovements.AddRange(Enumerable.Range(1, RowCount).Select(index => new InventoryMovement
+        {
+            ProductId = scope.Product.Id,
+            ContractId = scope.Contract.Id,
+            TerminalId = scope.Terminal.Id,
+            StorageTankId = scope.Tank.Id,
+            Direction = index <= 700 ? MovementDirection.In : MovementDirection.Out,
+            QuantityMt = 1m,
+            MovementDate = DateTime.SpecifyKind(OperationDate.AddDays(index <= 700 ? 0 : 1), DateTimeKind.Utc),
+            ReferenceDocument = $"PERF-STOCK-{index}"
+        }));
+        await db.SaveChangesAsync();
+
+        var rows = await MeasureAsync(db, counter, "stock_summary", false,
+            () => new StockService(db).GetStockSummaryAsync(contractId: scope.Contract.Id));
+        var row = Assert.Single(rows);
+        Assert.Equal(400m, row.FreeQuantityMt);
+        Assert.Equal(RowCount, row.MovementCount);
+        Assert.Equal(scope.Contract.Id, row.ContractId);
+        var historical = Assert.Single(await new StockService(db).GetStockSummaryAsync(
+            contractId: scope.Contract.Id, asOfUtc: OperationDate.AddDays(1).AddTicks(-1)));
+        Assert.Equal(700m, historical.FreeQuantityMt);
+        Assert.Equal(700, historical.MovementCount);
+        Assert.Equal(RowCount, await db.InventoryMovements.CountAsync());
+        Assert.Empty(await db.JournalEntries.ToListAsync());
+    }
+
+    private async Task<T> MeasureAsync<T>(
         ApplicationDbContext db,
         BulkFromLoadingPerformanceTests.CommandCounter counter,
         string operation,
         bool accountingEnabled,
-        Func<Task<IActionResult>> action)
+        Func<Task<T>> action)
     {
         db.ChangeTracker.Clear();
         var saves = 0;
