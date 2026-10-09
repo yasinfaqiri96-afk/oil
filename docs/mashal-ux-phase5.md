@@ -15,7 +15,7 @@
 - `node --check src/PTGOilSystem.Web/wwwroot/js/contract-journey-tabs.js`
 - `git diff --check`
 - `node tests/browser/contract-journey-navigation.cjs` با Chromium و Playwright نصب‌شده در محیط؛ بدون افزودن dependency تولیدی.
-- عرض‌های ۱۴۴۰، ۷۶۸ و ۳۹۰ پیکسل: پهنای سند از صفحه بیشتر نشد، هفت لینک و سه گروه باقی ماندند، تمرکز کیبورد حفظ شد، بازیابی خطا همان context را نگه داشت و GET جایگزین موفق بود؛ خطای JavaScript صفر بود.
+- عرض‌های ۱۴۴۰، ۷۶۸ و ۳۹۰ پیکسل: پهنای سند از صفحه بیشتر نشد، هفت لینک و سه گروه باقی ماندند، تمرکز کیبورد حفظ شد، بازیابی خطا همان context را نگه داشت و GET جایگزین موفق بود و پاسخ دیررس صفحهٔ قبلی دور انداخته شد؛ خطای JavaScript صفر بود.
 
 تست مرورگر CSS و JavaScript واقعی مخزن را با markup نمایندهٔ خروجی ناوبری می‌آزماید. این بررسی جایگزین Web build، تست ساختاری Razor یا بررسی صفحهٔ واقعی دارای داده نیست. دو تست ساختاری جدید به `ContractJourneyViewStructureTests` اضافه شدند. اجرای این کلاس و Razor build باید در build هماهنگ مرحلهٔ نهایی انجام شود.
 

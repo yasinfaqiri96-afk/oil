@@ -1,7 +1,7 @@
 @using PTGOilSystem.Web.Models.ContractJourney
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneyDetailTabsRailViewModel
 
-<div class="ak-navigation-groups" aria-label="@Model.AriaLabel" data-contract-journey-tab-nav="true">
+<div class="ak-navigation-groups" role="group" aria-label="@Model.AriaLabel" data-contract-journey-tab-nav="true">
     @foreach (var group in Model.Tabs.GroupBy(tab => tab.GroupKey))
     {
         var groupLabel = group.First().GroupLabel;
