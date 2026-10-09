@@ -21,9 +21,10 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.end(`<!doctype html><html dir="rtl" lang="fa"><head><meta charset="utf-8">${css}<style>body{margin:0;padding:16px;font-family:Arial,sans-serif;}main{max-width:1145px;margin:auto;min-width:0;}h1{font-size:28px}h2{font-size:18px}</style></head><body class="boltz-rtl action-details">${fragment(active)}<script src="/js/contract-journey-tabs.js"></script></body></html>`);
 });
+let browser;
 (async () => {
   await new Promise(resolve => server.listen(5057, '127.0.0.1', resolve));
-  const browser = await chromium.launch({ executablePath: process.env.PTG_CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({ executablePath: process.env.PTG_CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
   const errors = [];
   const page = await browser.newPage();
   page.on('pageerror', error => errors.push(error.message));
@@ -75,4 +76,9 @@ const server = http.createServer((req, res) => {
   fs.writeFileSync(`${output}/browser-checks.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
   await browser.close(); server.close();
-})().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
+})().catch(async error => {
+  if (browser) await browser.close();
+  console.error(error.message);
+  server.close();
+  process.exitCode = 1;
+});
