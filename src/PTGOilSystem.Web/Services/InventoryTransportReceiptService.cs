@@ -13,7 +13,7 @@ namespace PTGOilSystem.Web.Services;
 // منطق واحدِ ثبت رسید انتقال از موجودی برای یک تخصیص/leg.
 // هم کنترلر تک‌تخصیص (InventoryTransportReceipts/Create) و هم workflow گروهی (InventoryTransportLegs)
 // از همین سرویس استفاده می‌کنند تا هیچ منطق مالی موازی ساخته نشود.
-// این سرویس تراکنش را مدیریت نمی‌کند؛ فراخوان باید همهٔ legها را در یک تراکنش واحد بسازد و در صورت خطا rollback کند.
+// عملیات گروهی تراکنش فراخوان را حفظ می‌کند؛ فراخوان تکی بدون تراکنش یک مرز مستقل و اتمیک می‌گیرد.
 public sealed class InventoryTransportReceiptService
 {
     public const string ReceiptFreightExpenseCode = "TRANSPORT-RECEIPT-FREIGHT";
@@ -131,7 +131,7 @@ public sealed class InventoryTransportReceiptService
 
         // وزن واقعی مقصد می‌تواند بیشتر باشد؛ مازاد باید با کسری منفی ثبت شود،
         // بنابراین مصرف واقعی مبدأ (دریافت + کسری) از مانده تجاوز نمی‌کند.
-        if (model.ReceivedQuantityMt + model.ShortageQuantityMt > remainingMt + 0.0001m)
+        if (decimal.Round(model.ReceivedQuantityMt + model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero) > remainingMt)
         {
             modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt),
                 "مجموع دریافت و کسری از ماندهٔ قابل دریافت بیشتر است؛ اضافه‌وزن ترازو را جدا ثبت کنید.");
@@ -228,7 +228,7 @@ public sealed class InventoryTransportReceiptService
     }
 
     // ساختِ تمام رکوردهای یک رسید (رسید، کرایه، کسری، حرکت موجودی/فروش/دیسپچ، وضعیت leg).
-    // تراکنش را مدیریت نمی‌کند. leg باید tracked باشد.
+    // تراکنش موجود را حفظ می‌کند یا برای فراخوان مستقل تراکنش می‌سازد. leg باید tracked باشد.
     public async Task<InventoryTransportReceipt> ApplyAsync(
         InventoryTransportReceiptCreateViewModel model,
         InventoryTransportLeg leg,
@@ -241,6 +241,9 @@ public sealed class InventoryTransportReceiptService
             : null;
         try
         {
+            if (model.InventoryTransportLegId != leg.Id || model.ReceivedQuantityMt < 0m
+                || (!model.SettlementOnly && model.ReceivedQuantityMt <= 0m))
+                throw new BusinessRuleException("TRANSPORT_RECEIPT_INVALID_QUANTITY", "بار و مقدار دریافت معتبر نیست.");
             await LockLegsAsync([leg.Id]);
             var remaining = await GetRemainingQuantityAsync(leg);
             if (leg.Status is not (InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit)
@@ -249,7 +252,7 @@ public sealed class InventoryTransportReceiptService
             if ((model.ExpectedRemainingMt.HasValue && model.ExpectedRemainingMt.Value != remaining)
                 || (_validatedRemaining.TryGetValue(leg.Id, out var validated) && validated != remaining))
                 throw new BusinessRuleException("TRANSPORT_RECEIPT_STALE", "ماندهٔ این بار تغییر کرده است؛ صفحه را تازه و مقدار را دوباره بررسی کنید.");
-            if (model.ReceivedQuantityMt + model.ShortageQuantityMt > remaining + 0.0001m)
+            if (decimal.Round(model.ReceivedQuantityMt + model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero) > remaining)
                 throw new BusinessRuleException("TRANSPORT_RECEIPT_EXCEEDS_REMAINING", "مجموع دریافت و کسری از ماندهٔ قابل دریافت بیشتر است.");
             var receipt = await ApplyCoreAsync(model, leg, saleConversion);
             if (transaction is not null) await transaction.CommitAsync();

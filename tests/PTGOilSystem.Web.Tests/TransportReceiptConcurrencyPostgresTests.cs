@@ -57,6 +57,19 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
     }
 
     [Fact]
+    public async Task Even_One_Four_Decimal_Unit_Above_Remaining_Is_Rejected()
+    {
+        await SeedAsync();
+        await using var db = fixture.CreateDbContext();
+        var service = Service(db);
+        var leg = (await service.LoadLegAsync(1, true))!;
+        await Assert.ThrowsAsync<BusinessRuleException>(() => service.ApplyAsync(Model(100.0001m), leg, null));
+        await using var verify = fixture.CreateDbContext();
+        Assert.Empty(await verify.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await verify.InventoryMovements.ToListAsync());
+    }
+
+    [Fact]
     public async Task Explicit_Weighbridge_Surplus_Preserves_Source_Quantity()
     {
         await SeedAsync();
