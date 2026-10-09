@@ -112,6 +112,7 @@ public sealed class BulkFromLoadingPerformanceTests(
     [InlineData(10)]
     [InlineData(100)]
     [InlineData(500)]
+    [InlineData(1000)]
     [InlineData(2000)]
     [InlineData(10000)]
     public async Task Bulk_SetBased_Conversion_Cost(int loadingCount)
