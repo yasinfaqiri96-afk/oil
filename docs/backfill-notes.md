@@ -21,3 +21,22 @@ No migration was added. No operational document, historic journal, price, exchan
 ## Remaining limits
 
 Dry run intentionally does not promise a complete posting plan. It cannot simulate the dependent valuation pool or closed-period results without executing adapters. Existing purchase revisions are not compared to today's edited price during backfill; changes remain a separately authorized revision operation. Historical mixed receipt valuation requires explicit allocation-aware accounting review before any replay. Historical backfill COGS chronology and valuation estimates still require the broader reconciliation review; this safety patch does not assert historical financial correctness for every dataset.
+
+## Scope of the regression matrix
+
+| Safety scenario | Automated coverage in this patch |
+| --- | --- |
+| Cancelled purchase through single and batch adapter | Yes; source journals are absent |
+| Cancelled loading receipt | Yes; source journal and valuation are absent |
+| Direct dispatch / historical mixed loading receipt | Yes; both are skipped without valuation |
+| Cancelled transport receipt | Yes; adapter and real replay remain inactive |
+| Missing / posted / cancelled dry-run documents | Yes; zero posting and unchanged journal / pool counts |
+| Historical price edited without journal revision | Yes; original journals are preserved and receipt needs review |
+| Valid explicit purchase revision | Existing repricing regression plus new backfill preservation case |
+| Reversed purchase and reversed loading receipt | Yes; reversal history and valuation remain unchanged |
+| Pending price, hard-locked period and closed fiscal year | Yes; precise reasons and no new source journal |
+| Concurrent manual journal reversal versus a dependent receipt | Not covered or resolved by this patch |
+| Historical allocation-aware mixed receipt valuation | Not replayed automatically; requires review |
+| Complete historical COGS / foreign-exchange reconciliation | Broader financial review; not established by this patch |
+
+The matrix describes implemented tests, not an assertion that all tests passed. The combined mission test artifacts provide the actual execution results. `AccountingPostingService.ReverseAsync` does not itself validate every downstream operational dependency; a concurrent manual journal reversal needs separate dependency and authorization review. Backfill's conservative journal scan prevents replay of a source found already posted or reversed, but cannot by itself make every manual reversal safe.
