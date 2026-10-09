@@ -114,7 +114,7 @@ public sealed class InventoryTransportReceiptService
             modelState.AddModelError(keyPrefix + nameof(model.InventoryTransportLegId), "فقط حمل‌های Loaded یا InTransit می‌توانند رسید مقصد بگیرند.");
         }
 
-        if (remainingMt <= 0.0001m)
+        if (remainingMt <= 0m)
         {
             modelState.AddModelError(keyPrefix + nameof(model.InventoryTransportLegId), "این حمل کاملاً تخلیه شده است؛ باقیمانده‌ای برای رسید جدید وجود ندارد.");
         }
@@ -247,7 +247,7 @@ public sealed class InventoryTransportReceiptService
             await LockLegsAsync([leg.Id]);
             var remaining = await GetRemainingQuantityAsync(leg);
             if (leg.Status is not (InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit)
-                || remaining <= 0.0001m)
+                || remaining <= 0m)
                 throw new BusinessRuleException("TRANSPORT_RECEIPT_NO_REMAINING", "این بار ماندهٔ قابل دریافت ندارد.");
             if ((model.ExpectedRemainingMt.HasValue && model.ExpectedRemainingMt.Value != remaining)
                 || (_validatedRemaining.TryGetValue(leg.Id, out var validated) && validated != remaining))
@@ -467,7 +467,7 @@ public sealed class InventoryTransportReceiptService
 
         // فقط وقتی باقیمانده حمل صفر شد، حمل «تکمیل» می‌شود؛ در تخلیهٔ جزئی حمل باز می‌ماند تا باقیمانده هم رسید بگیرد.
         var remainingAfterMt = await GetRemainingQuantityAsync(leg);
-        if (remainingAfterMt <= 0.0001m)
+        if (remainingAfterMt <= 0m)
         {
             leg.Status = InventoryTransportLegStatus.Received;
             await _db.SaveChangesAsync();
