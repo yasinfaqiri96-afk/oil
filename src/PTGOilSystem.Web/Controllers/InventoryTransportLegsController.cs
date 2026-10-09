@@ -1479,7 +1479,8 @@ public partial class InventoryTransportLegsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateGroupReceipt(InventoryTransportGroupReceiptCreateViewModel model)
+    public async Task<IActionResult> CreateGroupReceipt(InventoryTransportGroupReceiptCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         NormalizeGroupReceiptModel(model);
 
@@ -1506,6 +1507,19 @@ public partial class InventoryTransportLegsController : Controller
         try
         {
             transaction = await BeginTransactionIfSupportedAsync();
+            await _receiptService.LockLegsAsync(legs.Select(l => l.Id));
+            availability = await BuildGroupReceiptAvailabilityAsync(legs);
+            ApplyGroupReceiptAvailability(model, availability);
+            await ValidateGroupReceiptAsync(model, legs, availability);
+            if (!ModelState.IsValid)
+            {
+                if (transaction is not null) await transaction.RollbackAsync();
+                RefreshGroupReceiptCreateModel(model, legs);
+                ApplyGroupReceiptAvailability(model, availability);
+                await PopulateGroupReceiptLookupsAsync(model);
+                return View(model);
+            }
+            new FormTokenGuard(_db).Stamp(formToken, "Transport.GroupReceipt", nameof(InventoryTransportReceipt));
 
             var totalLoadedQuantityMt = availability.TotalLoadedQuantityMt;
             var orderedLegs = legs
@@ -1604,7 +1618,9 @@ public partial class InventoryTransportLegsController : Controller
             }
 
             _logger.LogError(ex, "Failed to create grouped transport receipt for {GroupKey}.", model.GroupKey);
-            ModelState.AddModelError(string.Empty, "رسید کلی حمل ذخیره نشد. مقدارها و مقصد را دوباره بررسی کنید.");
+            ModelState.AddModelError(string.Empty, ex is BusinessRuleException rule ? rule.Message
+                : new FormTokenGuard(_db).IsDuplicate(ex) ? "این درخواست قبلاً ثبت شده است؛ تاریخچهٔ بار را بررسی کنید."
+                : "رسید کلی حمل ذخیره نشد. مقدارها و مقصد را دوباره بررسی کنید.");
             if (legs.Count > 0)
             {
                 RefreshGroupReceiptCreateModel(model, legs);
@@ -1669,7 +1685,8 @@ public partial class InventoryTransportLegsController : Controller
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateGroupOperation(InventoryTransportGroupOperationViewModel model)
+    public async Task<IActionResult> CreateGroupOperation(InventoryTransportGroupOperationViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         var legs = string.IsNullOrWhiteSpace(model.GroupKey)
             ? []
@@ -1742,6 +1759,8 @@ public partial class InventoryTransportLegsController : Controller
             : null;
         try
         {
+            await receiptService.LockLegsAsync(perLeg.Select(p => p.Leg.Id));
+            new FormTokenGuard(_db).Stamp(formToken, "Transport.GroupOperation", nameof(InventoryTransportReceipt));
             foreach (var (perModel, leg) in perLeg)
             {
                 await receiptService.ApplyAsync(perModel, leg, saleConversion);
@@ -1760,7 +1779,9 @@ public partial class InventoryTransportLegsController : Controller
             }
 
             _logger.LogError(ex, "Group transport operation failed for {GroupKey}.", model.GroupKey);
-            ModelState.AddModelError(string.Empty, "ثبت گروهی ذخیره نشد. مقدارها و انتخاب‌ها را دوباره بررسی کنید.");
+            ModelState.AddModelError(string.Empty, ex is BusinessRuleException rule ? rule.Message
+                : new FormTokenGuard(_db).IsDuplicate(ex) ? "این درخواست قبلاً ثبت شده است؛ تاریخچهٔ بار را بررسی کنید."
+                : "ثبت گروهی ذخیره نشد. مقدارها و انتخاب‌ها را دوباره بررسی کنید.");
             RefreshGroupOperationDisplay(model, legs);
             await PopulateGroupOperationLookupsAsync(model);
             return View(model);

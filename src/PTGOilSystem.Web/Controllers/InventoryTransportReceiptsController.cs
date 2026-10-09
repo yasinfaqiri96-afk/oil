@@ -77,6 +77,7 @@ public class InventoryTransportReceiptsController : Controller
             DestinationTerminalId = leg.DestinationTerminalId,
             DestinationStorageTankId = leg.DestinationStorageTankId,
             ReceivedQuantityMt = remainingMt,
+            ExpectedRemainingMt = remainingMt,
             ShortageQuantityMt = 0m,
             AllowanceMt = leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon ? 0m : null,
             ChargeableShortageMt = leg.TransportType is LoadingTransportType.Truck or LoadingTransportType.Wagon ? 0m : null,
@@ -100,7 +101,8 @@ public class InventoryTransportReceiptsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(InventoryTransportReceiptCreateViewModel model, bool focused = false)
+    public async Task<IActionResult> Create(InventoryTransportReceiptCreateViewModel model, bool focused = false,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         if (model.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch)
         {
@@ -137,7 +139,20 @@ public class InventoryTransportReceiptsController : Controller
             ? await _db.Database.BeginTransactionAsync()
             : null;
 
-        var receipt = await _receiptService.ApplyAsync(model, leg!, saleConversion);
+        InventoryTransportReceipt receipt;
+        try
+        {
+            new FormTokenGuard(_db).Stamp(formToken, "Transport.Receipt", nameof(InventoryTransportReceipt));
+            receipt = await _receiptService.ApplyAsync(model, leg!, saleConversion);
+        }
+        catch (Exception ex) when (ex is BusinessRuleException || new FormTokenGuard(_db).IsDuplicate(ex))
+        {
+            if (transaction is not null) await transaction.RollbackAsync();
+            ModelState.AddModelError(string.Empty, ex is BusinessRuleException rule
+                ? rule.Message : "این درخواست قبلاً ثبت شده است؛ تاریخچهٔ بار را بررسی کنید.");
+            await PopulateLookupsAsync(model);
+            return View(model);
+        }
 
         // وقتی آخرین نتیجهٔ حمل ثبت شده و همین نتیجه واقعاً کرایه دارد، وضعیت کرایهٔ کل
         // سفر نیز نهایی است. در تحویل جزئی پرچم باز می‌ماند تا کرایهٔ باقیمانده بعداً
