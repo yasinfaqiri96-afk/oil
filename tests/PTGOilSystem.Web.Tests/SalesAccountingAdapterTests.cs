@@ -492,6 +492,7 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
         await db.SaveChangesAsync();
         // Changing the source price later must not silently rewrite the already-posted purchase basis.
         loading.LoadingPriceUsd = 999m; await db.SaveChangesAsync();
+        Assert.Equal(PaymentPostingStatus.Posted, (await purchaseAdapter.TryPostPurchaseAsync(loading)).Status);
         var adapter = CreateAdapter(db, cogs: true);
         var posted = await adapter.TryPostCogsAsync(sale);
         Assert.Equal(PaymentPostingStatus.Posted, posted.Status);
