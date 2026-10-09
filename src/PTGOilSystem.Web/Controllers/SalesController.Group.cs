@@ -488,6 +488,11 @@ public partial class SalesController
                 await _db.Database.ExecuteSqlInterpolatedAsync(
                     $@"SELECT 1 FROM ""LoadingRegisters"" WHERE ""Id"" = ANY({loadingIds}) ORDER BY ""Id"" FOR UPDATE");
 
+            var loadingSources = (await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync(loadingIds))
+                .ToDictionary(s => s.Id);
+            var sourceLoadings = await _db.LoadingRegisters.AsNoTracking().Include(l => l.Contract)
+                .Where(l => loadingIds.Contains(l.Id)).ToDictionaryAsync(l => l.Id);
+
             var batch = new SalesBatch
             {
                 CustomerId = model.CustomerId,
@@ -523,7 +528,8 @@ public partial class SalesController
                     GroupSaleSourceKind.TruckDispatch =>
                         await CreateTruckDispatchLineAsync(owner, selection, model, conversion, invoice),
                     GroupSaleSourceKind.LoadingRegister =>
-                        await CreateLoadingLineAsync(owner, selection, model, invoice),
+                        await CreateLoadingLineAsync(owner, selection, model, invoice,
+                            loadingSources.GetValueOrDefault(selection.Id), sourceLoadings.GetValueOrDefault(selection.Id)),
                     GroupSaleSourceKind.WagonLeg or GroupSaleSourceKind.TransportLeg =>
                         await CreateLegLineAsync(owner, selection, model, conversion, invoice, receiptService),
                     _ => throw new BusinessRuleException("GROUP_SALE_SOURCE_INVALID", "نوع منبع فروش معتبر نیست.")
@@ -592,10 +598,11 @@ public partial class SalesController
     // ---------- ساخت ردیف‌ها (هر کدام از primitiveهای فروشِ موجود) ----------
 
     private async Task<SalesTransaction> CreateLoadingLineAsync(
-        SaleLineOwner owner, GroupSaleSelectedInput input, GroupSaleCreateViewModel model, string invoice)
+        SaleLineOwner owner, GroupSaleSelectedInput input, GroupSaleCreateViewModel model, string invoice,
+        CargoSourceSnapshot? source, LoadingRegister? loading)
     {
-        var source = (await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync([input.Id])).SingleOrDefault()
-            ?? throw new BusinessRuleException("GROUP_SALE_LOADING_MISSING", "بارگیری انتخاب‌شده یافت نشد.");
+        if (source is null || loading is null)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_MISSING", "بارگیری انتخاب‌شده یافت نشد.");
         var eligibility = CargoOperationEligibility.Evaluate(source, CargoAction.DirectSale);
         if (!eligibility.Allowed)
             throw new BusinessRuleException("GROUP_SALE_LOADING_NOT_ELIGIBLE", eligibility.Reason!);
@@ -604,8 +611,6 @@ public partial class SalesController
             throw new BusinessRuleException("GROUP_SALE_LOADING_QUANTITY", "مقدار فروش بارگیری باید مثبت و حداکثر چهار رقم اعشار باشد.");
         if (quantity > source.RemainingQuantityMt)
             throw new BusinessRuleException("GROUP_SALE_LOADING_REMAINDER", "مقدار فروش از ماندهٔ معتبر بارگیری بیشتر است.");
-        var loading = await _db.LoadingRegisters.AsNoTracking().Include(l => l.Contract)
-            .SingleAsync(l => l.Id == input.Id);
         var draft = await new LoadingDirectSaleDraftService(_currencyConversion).BuildAsync(new LoadingReceiptAllocationLineInput
         {
             QuantityMt = quantity, SaleDate = model.SaleDate, SaleCurrency = model.Currency,
