@@ -170,7 +170,7 @@ public sealed class TransportChainService : ITransportChainService
             // نگهداشت مقدار: انتقال هرگز از باقیماندهٔ واقعی والد بیشتر نمی‌شود. همین نگهبان
             // ارسال دوباره را هم بی‌اثر می‌کند، چون رسید اول باقیمانده را پایین آورده است.
             var remainingMt = await _quantities.GetRemainingMtAsync(sourceLeg.Id, ct);
-            if (source.QuantityMt > remainingMt + Epsilon)
+            if (decimal.Round(source.QuantityMt, 4, MidpointRounding.AwayFromZero) > remainingMt)
             {
                 throw new BusinessRuleException(
                     "TRANSPORT_CHAIN_QTY_EXCEEDS_REMAINING",
