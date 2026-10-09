@@ -2493,6 +2493,102 @@ public class SalesControllerTests
         Assert.Equal(sale.QuantityMt, allocations.Sum(a => a.QuantityMt));
     }
 
+    [Fact]
+    public async Task CreateGroup_Loading_Sources_Use_Global_Receipt_And_Transport_Remainder()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        db.LoadingRegisters.Add(new LoadingRegister { Id = 1, ContractId = 2, ProductId = 1,
+            LoadedQuantityMt = 100m, LoadingDate = new DateTime(2026, 5, 1), WagonNumber = "W-1" });
+        db.LoadingReceipts.Add(new LoadingReceipt { LoadingRegisterId = 1, TerminalId = 1,
+            ReceivedQuantityMt = 20m, ReceiptDate = new DateTime(2026, 5, 2) });
+        db.InventoryTransportLegs.Add(new InventoryTransportLeg { Id = 10, SourcePurchaseContractId = 2,
+            ProductId = 1, QuantityMt = 30m, Status = InventoryTransportLegStatus.Loaded });
+        db.InventoryTransportLegAllocations.Add(new InventoryTransportLegAllocation {
+            InventoryTransportLegId = 10, SourceLoadingRegisterId = 1, SourcePurchaseContractId = 2, QuantityMt = 30m });
+        await db.SaveChangesAsync();
+        var result = Assert.IsType<ViewResult>(await BuildController(db).CreateGroup((string?)null));
+        var sources = Assert.IsType<List<GroupSaleSourceItem>>(result.ViewData["Sources"]);
+        var loading = sources.Single(s => s.Kind == GroupSaleSourceKind.LoadingRegister);
+        Assert.Equal(50m, loading.AvailableMt);
+        Assert.False(loading.IsFullVehicle);
+        Assert.Equal("W-1", loading.Number);
+    }
+
+    [Fact]
+    public async Task CreateGroup_Loading_Partial_Sales_Preserve_Trace_And_Do_Not_Create_Inventory()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        db.LoadingRegisters.Add(new LoadingRegister { Id = 1, ContractId = 2, ProductId = 1,
+            LoadedQuantityMt = 100m, LoadingDate = new DateTime(2026, 5, 1) });
+        await db.SaveChangesAsync();
+        GroupSaleCreateViewModel Request(decimal qty) => new() {
+            CustomerId = 1, SaleDate = new DateTime(2026, 5, 3), Currency = "USD", UnitPriceInCurrency = 500m,
+            LoadingSaleTerminalId = 1, Items = [new() { Kind = GroupSaleSourceKind.LoadingRegister, Id = 1, QuantityMt = qty }] };
+        Assert.IsType<RedirectToActionResult>(await BuildController(db).CreateGroup(Request(40m)));
+        Assert.IsType<RedirectToActionResult>(await BuildController(db).CreateGroup(Request(35m)));
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        Assert.Empty(await db.InventoryTransportLegs.ToListAsync());
+        Assert.Empty(await db.TruckDispatches.ToListAsync());
+        var allocations = await db.LoadingReceiptAllocations.Include(a => a.LoadingReceipt).Include(a => a.SalesTransaction).ToListAsync();
+        Assert.Equal(2, allocations.Count);
+        Assert.Equal(75m, allocations.Sum(a => a.QuantityMt));
+        Assert.All(allocations, a => {
+            Assert.Equal(1, a.LoadingReceipt!.LoadingRegisterId);
+            Assert.Equal(2, a.SourcePurchaseContractId);
+            Assert.Equal(LoadingReceiptAllocationDestination.DirectSale, a.Destination);
+            Assert.Equal(a.QuantityMt, a.SalesTransaction!.QuantityMt);
+            Assert.Equal(2, a.SalesTransaction.SourcePurchaseContractId);
+        });
+        var view = Assert.IsType<ViewResult>(await BuildController(db).CreateGroup((string?)null));
+        Assert.Equal(25m, Assert.IsType<List<GroupSaleSourceItem>>(view.ViewData["Sources"])
+            .Single(i => i.Kind == GroupSaleSourceKind.LoadingRegister).AvailableMt);
+        Assert.Equal(37500m, (await db.LedgerEntries.Where(l => l.SourceType == "Sale").ToListAsync()).Sum(l => l.AmountUsd));
+    }
+
+    [Fact]
+    public async Task CreateGroup_Loading_Rejects_OverRemaining_And_Cancelled_Source()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db); SeedPurchaseContract(db, 2);
+        db.LoadingRegisters.Add(new LoadingRegister { Id = 1, ContractId = 2, ProductId = 1, LoadedQuantityMt = 100m });
+        db.LoadingReceipts.Add(new LoadingReceipt { LoadingRegisterId = 1, TerminalId = 1, ReceivedQuantityMt = 80m });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        Assert.IsType<ViewResult>(await controller.CreateGroup(new GroupSaleCreateViewModel {
+            CustomerId = 1, SaleDate = new DateTime(2026, 5, 3), Currency = "USD", UnitPriceInCurrency = 500m,
+            LoadingSaleTerminalId = 1, Items = [new() { Kind = GroupSaleSourceKind.LoadingRegister, Id = 1, QuantityMt = 30m }] }));
+        Assert.Contains(controller.ModelState.Values.SelectMany(v => v.Errors), e => e.ErrorMessage.Contains("مانده"));
+        Assert.Empty(await db.SalesTransactions.ToListAsync());
+        db.LoadingRegisters.Local.Single().IsCancelled = true; await db.SaveChangesAsync();
+        var view = Assert.IsType<ViewResult>(await BuildController(db).CreateGroup((string?)null));
+        Assert.DoesNotContain(Assert.IsType<List<GroupSaleSourceItem>>(view.ViewData["Sources"]), i => i.Kind == GroupSaleSourceKind.LoadingRegister);
+    }
+
+    [Fact]
+    public async Task CancelGroup_Loading_Releases_Receipt_Remainder_Without_Fake_Movements()
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db); SeedPurchaseContract(db, 2);
+        db.LoadingRegisters.Add(new LoadingRegister { Id = 1, ContractId = 2, ProductId = 1, LoadedQuantityMt = 100m });
+        await db.SaveChangesAsync();
+        await BuildController(db).CreateGroup(new GroupSaleCreateViewModel {
+            CustomerId = 1, SaleDate = new DateTime(2026, 5, 3), Currency = "USD", UnitPriceInCurrency = 500m,
+            LoadingSaleTerminalId = 1, Items = [new() { Kind = GroupSaleSourceKind.LoadingRegister, Id = 1, QuantityMt = 70m }] });
+        var batch = await db.SalesBatches.SingleAsync();
+        await BuildController(db).CancelGroup(batch.Id);
+        Assert.True((await db.LoadingReceipts.SingleAsync()).IsCancelled);
+        Assert.True((await db.SalesTransactions.SingleAsync()).IsCancelled);
+        Assert.Equal(LoadingReceiptAllocationStatus.Cancelled, (await db.LoadingReceiptAllocations.SingleAsync()).Status);
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        var projection = (await new PTGOilSystem.Web.Services.Operations.CargoSourceQueryService(db).LoadLoadingSourcesAsync([1])).Single();
+        Assert.Equal(100m, projection.RemainingQuantityMt);
+        Assert.Equal(2, await db.LedgerEntries.CountAsync());
+    }
+
     private static DbContextOptions<ApplicationDbContext> NewDbOptions()
         => new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

@@ -9,6 +9,8 @@ public enum CargoAction { Receive, DirectSale, StartTransport, ContinueTransport
 
 // These quantities deliberately have different meanings; a physical stock balance is not
 // a reservation-adjusted sellable balance or a transport's unreceived balance.
+public sealed record CargoOwnershipShare(int ContractId, decimal QuantityMt, int? SourceLoadingRegisterId = null, int? SourceLoadingReceiptId = null);
+
 public sealed record CargoSourceSnapshot(
     CargoSourceKind Kind, int Id, int ContractId, int ProductId, int CompanyId,
     string ContractNumber, string ProductName, string CompanyName,
@@ -16,7 +18,14 @@ public sealed record CargoSourceSnapshot(
     decimal OriginalQuantityMt, decimal ReceivedQuantityMt, decimal ShortageQuantityMt,
     decimal TransportedQuantityMt, decimal RemainingQuantityMt,
     bool IsCancelled, bool IsArchived, bool IsPurchaseContract,
-    decimal? PhysicalStockMt = null, decimal? SellableStockMt = null);
+    decimal? PhysicalStockMt = null, decimal? SellableStockMt = null,
+    int? TerminalId = null, int? StorageTankId = null,
+    IReadOnlyCollection<CargoAction>? SupportedActions = null,
+    IReadOnlyList<CargoOwnershipShare>? OwnershipShares = null,
+    ContractStatus? ContractStatus = null)
+{
+    public decimal ConsumedQuantityMt => OriginalQuantityMt - RemainingQuantityMt;
+}
 
 public sealed record CargoEligibility(bool Allowed, string? Reason);
 
@@ -25,14 +34,28 @@ public static class CargoOperationEligibility
     public static CargoEligibility Evaluate(CargoSourceSnapshot source, CargoAction action)
     {
         if (action == CargoAction.History) return new(true, null);
+        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Closed)
+            return new(false, "قرارداد این بار بسته شده است؛ نخست آن را از مسیر مجاز باز کنید.");
+        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Cancelled)
+            return new(false, "قرارداد این بار لغو شده است.");
         if (source.IsCancelled) return new(false, "این بار لغو شده است.");
         if (source.IsArchived) return new(false, "این بار بایگانی شده است.");
         if (!source.IsPurchaseContract) return new(false, "قرارداد خرید این بار معتبر نیست.");
-        if (action == CargoAction.Expense) return new(true, null);
+        if (action == CargoAction.Expense && source.Kind == CargoSourceKind.Loading) return new(true, null);
         if (source.Kind != CargoSourceKind.Loading)
-            return new(false, "این عملیات باید از مسیر معتبر همین بار ثبت شود.");
+        {
+            if (source.SupportedActions?.Contains(action) != true)
+                return new(false, "این عملیات برای وضعیت فعلی بار مجاز نیست.");
+            if (action == CargoAction.Expense) return new(true, null);
+            var available = source.Kind == CargoSourceKind.Stock && action == CargoAction.DirectSale
+                ? source.SellableStockMt : source.RemainingQuantityMt;
+            if (!available.HasValue)
+                return new(false, "ماندهٔ قابل فروش این منبع نیاز به بررسی دارد.");
+            return available > 0m ? new(true, null) : new(false, "ماندهٔ کافی برای این عملیات موجود نیست.");
+        }
         if (action is not (CargoAction.Receive or CargoAction.DirectSale or CargoAction.StartTransport))
             return new(false, "این عملیات برای بارگیری مجاز نیست.");
+        if (action == CargoAction.Expense) return new(true, null);
         if (source.RemainingQuantityMt <= 0m)
             return new(false, "ماندهٔ این بار قبلاً دریافت یا به حمل تخصیص یافته است.");
         return new(true, null);
@@ -41,7 +64,7 @@ public static class CargoOperationEligibility
 
 // Read-only application projection over the existing receipt/loss/allocation authorities.
 // Command callers must acquire the LoadingRegister row lock before re-reading this projection.
-public sealed class CargoSourceQueryService(ApplicationDbContext db)
+public sealed partial class CargoSourceQueryService(ApplicationDbContext db)
 {
     public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadLoadingSourcesAsync(
         IReadOnlyCollection<int>? loadingIds = null, CancellationToken ct = default)
@@ -55,6 +78,7 @@ public sealed class CargoSourceQueryService(ApplicationDbContext db)
             l.IsCancelled, l.IsArchived, l.TransportType,
             CompanyId = l.Contract != null ? l.Contract.CompanyId : 0,
             ContractNumber = l.Contract != null ? l.Contract.ContractNumber : "",
+            ContractStatus = l.Contract != null ? (ContractStatus?)l.Contract.Status : null,
             IsPurchaseContract = l.Contract != null && l.Contract.ContractType == ContractType.Purchase,
             CompanyName = l.Contract != null && l.Contract.Company != null ? l.Contract.Company.Name : "",
             ProductName = l.Product != null ? l.Product.Name : "",
@@ -85,11 +109,13 @@ public sealed class CargoSourceQueryService(ApplicationDbContext db)
         return rows.Select(l => new CargoSourceSnapshot(CargoSourceKind.Loading,
             l.Id, l.ContractId, l.ProductId, l.CompanyId, l.ContractNumber, l.ProductName, l.CompanyName,
             l.Number ?? $"#{l.Id}", l.TransportType == LoadingTransportType.Wagon ? "واگن"
-                : l.TransportType == LoadingTransportType.Truck ? "موتر" : "کشتی", l.Route, l.LoadingDate,
+                : l.TransportType == LoadingTransportType.Truck ? "موتر"
+                : l.TransportType == LoadingTransportType.Vessel ? "کشتی" : "نامشخص", l.Route, l.LoadingDate,
             l.LoadedQuantityMt, received.GetValueOrDefault(l.Id), shortage.GetValueOrDefault(l.Id),
             transported.GetValueOrDefault(l.Id), decimal.Round(Math.Max(0m, l.LoadedQuantityMt
                 - received.GetValueOrDefault(l.Id) - shortage.GetValueOrDefault(l.Id)
                 - transported.GetValueOrDefault(l.Id)), 4, MidpointRounding.AwayFromZero),
-            l.IsCancelled, l.IsArchived, l.IsPurchaseContract)).ToList();
+            l.IsCancelled, l.IsArchived, l.IsPurchaseContract,
+            OwnershipShares: [new CargoOwnershipShare(l.ContractId, l.LoadedQuantityMt, l.Id)], ContractStatus: l.ContractStatus)).ToList();
     }
 }

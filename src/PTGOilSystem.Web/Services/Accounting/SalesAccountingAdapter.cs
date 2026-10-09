@@ -391,7 +391,7 @@ public sealed class SalesAccountingAdapter(
             .Select(x => new { x.TerminalId, x.ProductId, x.QuantityMt })
             .ToListAsync(cancellationToken);
         if (outMovements.Count == 0)
-            return Skipped(sale, "Cogs", companyId, "NO_OUTBOUND_MOVEMENT");
+            return await TryPostLoadingDirectCogsAsync(sale, companyId, sourceEventId, cancellationToken);
         if (outMovements.Any(x => x.QuantityMt <= 0m))
             return Skipped(sale, "Cogs", companyId, "INVALID_MOVEMENT_QUANTITY");
 
@@ -519,6 +519,64 @@ public sealed class SalesAccountingAdapter(
             LogFailure(sale, "Cogs", exception);
             throw;
         }
+    }
+
+    private async Task<SalesAccountingResult> TryPostLoadingDirectCogsAsync(
+        SalesTransaction sale, int companyId, string sourceEventId, CancellationToken ct)
+    {
+        var shares = await db.LoadingReceiptAllocations.AsNoTracking()
+            .Where(a => a.SalesTransactionId == sale.Id
+                && a.Destination == LoadingReceiptAllocationDestination.DirectSale
+                && a.Status != LoadingReceiptAllocationStatus.Cancelled
+                && a.LoadingReceipt != null && !a.LoadingReceipt.IsCancelled
+                && a.LoadingReceipt.LoadingRegister != null && !a.LoadingReceipt.LoadingRegister.IsCancelled)
+            .Select(a => new { a.QuantityMt, a.SourcePurchaseContractId,
+                LoadingId = a.LoadingReceipt!.LoadingRegisterId,
+                LoadedMt = a.LoadingReceipt.LoadingRegister!.LoadedQuantityMt,
+                ProductId = a.LoadingReceipt.LoadingRegister.ProductId }).ToListAsync(ct);
+        if (shares.Count == 0) return Skipped(sale, "Cogs", companyId, "NO_OUTBOUND_MOVEMENT");
+        if (shares.Sum(a => a.QuantityMt) != sale.QuantityMt
+            || shares.Any(a => a.QuantityMt <= 0m || a.LoadedMt <= 0m || a.ProductId != sale.ProductId))
+            return Skipped(sale, "Cogs", companyId, "DIRECT_SALE_SOURCE_QUANTITY_MISMATCH");
+        var settings = await db.AccountingSettings.AsNoTracking().SingleAsync(x => x.CompanyId == companyId, ct);
+        if (!await db.Accounts.AsNoTracking().AnyAsync(a => a.Id == settings.InventoryInTransitAccountId
+                && a.CompanyId == companyId && a.IsActive, ct))
+            return Skipped(sale, "Cogs", companyId, "IN_TRANSIT_ACCOUNT_MISSING");
+        var lines = new List<AccountingPostLine>();
+        decimal totalCost = 0m;
+        foreach (var share in shares)
+        {
+            // Freeze the purchase revision that was posted when the sale was created. A later
+            // reprice must not change the cost of an old sale during a retry/backfill.
+            var purchase = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+                .Where(j => j.CompanyId == companyId && j.SourceModule == PurchaseAccountingAdapter.SourceModule
+                    && j.SourceEntityType == nameof(LoadingRegister) && j.SourceEntityId == share.LoadingId
+                    && !j.IsReversal && j.Status == JournalEntryStatus.Posted
+                    && j.CreatedAtUtc <= sale.CreatedAtUtc
+                    && !db.JournalEntries.Any(r => r.ReversalOfJournalEntryId == j.Id
+                        && r.CreatedAtUtc <= sale.CreatedAtUtc))
+                .OrderByDescending(j => j.CreatedAtUtc).ThenByDescending(j => j.Id).FirstOrDefaultAsync(ct);
+            if (purchase is null) return Skipped(sale, "Cogs", companyId, "SOURCE_PURCHASE_NOT_POSTED_AT_SALE");
+            var purchaseCost = purchase.Lines.Where(l => l.AccountId == settings.InventoryInTransitAccountId).Sum(l => l.Debit);
+            var cost = decimal.Round(purchaseCost * share.QuantityMt / share.LoadedMt, 4, MidpointRounding.AwayFromZero);
+            if (cost <= 0m) return Skipped(sale, "Cogs", companyId, "SOURCE_PURCHASE_NOT_VALUED");
+            totalCost += cost;
+            lines.Add(new AccountingPostLine(settings.CostOfGoodsSoldAccountId, cost, 0m,
+                SystemCurrency.BaseCurrencyCode, cost, 1m, ContractId: share.SourcePurchaseContractId,
+                ProductId: share.ProductId, Description: $"Direct sale cost from loading #{share.LoadingId}"));
+            lines.Add(new AccountingPostLine(settings.InventoryInTransitAccountId, 0m, cost,
+                SystemCurrency.BaseCurrencyCode, cost, 1m, ContractId: share.SourcePurchaseContractId,
+                ProductId: share.ProductId, Description: $"Goods sold directly from loading #{share.LoadingId}"));
+        }
+        var journal = await postingService.PostAsync(new AccountingPostRequest(companyId,
+            journalNumberGenerator.ForCogs(companyId, sale.Id), sale.SaleDate.Date, sale.SaleDate.Date,
+            sale.SaleDate.Date, SourceModule, lines, SourceEventId: sourceEventId,
+            SourceEntityType: SourceEntityType, SourceEntityId: sale.Id,
+            Description: $"Direct loading COGS for invoice {sale.InvoiceNumber}"), ct);
+        // No valuation-pool consumption: these goods never entered a tank. Reversal already
+        // reverses the original journal and has no outbound movement/pool to return.
+        LogOutcome(sale, "Cogs", companyId, totalCost, totalCost, PaymentPostingStatus.Posted, null);
+        return new(PaymentPostingStatus.Posted, journal, null);
     }
 
     /// <summary>

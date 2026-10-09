@@ -191,7 +191,9 @@ public enum GroupSaleSourceKind
     // واگن در جریان (InventoryTransportLeg نوع واگن) — فروش کامل؛ رسید DirectSale.
     [Display(Name = "واگن در جریان")] WagonLeg = 3,
     // انتقال موجودی در مسیر (InventoryTransportLeg) — فروش کامل؛ رسید DirectSale.
-    [Display(Name = "انتقال در مسیر")] TransportLeg = 4
+    [Display(Name = "انتقال در مسیر")] TransportLeg = 4,
+    // مستقیم از بارگیری، با رسید و تخصیص واقعیِ فروش؛ بدون حرکت مخزن.
+    [Display(Name = "بارگیری")] LoadingRegister = 5
 }
 
 // رکورد اصلی فروش گروهی. مشتری/ارز/تاریخ/نرخ مشترک است؛ هر ردیف یک SalesTransaction عادی
