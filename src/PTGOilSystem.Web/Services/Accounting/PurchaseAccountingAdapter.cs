@@ -450,6 +450,10 @@ public sealed class PurchaseAccountingAdapter(
         var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
         if (existing is not null)
         {
+            if (await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.ReversalOfJournalEntryId == existing.Id && x.Status == JournalEntryStatus.Posted,
+                cancellationToken))
+                return Skipped(receipt.Id, "RECEIPT_ALREADY_REVERSED");
             LogOutcome(receipt.Id, "InventoryReceipt", companyId, existing.Lines.Sum(x => x.Debit),
                 existing.Lines.Sum(x => x.Debit), PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
             return new PurchaseAccountingResult(
@@ -639,6 +643,10 @@ public sealed class PurchaseAccountingAdapter(
         var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
         if (existing is not null)
         {
+            if (await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.ReversalOfJournalEntryId == existing.Id && x.Status == JournalEntryStatus.Posted,
+                cancellationToken))
+                return Skipped(receipt.Id, "RECEIPT_ALREADY_REVERSED");
             LogOutcome(receipt.Id, "TransportInventoryReceipt", companyId, existing.Lines.Sum(x => x.Debit),
                 existing.Lines.Sum(x => x.Debit), PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
             return new PurchaseAccountingResult(
