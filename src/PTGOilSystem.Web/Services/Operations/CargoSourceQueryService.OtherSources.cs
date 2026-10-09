@@ -80,7 +80,9 @@ public sealed partial class CargoSourceQueryService
                 quantity, 0m, 0m, used.GetValueOrDefault(r.Id), Math.Max(0m, quantity - used.GetValueOrDefault(r.Id)),
                 l.IsCancelled, l.IsArchived, l.Contract?.ContractType == ContractType.Purchase,
                 TerminalId: r.TerminalId, SupportedActions: [CargoAction.StartTransport],
-                OwnershipShares: r.Allocations.Where(a => a.SourcePurchaseContractId.HasValue)
+                OwnershipShares: r.Allocations.Where(a => a.SourcePurchaseContractId.HasValue
+                    && a.Destination == LoadingReceiptAllocationDestination.DirectDispatchToTruck
+                    && a.Status != LoadingReceiptAllocationStatus.Cancelled)
                     .Select(a => new CargoOwnershipShare(a.SourcePurchaseContractId!.Value, a.QuantityMt, l.Id, r.Id)).ToList(),
                 ContractStatus: l.Contract?.Status);
         }).ToList();

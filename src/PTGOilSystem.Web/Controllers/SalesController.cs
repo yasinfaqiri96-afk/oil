@@ -991,6 +991,15 @@ public partial class SalesController : Controller
             TempData[cancellation.Succeeded ? "ok" : "err"] = cancellation.Succeeded
                 ? "فروش مستقیم بارگیری لغو شد و ماندهٔ بار آزاد گردید."
                 : string.Join(" ", cancellation.Blockers.Select(b => b.Reason));
+            if (cancellation.Succeeded && createReplacement)
+                return RedirectToAction(nameof(Create), new { correctedFromSaleId = sale.Id, returnUrl });
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
+                return Redirect(returnUrl);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        if (await _db.LoadingReceiptAllocations.AsNoTracking().AnyAsync(a => a.SalesTransactionId == sale.Id))
+        {
+            TempData["err"] = "این فروش بخشی از یک رسید چندبخشی است؛ لغو یا اصلاح را از صفحهٔ همان رسید انجام دهید.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
