@@ -95,7 +95,7 @@ public sealed class TransportSourceAllocationService : ITransportSourceAllocatio
         decimal quantityMt,
         CancellationToken ct = default)
     {
-        if (quantityMt <= Epsilon)
+        if (quantityMt <= 0m)
         {
             return TransportSourcePlan.Empty;
         }
@@ -155,7 +155,7 @@ public sealed class TransportSourceAllocationService : ITransportSourceAllocatio
         decimal quantityMt,
         CancellationToken ct = default)
     {
-        if (quantityMt <= Epsilon)
+        if (quantityMt <= 0m)
         {
             return TransportSourcePlan.Empty;
         }
@@ -349,7 +349,7 @@ public sealed class TransportSourceAllocationService : ITransportSourceAllocatio
         decimal requestedQuantityMt,
         CancellationToken ct)
     {
-        if (requestedQuantityMt <= Epsilon || sourceRows.Count == 0)
+        if (requestedQuantityMt <= 0m || sourceRows.Count == 0)
         {
             return TransportSourcePlan.Empty;
         }
