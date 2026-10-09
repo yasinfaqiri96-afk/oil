@@ -281,6 +281,41 @@ public sealed class AccountingBackfillSafetyTests(AccountingPostgreSqlFixture fi
             x.SourceEventId == PurchaseAccountingAdapter.BuildCreatedSourceEventId(loading.Id, 0)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Single_And_Batch_Purchases_Persist_An_Immutable_Quantity_Basis(bool batch)
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var first = await AddLoadingAsync(db, scope);
+        var second = await AddLoadingAsync(db, scope);
+        second.LoadedQuantityMt = 25m;
+        await db.SaveChangesAsync();
+        var adapter = CreatePurchaseAdapter(db);
+        if (batch)
+            Assert.All(await adapter.TryPostPurchasesAsync([first, second]),
+                x => Assert.Equal(PaymentPostingStatus.Posted, x.Status));
+        else
+        {
+            Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostPurchaseAsync(first)).Status);
+            Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostPurchaseAsync(second)).Status);
+        }
+        var firstJournal = await db.JournalEntries.AsNoTracking().SingleAsync(x =>
+            x.SourceEventId == PurchaseAccountingAdapter.BuildCreatedSourceEventId(first.Id, 0));
+        var secondJournal = await db.JournalEntries.AsNoTracking().SingleAsync(x =>
+            x.SourceEventId == PurchaseAccountingAdapter.BuildCreatedSourceEventId(second.Id, 0));
+        Assert.True(PurchaseQuantitySnapshot.TryRead(firstJournal.Description, out var originalFirst));
+        Assert.True(PurchaseQuantitySnapshot.TryRead(secondJournal.Description, out var originalSecond));
+        Assert.Equal(20m, originalFirst);
+        Assert.Equal(25m, originalSecond);
+        first.LoadedQuantityMt = 25m;
+        await db.SaveChangesAsync();
+        Assert.True(PurchaseQuantitySnapshot.TryRead((await db.JournalEntries.AsNoTracking().SingleAsync(x =>
+            x.Id == firstJournal.Id)).Description, out var historicalQuantity));
+        Assert.Equal(20m, historicalQuantity);
+    }
+
     private static async Task<LoadingRegister> AddLoadingAsync(ApplicationDbContext db,
         PaymentAccountingAdapterTests.PaymentScope scope, bool cancelled = false, decimal? price = 500m)
     {
