@@ -156,6 +156,58 @@ public sealed class BulkFromLoadingPerformanceTests(
         Assert.Equal(loadingCount, await db.InventoryTransportLegAllocations.AsNoTracking().CountAsync());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Thousand_Row_Conversion_And_Resumable_Request_Cost(bool resumable)
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        const int count = 1000;
+        await fixture.TruncateAsync();
+        var counter = new CommandCounter();
+        await using var db = fixture.CreateDbContext(counter);
+        await SeedAsync(db, count);
+        db.ChangeTracker.Clear();
+        var workflow = BuildWorkflow(db);
+        var saves = 0;
+        db.SavingChanges += (_, _) => saves++;
+        var command = new BulkStartTransportFromLoadingCommand
+        {
+            Rows = Enumerable.Range(1, count).Select(id => new BulkStartTransportFromLoadingRow
+            {
+                LoadingRegisterId = id, QuantityMt = 100m, TransportType = LoadingTransportType.Truck,
+                TruckId = 1, Reference = $"BULK-{id}"
+            }).ToList(),
+            TransportDate = new DateTime(2026, 9, 5), FormToken = resumable ? "benchmark-resumable" : null
+        };
+        counter.Reset();
+        var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+        var watch = Stopwatch.StartNew();
+        var result = await workflow.StartManyFromLoadingAsync(command);
+        watch.Stop();
+        var bytes = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
+        output.WriteLine($"BULK1000 resumable={resumable} | commands={counter.Commands} | transactions={counter.Transactions} " +
+            $"| saveChanges={saves} | ms={watch.ElapsedMilliseconds} | allocatedBytes={bytes} | legs={result.CreatedCount}");
+        Assert.Empty(result.Failures);
+        Assert.Equal(count, result.CreatedCount);
+        Assert.Equal(100000m, await db.InventoryTransportLegAllocations.AsNoTracking().SumAsync(a => a.QuantityMt));
+        Assert.Equal(resumable ? count : 0, await db.ProcessedFormTokens.CountAsync());
+        if (resumable)
+        {
+            saves = 0;
+            counter.Reset();
+            watch.Restart();
+            var replay = await workflow.StartManyFromLoadingAsync(command);
+            watch.Stop();
+            output.WriteLine($"RETRY1000 | commands={counter.Commands} | transactions={counter.Transactions} " +
+                $"| saveChanges={saves} | ms={watch.ElapsedMilliseconds} | previous={replay.PreviouslyCreatedLegIds.Count}");
+            Assert.Equal(0, replay.CreatedCount);
+            Assert.Equal(count, replay.PreviouslyCreatedLegIds.Count);
+            Assert.Equal(0, saves);
+            Assert.Equal(count, await db.InventoryTransportLegs.CountAsync());
+        }
+    }
+
     internal static TransportWorkflowService BuildWorkflow(ApplicationDbContext db)
     {
         var stock = new StockService(db);
