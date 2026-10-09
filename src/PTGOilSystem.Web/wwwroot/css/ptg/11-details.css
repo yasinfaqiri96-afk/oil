@@ -1102,12 +1102,19 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 /* Large 3D art, one size on every stage card, centred on the card height. */
+.ak-cycle-artwork-defs {
+    position: absolute;
+    pointer-events: none;
+}
+
 .ak-journey-step .ak-cycle-avatar {
-    flex: 0 0 128px;
+    display: block;
+    flex: 0 0 140px;
     align-self: center;
-    width: 128px;
+    width: 140px;
     height: 140px;
-    object-fit: contain;
+    overflow: hidden;
+    background: transparent;
 }
 
 .ak-journey-step .ak-cycle-body {
@@ -1228,33 +1235,33 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     contain: layout;
 }
 
-/* ---- stage states: faint surfaces from the supplied reference ---- */
+/* Stage surfaces stay uniform; badges and figures carry the state colour. */
 .ak-journey-step.is-current {
-    border-color: rgba(var(--info-rgb), .14);
-    background: rgba(var(--info-rgb), .03);
+    border-color: var(--ak-detail-divider);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step:is(.is-done, .is-gain) {
     --ak-step-rgb: var(--ptg-success-rgb);
-    border-color: rgba(var(--ptg-success-rgb), .14);
-    background: rgba(var(--ptg-success-rgb), .025);
+    border-color: var(--ak-detail-divider);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step.is-gain {
-    border-color: rgba(var(--ptg-success-rgb), .20);
-    background: rgba(var(--ptg-success-rgb), .045);
+    border-color: var(--ak-detail-divider);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step.is-warn {
     --ak-step-rgb: var(--ptg-warning-rgb);
-    border-color: rgba(var(--ptg-warning-rgb), .22);
-    background: rgba(var(--ptg-warning-rgb), .05);
+    border-color: var(--ak-detail-divider);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step.is-loss {
     --ak-step-rgb: var(--ptg-danger-rgb);
-    border-color: rgba(var(--ptg-danger-rgb), .18);
-    background: rgba(var(--ptg-danger-rgb), .03);
+    border-color: var(--ak-detail-divider);
+    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step:is(.is-done, .is-gain) .ak-journey-badge {
@@ -1300,7 +1307,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 /* ---- partner share cards ----
-   Text first, avatar tile at the end of the row with the share percentage
+   Text first, transparent artwork at the end of the row with the share percentage
    pinned to its lower corner. */
 .ak-journey-partner {
     gap: 24px;
@@ -1322,19 +1329,18 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-partner-tile {
     position: relative;
     display: grid;
-    flex: 0 0 118px;
+    flex: 0 0 140px;
     align-self: center;
     place-items: center;
-    width: 128px;
-    height: 144px;
-    border-radius: 12px;
-    background: var(--ak-detail-soft);
+    width: 140px;
+    height: 152px;
+    background: transparent;
 }
 
 .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
     flex: none;
-    width: 120px;
-    height: 120px;
+    width: 140px;
+    height: 140px;
 }
 
 .ak-journey-partner-icon {
@@ -1502,9 +1508,9 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-step .ak-cycle-avatar {
-        flex-basis: 96px;
-        width: 96px;
-        height: 96px;
+        flex-basis: 112px;
+        width: 112px;
+        height: 112px;
     }
 
     .ak-journey-step .ak-cycle-title {
@@ -1521,14 +1527,14 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-partner-tile {
-        flex-basis: 96px;
-        width: 96px;
-        height: 104px;
+        flex-basis: 112px;
+        width: 112px;
+        height: 124px;
     }
 
     .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-        width: 84px;
-        height: 84px;
+        width: 112px;
+        height: 112px;
     }
 }
 
@@ -1552,8 +1558,8 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
         .ak-journey-step .ak-cycle-avatar {
             flex: 0 0 auto;
-            width: 96px;
-            height: 96px;
+            width: 112px;
+            height: 112px;
         }
 
         .ak-journey-step .ak-cycle-body {
@@ -1583,13 +1589,13 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
         .ak-journey-partner-tile {
             flex: 0 0 auto;
-            width: 96px;
-            height: 108px;
+            width: 112px;
+            height: 124px;
         }
 
         .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-            width: 84px;
-            height: 84px;
+            width: 112px;
+            height: 112px;
         }
     }
 }
@@ -1614,9 +1620,9 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-step .ak-cycle-avatar {
-        flex-basis: 72px;
-        width: 72px;
-        height: 72px;
+        flex-basis: 88px;
+        width: 88px;
+        height: 88px;
     }
 
     .ak-journey-step .ak-cycle-row:first-of-type {
@@ -1634,14 +1640,14 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-partner-tile {
-        flex-basis: 84px;
-        width: 84px;
-        height: 96px;
+        flex-basis: 88px;
+        width: 88px;
+        height: 100px;
     }
 
     .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-        width: 72px;
-        height: 72px;
+        width: 88px;
+        height: 88px;
     }
 
     .ak-journey-partner-icon {

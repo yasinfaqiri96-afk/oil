@@ -180,17 +180,17 @@
 
     var pageDirection = T("rtl", "ltr");
 
-    // Artwork is displayed directly from the user's reference; figures remain live Razor data.
-    string ReferenceAvatarViewBox(int stage) => stage switch
+    // Transparent 3D artwork is embedded once; every card shares the same decoded image.
+    string CycleAvatarViewBox(int stage) => stage switch
     {
-        1 => "1238 175 126 146",
-        2 => "795 178 114 133",
-        3 => "322 185 133 108",
-        4 => "334 379 123 132",
-        5 => "794 377 112 142",
-        6 => "1238 379 119 140",
-        7 => "1237 586 117 137",
-        _ => "62 591 111 111"
+        1 => "0 0 224 224",
+        2 => "224 0 224 224",
+        3 => "448 0 224 224",
+        4 => "672 0 224 224",
+        5 => "0 224 224 224",
+        6 => "224 224 224 224",
+        7 => "448 224 224 224",
+        _ => "672 224 224 224"
     };
 
     var detailTabs = Model.IsPurchaseContract
@@ -922,6 +922,7 @@
     {
         <div id="journey-tab-lists" class="ak-summary-page">
             <section class="ak-form-section ak-detail-section ak-journey-section">
+                <partial name="_ContractCycleAvatarArtwork" />
                 @{
                     // چرخه قرارداد: هفت مرحله ثابت و هر مرحله دقیقاً دو آمار.
                     // وضعیت هر مرحله فقط نمایشی است و از همان اعدادِ موجود بالا مشتق
@@ -1022,15 +1023,13 @@
                 <ol class="ak-journey-flow">
                     @foreach (var step in journeySteps)
                     {
-                        var avatarCrop = ReferenceAvatarViewBox(step.Number).Split(' ');
                         var arrowIcon = step.Number is 3 or 6
                             ? "bi-chevron-down"
                             : (step.Number < 3 ? forwardArrowIcon : backwardArrowIcon);
                         <li class="ak-journey-step ak-journey-step--@step.Number @step.State">
                             <span class="ak-journey-step-num">@step.Number</span>
-                            <svg class="ak-cycle-avatar" viewBox="@ReferenceAvatarViewBox(step.Number)" aria-hidden="true" focusable="false" width="140" height="140">
-                                <defs><clipPath id="journey-cycle-art-@step.Number" clipPathUnits="userSpaceOnUse"><rect x="@avatarCrop[0]" y="@avatarCrop[1]" width="@avatarCrop[2]" height="@avatarCrop[3]" /></clipPath></defs>
-                                <image href="@Url.Content("~/images/contract-journey/cycle-artwork.png")" width="1417" height="787" clip-path="url(#journey-cycle-art-@step.Number)" />
+                            <svg class="ak-cycle-avatar" viewBox="@CycleAvatarViewBox(step.Number)" aria-hidden="true" focusable="false" width="140" height="140">
+                                <use href="#journey-cycle-avatar-artwork" />
                             </svg>
                             <div class="ak-cycle-body">
                                 <div class="ak-journey-step-head">
@@ -1057,8 +1056,6 @@
                     }
                     @foreach (var partner in partnerShareCards)
                     {
-                        var partnerAvatarCrop = ReferenceAvatarViewBox(0).Split(' ');
-                        var partnerAvatarId = $"journey-partner-art-{partnerShareCards.IndexOf(partner)}";
                         @* کارت شریک: متن در ابتدای سطر و کاشی آواتار با درصد سهم در انتهای آن. *@
                         <li class="ak-journey-step ak-journey-partner" data-partner-share="true">
                             <div class="ak-cycle-body">
@@ -1070,11 +1067,9 @@
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@partnerShareProfitLabel</span><span class="ak-cycle-value">@FormatLifecycleUsd(partner.ShareProfitUsd)</span></div>
                             </div>
                             <div class="ak-journey-partner-tile">
-                                <svg class="ak-cycle-avatar" viewBox="@ReferenceAvatarViewBox(0)" aria-hidden="true" focusable="false" width="120" height="120">
-                                    <defs><clipPath id="@partnerAvatarId" clipPathUnits="userSpaceOnUse"><rect x="@partnerAvatarCrop[0]" y="@partnerAvatarCrop[1]" width="@partnerAvatarCrop[2]" height="@partnerAvatarCrop[3]" /></clipPath></defs>
-                                    <image href="@Url.Content("~/images/contract-journey/cycle-artwork.png")" width="1417" height="787" clip-path="url(#@partnerAvatarId)" />
+                                <svg class="ak-cycle-avatar" viewBox="@CycleAvatarViewBox(0)" aria-hidden="true" focusable="false" width="140" height="140">
+                                    <use href="#journey-cycle-avatar-artwork" />
                                 </svg>
-                                <span class="ak-journey-partner-icon" aria-hidden="true"><i class="bi bi-people-fill"></i></span>
                                 <span class="ak-journey-partner-share"><span class="visually-hidden">@T("سهم", "Share") </span>@NumberDisplay.Number(partner.SharePercent, 2)%</span>
                             </div>
                         </li>

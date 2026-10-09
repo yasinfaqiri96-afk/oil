@@ -246,13 +246,16 @@ public class ContractJourneyViewStructureTests
     }
 
     [Fact]
-    public void ContractJourney_Summary_Uses_Reference_Artwork_With_Live_Figures()
+    public void ContractJourney_Summary_Embeds_Shared_Transparent_Artwork_With_Live_Figures()
     {
         var contents = ReadContractJourneyDetailsMarkup();
         var summaryBlock = ExtractSummaryBlock(contents);
-        Assert.Contains("viewBox=\"@ReferenceAvatarViewBox(step.Number)\"", summaryBlock);
-        Assert.Contains("viewBox=\"@ReferenceAvatarViewBox(0)\"", summaryBlock);
-        Assert.Contains("~/images/contract-journey/cycle-artwork.png", summaryBlock);
+        Assert.Contains("viewBox=\"@CycleAvatarViewBox(step.Number)\"", summaryBlock);
+        Assert.Contains("viewBox=\"@CycleAvatarViewBox(0)\"", summaryBlock);
+        Assert.Contains("<partial name=\"_ContractCycleAvatarArtwork\"", summaryBlock);
+        Assert.DoesNotContain("cycle-artwork.png", summaryBlock);
+        Assert.DoesNotContain("clipPath", summaryBlock);
+        Assert.Equal(2, summaryBlock.Split("<use href=\"#journey-cycle-avatar-artwork\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("LifecycleQuantityMarkup(step.FirstValue)", summaryBlock);
         Assert.Contains("@step.Title", summaryBlock);
         Assert.Contains("@TextOrDash(partner.PartnerName)", summaryBlock);
@@ -261,7 +264,14 @@ public class ContractJourneyViewStructureTests
         // Inline SVG is limited to the two reusable avatar templates, never a page image or gauge.
         Assert.Equal(2, summaryBlock.Split("<svg", StringSplitOptions.None).Length - 1);
         Assert.Equal(2, summaryBlock.Split("<svg class=\"ak-cycle-avatar\"", StringSplitOptions.None).Length - 1);
-        Assert.Contains("clipPathUnits=\"userSpaceOnUse\"", summaryBlock);
+        var artwork = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/_ContractCycleAvatarArtwork.cshtml");
+        Assert.Equal(1, artwork.Split("data:image/webp;base64,", StringSplitOptions.None).Length - 1);
+        Assert.Contains("id=\"journey-cycle-avatar-artwork\"", artwork);
+        var encoded = artwork.Split("data:image/webp;base64,", StringSplitOptions.None)[1].Split('"')[0];
+        var bytes = Convert.FromBase64String(encoded);
+        Assert.InRange(bytes.Length, 1, 80_000);
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
+        Assert.Equal("WEBP", System.Text.Encoding.ASCII.GetString(bytes, 8, 4));
     }
 
     [Fact]
