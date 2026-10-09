@@ -530,10 +530,10 @@ public partial class ApplicationDbContext : DbContext
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.AllocatedValueUsdAtAllocation);
         ConfigureMoney<SupplierPaymentAllocation>(modelBuilder, a => a.ExchangeDifferenceUsd);
         modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentFxRateToUsd).HasColumnType("numeric(18,6)");
-        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyPerUsdRate).HasColumnType("numeric(18,6)");
-        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyFxRateToUsd).HasColumnType("numeric(18,6)");
-        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyPerUsdRateAtAllocation).HasColumnType("numeric(18,6)");
-        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyFxRateToUsdAtAllocation).HasColumnType("numeric(18,6)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyPerUsdRate).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.ContractCurrencyFxRateToUsd).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyPerUsdRateAtAllocation).HasColumnType("numeric(24,12)");
+        modelBuilder.Entity<SupplierPaymentAllocation>().Property(a => a.PaymentCurrencyFxRateToUsdAtAllocation).HasColumnType("numeric(24,12)");
 
         ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.TransferOriginalAmount);
         ConfigureMoney<SupplierBalanceTransfer>(modelBuilder, t => t.HistoricalAmountUsd);

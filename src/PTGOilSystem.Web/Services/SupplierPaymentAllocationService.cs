@@ -187,7 +187,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
 
         // نرخ روز تخصیص: «۱ دلار = چند واحد ارز پرداخت». برای پرداخت دالری همیشه ۱ است و
         // اگر کاربر نرخی نداده باشد، همان نرخ روز پرداخت استفاده می‌شود (اختلاف تسعیر صفر).
-        var paymentPerUsdAtPayment = decimal.Round(1m / paymentFxRateToUsd, 6, MidpointRounding.AwayFromZero);
+        var paymentPerUsdAtPayment = FxRateMath.PerUsdFromToUsd(paymentFxRateToUsd);
         var paymentPerUsdAtAllocation = isPaymentUsd
             ? 1m
             : request.PaymentCurrencyPerUsdRateAtAllocation ?? paymentPerUsdAtPayment;
@@ -197,7 +197,9 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         // AccountingPostingService که همین ضرب را دوباره چک می‌کند، دقیقاً یکی باشد.
         var paymentFxRateToUsdAtAllocation = isPaymentUsd
             ? 1m
-            : decimal.Round(1m / paymentPerUsdAtAllocation, 6, MidpointRounding.AwayFromZero);
+            : request.PaymentCurrencyPerUsdRateAtAllocation.HasValue
+                ? FxRateMath.ToUsdFromPerUsd(paymentPerUsdAtAllocation)
+                : paymentFxRateToUsd;
         var valueUsdAtAllocation = isPaymentUsd
             ? bookAmountUsd
             : decimal.Round(request.AllocatedPaymentAmount * paymentFxRateToUsdAtAllocation, 4, MidpointRounding.AwayFromZero);
@@ -222,7 +224,7 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
         var perUsdRate = isContractUsd ? 1m : request.ContractCurrencyPerUsdRate;
         var contractFxRateToUsd = isContractUsd
             ? 1m
-            : decimal.Round(1m / perUsdRate, 6, MidpointRounding.AwayFromZero);
+            : FxRateMath.ToUsdFromPerUsd(perUsdRate);
         // قرارداد با ارزش روز تخصیص تسویه می‌شود، نه با ارزش تاریخی پیش‌پرداخت.
         var contractCurrencyAmount = decimal.Round(valueUsdAtAllocation * perUsdRate, 4, MidpointRounding.AwayFromZero);
 
