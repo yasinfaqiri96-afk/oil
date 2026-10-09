@@ -133,7 +133,7 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Equal(RowCount, await db.AuditLogs.CountAsync(a => a.EntityName == nameof(LoadingReceipt)));
         Assert.Equal((decimal)RowCount, await db.InventoryMovements.SumAsync(m => m.QuantityMt));
         Assert.Equal(RowCount, await db.LoadingReceipts.Select(r => r.LoadingRegisterId).Distinct().CountAsync());
-        Assert.Equal(0, await db.LoadingReceiptAllocations.CountAsync(a => a.SourceContractId != scope.Contract.Id));
+        Assert.Equal(0, await db.LoadingReceiptAllocations.CountAsync(a => a.SourcePurchaseContractId != scope.Contract.Id));
         await AssertJournalsAsync(db, PurchaseAccountingAdapter.ReceiptSourceEntityType, accountingEnabled);
         if (accountingEnabled)
         {
