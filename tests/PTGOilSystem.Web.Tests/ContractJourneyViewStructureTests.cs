@@ -6,6 +6,40 @@ namespace PTGOilSystem.Web.Tests;
 public class ContractJourneyViewStructureTests
 {
     [Fact]
+    public void ContractJourney_Navigation_Groups_Keep_Existing_Source_Routes_And_Native_Links()
+    {
+        var view = ReadContractJourneyDetailsMarkup();
+        var rail = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyDetailTabsRail.cshtml");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+
+        Assert.Contains("GroupLabel = T(\"بارها و عملیات\", \"Cargo operations\")", view);
+        Assert.Contains("GroupLabel = T(\"مالی و مصارف\", \"Finance and expenses\")", view);
+        Assert.Contains("Model.Tabs.GroupBy(tab => tab.GroupKey)", rail);
+        Assert.Contains("asp-route-contractId=\"@Model.ContractId\"", rail);
+        Assert.Contains("asp-route-lockContract=\"@Model.LockContract\"", rail);
+        Assert.Contains("aria-current=", rail);
+        Assert.DoesNotContain("role=\"tab\"", rail);
+        Assert.Contains(".ak-navigation-group", css);
+        Assert.Contains("flex: 1 1 100%;", css);
+        Assert.Contains("href=\"@ReturnUrl(stepTab)\"", view);
+        Assert.Contains("href=\"@ReturnUrl(LossesPresentationTab)\"", view);
+    }
+
+    [Fact]
+    public void ContractJourney_Tab_Failure_Offers_Real_Requested_Url_And_Preserves_Keyboard_Focus()
+    {
+        var js = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/contract-journey-tabs.js");
+        var view = ReadContractJourneyDetailsMarkup();
+
+        Assert.Contains("showError(url);", js);
+        Assert.Contains("retry.href = url;", js);
+        Assert.Contains("retry.setAttribute(\"data-no-spa\", \"true\");", js);
+        Assert.Contains("error.setAttribute(\"role\", \"alert\");", js);
+        Assert.Contains("restoredLink.focus({ preventScroll: true });", js);
+        Assert.Contains("data-retry-text=", view);
+    }
+
+    [Fact]
     public void Contract_Details_Uses_Shared_Export_Menu_For_The_Active_Tab()
     {
         var details = ReadContractJourneyDetailsMarkup();

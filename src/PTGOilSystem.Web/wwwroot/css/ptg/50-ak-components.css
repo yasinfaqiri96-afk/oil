@@ -4003,3 +4003,36 @@ select.ak-input {
 .ak-lines-bar > .ak-note {
     flex: 1 1 260px;
 }
+
+/* Related navigation stays within the shared tab rails; each group can scroll
+   independently on a small screen without widening the document. */
+.ak-navigation-groups {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    gap: 16px 24px;
+    min-width: 0;
+}
+
+.ak-navigation-group {
+    min-width: 0;
+    flex: 1 1 280px;
+}
+
+.ak-navigation-group[data-navigation-group="overview"] {
+    flex: 0 1 100px;
+}
+
+.ak-navigation-group-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+@media (max-width: 767.98px) {
+    .ak-navigation-group,
+    .ak-navigation-group[data-navigation-group="overview"] {
+        flex: 1 1 100%;
+    }
+}

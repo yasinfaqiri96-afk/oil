@@ -196,19 +196,19 @@
     var detailTabs = Model.IsPurchaseContract
         ? new ContractJourneyDetailTabLinkViewModel[]
         {
-            new() { Key = ContractJourneyTabs.Details.Summary, Label = T("خلاصه", "Summary"), Icon = SidebarPageIcon("summary") },
-            new() { Key = ContractJourneyTabs.Details.Loadings, Label = T("بارگیری و رسید", "Loading & receipts"), Icon = SidebarPageIcon("loading") },
-            new() { Key = ContractJourneyTabs.Details.Inventory, Label = T("موجودی", "Inventory"), Icon = SidebarPageIcon("inventory") },
-            new() { Key = ContractJourneyTabs.Details.InventoryTransport, Label = T("حمل و نقل", "Transport"), Icon = SidebarPageIcon("inventoryTransport") },
-            new() { Key = ContractJourneyTabs.Details.Sales, Label = T("فروشات", "Sales"), Icon = SidebarPageIcon("sales") },
-            new() { Key = ContractJourneyTabs.Details.Costs, Label = T("مصارف و ضایعات", "Expenses & losses"), Icon = SidebarPageIcon("costs") },
-            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("حساب قرارداد", "Contract account"), Icon = SidebarPageIcon("finance") }
+            new() { Key = ContractJourneyTabs.Details.Summary, Label = T("خلاصه", "Summary"), Icon = SidebarPageIcon("summary"), GroupKey = "overview", GroupLabel = T("نمای کلی", "Overview") },
+            new() { Key = ContractJourneyTabs.Details.Loadings, Label = T("بارگیری و رسید", "Loading & receipts"), Icon = SidebarPageIcon("loading"), GroupKey = "operations", GroupLabel = T("بارها و عملیات", "Cargo operations") },
+            new() { Key = ContractJourneyTabs.Details.Inventory, Label = T("موجودی", "Inventory"), Icon = SidebarPageIcon("inventory"), GroupKey = "operations", GroupLabel = T("بارها و عملیات", "Cargo operations") },
+            new() { Key = ContractJourneyTabs.Details.InventoryTransport, Label = T("حمل و نقل", "Transport"), Icon = SidebarPageIcon("inventoryTransport"), GroupKey = "operations", GroupLabel = T("بارها و عملیات", "Cargo operations") },
+            new() { Key = ContractJourneyTabs.Details.Sales, Label = T("فروشات", "Sales"), Icon = SidebarPageIcon("sales"), GroupKey = "operations", GroupLabel = T("بارها و عملیات", "Cargo operations") },
+            new() { Key = ContractJourneyTabs.Details.Costs, Label = T("مصارف و ضایعات", "Expenses & losses"), Icon = SidebarPageIcon("costs"), GroupKey = "finance", GroupLabel = T("مالی و مصارف", "Finance and expenses") },
+            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("حساب قرارداد", "Contract account"), Icon = SidebarPageIcon("finance"), GroupKey = "finance", GroupLabel = T("مالی و مصارف", "Finance and expenses") }
         }
         : new ContractJourneyDetailTabLinkViewModel[]
         {
-            new() { Key = ContractJourneyTabs.Details.Summary, Label = T("خلاصه", "Summary"), Icon = SidebarPageIcon("summary") },
-            new() { Key = ContractJourneyTabs.Details.Sales, Label = T("فروشات", "Sales"), Icon = SidebarPageIcon("sales") },
-            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("پرداخت‌ها", "Payments"), Icon = SidebarPageIcon("finance") }
+            new() { Key = ContractJourneyTabs.Details.Summary, Label = T("خلاصه", "Summary"), Icon = SidebarPageIcon("summary"), GroupKey = "overview", GroupLabel = T("نمای کلی", "Overview") },
+            new() { Key = ContractJourneyTabs.Details.Sales, Label = T("فروشات", "Sales"), Icon = SidebarPageIcon("sales"), GroupKey = "operations", GroupLabel = T("بارها و عملیات", "Cargo operations") },
+            new() { Key = ContractJourneyTabs.Details.Finance, Label = T("پرداخت‌ها", "Payments"), Icon = SidebarPageIcon("finance"), GroupKey = "finance", GroupLabel = T("مالی و مصارف", "Finance and expenses") }
         };
 
     // گروه‌بندی فقط نمایشی است؛ URLها و payloadهای مستقل هر عملیات حفظ می‌شوند.
@@ -905,7 +905,8 @@
          data-contract-journey-tab-content="true"
          data-active-tab="@activeTab"
          data-loading-text="@T("در حال بارگذاری...", "Loading...")"
-         data-error-text="@T("خطا در دریافت اطلاعات. دوباره تلاش کنید.", "Could not load this tab. Try again.")">
+         data-error-text="@T("این بخش باز نشد. دوباره تلاش کنید.", "This section could not open. Try again.")"
+         data-retry-text="@T("دوباره باز کردن این بخش", "Open this section again")">
 
     @if (groupedSection.Tab is not null || isLossesView)
     {
@@ -1037,6 +1038,17 @@
                                         @if (step.Number == 5)
                                         {
                                             <a href="@ReturnUrl(LossesPresentationTab)" data-contract-journey-tab-link="true" data-no-spa="true">@step.Title</a>
+                                        }
+                                        else if (step.Number == 3 || step.Number == 6 || (Model.IsPurchaseContract && (step.Number == 2 || step.Number == 4)))
+                                        {
+                                            var stepTab = step.Number switch
+                                            {
+                                                2 => ContractJourneyTabs.Details.Loadings,
+                                                3 => ContractJourneyTabs.Details.Sales,
+                                                4 => ContractJourneyTabs.Details.Costs,
+                                                _ => ContractJourneyTabs.Details.Finance
+                                            };
+                                            <a href="@ReturnUrl(stepTab)" data-contract-journey-tab-link="true" data-no-spa="true">@step.Title</a>
                                         }
                                         else
                                         {
