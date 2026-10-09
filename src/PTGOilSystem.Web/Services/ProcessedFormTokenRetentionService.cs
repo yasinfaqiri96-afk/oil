@@ -37,6 +37,7 @@ public sealed class ProcessedFormTokenRetentionService(ApplicationDbContext db, 
     /// <summary>
     /// یک دستهٔ کران‌دار از توکن‌های منقضی را حذف می‌کند و تعداد حذف‌شده را برمی‌گرداند.
     /// توکنی که <c>ConsumedAtUtc</c> ندارد هرگز حذف نمی‌شود: سنِ آن معلوم نیست.
+    /// ارتباط پایدار ردیف‌های تبدیل گروهی نیز بخشی از تاریخچه است و منقضی نمی‌شود.
     /// </summary>
     public async Task<int> PurgeExpiredAsync(
         int retentionDays = DefaultRetentionDays,
@@ -45,7 +46,10 @@ public sealed class ProcessedFormTokenRetentionService(ApplicationDbContext db, 
         var cutoff = CutoffUtc(retentionDays);
 
         var expired = await db.ProcessedFormTokens
-            .Where(token => token.ConsumedAtUtc != null && token.ConsumedAtUtc < cutoff)
+            .Where(token => token.ConsumedAtUtc != null && token.ConsumedAtUtc < cutoff
+                // Durable bulk row outcomes are part of the operation's request history.
+                // Removing them could consume a still-valid partial source again on retry.
+                && !token.Purpose.StartsWith("Transport.BulkRow:"))
             .OrderBy(token => token.ConsumedAtUtc)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);

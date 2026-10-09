@@ -15,14 +15,14 @@ public sealed record CompletedBulkTransportRow(
 public sealed class TransportBulkRequestQuery(ApplicationDbContext db)
 {
     public async Task<IReadOnlyList<CompletedBulkTransportRow>> GetCompletedRowsAsync(
-        string requestToken, CancellationToken ct = default)
+        string requestToken, int? userId = null, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestToken);
         var prefix = TransportWorkflowService.BulkRequestPrefix(requestToken.Trim());
         return await (from token in db.ProcessedFormTokens.AsNoTracking()
                       join leg in db.InventoryTransportLegs.AsNoTracking() on token.ReferenceId equals (int?)leg.Id
                       join allocation in db.InventoryTransportLegAllocations.AsNoTracking() on leg.Id equals allocation.InventoryTransportLegId
-                      where token.Purpose.StartsWith(prefix)
+                      where token.Purpose.StartsWith(prefix) && token.UserId == userId
                           && token.ReferenceType == nameof(InventoryTransportLeg)
                           && allocation.SourceLoadingRegisterId.HasValue
                       orderby leg.Id

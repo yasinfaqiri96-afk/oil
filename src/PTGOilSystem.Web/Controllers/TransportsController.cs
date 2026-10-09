@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -247,6 +248,7 @@ public sealed class TransportsController : Controller
         TransportBulkFromLoadingViewModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        ViewData["BulkRequestToken"] = formToken;
         model.Filter ??= new TransportBulkLoadingFilter();
 
         List<BulkStartTransportFromLoadingRow> rows;
@@ -350,7 +352,17 @@ public sealed class TransportsController : Controller
             TempData["ok"] += $" {result.PreviouslyCreatedLegIds.Count:N0} مورد در تلاش قبلی ثبت شده بود و دوباره ثبت نشد.";
         if (result.Failures.Count > 0)
         {
-            TempData["err"] = "تبدیل نشد — " + string.Join(" | ", DescribeFailures(result.Failures));
+            // Keep the same request and only its unfinished manual rows on screen.
+            // A retry then recovers previous outcomes instead of creating new transports.
+            if (!model.UseFilterSelection)
+            {
+                var failedLoadings = result.Failures.Select(f => f.LoadingRegisterId).ToHashSet();
+                model.Rows = model.Rows.Where(row => failedLoadings.Contains(row.LoadingRegisterId)).ToList();
+            }
+            ModelState.Clear();
+            foreach (var failure in DescribeFailures(result.Failures)) ModelState.AddModelError(string.Empty, failure);
+            ViewData["BulkCompletedCount"] = result.CompletedCount;
+            return await RenderBulkAsync(model);
         }
         return !string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
             ? Redirect(model.ReturnUrl)
@@ -359,12 +371,16 @@ public sealed class TransportsController : Controller
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpGet]
-    public async Task<IActionResult> BulkFromLoadingProgress(string requestToken, CancellationToken ct = default)
+    public async Task<IActionResult> BulkFromLoadingProgress(string requestToken, bool asJson = false, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(requestToken) || requestToken.Length > 256)
             return BadRequest("شناسهٔ درخواست معتبر نیست.");
-        var rows = await new TransportBulkRequestQuery(_db).GetCompletedRowsAsync(requestToken, ct);
-        return Json(new { completedCount = rows.Count, completedRows = rows });
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Forbid();
+        var rows = await new TransportBulkRequestQuery(_db).GetCompletedRowsAsync(requestToken, userId, ct);
+        if (asJson) return Json(new { completedCount = rows.Count, completedRows = rows });
+        ViewData["CompletedCount"] = rows.Count;
+        return View("BulkFromLoadingProgress", rows.Take(100).ToList());
     }
 
     /// <summary>

@@ -1,0 +1,43 @@
+@using PTGOilSystem.Web.Services
+@model IReadOnlyList<CompletedBulkTransportRow>
+@{
+    ViewData["Title"] = "نتیجهٔ تبدیل گروهی";
+    ViewData["HideSectionTabs"] = true;
+    var completedCount = ViewData["CompletedCount"] as int? ?? Model.Count;
+}
+<main class="ak-form-page" dir="rtl">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model='(("نتیجهٔ تبدیل گروهی", false, (string?)null, (string?)null, (string?)null, (string?)null, "فهرست حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))' />
+    <section class="ak-form-section">
+        <h2 class="ak-section-title">@completedCount.ToString("N0") مورد ثبت شده است</h2>
+        <p class="ak-section-desc">این فهرست فقط ثبت‌های قطعی همین درخواست را نشان می‌دهد. اگر اتصال قطع شد، به فرم اصلی برگردید و درخواست را ادامه دهید؛ موردهای ثبت‌شده دوباره ساخته نمی‌شوند.</p>
+        @if (completedCount == 0)
+        {
+            <p class="ak-section-desc">هنوز ثبت قطعی پیدا نشد. ممکن است عملیات در جریان باشد؛ این صفحه را تازه کنید.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table ak-table">
+                    <thead><tr><th>بارگیری</th><th>سند حمل</th><th>مقدار</th><th>وضعیت</th><th>جزئیات</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in Model)
+                        {
+                            <tr>
+                                <td>#@row.LoadingRegisterId</td>
+                                <td>@(string.IsNullOrWhiteSpace(row.Reference) ? $"#{row.TransportLegId}" : row.Reference)</td>
+                                <td class="ak-num">@row.QuantityMt.ToString("N4") تن</td>
+                                <td>@(row.IsCancelled ? "بعداً لغو شده" : "ثبت شده")</td>
+                                <td><a asp-controller="InventoryTransportLegs" asp-action="Details" asp-route-id="@row.TransportLegId">مشاهدهٔ حمل</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (completedCount > Model.Count)
+            {
+                <p class="ak-section-desc">@Model.Count.ToString("N0") مورد نخست نمایش داده شده است؛ همهٔ سندها در فهرست حمل‌ها قابل مشاهده‌اند.</p>
+            }
+        }
+    </section>
+</main>

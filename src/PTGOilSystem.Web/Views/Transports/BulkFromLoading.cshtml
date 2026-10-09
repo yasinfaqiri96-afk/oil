@@ -60,7 +60,14 @@
              model="@(("تبدیل گروهی بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
     <form asp-action="BulkFromLoading" method="post" class="ak-form" data-submit-lock data-no-spa>
         @Html.AntiForgeryToken()
-        @Html.FormToken()
+        @if (ViewData["BulkRequestToken"] is string requestToken && !string.IsNullOrWhiteSpace(requestToken))
+        {
+            <input type="hidden" name="__FormToken" value="@requestToken" autocomplete="off" />
+        }
+        else
+        {
+            @Html.FormToken()
+        }
         <input asp-for="ReturnUrl" type="hidden" />
         <input asp-for="UseFilterSelection" type="hidden" />
         <input asp-for="Filter.Q" type="hidden" />
@@ -236,6 +243,8 @@
 
         <div class="ak-footer-actions">
             <a href="@backUrl" class="btn btn-light ak-secondary-action">انصراف</a>
+            <a href="@Url.Action("BulkFromLoadingProgress", "Transports")" class="btn btn-light ak-secondary-action"
+               data-bulk-progress-link target="_blank" rel="noopener" hidden>بررسی نتیجهٔ همین درخواست</a>
             @if (summaryMode)
             {
                 <button type="submit" class="btn btn-primary ak-primary-action" data-submit-button>
@@ -256,6 +265,12 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         (function () {
+            var progressLink = document.querySelector('[data-bulk-progress-link]');
+            var requestToken = document.querySelector('input[name="__FormToken"]');
+            if (progressLink && requestToken) {
+                progressLink.href += '?requestToken=' + encodeURIComponent(requestToken.value);
+                progressLink.hidden = false;
+            }
             var rows = Array.prototype.slice.call(document.querySelectorAll('[data-bulk-row]'));
             var selectAll = document.querySelector('[data-bulk-select-all]');
             var submit = document.querySelector('[data-bulk-submit]');
