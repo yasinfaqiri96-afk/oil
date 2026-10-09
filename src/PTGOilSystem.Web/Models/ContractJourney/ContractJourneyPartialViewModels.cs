@@ -5,6 +5,8 @@ namespace PTGOilSystem.Web.Models.ContractJourney;
 
 public sealed class ContractJourneyDetailTabLinkViewModel
 {
+    public string GroupKey { get; init; } = string.Empty;
+    public string GroupLabel { get; init; } = string.Empty;
     public string Key { get; init; } = string.Empty;
     public string Label { get; init; } = string.Empty;
     public string Icon { get; init; } = string.Empty;
