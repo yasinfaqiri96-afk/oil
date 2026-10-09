@@ -470,8 +470,11 @@ public sealed class InventoryTransportReceiptService
         if (remainingAfterMt <= 0m)
         {
             leg.Status = InventoryTransportLegStatus.Received;
-            await _db.SaveChangesAsync();
         }
+        // A partial receipt also changes the source balance. Touch its versioned row so
+        // a concurrent cancellation/edit cannot use an unchanged source concurrency token.
+        leg.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
         // لایهٔ Lineage (پشت flag Lineage:WriteLots؛ با flag خاموش no-op). فقط رکوردهای نسب‌نامه insert می‌شود.
         await _lineage.OnLegReceiptAsync(leg, receipt, inboundMovement, shortageLoss);
