@@ -2933,7 +2933,7 @@ public partial class ExpensesController : Controller
                 .FirstOrDefaultAsync(c => c.Id == model.CashAccountId && c.IsActive);
             if (cash is null)
                 ModelState.AddModelError(nameof(model.CashAccountId), "صندوق یا بانک فعال را انتخاب کنید.");
-            else if (SystemCurrency.Normalize(cash.Currency) != model.Currency)
+            else if (cash.AccountType != CashAccountType.Mixed && SystemCurrency.Normalize(cash.Currency) != model.Currency)
                 ModelState.AddModelError(nameof(model.CashAccountId), "ارز مصرف باید با ارز صندوق یا بانک یکسان باشد.");
         }
         else if (model.CashAccountId.HasValue)
