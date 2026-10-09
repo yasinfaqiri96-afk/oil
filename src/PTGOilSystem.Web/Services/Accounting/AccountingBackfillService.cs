@@ -443,10 +443,10 @@ public sealed class AccountingBackfillService(
                 .FromSqlInterpolated($"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = {loading.Id} FOR UPDATE")
                 .AsNoTracking().SingleAsync(cancellationToken),
             LoadingReceipt receipt => await db.LoadingReceipts
-                .FromSqlInterpolated($"SELECT * FROM \"LoadingReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT *, xmin FROM \"LoadingReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
                 .AsNoTracking().SingleAsync(cancellationToken),
             InventoryTransportReceipt receipt => await db.InventoryTransportReceipts
-                .FromSqlInterpolated($"SELECT * FROM \"InventoryTransportReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
+                .FromSqlInterpolated($"SELECT *, xmin FROM \"InventoryTransportReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
                 .AsNoTracking().SingleAsync(cancellationToken),
             _ => entity!
         };
