@@ -756,7 +756,8 @@ static async Task<int> RunAccountingBackfillAsync(WebApplication app, bool dryRu
     {
         Console.WriteLine(
             $"{step.Name}: candidates={step.Candidates}, "
-            + $"{(dryRun ? "to post" : "posted")}={step.Posted}, "
+            + $"posted={step.Posted}, missing journal={step.MissingJournal}, "
+            + $"needs review={step.NeedsReview}, cancelled={step.Cancelled}, "
             + $"skipped existing={step.SkippedExisting}, skipped other={step.SkippedOther}"
             + (step.Reasons.Count > 0 ? $" [{string.Join(", ", step.Reasons)}]" : string.Empty));
     }
