@@ -36,3 +36,11 @@
 3. `Contracts_List_Uses_The_Shared_Row_Selection_Contract`: انتخاب ردیف و نام قرارداد درست بودند. فرم حذف قطعی قبلی با `_LifecycleActionForms` جایگزین شده بود؛ `ContractsController.Lifecycle` برای لغو `CancelAsync` و برای حذف از فهرست `ArchiveAsync` را فراخوانی می‌کند. تست اکنون وجود همان partial، مجوز مدیریت، POST بومی، دو AntiForgeryToken، دلیل اجباری لغو، حفظ returnUrl و تأیید کاربر را کنترل می‌کند و نبود hard-delete در فهرست را الزام می‌سازد. فرم حذف قطعی به‌خاطر سبزشدن تست برگردانده نشد.
 
 مسیرهای شواهد: `Models/InventoryTransport/InventoryTransportLegViewModels.cs`، `Controllers/InventoryTransportReceiptsController.cs`، `Services/InventoryTransportReceiptService.cs`، `Views/Loading/Index.cshtml`، `wwwroot/js/loading-expense-editor.js`، `Views/Shared/_LifecycleActionForms.cshtml` و `Controllers/ContractsController.Lifecycle.cs`.
+
+## بررسی صفحهٔ واقعی در preview آزمایشی
+
+اسکریپت `tests/browser/integrated-journey-responsive.cjs` برای اجرای بعد از build یکپارچه آماده شده است. تنها میزبان localhost را می‌پذیرد و به فایل خصوصی محیط preview نیاز دارد. ورود، خواندن قرارداد و تب‌ها و بازکردن فرم‌ها را انجام می‌دهد؛ هیچ POST تجارتی ندارد. عرض‌های ۱۴۴۰، ۱۰۲۴، ۷۶۸ و ۳۹۰، RTL، اندازهٔ آواتار، تمرکز کیبورد و پهنای سند بررسی می‌شوند. فهرست قراردادها، بارگیری و فرم‌های فروش و مصرف گروهی نیز در موبایل خوانده می‌شوند.
+
+پارامترها: `PTG_BROWSER_BASE_URL`، `PTG_BROWSER_ENV_FILE`، `PTG_JOURNEY_TEST_CONTRACT_ID` (اختیاری، در نبود آن اولین قرارداد موجود انتخاب می‌شود)، `PTG_BROWSER_ARTIFACTS` و `PTG_CHROMIUM_PATH`.
+
+در زمان آماده‌سازی این commit، syntax اسکریپت بررسی شده است؛ اجرای واقعی آن منتظر آماده‌شدن preview یکپارچه و قرارداد fixture در دیتابیس آزمایشی است. این وضعیت نباید به‌عنوان موفقیت تست صفحهٔ واقعی گزارش شود.
