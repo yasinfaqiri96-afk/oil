@@ -3157,9 +3157,14 @@ public partial class ExpensesController : Controller
                         CostResponsibility = model.CostResponsibility
                     };
 
-                    await _groupExpensePosting.PostShareAsync(expense, expenseType, conversion,
+                    await _groupExpensePosting.PostOperationAsync(expense, expenseType, conversion,
                         model.SettlementMode, model.CashAccountId);
                 }
+
+                // Rounded row conversions are the actual posted USD total; do not advertise
+                // a different header value after multi-source or multi-operation splitting.
+                batch.TotalAmountUsd = _db.ChangeTracker.Entries<ExpenseTransaction>()
+                    .Where(e => e.Entity.ExpenseBatchId == batch.Id).Sum(e => e.Entity.AmountUsd);
 
                 await _audit.LogAndSaveAsync(
                     nameof(ExpenseBatch),
