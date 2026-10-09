@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Data.Common;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
@@ -118,6 +120,69 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
         await using var verify = fixture.CreateDbContext();
         Assert.Equal(1, await verify.InventoryTransportReceipts.CountAsync());
         Assert.Equal(30m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
+    }
+
+    [Fact]
+    public async Task A_Stale_Receipt_Cannot_Revive_A_Cancelled_Transport()
+    {
+        await SeedAsync();
+        await using var stale = fixture.CreateDbContext();
+        var service = Service(stale);
+        var leg = (await service.LoadLegAsync(1, true))!;
+        await using (var cancel = fixture.CreateDbContext())
+            await new InventoryTransportBatchService(cancel, new StockService(cancel)).CancelAsync(leg.InventoryTransportBatchId!.Value);
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => service.ApplyAsync(Model(70m), leg, null));
+        Assert.Equal("TRANSPORT_RECEIPT_NO_REMAINING", error.Code);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(InventoryTransportLegStatus.Cancelled, (await verify.InventoryTransportLegs.SingleAsync()).Status);
+        Assert.Empty(await verify.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await verify.InventoryMovements.ToListAsync());
+        Assert.Single(await verify.InventoryTransportLegAllocations.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Cancellation_Validated_Before_A_Partial_Receipt_Cannot_Commit_Stale_State()
+    {
+        await SeedAsync();
+        var pause = new PauseTransportUpdate();
+        await using var cancellation = fixture.CreateDbContext(pause);
+        var cancellationTask = new InventoryTransportBatchService(cancellation, new StockService(cancellation)).CancelAsync(1);
+        await pause.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        try
+        {
+            await using var receiptDb = fixture.CreateDbContext();
+            var service = Service(receiptDb);
+            var leg = (await service.LoadLegAsync(1, true))!;
+            await service.ApplyAsync(Model(70m), leg, null);
+        }
+        finally { pause.Release.TrySetResult(true); }
+        var error = await Record.ExceptionAsync(() => cancellationTask);
+        Assert.NotNull(error);
+        Assert.True(error is DbUpdateException || error.GetBaseException() is Npgsql.PostgresException { SqlState: "40001" },
+            $"Expected a concurrency/serialization rejection, got {error.GetType().Name}.");
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(InventoryTransportLegStatus.Loaded, (await verify.InventoryTransportLegs.SingleAsync()).Status);
+        Assert.NotEqual(InventoryTransportBatchStatus.Cancelled, (await verify.InventoryTransportBatches.SingleAsync()).Status);
+        Assert.Equal(70m, await verify.InventoryTransportReceipts.SumAsync(r => r.ReceivedQuantityMt));
+        Assert.Equal(70m, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).SumAsync(m => m.QuantityMt));
+        Assert.Equal(30m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
+    }
+
+    private sealed class PauseTransportUpdate : DbCommandInterceptor
+    {
+        public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("UPDATE \"InventoryTransportLegs\"", StringComparison.Ordinal))
+            {
+                Reached.TrySetResult(true);
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+            return result;
+        }
     }
 
     private async Task SeedAsync()
