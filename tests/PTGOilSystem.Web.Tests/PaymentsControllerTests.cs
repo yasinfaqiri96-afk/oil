@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -32,6 +32,30 @@ namespace PTGOilSystem.Web.Tests;
 
 public class PaymentsControllerTests
 {
+    [Theory]
+    [InlineData(ExpenseSettlementMode.PaidImmediately)]
+    [InlineData(ExpenseSettlementMode.NonCash)]
+    public async Task Create_Rejects_Second_Cash_Payment_For_Already_Paid_Or_NonCash_Expense(ExpenseSettlementMode mode)
+    {
+        await using var db = new ApplicationDbContext(NewDbOptions());
+        SeedReferenceData(db);
+        var expense = new ExpenseTransaction { ExpenseTypeId = 1, ExpenseDate = new DateTime(2026, 4, 1),
+            Amount = 100m, AmountUsd = 100m, Currency = "USD", AppliedFxRateToUsd = 1m,
+            SettlementMode = mode, CashAccountId = mode == ExpenseSettlementMode.PaidImmediately ? 1 : null };
+        db.ExpenseTransactions.Add(expense);
+        await db.SaveChangesAsync();
+        var controller = BuildPaymentsController(db);
+        var result = await controller.Create(new PaymentCreateViewModel {
+            PaymentDate = new DateTime(2026, 4, 2), PaymentKind = PaymentKind.ExpensePayment,
+            Direction = PaymentDirection.Out, CashAccountId = 1, ExpenseTransactionId = expense.Id,
+            Amount = 40m, Currency = "USD", AppliedFxRateToUsd = 1m });
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(await db.PaymentTransactions.ToListAsync());
+        Assert.Empty(await db.LedgerEntries.ToListAsync());
+        Assert.Equal(100m, (await db.ExpenseTransactions.SingleAsync()).AmountUsd);
+    }
+
     [Fact]
     public async Task Index_Separates_Missing_Usd_Equivalents_From_Today_Totals()
     {
