@@ -9,6 +9,28 @@ namespace PTGOilSystem.Web.Tests;
 public class PurchaseAggregationServiceTests
 {
     [Fact]
+    public async Task Group_Loading_Expense_Does_Not_Hide_Independent_Legacy_Freight()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new ApplicationDbContext(options);
+        db.ExpenseTypes.Add(new ExpenseType { Id = 1, Code = "PORT", Name = "Port", IsActive = true });
+        db.LoadingRegisters.Add(new LoadingRegister { Id = 1, ContractId = 10, ProductId = 1,
+            LoadingDate = new DateTime(2026, 5, 1), LoadedQuantityMt = 30m,
+            LoadingPriceUsd = 500m, TransportExpenseUsd = 60m });
+        db.ExpenseBatches.Add(new ExpenseBatch { Id = 1, ExpenseTypeId = 1, ExpenseDate = new DateTime(2026, 5, 2),
+            TotalAmount = 70m, TotalAmountUsd = 70m, OperationCount = 1 });
+        db.ExpenseTransactions.Add(new ExpenseTransaction { ExpenseTypeId = 1, ContractId = 10,
+            LoadingRegisterId = 1, ExpenseBatchId = 1, ExpenseDate = new DateTime(2026, 5, 2),
+            Amount = 70m, AmountUsd = 70m, Currency = "USD" });
+        await db.SaveChangesAsync();
+        var snapshot = await new PurchaseAggregationService(db).AggregateForContractAsync(10, null);
+        Assert.Equal(60m, snapshot.LoadingTransportExpenseUsd);
+        Assert.Equal(15000m, snapshot.TraceablePurchaseCostUsd);
+        Assert.Equal(70m, await db.ExpenseTransactions.SumAsync(e => e.AmountUsd));
+    }
+
+    [Fact]
     public async Task PurchaseAggregationService_Returns_Current_LoadingRegister_Sums()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
