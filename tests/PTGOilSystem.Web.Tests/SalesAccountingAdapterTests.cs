@@ -568,6 +568,38 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
         Assert.False(await db.JournalEntries.AnyAsync(j => j.SourceEventId == SalesAccountingAdapter.BuildCogsSourceEventId(sale.Id)));
     }
 
+    [Fact]
+    public async Task Legacy_Direct_Receipt_With_Inventory_Journal_Is_Not_Credited_To_Goods_In_Transit_Again()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var sale = await AddSaleAsync(db, scope, 5m, 4000m);
+        var receipt = new LoadingReceipt { LoadingRegister = new LoadingRegister {
+            ContractId = scope.Contract.Id, ProductId = scope.Product.Id, LoadedQuantityMt = 20m,
+            LoadingDate = SaleDate.AddDays(-2), LoadingPriceUsd = 500m },
+            TerminalId = scope.Terminal.Id, ReceiptDate = SaleDate, ReceivedQuantityMt = 5m,
+            ReceiptDestination = LoadingReceiptDestination.DirectDispatch };
+        db.LoadingReceiptAllocations.Add(new LoadingReceiptAllocation { LoadingReceipt = receipt,
+            SalesTransactionId = sale.Id, SourcePurchaseContractId = scope.Contract.Id,
+            Destination = LoadingReceiptAllocationDestination.DirectSale, QuantityMt = 5m, TerminalId = scope.Terminal.Id });
+        await db.SaveChangesAsync();
+        // Reproduce a historical defect explicitly, without invoking the corrected adapter.
+        var options = Options.Create(new AccountingOptions { Enabled = true });
+        var posting = new AccountingPostingService(db, new PeriodGuard(db, new FiscalCalendarService(db)),
+            options, new SystemCompanyProvider(db));
+        await posting.PostAsync(new AccountingPostRequest(scope.Company.Id,
+            PaymentAccountingAdapterTests.Unique("LEGACY-RECEIPT"), SaleDate, SaleDate, SaleDate, "Purchase",
+            [new AccountingPostLine(scope.Settings.InventoryAccountId, 2500m, 0m, "USD", 2500m, 1m),
+             new AccountingPostLine(scope.Settings.InventoryInTransitAccountId, 0m, 2500m, "USD", 2500m, 1m)],
+            SourceEventId: PurchaseAccountingAdapter.BuildReceiptSourceEventId(receipt.Id),
+            SourceEntityType: nameof(LoadingReceipt), SourceEntityId: receipt.Id,
+            Description: "Historical incorrect inventory journal for direct receipt"));
+        var result = await CreateAdapter(db, cogs: true).TryPostCogsAsync(sale);
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW", result.Reason);
+        Assert.False(await db.JournalEntries.AnyAsync(j => j.SourceEventId == SalesAccountingAdapter.BuildCogsSourceEventId(sale.Id)));
+    }
+
     private static SalesAccountingAdapter CreateAdapter(
         ApplicationDbContext db,
         bool sale = false,
