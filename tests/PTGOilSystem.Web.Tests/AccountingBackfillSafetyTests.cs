@@ -188,6 +188,99 @@ public sealed class AccountingBackfillSafetyTests(AccountingPostgreSqlFixture fi
             && (x.SourceEntityId == pending.Id || x.SourceEntityId == closed.Id)));
     }
 
+    [Fact]
+    public async Task Reversed_Receipt_Remains_Reversed_In_Adapter_And_Backfill()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loading = await AddLoadingAsync(db, scope);
+        var receipt = await AddReceiptAsync(db, scope, loading);
+        var adapter = CreatePurchaseAdapter(db);
+        await adapter.TryPostPurchaseAsync(loading);
+        await adapter.TryPostInventoryReceiptAsync(receipt);
+        await using (var transaction = await db.Database.BeginTransactionAsync())
+        {
+            Assert.Equal(PaymentPostingStatus.Posted,
+                (await adapter.TryPostInventoryReceiptReversalAsync(receipt)).Status);
+            await transaction.CommitAsync();
+        }
+        var poolBefore = await db.InventoryAverageCosts.AsNoTracking()
+            .SingleAsync(x => x.CompanyId == scope.Company.Id);
+        Assert.Equal(0m, poolBefore.QuantityMt);
+        Assert.Equal(0m, poolBefore.TotalValueUsd);
+        Assert.Equal("RECEIPT_ALREADY_REVERSED", (await adapter.TryPostInventoryReceiptAsync(receipt)).Reason);
+        var report = await CreateBackfill(db).RunAsync(dryRun: false);
+        Assert.Equal("SOURCE_JOURNAL_REVERSED",
+            report.Steps.Single(x => x.Name == "InventoryReceipt (LoadingReceipt)")
+                .Items.Single(x => x.EntityId == receipt.Id).Reason);
+        var poolAfter = await db.InventoryAverageCosts.AsNoTracking()
+            .SingleAsync(x => x.CompanyId == scope.Company.Id);
+        Assert.Equal(poolBefore.QuantityMt, poolAfter.QuantityMt);
+        Assert.Equal(poolBefore.TotalValueUsd, poolAfter.TotalValueUsd);
+        Assert.Equal(2, await db.JournalEntries.CountAsync(x => x.SourceModule == PurchaseAccountingAdapter.SourceModule
+            && (x.SourceEventId == PurchaseAccountingAdapter.BuildReceiptSourceEventId(receipt.Id)
+                || x.SourceEventId == PurchaseAccountingAdapter.BuildReceiptReversedSourceEventId(receipt.Id))));
+    }
+
+    [Fact]
+    public async Task Cancelled_Transport_Receipt_Is_Reported_Without_Valuation_Or_Journal()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loading = await AddLoadingAsync(db, scope);
+        var adapter = CreatePurchaseAdapter(db);
+        await adapter.TryPostPurchaseAsync(loading);
+        var leg = new InventoryTransportLeg
+        {
+            SourcePurchaseContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            DestinationTerminalId = scope.Terminal.Id, DestinationStorageTankId = scope.Tank.Id,
+            TransportType = LoadingTransportType.Truck, LoadedDate = EventDate,
+            QuantityMt = 20m, PurchaseUnitCostUsd = 500m, Status = InventoryTransportLegStatus.Loaded
+        };
+        db.InventoryTransportLegs.Add(leg);
+        await db.SaveChangesAsync();
+        db.InventoryTransportLegAllocations.Add(new InventoryTransportLegAllocation
+        {
+            InventoryTransportLegId = leg.Id, SourcePurchaseContractId = scope.Contract.Id,
+            SourceLoadingRegisterId = loading.Id, QuantityMt = 20m
+        });
+        var receipt = new InventoryTransportReceipt
+        {
+            InventoryTransportLegId = leg.Id, ReceiptDate = EventDate.AddDays(2), ReceivedQuantityMt = 18m,
+            ReceiptDestination = InventoryTransportReceiptDestination.ToInventory,
+            DestinationTerminalId = scope.Terminal.Id, DestinationStorageTankId = scope.Tank.Id,
+            IsCancelled = true
+        };
+        db.InventoryTransportReceipts.Add(receipt);
+        await db.SaveChangesAsync();
+        Assert.Equal("RECEIPT_CANCELLED", (await adapter.TryPostTransportReceiptAsync(receipt)).Reason);
+        var report = await CreateBackfill(db).RunAsync(dryRun: false);
+        Assert.Equal(AccountingBackfillItemStatus.Cancelled,
+            report.Steps.Single(x => x.Name == "InventoryReceipt (InventoryTransportReceipt)")
+                .Items.Single(x => x.EntityId == receipt.Id).Status);
+        Assert.False(await db.JournalEntries.AnyAsync(x =>
+            x.SourceEventId == PurchaseAccountingAdapter.BuildTransportReceiptSourceEventId(receipt.Id)));
+        Assert.False(await db.InventoryAverageCosts.AnyAsync(x => x.CompanyId == scope.Company.Id));
+    }
+
+    [Fact]
+    public async Task Historical_Document_In_Closed_Fiscal_Year_Is_Not_Backfilled()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var loading = await AddLoadingAsync(db, scope);
+        var year = await db.FiscalYears.SingleAsync(x => x.CompanyId == scope.Company.Id);
+        year.Status = FiscalYearStatus.Closed;
+        await db.SaveChangesAsync();
+        var report = await CreateBackfill(db).RunAsync(dryRun: false);
+        var item = report.Steps.Single(x => x.Name == "Purchase (LoadingRegister)")
+            .Items.Single(x => x.EntityId == loading.Id);
+        Assert.Equal(AccountingBackfillItemStatus.Skipped, item.Status);
+        Assert.Equal("FISCAL_YEAR_CLOSED", item.Reason);
+        Assert.False(await db.JournalEntries.AnyAsync(x =>
+            x.SourceEventId == PurchaseAccountingAdapter.BuildCreatedSourceEventId(loading.Id, 0)));
+    }
+
     private static async Task<LoadingRegister> AddLoadingAsync(ApplicationDbContext db,
         PaymentAccountingAdapterTests.PaymentScope scope, bool cancelled = false, decimal? price = 500m)
     {
