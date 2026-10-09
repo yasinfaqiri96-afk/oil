@@ -955,8 +955,8 @@
                         StepDone => T("تکمیل", "Done"),
                         StepCurrent => T("در جریان", "In progress"),
                         StepWarn => T("نیاز به توجه", "Needs attention"),
-                        StepGain => T("سودده", "Profitable"),
-                        StepLoss => T("زیان‌ده", "Loss"),
+                        StepGain => T("با مفاد", "Profitable"),
+                        StepLoss => T("با ضرر", "Loss"),
                         _ => T("در انتظار", "Pending")
                     };
 
@@ -981,7 +981,7 @@
                         (3, "flow-truck", T("فروشات", "Sales"), salesState,
                             T("فروخته‌شده", "Sold"), FormatLifecycleQuantity(soldQuantityMt),
                             T("ارزش فروخته‌شده", "Sold value"), FormatLifecycleUsd(salesTotalUsd)),
-                        (4, "flow-calculator", T("هزینه‌ها", "Expenses"), expenseState,
+                        (4, "flow-calculator", T("مصارف", "Expenses"), expenseState,
                             T("مجموع مصارف", "Total expenses"), FormatLifecycleUsd(summaryExpenseTotalUsd),
                             T("اوسط مصرف بر تن", "Expense per MT"), FormatLifecycleRate(summaryExpensePerLoadedMt)),
                         (5, "contract-losses", T("ضایعات", "Losses"), lossState,
@@ -990,9 +990,9 @@
                         (6, "payments-out", T("پرداخت‌ها", "Payments"), paymentState,
                             T("پرداخت‌شده", "Paid"), FormatLifecycleUsd(supplierPaidNetUsd),
                             T("مانده قابل پرداخت", "Remaining payable"), FormatLifecycleUsd(supplierRemainingUsd)),
-                        (7, "contract-profit", T("سود و زیان", "Profit & loss"), resultState,
-                            T("سود کلی قرارداد", "Total contract profit"), FormatLifecycleUsd(lifecycleProfitUsd),
-                            T("حاشیه سود", "Margin"), $"{NumberDisplay.Number(salesTotalUsd > 0m ? lifecycleProfitUsd / salesTotalUsd * 100m : 0m, 2)}%")
+                        (7, "contract-profit", T("مفاد و ضرر", "Profit & loss"), resultState,
+                            T("مفاد کل قرارداد", "Total contract profit"), FormatLifecycleUsd(lifecycleProfitUsd),
+                            T("حاشیه مفاد", "Margin"), $"{NumberDisplay.Number(salesTotalUsd > 0m ? lifecycleProfitUsd / salesTotalUsd * 100m : 0m, 2)}%")
                     };
 
                     // جهت فلش‌ها: ردیف اول راست→چپ، ردیف دوم چپ→راست، ردیف سوم دوباره راست→چپ
@@ -1035,7 +1035,7 @@
                             <div class="ak-cycle-body">
                                 <div class="ak-journey-step-head">
                                     <h3 class="ak-cycle-title">
-                                        @if (step.Number == 5)
+                                        @if (step.Number == 5 && Model.IsPurchaseContract)
                                         {
                                             <a href="@ReturnUrl(LossesPresentationTab)" data-contract-journey-tab-link="true" data-no-spa="true">@step.Title</a>
                                         }
