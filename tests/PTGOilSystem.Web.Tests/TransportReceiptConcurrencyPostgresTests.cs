@@ -70,6 +70,23 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
     }
 
     [Fact]
+    public async Task The_Last_Four_Decimal_Unit_Remains_Receivable_Until_Consumed()
+    {
+        await SeedAsync();
+        await using var db = fixture.CreateDbContext();
+        var service = Service(db);
+        var leg = (await service.LoadLegAsync(1, true))!;
+        await service.ApplyAsync(Model(99.9999m), leg, null);
+        Assert.Equal(InventoryTransportLegStatus.Loaded, leg.Status);
+        Assert.Equal(0.0001m, await new TransportQuantityService(db).GetRemainingMtAsync(1));
+        await service.ApplyAsync(Model(0.0001m), leg, null);
+        await using var verify = fixture.CreateDbContext();
+        Assert.Equal(2, await verify.InventoryTransportReceipts.CountAsync());
+        Assert.Equal(100m, await verify.InventoryTransportReceipts.SumAsync(r => r.ReceivedQuantityMt));
+        Assert.Equal(InventoryTransportLegStatus.Received, (await verify.InventoryTransportLegs.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task Explicit_Weighbridge_Surplus_Preserves_Source_Quantity()
     {
         await SeedAsync();

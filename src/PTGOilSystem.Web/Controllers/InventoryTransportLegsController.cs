@@ -1589,7 +1589,7 @@ public partial class InventoryTransportLegsController : Controller
                         0m),
                     4,
                     MidpointRounding.AwayFromZero);
-                if (remainingAfterReceipt <= 0.0001m)
+                if (remainingAfterReceipt <= 0m)
                 {
                     leg.Status = InventoryTransportLegStatus.Received;
                 }
