@@ -122,8 +122,10 @@ public class OperationalAssetProfileP0Tests
         Assert.Contains(model.WorkRows, row => !row.IsInternalUse);
     }
 
-    [Fact]
-    public async Task System_Generated_Rows_Carry_A_Live_Link_To_Their_Source_Document()
+    [Theory]
+    [InlineData("fa", "استفاده داخلی شرکت — پرداخت بیرونی ندارد")]
+    [InlineData("en", "Company internal use — no outside payment")]
+    public async Task System_Generated_Rows_Carry_A_Live_Link_To_Their_Source_Document(string language, string expectedState)
     {
         await using var db = CreateDb();
         SeedAsset(db);
@@ -143,7 +145,7 @@ public class OperationalAssetProfileP0Tests
             AmountUsd = 120m
         });
         await db.SaveChangesAsync();
-        var controller = BuildController(db);
+        var controller = BuildController(db, language);
 
         var result = await controller.Details(1, new DateTime(2026, 5, 1), new DateTime(2026, 5, 30));
 
@@ -158,7 +160,7 @@ public class OperationalAssetProfileP0Tests
         Assert.False(income.CanCancel);
         // وضعیت به زبان کاربر است، نه کد سیاست ثبت.
         Assert.DoesNotContain("SYSTEM_GENERATED", income.StateText);
-        Assert.Contains("no outside payment", income.StateText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(expectedState, income.StateText);
     }
 
     [Fact]
@@ -321,12 +323,18 @@ public class OperationalAssetProfileP0Tests
         Assert.Null(leg.OperationalAssetId);
     }
 
-    private static OperationalAssetsController BuildController(ApplicationDbContext db)
-        => new(db)
+    private static OperationalAssetsController BuildController(ApplicationDbContext db, string? language = null)
+    {
+        var context = new DefaultHttpContext();
+        if (language is not null)
+            context.Request.Headers.Cookie = $"ptg-ui-lang={language}";
+        return new OperationalAssetsController(db)
         {
+            ControllerContext = new ControllerContext { HttpContext = context },
             TempData = BuildTempData(),
             Url = new StubUrlHelper()
         };
+    }
 
     /// <summary>آدرس‌ساز سادهٔ تست: همان شکلی که مسیرهای پیش‌فرض MVC می‌سازند.</summary>
     private sealed class StubUrlHelper : IUrlHelper

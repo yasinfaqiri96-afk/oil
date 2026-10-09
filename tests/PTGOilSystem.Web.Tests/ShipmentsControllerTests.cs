@@ -99,12 +99,14 @@ public class ShipmentsControllerTests
         Assert.Equal(3740m, await db.ShipmentContracts.SumAsync(sc => sc.QuantityMt ?? 0m));
     }
 
-    [Fact]
-    public async Task Create_Post_Rejects_Sale_Contract_Allocation()
+    [Theory]
+    [InlineData("fa", "تخصیص محموله فقط باید از قراردادهای خرید باشد.")]
+    [InlineData("en", "Shipment allocations must use purchase contracts.")]
+    public async Task Create_Post_Rejects_Sale_Contract_Allocation(string language, string expectedError)
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
-        var controller = BuildController(db);
+        var controller = BuildController(db, language);
 
         var result = await controller.Create(new ShipmentCreateViewModel
         {
@@ -119,19 +121,23 @@ public class ShipmentsControllerTests
         Assert.IsType<ViewResult>(result);
         Assert.False(controller.ModelState.IsValid);
         Assert.Contains(
-            controller.ModelState.Values.SelectMany(v => v.Errors),
-            error => error.ErrorMessage.Contains("purchase contracts", StringComparison.OrdinalIgnoreCase));
+            controller.ModelState["ContractAllocations[0].ContractId"]!.Errors,
+            error => error.ErrorMessage == expectedError);
+        Assert.Empty(await db.ShipmentContracts.ToListAsync());
+        Assert.Empty(await db.InventoryTransportLegs.ToListAsync());
         Assert.Empty(await db.Shipments.ToListAsync());
     }
 
-    [Fact]
-    public async Task Create_Post_Rejects_Duplicate_Shipment_Code()
+    [Theory]
+    [InlineData("fa", "محموله‌ای با این کد قبلاً ثبت شده است.")]
+    [InlineData("en", "A shipment with this code already exists.")]
+    public async Task Create_Post_Rejects_Duplicate_Shipment_Code(string language, string expectedError)
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
         db.Shipments.Add(new Shipment { ShipmentCode = "KALUGA", QuantityMt = 1m });
         await db.SaveChangesAsync();
-        var controller = BuildController(db);
+        var controller = BuildController(db, language);
 
         var result = await controller.Create(new ShipmentCreateViewModel
         {
@@ -146,8 +152,10 @@ public class ShipmentsControllerTests
         Assert.IsType<ViewResult>(result);
         Assert.False(controller.ModelState.IsValid);
         Assert.Contains(
-            controller.ModelState.Values.SelectMany(v => v.Errors),
-            error => error.ErrorMessage.Contains("already exists", StringComparison.OrdinalIgnoreCase));
+            controller.ModelState["ShipmentCode"]!.Errors,
+            error => error.ErrorMessage == expectedError);
+        Assert.Empty(await db.ShipmentContracts.ToListAsync());
+        Assert.Empty(await db.InventoryTransportLegs.ToListAsync());
         Assert.Single(await db.Shipments.ToListAsync());
     }
 
@@ -175,12 +183,14 @@ public class ShipmentsControllerTests
         Assert.Single(await db.ShipmentContracts.ToListAsync());
     }
 
-    [Fact]
-    public async Task Create_Post_Rejects_Duplicate_Contract_Allocation()
+    [Theory]
+    [InlineData("fa", "این قرارداد خرید قبلاً در ردیف دیگری اضافه شده است.")]
+    [InlineData("en", "This purchase contract is already linked in another row.")]
+    public async Task Create_Post_Rejects_Duplicate_Contract_Allocation(string language, string expectedError)
     {
         await using var db = CreateDb();
         await SeedReferenceDataAsync(db);
-        var controller = BuildController(db);
+        var controller = BuildController(db, language);
 
         var result = await controller.Create(new ShipmentCreateViewModel
         {
@@ -196,8 +206,10 @@ public class ShipmentsControllerTests
         Assert.IsType<ViewResult>(result);
         Assert.False(controller.ModelState.IsValid);
         Assert.Contains(
-            controller.ModelState.Values.SelectMany(v => v.Errors),
-            error => error.ErrorMessage.Contains("already linked", StringComparison.OrdinalIgnoreCase));
+            controller.ModelState["ContractAllocations[1].ContractId"]!.Errors,
+            error => error.ErrorMessage == expectedError);
+        Assert.Empty(await db.ShipmentContracts.ToListAsync());
+        Assert.Empty(await db.InventoryTransportLegs.ToListAsync());
         Assert.Empty(await db.Shipments.ToListAsync());
     }
 
@@ -374,11 +386,17 @@ public class ShipmentsControllerTests
         return new ApplicationDbContext(options);
     }
 
-    private static ShipmentsController BuildController(ApplicationDbContext db)
-        => new(db)
+    private static ShipmentsController BuildController(ApplicationDbContext db, string? language = null)
+    {
+        var context = new DefaultHttpContext();
+        if (language is not null)
+            context.Request.Headers.Cookie = $"ptg-ui-lang={language}";
+        return new ShipmentsController(db)
         {
-            TempData = new TempDataDictionary(new DefaultHttpContext(), new InMemoryTempDataProvider())
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, new InMemoryTempDataProvider())
         };
+    }
 
     private static async Task SeedReferenceDataAsync(ApplicationDbContext db)
     {
