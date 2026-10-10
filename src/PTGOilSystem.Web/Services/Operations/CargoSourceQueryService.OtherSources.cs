@@ -63,8 +63,8 @@ public sealed partial class CargoSourceQueryService
             d.DestinationLocation?.Name ?? "", d.DispatchDate, d.LoadedQuantityMt, 0m, 0m, 0m,
             d.SalesTransactionId.HasValue ? 0m : d.DischargedQuantityMt ?? d.LoadedQuantityMt,
             d.Status == DispatchStatus.Cancelled, false, d.Contract?.ContractType == ContractType.Purchase,
-            SupportedActions: d.Status is DispatchStatus.Loaded or DispatchStatus.InTransit
-                ? [CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.Expense] : [CargoAction.Expense], ContractStatus: d.Contract?.Status,
+            SupportedActions: (d.Status is DispatchStatus.Loaded or DispatchStatus.InTransit
+                ? new[] { CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.Expense } : new[] { CargoAction.Expense }), ContractStatus: d.Contract?.Status,
             StatusLabel: d.IsFreightSettled ? "کرایه تسویه‌شده" : d.Status == DispatchStatus.InTransit ? "در راه" : "بارگیری‌شده")).ToList();
     }
 
