@@ -84,6 +84,94 @@ public class TransportLegPurchaseCostSyncTests
         Assert.Equal(700m, (await db.InventoryTransportLegs.AsNoTracking().SingleAsync()).PurchaseUnitCostUsd);
     }
 
+    [Theory]
+    [InlineData("received")]
+    [InlineData("cancelled")]
+    [InlineData("archived")]
+    [InlineData("partial-receipt")]
+    [InlineData("sold")]
+    [InlineData("continued")]
+    [InlineData("loss")]
+    [InlineData("posted-journal")]
+    [InlineData("closed-year")]
+    [InlineData("locked-period")]
+    [InlineData("operational-lock")]
+    [InlineData("price-cleared")]
+    public async Task Synchronization_Preserves_Consumed_Posted_And_Closed_History(string scenario)
+    {
+        await using var db = NewDb();
+        Seed(db, loadingPriceUsd: 500m);
+        var leg = Leg(1, unitCostUsd: 500m, loadingIds: [10]);
+        if (scenario == "received") leg.Status = InventoryTransportLegStatus.Received;
+        if (scenario == "cancelled") leg.Status = InventoryTransportLegStatus.Cancelled;
+        if (scenario == "archived") leg.IsArchived = true;
+        db.InventoryTransportLegs.Add(leg);
+        await db.SaveChangesAsync();
+        switch (scenario)
+        {
+            case "partial-receipt":
+                db.InventoryTransportReceipts.Add(new InventoryTransportReceipt
+                {
+                    InventoryTransportLegId = leg.Id, ReceiptDate = LoadingDate.AddDays(1),
+                    ReceivedQuantityMt = 1m, DestinationTerminalId = 1
+                });
+                break;
+            case "sold":
+                var sale = new SalesTransaction { InvoiceNumber = "SYNC-SALE", ProductId = 1,
+                    SaleDate = LoadingDate.AddDays(1), QuantityMt = 1m, TotalUsd = 800m };
+                db.SalesTransactions.Add(sale);
+                db.SalesTransactionSourceAllocations.Add(new SalesTransactionSourceAllocation
+                { SalesTransaction = sale, TransportLegId = leg.Id, SourcePurchaseContractId = 1, QuantityMt = 1m });
+                break;
+            case "continued":
+                var child = Leg(2, unitCostUsd: 500m, loadingIds: []);
+                child.Allocations.Add(new InventoryTransportLegAllocation
+                { SourceTransportLegId = leg.Id, SourcePurchaseContractId = 1, QuantityMt = 1m });
+                db.InventoryTransportLegs.Add(child);
+                break;
+            case "loss":
+                db.LossEvents.Add(new LossEvent
+                { TransportLegId = leg.Id, ProductId = 1, EventDate = LoadingDate, DifferenceQuantityMt = 1m });
+                break;
+            case "posted-journal":
+                db.JournalEntries.Add(new JournalEntry { CompanyId = 1, JournalNumber = "SYNC-POSTED",
+                    SourceModule = "InventoryTransfer", SourceEntityType = nameof(InventoryTransportLeg),
+                    SourceEntityId = leg.Id, Status = JournalEntryStatus.Posted, AccountingDate = LoadingDate });
+                break;
+            case "closed-year":
+            case "locked-period":
+                var year = new FiscalYear { CompanyId = 1, Name = "SYNC-FY", StartDate = new(2026, 1, 1),
+                    EndDate = new(2026, 12, 31), Status = scenario == "closed-year" ? FiscalYearStatus.Closed : FiscalYearStatus.Open };
+                db.FiscalYears.Add(year);
+                db.FiscalPeriods.Add(new FiscalPeriod { CompanyId = 1, FiscalYear = year, PeriodNumber = 6,
+                    Name = "June", StartDate = new(2026, 6, 1), EndDate = new(2026, 6, 30),
+                    Status = FiscalPeriodStatus.HardLocked });
+                break;
+            case "operational-lock":
+                db.OperationalPeriodLocks.Add(new OperationalPeriodLock
+                { LockedThroughDate = LoadingDate, IsActive = true, Reason = "Historical synchronization test" });
+                break;
+        }
+        await db.SaveChangesAsync();
+        Assert.Equal(0, await TransportLegPurchaseCostSync.SyncFromLoadingAsync(db, 10, 500m,
+            scenario == "price-cleared" ? null : 700m));
+        Assert.Equal(500m, leg.PurchaseUnitCostUsd);
+        Assert.Equal(EntityState.Unchanged, db.Entry(leg).State);
+    }
+
+    [Fact]
+    public async Task Open_Unconsumed_InTransit_Estimate_Can_Be_Finalized()
+    {
+        await using var db = NewDb();
+        Seed(db, loadingPriceUsd: null);
+        var leg = Leg(1, unitCostUsd: null, loadingIds: [10]);
+        leg.Status = InventoryTransportLegStatus.InTransit;
+        db.InventoryTransportLegs.Add(leg);
+        await db.SaveChangesAsync();
+        Assert.Equal(1, await TransportLegPurchaseCostSync.SyncFromLoadingAsync(db, 10, null, 700m));
+        Assert.Equal(700m, leg.PurchaseUnitCostUsd);
+    }
+
     private static InventoryTransportLeg Leg(int id, decimal? unitCostUsd, int[] loadingIds)
     {
         var leg = new InventoryTransportLeg
