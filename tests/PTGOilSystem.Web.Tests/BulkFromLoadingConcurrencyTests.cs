@@ -1,3 +1,9 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using PTGOilSystem.Web.Controllers;
+using PTGOilSystem.Web.Models.InventoryTransport;
+using PTGOilSystem.Web.Services.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Data.Common;
@@ -316,6 +322,74 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
             () => BuildWorkflowWithTokens(db).StartManyFromLoadingAsync(command));
         Assert.Equal("TRANSPORT_BULK_REQUEST_OWNER", error.Code);
         Assert.Equal(1, await db.InventoryTransportLegs.CountAsync());
+    }
+
+    [Fact]
+    public async Task A_Fully_Committed_Filter_Request_Replays_Without_An_Empty_Selection_Error()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 2);
+        db.ChangeTracker.Clear();
+        var model = new TransportBulkFromLoadingViewModel
+        {
+            UseFilterSelection = true, TransportDate = TransportDate,
+            Filter = new TransportBulkLoadingFilter { ContractId = [1] }
+        };
+        var first = Controller(db);
+        Assert.IsType<RedirectToActionResult>(await first.BulkFromLoading(model, "filter-request"));
+        db.ChangeTracker.Clear();
+        var replay = Controller(db);
+        Assert.IsType<RedirectToActionResult>(await replay.BulkFromLoading(model, "filter-request"));
+        Assert.True(replay.ModelState.IsValid);
+        Assert.Contains("تلاش قبلی", replay.TempData["ok"]!.ToString());
+        Assert.Equal(2, await db.InventoryTransportLegs.CountAsync());
+        Assert.Equal(200m, await db.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+    }
+
+    [Fact]
+    public async Task Partial_Manual_Request_Keeps_Only_Failed_Rows_And_The_Same_Token_In_The_Form()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 2);
+        (await db.LoadingRegisters.SingleAsync(l => l.Id == 2)).IsCancelled = true;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var model = new TransportBulkFromLoadingViewModel
+        {
+            TransportDate = TransportDate,
+            Rows = [new() { LoadingRegisterId = 1, QuantityMt = 100m, TruckId = 1 },
+                    new() { LoadingRegisterId = 2, QuantityMt = 100m, TruckId = 1 }]
+        };
+        var controller = Controller(db);
+        var view = Assert.IsType<ViewResult>(await controller.BulkFromLoading(model, "partial-manual"));
+        var returned = Assert.IsType<TransportBulkFromLoadingViewModel>(view.Model);
+        Assert.Equal(2, Assert.Single(returned.Rows).LoadingRegisterId);
+        Assert.Equal("partial-manual", controller.ViewData["BulkRequestToken"]);
+        Assert.Contains("بخشی ثبت شد", controller.TempData["ok"]!.ToString());
+        Assert.Equal(1, await db.InventoryTransportLegs.CountAsync());
+        Assert.Equal(100m, await db.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+    }
+
+    private static TransportsController Controller(ApplicationDbContext db)
+    {
+        var context = new DefaultHttpContext();
+        return new TransportsController(db, BuildWorkflowWithTokens(db), new TransportQuantityService(db),
+            new AfghanistanBusinessClock(TimeProvider.System), new InventoryTransportBatchService(db, new StockService(db)),
+            new FormTokenGuard(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
+        };
+    }
+
+    private sealed class EmptyTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
+        public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
     }
 
     private sealed class CancelAfterCommit(CancellationTokenSource source) : DbTransactionInterceptor

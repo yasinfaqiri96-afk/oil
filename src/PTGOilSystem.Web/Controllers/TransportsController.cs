@@ -297,7 +297,17 @@ public sealed class TransportsController : Controller
                 .ToList();
         }
 
-        if (rows.Count == 0 && ModelState.IsValid)
+        var canRecoverCompletedRequest = false;
+        if (rows.Count == 0 && ModelState.IsValid && !string.IsNullOrWhiteSpace(formToken))
+        {
+            // A filter replay after all rows committed has no convertible source left.
+            // Recover the same request's outcomes instead of reporting an empty selection.
+            var prefix = TransportWorkflowService.BulkRequestPrefix(formToken.Trim());
+            int? requestOwner = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var ownerId) ? ownerId : null;
+            canRecoverCompletedRequest = await _db.ProcessedFormTokens.AsNoTracking()
+                .AnyAsync(token => token.Purpose.StartsWith(prefix) && token.UserId == requestOwner);
+        }
+        if (rows.Count == 0 && ModelState.IsValid && !canRecoverCompletedRequest)
         {
             ModelState.AddModelError(string.Empty, model.UseFilterSelection
                 ? "هیچ بارگیریِ قابل تبدیلی مطابق این فیلتر پیدا نشد."
