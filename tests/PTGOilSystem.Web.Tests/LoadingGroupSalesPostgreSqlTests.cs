@@ -136,7 +136,7 @@ public sealed class LoadingGroupSalesPostgreSqlTests(AccountingPostgreSqlFixture
             .Select(s => s.CostOfGoodsSoldAccountId).SingleAsync();
         Assert.Equal(0m, journals.SelectMany(j => j.Lines).Where(l => l.AccountId == cogsAccount).Sum(l => l.Debit - l.Credit));
         Assert.False(await verify.InventoryMovements.AnyAsync(m => m.LoadingReceipt != null && (m.LoadingReceipt.LoadingRegisterId == loadingId || m.LoadingReceipt.LoadingRegisterId == secondLoadingId)));
-        Assert.False(await verify.InventoryValuationPools.AnyAsync(p => p.CompanyId == scope.Company.Id));
+        Assert.False(await verify.InventoryAverageCosts.AnyAsync(p => p.CompanyId == scope.Company.Id));
         Assert.Equal(100m, (await new PTGOilSystem.Web.Services.Operations.CargoSourceQueryService(verify)
             .LoadLoadingSourcesAsync([loadingId])).Single().RemainingQuantityMt);
         Assert.Equal(100m, (await new PTGOilSystem.Web.Services.Operations.CargoSourceQueryService(verify)
