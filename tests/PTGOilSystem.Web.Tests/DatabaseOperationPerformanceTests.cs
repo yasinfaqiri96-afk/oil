@@ -191,6 +191,50 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Empty(await db.JournalEntries.ToListAsync());
     }
 
+    [Fact]
+    public async Task Thousand_Row_Conversion_Request_Retry_Preserves_Quantity_And_Reports_Success()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        var counter = new BulkFromLoadingPerformanceTests.CommandCounter();
+        await using var db = fixture.CreateDbContext(counter);
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, RowCount);
+        var workflow = BulkFromLoadingPerformanceTests.BuildWorkflow(db);
+        var command = new BulkStartTransportFromLoadingCommand
+        {
+            Rows = Enumerable.Range(1, RowCount).Select(id => new BulkStartTransportFromLoadingRow
+            {
+                LoadingRegisterId = id,
+                QuantityMt = 100m,
+                TransportType = LoadingTransportType.Truck,
+                TruckId = 1,
+                Reference = $"PERF-CONVERT-{id}"
+            }).ToList(),
+            TransportDate = new DateTime(2026, 9, 5),
+            FormToken = Guid.NewGuid().ToString("N")
+        };
+
+        var result = await MeasureAsync(db, counter, "convert_loading", false,
+            () => workflow.StartManyFromLoadingAsync(command));
+        Assert.Empty(result.Failures);
+        Assert.Equal(RowCount, result.CreatedCount);
+        Assert.Equal(RowCount, await db.InventoryTransportLegs.CountAsync());
+        Assert.Equal(100_000m, await db.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+        Assert.Equal(RowCount, await db.InventoryTransportLegAllocations
+            .Select(a => a.SourceLoadingRegisterId).Distinct().CountAsync());
+        Assert.True(await db.ProcessedFormTokens.AnyAsync());
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        Assert.Empty(await db.LoadingReceipts.ToListAsync());
+
+        var replay = await MeasureAsync(db, counter, "convert_retry", false,
+            () => workflow.StartManyFromLoadingAsync(command));
+        output.WriteLine($"CONVERSION_RETRY created={replay.CreatedCount} failures={replay.Failures.Count}");
+        Assert.Equal(RowCount, await db.InventoryTransportLegs.CountAsync());
+        Assert.Equal(100_000m, await db.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
+        Assert.Empty(replay.Failures);
+        Assert.Equal(0, replay.CreatedCount);
+    }
+
     private async Task<T> MeasureAsync<T>(
         ApplicationDbContext db,
         BulkFromLoadingPerformanceTests.CommandCounter counter,
@@ -201,7 +245,7 @@ public sealed class DatabaseOperationPerformanceTests(
         db.ChangeTracker.Clear();
         var saves = 0;
         var peakTracked = 0;
-        db.SavingChanges += (_, _) =>
+        EventHandler<SavingChangesEventArgs> onSave = (_, _) =>
         {
             saves++;
             // Enumerating Entries otherwise adds another DetectChanges pass just for
@@ -217,16 +261,23 @@ public sealed class DatabaseOperationPerformanceTests(
                 db.ChangeTracker.AutoDetectChangesEnabled = detectChanges;
             }
         };
+        db.SavingChanges += onSave;
         counter.Reset();
         var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
         var stopwatch = Stopwatch.StartNew();
-        var result = await action();
-        stopwatch.Stop();
-        var allocatedBytes = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
-        output.WriteLine($"DATABASE_PERF operation={operation} rows={RowCount} accounting={accountingEnabled} " +
-            $"ms={stopwatch.ElapsedMilliseconds} commands={counter.Commands} transactions={counter.Transactions} " +
-            $"saveChanges={saves} peakTracked={peakTracked} allocatedBytes={allocatedBytes}");
-        return result;
+        try
+        {
+            return await action();
+        }
+        finally
+        {
+            stopwatch.Stop();
+            db.SavingChanges -= onSave;
+            var allocatedBytes = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
+            output.WriteLine($"DATABASE_PERF operation={operation} rows={RowCount} accounting={accountingEnabled} " +
+                $"ms={stopwatch.ElapsedMilliseconds} commands={counter.Commands} transactions={counter.Transactions} " +
+                $"saveChanges={saves} peakTracked={peakTracked} allocatedBytes={allocatedBytes}");
+        }
     }
 
     private static void AssertSuccessful(Controller controller, IActionResult result)
