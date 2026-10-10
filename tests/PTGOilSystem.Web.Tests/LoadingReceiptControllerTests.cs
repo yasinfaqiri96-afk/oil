@@ -1253,6 +1253,42 @@ public class LoadingReceiptControllerTests
         Assert.True(controller.TempData.ContainsKey("err"));
     }
 
+    [Fact]
+    public async Task Create_Post_Rejects_A_Receipt_Dated_Before_The_Loading()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        SeedLoadingContext(db);
+        await db.SaveChangesAsync();
+
+        var controller = new LoadingReceiptsController(
+            db,
+            new AuditService(db),
+            NullLogger<LoadingReceiptsController>.Instance)
+        {
+            TempData = BuildTempData(),
+            Url = BuildUrlHelper()
+        };
+
+        await controller.Create(new LoadingReceiptCreateViewModel
+        {
+            LoadingRegisterId = 1,
+            ReceiptDate = new DateTime(2026, 4, 22), // بارگیری 2026-04-23 است
+            TerminalId = 1,
+            StorageTankId = 1,
+            ReceivedQuantityMt = 55m,
+            ReferenceDocument = "RCPT-EARLY"
+        });
+
+        Assert.True(controller.ModelState.ContainsKey(nameof(LoadingReceiptCreateViewModel.ReceiptDate)));
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Equal(0, await db.LoadingReceipts.CountAsync());
+        Assert.Equal(0, await db.InventoryMovements.CountAsync());
+    }
+
     private static void SeedLoadingContext(ApplicationDbContext db)
     {
         db.Products.Add(new Product { Id = 1, Code = "GO", Name = "Gas Oil" });
