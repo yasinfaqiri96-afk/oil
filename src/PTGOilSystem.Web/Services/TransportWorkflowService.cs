@@ -217,6 +217,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) };
         if (command.QuantityMt <= 0m)
         {
             throw Rule("TRANSPORT_LOADING_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");
@@ -357,7 +358,10 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         var createdLegIds = new List<int>();
         var previousLegIds = new List<int>();
         var failures = new List<BulkStartTransportFromLoadingFailure>();
-        var rows = (command.Rows ?? []).ToList();
+        var rows = (command.Rows ?? []).Select(row => row with
+        {
+            QuantityMt = decimal.Round(row.QuantityMt, 4, MidpointRounding.AwayFromZero)
+        }).ToList();
         if (!string.IsNullOrWhiteSpace(command.FormToken))
         {
             var request = command.FormToken.Trim();
@@ -875,6 +879,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) };
         if (command.QuantityMt <= 0m)
         {
             throw Rule("TRANSPORT_RECEIPT_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");

@@ -392,6 +392,28 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
         public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
     }
 
+    [Fact]
+    public async Task Positive_Sub_Half_Unit_Amounts_Cannot_Create_Zero_Quantity_Transports()
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        await using var db = fixture.CreateDbContext();
+        await BulkFromLoadingPerformanceTests.SeedAsync(db, 1);
+        db.ChangeTracker.Clear();
+        var workflow = BuildWorkflowWithTokens(db);
+        await Assert.ThrowsAsync<BusinessRuleException>(() => workflow.StartFromLoadingAsync(new()
+        {
+            LoadingRegisterId = 1, QuantityMt = 0.00004m, TruckId = 1,
+            TransportType = LoadingTransportType.Truck, TransportDate = TransportDate
+        }));
+        var command = Command(1, "zero-rounded") with { Rows = [Command(1).Rows[0] with { QuantityMt = 0.00004m }] };
+        var bulk = await workflow.StartManyFromLoadingAsync(command);
+        Assert.Equal(0, bulk.CompletedCount);
+        Assert.Equal("TRANSPORT_LOADING_QTY_INVALID", Assert.Single(bulk.Failures).Code);
+        Assert.Empty(await db.InventoryTransportLegs.ToListAsync());
+        Assert.Empty(await db.ProcessedFormTokens.ToListAsync());
+    }
+
     private sealed class CancelAfterCommit(CancellationTokenSource source) : DbTransactionInterceptor
     {
         public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,

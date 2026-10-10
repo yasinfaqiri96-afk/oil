@@ -185,6 +185,41 @@ public sealed class TransportReceiptConcurrencyPostgresTests(BulkFromLoadingPerf
         }
     }
 
+    [Fact]
+    public async Task Column_Rounding_Cannot_Create_An_Extra_Source_Unit()
+    {
+        await SeedAsync();
+        await using var db = fixture.CreateDbContext();
+        var service = Service(db);
+        var leg = (await service.LoadLegAsync(1, true))!;
+        var model = Model(70.00005m);
+        model.ShortageQuantityMt = 29.99995m;
+        // The unrounded sum is exactly 100, but the stored columns sum to 100.0001.
+        await Assert.ThrowsAsync<BusinessRuleException>(() => service.ApplyAsync(model, leg, null));
+        await using var verify = fixture.CreateDbContext();
+        Assert.Empty(await verify.InventoryTransportReceipts.ToListAsync());
+        Assert.Empty(await verify.InventoryMovements.ToListAsync());
+        Assert.Equal(100m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
+    }
+
+    [Fact]
+    public async Task Half_Unit_Surplus_Rounds_Both_Columns_With_Their_Actual_Signs()
+    {
+        await SeedAsync();
+        await using var db = fixture.CreateDbContext();
+        var service = Service(db);
+        var leg = (await service.LoadLegAsync(1, true))!;
+        var model = Model(100.00005m);
+        model.ShortageQuantityMt = -0.00005m;
+        await service.ApplyAsync(model, leg, null);
+        await using var verify = fixture.CreateDbContext();
+        var receipt = await verify.InventoryTransportReceipts.SingleAsync();
+        Assert.Equal(100.0001m, receipt.ReceivedQuantityMt);
+        Assert.Equal(-0.0001m, receipt.ShortageQuantityMt);
+        Assert.Equal(0m, await new TransportQuantityService(verify).GetRemainingMtAsync(1));
+        Assert.Equal(100.0001m, await verify.InventoryMovements.Where(m => m.Direction == MovementDirection.In).SumAsync(m => m.QuantityMt));
+    }
+
     private async Task SeedAsync()
     {
         Assert.True(fixture.Available, fixture.UnavailableReason);

@@ -100,6 +100,7 @@ public sealed class InventoryTransportReceiptService
         ModelStateDictionary modelState,
         string keyPrefix = "")
     {
+        NormalizeReceiptQuantities(model);
         // باقیمانده حمل = مقدار کل منهای مجموع رسیدهای قبلی (دریافت + کسری). چند رسید جزئی مجاز است تا باقیمانده صفر شود.
         var remainingMt = await GetRemainingQuantityAsync(leg);
         _validatedRemaining[leg.Id] = remainingMt;
@@ -234,6 +235,7 @@ public sealed class InventoryTransportReceiptService
         InventoryTransportLeg leg,
         CurrencyConversionResult? saleConversion)
     {
+        NormalizeReceiptQuantities(model);
         // Callers batching several outcomes keep ownership of their transaction. A direct
         // service call also gets an atomic boundary; a lock without a transaction is unsafe.
         await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
@@ -693,6 +695,14 @@ public sealed class InventoryTransportReceiptService
                 : model.DirectDispatchTicketSerialNumber.Trim(),
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
+
+    private static void NormalizeReceiptQuantities(InventoryTransportReceiptCreateViewModel model)
+    {
+        // PostgreSQL rounds each numeric(…,4) column separately. Validate those same
+        // stored units, not a rounded sum of higher-precision client values.
+        model.ReceivedQuantityMt = decimal.Round(model.ReceivedQuantityMt, 4, MidpointRounding.AwayFromZero);
+        model.ShortageQuantityMt = decimal.Round(model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero);
+    }
 
     // باقیمانده حمل = مقدار کل منهای مجموع رسیدهای فعال (دریافت + کسری). مبنای مجاز بودن رسید جزئی بعدی.
     private Task<decimal> GetRemainingQuantityAsync(InventoryTransportLeg leg)

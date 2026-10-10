@@ -100,6 +100,10 @@ public sealed class TransportChainService : ITransportChainService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { Sources = command.Sources.Select(source => source with
+        {
+            QuantityMt = decimal.Round(source.QuantityMt, 4, MidpointRounding.AwayFromZero)
+        }).ToList() };
         await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
             ? await _db.Database.BeginTransactionAsync(ct)
             : null;
