@@ -177,6 +177,42 @@ public sealed class SaleCorrectionWorkflowTests
     }
 
     [Fact]
+    public async Task Cancelling_The_Last_Active_Line_Of_A_Group_Sale_Cancels_The_Batch()
+    {
+        var options = NewDbOptions();
+        await using var db = await SeedPostedSaleAsync(options);
+        const int secondSaleId = 502;
+        db.SalesBatches.Add(new SalesBatch
+        {
+            Id = 7, BatchNumber = "GSALE-7", CustomerId = 1, SaleDate = new DateTime(2026, 4, 10, 0, 0, 0, DateTimeKind.Utc),
+            Currency = "USD", AppliedFxRateToUsd = 1m, UnitPriceInCurrency = 700m,
+            TotalQuantityMt = 30m, TotalInCurrency = 21_000m, TotalUsd = 21_000m, LineCount = 2
+        });
+        var first = await db.SalesTransactions.SingleAsync(s => s.Id == SaleId);
+        first.SalesBatchId = 7;
+        db.SalesTransactions.Add(new SalesTransaction
+        {
+            Id = secondSaleId, CompanyId = 1, CustomerId = 1, ProductId = 1, SalesBatchId = 7,
+            SaleStage = SaleStage.InTransit, InvoiceNumber = "INV-502", SaleDate = first.SaleDate,
+            QuantityMt = 10m, Currency = "USD", UnitPriceInCurrency = 700m, AppliedFxRateToUsd = 1m,
+            UnitPriceUsd = 700m, TotalInCurrency = 7_000m, TotalUsd = 7_000m
+        });
+        new LedgerPostingService(db).Post(new LedgerPostingRequest
+        {
+            SourceType = "Sale", SourceId = secondSaleId, EntryDate = first.SaleDate, Side = LedgerSide.Credit,
+            AmountUsd = 7_000m, Currency = "USD", SourceAmount = 7_000m, SourceCurrencyCode = "USD",
+            AppliedFxRateToUsd = 1m, Description = "ثبت فروش", Reference = "INV-502", CustomerId = 1
+        });
+        await db.SaveChangesAsync();
+
+        await BuildController(db).Cancel(SaleId, cancelReason: "سطر اول اشتباه بود");
+        Assert.False((await db.SalesBatches.AsNoTracking().SingleAsync()).IsCancelled);
+
+        await BuildController(db).Cancel(secondSaleId, cancelReason: "سطر دوم هم اشتباه بود");
+        Assert.True((await db.SalesBatches.AsNoTracking().SingleAsync()).IsCancelled);
+    }
+
+    [Fact]
     public async Task Supplier_Correction_Reverses_The_Same_Supplier_And_Prefills_Replacement()
     {
         var options = NewDbOptions();

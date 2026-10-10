@@ -120,11 +120,17 @@ public sealed partial class ProfitAndLossService
             var costedShares = scoped.Where(s => s.UnitCostUsd.HasValue).ToList();
             if (costedShares.Count > 0)
             {
-                contractCosted++;
                 foreach (var share in costedShares)
                 {
                     var key = (share.ContractId, share.UnitCostUsd!.Value);
                     buckets[key] = buckets.GetValueOrDefault(key) + share.QuantityMt;
+                }
+
+                // فروشی که سهمِ بی‌بها هم دارد بهای کامل ندارد: عایدِ آن سهم بدون بها در سود می‌نشیند،
+                // پس فروش «بی‌بها» شمرده می‌شود تا گزارش NeedsReview شود و سودش قطعی خوانده نشود.
+                if (costedShares.Count == scoped.Count)
+                {
+                    contractCosted++;
                 }
 
                 continue;

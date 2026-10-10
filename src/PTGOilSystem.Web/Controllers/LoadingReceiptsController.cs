@@ -1429,6 +1429,10 @@ public partial class LoadingReceiptsController : Controller
 
         ValidateReceiptDestination(model, ModelState);
         NormalizeAndValidateAllocationDestination(model, ModelState);
+        if (model.ReceiptDate.Date < loading.LoadingDate.Date)
+        {
+            ModelState.AddModelError(nameof(model.ReceiptDate), BuildReceiptBeforeLoadingMessage(model.ReceiptDate, [loading]));
+        }
         var shouldCreateScalarDirectTruckDispatch = model.ReceiptDestination == LoadingReceiptDestination.DirectDispatch
             && model.AllocationDestination == LoadingReceiptAllocationDestination.DirectDispatchToTruck;
         if (shouldCreateScalarDirectTruckDispatch && !model.DirectDispatchDate.HasValue)
@@ -2095,6 +2099,14 @@ public partial class LoadingReceiptsController : Controller
             ModelState.AddModelError(nameof(model.LoadingRegisterIds), "یک یا چند بارگیری انتخاب‌شده مربوط به این قرارداد نیست یا پیدا نشد.");
         }
 
+        var loadingsAfterReceipt = selectedLoadings
+            .Where(l => model.ReceiptDate.Date < l.LoadingDate.Date)
+            .ToList();
+        if (loadingsAfterReceipt.Count > 0)
+        {
+            ModelState.AddModelError(nameof(model.ReceiptDate), BuildReceiptBeforeLoadingMessage(model.ReceiptDate, loadingsAfterReceipt));
+        }
+
         var selectedLoadingIds = selectedLoadings.Select(l => l.Id).ToList();
         var alreadyReceivedByLoadingId = selectedLoadingIds.Count == 0
             ? new Dictionary<int, decimal>()
@@ -2658,6 +2670,13 @@ public partial class LoadingReceiptsController : Controller
 
     private static string BuildLossFieldKey(string fieldName)
         => $"Loss.{fieldName}";
+
+    // رسید قبل از بارگیری ممکن نیست؛ چنین رسیدی بهای فروش‌های بعدی را از بهای قرارداد محروم می‌کند
+    // (بهای فروش فقط از بارگیری‌های تا تاریخ همان فروش ساخته می‌شود).
+    private static string BuildReceiptBeforeLoadingMessage(DateTime receiptDate, IEnumerable<LoadingRegister> loadings)
+        => $"تاریخ رسید ({receiptDate.ToCalendarString("yyyy-MM-dd")}) نمی‌تواند قبل از تاریخ بارگیری باشد: "
+            + string.Join("، ", loadings.Select(l => $"بارگیری #{l.Id} ({l.LoadingDate.ToCalendarString("yyyy-MM-dd")})"))
+            + ". اگر تاریخ بارگیری اشتباه است، اول آن را اصلاح کنید.";
 
     private static LossEventSubmission BuildReceiptLossSubmission(
         LoadingReceiptCreateViewModel model,

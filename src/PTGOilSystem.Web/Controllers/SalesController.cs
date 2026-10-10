@@ -1054,6 +1054,18 @@ public partial class SalesController : Controller
                 .FirstOrDefaultAsync();
         }
 
+        // لغو آخرین سطر فعالِ فروش گروهی، سرخطِ آن را هم لغو می‌کند؛ وگرنه سرخط با جمعِ کهنه فعال
+        // می‌ماند. سطرها اسناد خودشان را دارند و برگشتشان همین‌جا انجام شد، پس سرخط فقط وضعیت می‌گیرد.
+        if (sale.SalesBatchId is int salesBatchId
+            && !await _db.SalesTransactions.AnyAsync(s => s.SalesBatchId == salesBatchId && s.Id != sale.Id && !s.IsCancelled))
+        {
+            var salesBatch = await _db.SalesBatches.FirstOrDefaultAsync(b => b.Id == salesBatchId);
+            if (salesBatch is not null)
+            {
+                salesBatch.IsCancelled = true;
+            }
+        }
+
         try
         {
             await LedgerReversalWriter.ReverseAsync(
