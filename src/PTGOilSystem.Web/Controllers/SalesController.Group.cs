@@ -961,11 +961,16 @@ public partial class SalesController
                 TempData["ok"] = "این فروش گروهی قبلاً لغو شده است.";
                 return RedirectToAction(nameof(GroupDetails), new { id });
             }
-            var sales = await _db.SalesTransactions.Where(s => s.SalesBatchId == batch.Id && !s.IsCancelled)
-                .OrderBy(s => s.Id).ToListAsync();
-            await coordinator.LockAsync(null, sales.Select(s => s.Id).ToArray());
-            foreach (var sale in sales)
+            var saleIds = await _db.SalesTransactions.AsNoTracking()
+                .Where(s => s.SalesBatchId == batch.Id && !s.IsCancelled)
+                .OrderBy(s => s.Id).Select(s => s.Id).ToListAsync();
+            await coordinator.LockAsync(null, saleIds);
+            foreach (var saleId in saleIds)
             {
+                // Each line is loaded under the locks and released once saved, so a large
+                // batch does not re-scan every earlier line on each save.
+                using var row = new SavedRowTrackingScope(_db, includeLoaded: true);
+                var sale = await _db.SalesTransactions.SingleAsync(s => s.Id == saleId);
                 await ReverseGroupSaleLineAsync(sale);
                 sale.IsCancelled = true;
                 await _db.SaveChangesAsync();
@@ -975,6 +980,7 @@ public partial class SalesController
                     await _salesAccounting.TryReverseCogsAsync(sale, _businessClock.Today);
                     await _salesAccounting.TryReleaseAdvanceApplicationsAsync(sale, _businessClock.Today);
                 }
+                row.ReleaseSaved();
             }
 
             await _db.SaveChangesAsync();

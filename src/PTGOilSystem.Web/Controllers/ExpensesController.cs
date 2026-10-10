@@ -3345,11 +3345,11 @@ public partial class ExpensesController : Controller
     // SaveChanges/Transaction با فراخواننده است.
     private async Task<int> ApplyGroupCancellationAsync(ExpenseBatch batch)
     {
-        var expenses = await _db.ExpenseTransactions
+        var expenseIds = await _db.ExpenseTransactions.AsNoTracking()
             .Where(e => e.ExpenseBatchId == batch.Id && !e.IsCancelled)
+            .OrderBy(e => e.Id)
+            .Select(e => e.Id)
             .ToListAsync();
-
-        var expenseIds = expenses.Select(e => e.Id).ToList();
         var originalLedgers = await _db.LedgerEntries
             .AsNoTracking()
             .Where(l => l.SourceType == "Expense" && expenseIds.Contains(l.SourceId))
@@ -3359,12 +3359,16 @@ public partial class ExpensesController : Controller
             .ToDictionary(g => g.Key, g => g.OrderByDescending(l => l.Id).First());
 
         var cancelledCount = 0;
-        foreach (var expense in expenses)
+        foreach (var expenseId in expenseIds)
         {
-            if (!ledgerBySource.TryGetValue(expense.Id, out var originalLedger))
+            if (!ledgerBySource.TryGetValue(expenseId, out var originalLedger))
             {
                 continue; // بدون سند مالی؛ الگوی لغو تکی هم در این حالت لغو نمی‌کند.
             }
+
+            // Each share is loaded and released once saved, so a large batch stays linear.
+            using var row = new SavedRowTrackingScope(_db, includeLoaded: true);
+            var expense = await _db.ExpenseTransactions.SingleAsync(e => e.Id == expenseId);
 
             // مرحله ۵ — Reversal قبل از علامت‌خوردن IsCancelled (مانند مسیر لغو تکی).
             if (_expenseAccounting is not null)
@@ -3379,6 +3383,7 @@ public partial class ExpensesController : Controller
                 $"لغو مصرف گروهی {batch.BatchNumber} - هزینه #{expense.Id} | {originalLedger.Description}",
                 $"EXP-{expense.Id}");
             cancelledCount++;
+            row.ReleaseSaved();
         }
 
         batch.IsCancelled = true;

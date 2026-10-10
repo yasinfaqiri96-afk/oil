@@ -70,6 +70,21 @@ Accounting, ledger, audit and transaction boundaries are unchanged; all benchmar
 
 `Receive_Thousand_Loadings…(accounting: true)` failed independently of this work: the QA benchmark predates `7798bb9` (a receipt journal requires the posted purchase). Its setup now posts the purchases first, like the sale benchmark; assertions unchanged.
 
+### Cancellation integrity at volume
+
+New PostgreSQL tests create a 1,000-row group (with and without accounting) and cancel it through the controllers. They require: every sale, receipt and allocation cancelled; each source's ledger row paired with one equal opposite row; every journal with exactly one reversal and every account netting to zero; purchase journals untouched; each loading's full remainder sellable again; no inventory movement. Expense: every share cancelled, ledger paired, journals reversed, no payment created.
+
+Group cancellation had the same tracking growth (100-row sale cancel with accounting: 20.7 s, 1,302 tracked). Sale and expense group cancellation now read IDs without tracking, load each line under the existing locks inside a `SavedRowTrackingScope`, and release it once saved.
+
+| Cancel 1,000 rows | Time | Peak tracked |
+| --- | --- | --- |
+| Group sale, no accounting | 34.0 s | 8 |
+| Group sale, accounting | 73.1 s | 14 |
+| Group expense, no accounting | 4.5 s | 3 |
+| Group expense, accounting | 20.4 s | 6 |
+
+`SalesAccountingAdapterTests.Direct_Loading_Cogs_Uses_Posted_Purchase_And_Reverses_Without_Inventory_Pool` failed before this work: it looked for the COGS reversal by `SourceEntityType = SalesTransaction`, but every reversal journal's source entity is the reversed journal (`AccountingPostingService.ReverseAsync`, unchanged since July). It now finds both journals by their COGS source events; the in-transit net-zero assertion is unchanged.
+
 ### Branch re-check
 
 `git fetch` shows the same heads as above. `git cherry`: integrity, backfill, expenses-finance, receipt-concurrency, ux, qa and main have nothing missing. `sales-sources` shows two "+" commits only because of conflict resolution; `git range-diff` confirms their content is present (`LossMode = ImmediateKnownLoss` already came from `76a8daf`; the `SupportedActions` change is parenthesization only).

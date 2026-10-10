@@ -508,8 +508,14 @@ public sealed class SalesAccountingAdapterTests(AccountingPostgreSqlFixture fixt
         Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryReverseCogsAsync(sale, SaleDate.AddDays(1))).Status);
         Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryReverseCogsAsync(sale, SaleDate.AddDays(1))).Status);
         Assert.False(await db.InventoryAverageCosts.AnyAsync(c => c.CompanyId == scope.Company.Id));
+        // A reversal journal's source entity is the reversed journal, so both are found by source event.
+        var cogsEvents = new[]
+        {
+            SalesAccountingAdapter.BuildCogsSourceEventId(sale.Id),
+            SalesAccountingAdapter.BuildCogsReversedSourceEventId(sale.Id)
+        };
         var sourceEvents = await db.JournalEntries.Include(j => j.Lines)
-            .Where(j => j.SourceEntityType == nameof(SalesTransaction) && j.SourceEntityId == sale.Id).ToListAsync();
+            .Where(j => j.SourceModule == SalesAccountingAdapter.SourceModule && cogsEvents.Contains(j.SourceEventId!)).ToListAsync();
         Assert.Equal(2, sourceEvents.Count);
         Assert.Equal(0m, sourceEvents.SelectMany(j => j.Lines).Where(l => l.AccountId == scope.Settings.InventoryInTransitAccountId)
             .Sum(l => l.Debit - l.Credit));

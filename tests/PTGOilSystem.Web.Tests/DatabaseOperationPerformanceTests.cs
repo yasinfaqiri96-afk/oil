@@ -19,6 +19,7 @@ using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Accounting;
+using PTGOilSystem.Web.Services.Operations;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -262,28 +263,8 @@ public sealed class DatabaseOperationPerformanceTests(
         // Direct COGS must use the purchase revision posted before the sale.
         // This setup posting is excluded from the operation measurement.
         await CreateAdapter(db, accountingEnabled).TryPostPurchasesAsync(loadings);
-        var context = new DefaultHttpContext();
-        var controller = new SalesController(db, new StockService(db),
-            new CurrencyConversionService(new PricingService(db)), new AuditService(db),
-            NullLogger<SalesController>.Instance, salesAccounting: CreateSalesAdapter(db, accountingEnabled))
-        {
-            ControllerContext = new ControllerContext { HttpContext = context },
-            TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
-        };
-        var model = new GroupSaleCreateViewModel
-        {
-            CustomerId = scope.Customer.Id,
-            Currency = "USD",
-            SaleDate = OperationDate,
-            UnitPriceInCurrency = 600m,
-            LoadingSaleTerminalId = scope.Terminal.Id,
-            Items = loadings.Select(loading => new GroupSaleSelectedInput
-            {
-                Kind = GroupSaleSourceKind.LoadingRegister,
-                Id = loading.Id,
-                QuantityMt = 1m
-            }).ToList()
-        };
+        var controller = CreateSalesController(db, accountingEnabled);
+        var model = GroupLoadingSale(scope, loadings);
 
         var result = await MeasureAsync(db, counter, "group_loading_sale", accountingEnabled,
             () => controller.CreateGroup(model, Guid.NewGuid().ToString("N")));
@@ -329,37 +310,8 @@ public sealed class DatabaseOperationPerformanceTests(
         await using var db = fixture.CreateDbContext(counter);
         var scope = await CreateScopeAsync(db);
         var loadings = await SeedPricedLoadingsAsync(db, scope);
-        var type = new ExpenseType
-        {
-            Code = PaymentAccountingAdapterTests.Unique("PERF-ET"),
-            Name = "مصرف آزمایشی",
-            Category = "Other",
-            IsActive = true,
-            PayableAccountKind = ExpensePayableKind.AccruedExpense
-        };
-        db.ExpenseTypes.Add(type);
-        await db.SaveChangesAsync();
-        var context = new DefaultHttpContext();
-        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
-            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateExpenseAdapter(db, accountingEnabled))
-        {
-            ControllerContext = new ControllerContext { HttpContext = context },
-            TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
-        };
-        var model = new GroupExpenseCreateViewModel
-        {
-            ExpenseDate = OperationDate,
-            Currency = "USD",
-            SettlementMode = ExpenseSettlementMode.Payable,
-            Lines = [new GroupExpenseLineInput
-            {
-                ExpenseTypeId = type.Id,
-                ServiceProviderId = scope.ServiceProvider.Id,
-                AllocationMethod = ExpenseAllocationMethod.ByQuantity,
-                RatePerTon = 1m
-            }],
-            Items = loadings.Select(loading => new GroupExpenseSelectedInput { Kind = "Loading", Id = loading.Id }).ToList()
-        };
+        var controller = CreateExpensesController(db, accountingEnabled);
+        var model = await GroupLoadingExpenseAsync(db, scope, loadings);
 
         var result = await MeasureAsync(db, counter, "group_loading_expense", accountingEnabled,
             () => controller.CreateGroup(model, Guid.NewGuid().ToString("N")));
@@ -396,6 +348,177 @@ public sealed class DatabaseOperationPerformanceTests(
             Assert.Equal(1m, journal.Lines.Sum(l => l.Credit));
             Assert.Equal(scope.Settings.AccruedExpenseAccountId, journal.Lines.Single(l => l.Credit > 0m).AccountId);
         });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancel_Thousand_Row_Group_Sale_Reverses_Every_Dependent_Document(bool accountingEnabled)
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        var counter = new BulkFromLoadingPerformanceTests.CommandCounter();
+        await using var db = fixture.CreateDbContext(counter);
+        var scope = await CreateScopeAsync(db);
+        var loadings = await SeedPricedLoadingsAsync(db, scope);
+        await CreateAdapter(db, accountingEnabled).TryPostPurchasesAsync(loadings);
+        db.ChangeTracker.Clear(); // each request starts with a fresh context
+        var creator = CreateSalesController(db, accountingEnabled);
+        var created = await creator.CreateGroup(GroupLoadingSale(scope, loadings), Guid.NewGuid().ToString("N"));
+        AssertSuccessful(creator, created);
+        var batchId = await db.SalesBatches.Select(b => b.Id).SingleAsync();
+        var purchaseJournalsBefore = await db.JournalEntries.CountAsync(j => j.SourceModule == PurchaseAccountingAdapter.SourceModule);
+        db.ChangeTracker.Clear();
+        var controller = CreateSalesController(db, accountingEnabled);
+
+        var result = await MeasureAsync(db, counter, "cancel_group_loading_sale", accountingEnabled,
+            () => controller.CancelGroup(batchId));
+        await PrintDocumentCountsAsync(db, "cancel_group_loading_sale");
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(controller.TempData["err"]);
+        Assert.True(await db.SalesBatches.Where(b => b.Id == batchId).Select(b => b.IsCancelled).SingleAsync());
+        Assert.Equal(RowCount, await db.SalesTransactions.CountAsync(s => s.IsCancelled));
+        Assert.Equal(RowCount, await db.LoadingReceipts.CountAsync(r => r.IsCancelled));
+        Assert.Equal(RowCount, await db.LoadingReceiptAllocations.CountAsync(a => a.Status == LoadingReceiptAllocationStatus.Cancelled));
+        Assert.Empty(await db.InventoryMovements.ToListAsync());
+        await AssertLedgerReversedAsync(db, "Sale");
+
+        // The purchase side is untouched and every loading is sellable again in full.
+        Assert.Equal(purchaseJournalsBefore, await db.JournalEntries.CountAsync(j => j.SourceModule == PurchaseAccountingAdapter.SourceModule));
+        var sources = await new CargoSourceQueryService(db).LoadLoadingSourcesAsync(loadings.Select(l => l.Id).ToList());
+        Assert.Equal(RowCount, sources.Count);
+        Assert.All(sources, source =>
+        {
+            Assert.Equal(1m, source.RemainingQuantityMt);
+            Assert.True(CargoOperationEligibility.Evaluate(source, CargoAction.DirectSale).Allowed);
+        });
+        await AssertJournalsReversedAsync(db, SalesAccountingAdapter.SourceModule, accountingEnabled ? RowCount * 2 : 0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancel_Thousand_Row_Group_Expense_Reverses_Payable_And_Accounting(bool accountingEnabled)
+    {
+        Assert.True(fixture.Available, fixture.UnavailableReason);
+        await fixture.TruncateAsync();
+        var counter = new BulkFromLoadingPerformanceTests.CommandCounter();
+        await using var db = fixture.CreateDbContext(counter);
+        var scope = await CreateScopeAsync(db);
+        var loadings = await SeedPricedLoadingsAsync(db, scope);
+        var expense = await GroupLoadingExpenseAsync(db, scope, loadings);
+        db.ChangeTracker.Clear(); // each request starts with a fresh context
+        var creator = CreateExpensesController(db, accountingEnabled);
+        var created = await creator.CreateGroup(expense, Guid.NewGuid().ToString("N"));
+        AssertSuccessful(creator, created);
+        // Batches are not reached by the fixture's contract cascade; this test's rows identify its own.
+        var batchId = await db.ExpenseTransactions.Select(e => e.ExpenseBatchId!.Value).Distinct().SingleAsync();
+        db.ChangeTracker.Clear();
+        var controller = CreateExpensesController(db, accountingEnabled);
+
+        var result = await MeasureAsync(db, counter, "cancel_group_loading_expense", accountingEnabled,
+            () => controller.CancelGroup(batchId));
+        await PrintDocumentCountsAsync(db, "cancel_group_loading_expense");
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(controller.TempData["err"]);
+        Assert.True(await db.ExpenseBatches.Where(b => b.Id == batchId).Select(b => b.IsCancelled).SingleAsync());
+        Assert.Equal(RowCount, await db.ExpenseTransactions.CountAsync(e => e.IsCancelled));
+        Assert.Empty(await db.PaymentTransactions.ToListAsync());
+        await AssertLedgerReversedAsync(db, "Expense");
+        await AssertJournalsReversedAsync(db, ExpenseAccountingAdapter.SourceModule, accountingEnabled ? RowCount : 0);
+    }
+
+    /// <summary>Each source keeps its original ledger row plus one equal opposite row.</summary>
+    private static async Task AssertLedgerReversedAsync(ApplicationDbContext db, string sourceType)
+    {
+        var ledgers = await db.LedgerEntries.AsNoTracking().Where(l => l.SourceType == sourceType).ToListAsync();
+        Assert.Equal(RowCount * 2, ledgers.Count);
+        Assert.All(ledgers.GroupBy(l => l.SourceId), source =>
+        {
+            Assert.Equal(2, source.Count());
+            Assert.Equal(0m, source.Sum(l => l.Side == LedgerSide.Debit ? l.AmountUsd : -l.AmountUsd));
+        });
+    }
+
+    /// <summary>Every original journal has one reversal and every account nets to zero.</summary>
+    private static async Task AssertJournalsReversedAsync(ApplicationDbContext db, string sourceModule, int originalCount)
+    {
+        var journals = await db.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .Where(j => j.SourceModule == sourceModule).ToListAsync();
+        Assert.Equal(originalCount, journals.Count(j => !j.IsReversal));
+        Assert.Equal(originalCount, journals.Count(j => j.IsReversal));
+        Assert.All(journals, journal => Assert.Equal(journal.Lines.Sum(l => l.Debit), journal.Lines.Sum(l => l.Credit)));
+        Assert.All(journals.SelectMany(j => j.Lines).GroupBy(l => l.AccountId),
+            account => Assert.Equal(account.Sum(l => l.Debit), account.Sum(l => l.Credit)));
+    }
+
+    private static SalesController CreateSalesController(ApplicationDbContext db, bool accountingEnabled)
+    {
+        var context = new DefaultHttpContext();
+        return new SalesController(db, new StockService(db),
+            new CurrencyConversionService(new PricingService(db)), new AuditService(db),
+            NullLogger<SalesController>.Instance, salesAccounting: CreateSalesAdapter(db, accountingEnabled))
+        {
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
+        };
+    }
+
+    private static GroupSaleCreateViewModel GroupLoadingSale(
+        PaymentAccountingAdapterTests.PaymentScope scope, IEnumerable<LoadingRegister> loadings)
+        => new()
+        {
+            CustomerId = scope.Customer.Id,
+            Currency = "USD",
+            SaleDate = OperationDate,
+            UnitPriceInCurrency = 600m,
+            LoadingSaleTerminalId = scope.Terminal.Id,
+            Items = loadings.Select(loading => new GroupSaleSelectedInput
+            {
+                Kind = GroupSaleSourceKind.LoadingRegister,
+                Id = loading.Id,
+                QuantityMt = 1m
+            }).ToList()
+        };
+
+    private static ExpensesController CreateExpensesController(ApplicationDbContext db, bool accountingEnabled)
+    {
+        var context = new DefaultHttpContext();
+        return new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateExpenseAdapter(db, accountingEnabled))
+        {
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
+        };
+    }
+
+    private static async Task<GroupExpenseCreateViewModel> GroupLoadingExpenseAsync(
+        ApplicationDbContext db, PaymentAccountingAdapterTests.PaymentScope scope, IEnumerable<LoadingRegister> loadings)
+    {
+        var type = new ExpenseType
+        {
+            Code = PaymentAccountingAdapterTests.Unique("PERF-ET"),
+            Name = "مصرف آزمایشی",
+            Category = "Other",
+            IsActive = true,
+            PayableAccountKind = ExpensePayableKind.AccruedExpense
+        };
+        db.ExpenseTypes.Add(type);
+        await db.SaveChangesAsync();
+        return new GroupExpenseCreateViewModel
+        {
+            ExpenseDate = OperationDate,
+            Currency = "USD",
+            SettlementMode = ExpenseSettlementMode.Payable,
+            Lines = [new GroupExpenseLineInput
+            {
+                ExpenseTypeId = type.Id,
+                ServiceProviderId = scope.ServiceProvider.Id,
+                AllocationMethod = ExpenseAllocationMethod.ByQuantity,
+                RatePerTon = 1m
+            }],
+            Items = loadings.Select(loading => new GroupExpenseSelectedInput { Kind = "Loading", Id = loading.Id }).ToList()
+        };
     }
 
     private async Task PrintDocumentCountsAsync(ApplicationDbContext db, string operation)
