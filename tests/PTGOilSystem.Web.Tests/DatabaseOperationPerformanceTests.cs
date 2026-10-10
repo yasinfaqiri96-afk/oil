@@ -226,6 +226,8 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Empty(await db.InventoryMovements.ToListAsync());
         Assert.Empty(await db.LoadingReceipts.ToListAsync());
 
+        var replaySaves = 0;
+        db.SavingChanges += (_, _) => replaySaves++;
         var replay = await MeasureAsync(db, counter, "convert_retry", false,
             () => workflow.StartManyFromLoadingAsync(command));
         output.WriteLine($"CONVERSION_RETRY created={replay.CreatedCount} failures={replay.Failures.Count}");
@@ -233,6 +235,7 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Equal(100_000m, await db.InventoryTransportLegAllocations.SumAsync(a => a.QuantityMt));
         Assert.Empty(replay.Failures);
         Assert.Equal(0, replay.CreatedCount);
+        Assert.Equal(0, replaySaves);
     }
 
     private async Task<T> MeasureAsync<T>(
