@@ -1,3 +1,4 @@
+using PTGOilSystem.Web.Services.LoadingReceipts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -26,7 +27,6 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class LoadingReceiptsController : Controller
 {
     private const decimal QuantityPrecisionUnit = 0.0001m;
-    private sealed record DirectSaleDraft(SalesTransaction Sale, CurrencyConversionResult Conversion);
     private sealed record DirectTransportResolution(int TruckId, int? DriverId, Truck? CreatedTruck, Driver? CreatedDriver);
     private sealed record LoadingReceiptQuantitySnapshot(
         decimal ReceivedQuantityMt,
@@ -40,7 +40,7 @@ public partial class LoadingReceiptsController : Controller
     private sealed record ReceiptGraphResult(
         List<InventoryMovement> Movements,
         List<LoadingReceiptAllocation> Allocations,
-        List<(LoadingReceiptAllocation Allocation, DirectSaleDraft Draft)> DirectSaleDrafts,
+        List<(LoadingReceiptAllocation Allocation, LoadingDirectSaleDraft Draft)> DirectSaleDrafts,
         List<TruckDispatch> Dispatches);
 
     private readonly ApplicationDbContext _db;
@@ -749,14 +749,14 @@ public partial class LoadingReceiptsController : Controller
     {
         var inventoryMovements = new List<InventoryMovement>();
         var allocations = new List<LoadingReceiptAllocation>();
-        var directSaleDrafts = new List<(LoadingReceiptAllocation Allocation, DirectSaleDraft Draft)>();
+        var directSaleDrafts = new List<(LoadingReceiptAllocation Allocation, LoadingDirectSaleDraft Draft)>();
         var directTruckDispatches = new List<TruckDispatch>();
         var receiptMovementLinked = false;
 
         foreach (var line in lines)
         {
             InventoryMovement? lineMovement = null;
-            DirectSaleDraft? directSaleDraft = null;
+            LoadingDirectSaleDraft? directSaleDraft = null;
             var lineReference = NormalizeNullable(line.ReferenceDocument) ?? normalizedReference ?? loading.BillOfLadingNumber;
             var lineNotes = NormalizeNullable(line.Notes) ?? normalizedNotes;
             var lineTerminalId = line.Destination == LoadingReceiptAllocationDestination.ToInventory
@@ -791,7 +791,7 @@ public partial class LoadingReceiptsController : Controller
             }
             else if (line.Destination == LoadingReceiptAllocationDestination.DirectSale)
             {
-                directSaleDraft = await BuildDirectSaleDraftAsync(line, loading);
+                directSaleDraft = await BuildLoadingDirectSaleDraftAsync(line, loading);
             }
 
             var allocation = new LoadingReceiptAllocation
@@ -1026,53 +1026,10 @@ public partial class LoadingReceiptsController : Controller
         }
     }
 
-    private async Task<DirectSaleDraft> BuildDirectSaleDraftAsync(
+    private Task<LoadingDirectSaleDraft> BuildLoadingDirectSaleDraftAsync(
         LoadingReceiptAllocationLineInput line,
         LoadingRegister loading)
-    {
-        if (loading.Contract is null)
-        {
-            throw new BusinessRuleException(
-                "DIRECT_SALE_SOURCE_CONTRACT_REQUIRED",
-                "برای DirectSale، قرارداد خرید منبع باید روی Loading مشخص باشد.");
-        }
-
-        var conversion = await _currencyConversion.ResolveToBaseAsync(
-            line.SaleCurrency,
-            line.SaleDate!.Value.Date,
-            line.SaleAppliedFxRateToUsd);
-
-        var totalInCurrency = decimal.Round(
-            line.QuantityMt * line.SaleUnitPriceInCurrency!.Value,
-            4,
-            MidpointRounding.AwayFromZero);
-        var unitPriceUsd = conversion.ConvertToBase(line.SaleUnitPriceInCurrency.Value);
-        var totalUsd = conversion.ConvertToBase(totalInCurrency);
-
-        var sale = new SalesTransaction
-        {
-            ContractId = null,
-            CompanyId = loading.Contract.CompanyId,
-            CustomerId = line.SaleCustomerId,
-            SupplierId = line.SaleSupplierId,
-            ProductId = loading.ProductId,
-            DestinationLocationId = line.DestinationLocationId,
-            ShipmentId = null,
-            SaleStage = SaleStage.InTransit,
-            InvoiceNumber = line.SaleInvoiceNumber!,
-            SaleDate = line.SaleDate.Value.Date,
-            QuantityMt = line.QuantityMt,
-            Currency = conversion.SourceCurrencyCode,
-            UnitPriceInCurrency = line.SaleUnitPriceInCurrency.Value,
-            AppliedFxRateToUsd = conversion.AppliedRateToBase,
-            UnitPriceUsd = unitPriceUsd,
-            TotalInCurrency = totalInCurrency,
-            TotalUsd = totalUsd,
-            Notes = line.SaleNotes
-        };
-
-        return new DirectSaleDraft(sale, conversion);
-    }
+        => new LoadingDirectSaleDraftService(_currencyConversion).BuildAsync(line, loading);
 
     private static LedgerPostingRequest BuildDirectSaleLedgerEntry(
         SalesTransaction sale,
