@@ -50,4 +50,24 @@ public sealed class CargoOperationEligibilityTests
         Assert.False(result.Allowed);
         Assert.Contains("بررسی", result.Reason);
     }
+    [Fact]
+    public void Own_PreSale_Delivery_Uses_Physical_Stock_While_New_Sale_Respects_Reservations()
+    {
+        var source = Loading(100m) with { Kind = CargoSourceKind.Stock, PhysicalStockMt = 100m,
+            SellableStockMt = 0m, SupportedActions = [CargoAction.DirectSale, CargoAction.PreSaleDelivery] };
+        Assert.False(CargoOperationEligibility.Evaluate(source, CargoAction.DirectSale).Allowed);
+        Assert.True(CargoOperationEligibility.Evaluate(source, CargoAction.PreSaleDelivery).Allowed);
+    }
+
+    [Fact]
+    public void Closed_MultiSource_Contract_Blocks_Consumption_But_Preserves_History()
+    {
+        var source = Loading() with { OwnershipShares =
+            [new CargoOwnershipShare(2, 5m), new CargoOwnershipShare(7, 5m,
+                ContractStatus: PTGOilSystem.Web.Models.Entities.ContractStatus.Closed)] };
+        Assert.False(CargoOperationEligibility.Evaluate(source, CargoAction.DirectSale).Allowed);
+        Assert.False(CargoOperationEligibility.Evaluate(source, CargoAction.Expense).Allowed);
+        Assert.True(CargoOperationEligibility.Evaluate(source, CargoAction.History).Allowed);
+    }
+
 }

@@ -23,7 +23,7 @@ public sealed record CargoSourceSnapshot(
     IReadOnlyCollection<CargoAction>? SupportedActions = null,
     IReadOnlyList<CargoOwnershipShare>? OwnershipShares = null,
     ContractStatus? ContractStatus = null,
-    string StatusLabel = "", decimal SoldQuantityMt = 0m)
+    string StatusLabel = "", decimal SoldQuantityMt = 0m, string? AlternateNumber = null)
 {
     public decimal ConsumedQuantityMt => OriginalQuantityMt - RemainingQuantityMt;
 }
@@ -86,7 +86,8 @@ public sealed partial class CargoSourceQueryService(ApplicationDbContext db, ISt
             IsPurchaseContract = l.Contract != null && l.Contract.ContractType == ContractType.Purchase,
             CompanyName = l.Contract != null && l.Contract.Company != null ? l.Contract.Company.Name : "",
             ProductName = l.Product != null ? l.Product.Name : "",
-            Number = l.WagonNumber ?? l.RwbNo ?? (l.Truck != null ? l.Truck.PlateNumber : null) ?? l.BillOfLadingNumber,
+            Number = l.WagonNumber ?? (l.Truck != null ? l.Truck.PlateNumber : null) ?? l.RwbNo ?? l.BillOfLadingNumber,
+            AlternateNumber = l.RwbNo,
             Route = l.RouteDescription ?? l.DestinationName ?? ""
         }).ToListAsync(ct);
         if (rows.Count == 0) return [];
@@ -120,6 +121,6 @@ public sealed partial class CargoSourceQueryService(ApplicationDbContext db, ISt
                 - received.GetValueOrDefault(l.Id) - shortage.GetValueOrDefault(l.Id)
                 - transported.GetValueOrDefault(l.Id)), 4, MidpointRounding.AwayFromZero),
             l.IsCancelled, l.IsArchived, l.IsPurchaseContract,
-            OwnershipShares: [new CargoOwnershipShare(l.ContractId, l.LoadedQuantityMt, l.Id)], ContractStatus: l.ContractStatus)).ToList();
+            OwnershipShares: [new CargoOwnershipShare(l.ContractId, l.LoadedQuantityMt, l.Id)], ContractStatus: l.ContractStatus, AlternateNumber: l.AlternateNumber)).ToList();
     }
 }
