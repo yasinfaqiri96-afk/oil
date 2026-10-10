@@ -3102,7 +3102,9 @@ select.ak-input {
     margin-bottom: 0;
 }
 
-.ak-group-wizard-main > .ak-form-section {
+/* Scoped through the workspace: the generic `form.ak-form .ak-form-section`
+   reset (0,2,1) otherwise strips this panel's padding and border. */
+.ak-group-wizard-workspace > .ak-group-wizard-main > .ak-form-section {
     padding: 18px;
     border: 1px solid var(--divider);
     border-radius: var(--radius-base);
@@ -3174,7 +3176,7 @@ select.ak-input {
         padding-inline: 12px;
     }
 
-    .ak-group-wizard-main > .ak-form-section,
+    .ak-group-wizard-workspace > .ak-group-wizard-main > .ak-form-section,
     .ak-group-wizard-summary {
         padding: 12px;
     }

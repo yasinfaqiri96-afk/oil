@@ -650,6 +650,8 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
 
 @media (max-width: 760px) {
     .ak-filter { flex-direction: column; }
+    /* Stacked, the 220px width basis would otherwise become an empty 220px height. */
+    .ak-filter-input-wrap { flex-basis: auto; }
     .ak-filter-popover { inset-inline-start: 0; }
 }
 
