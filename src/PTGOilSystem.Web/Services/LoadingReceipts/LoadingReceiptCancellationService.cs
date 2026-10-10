@@ -191,6 +191,30 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
                 [new LoadingReceiptCancellationBlocker(0, "هیچ رسیدی انتخاب نشده است.")]);
         }
 
+        // Receipt correction may already hold the loading lock. Do not acquire loading
+        // locks here: all cancellation entry points take batch → sale → receipt locks.
+        // Batch serialization also covers cancellations initiated from the receipt page.
+        var linkedSales = await _db.LoadingReceiptAllocations.AsNoTracking()
+            .Where(a => ids.Contains(a.LoadingReceiptId) && a.SalesTransactionId.HasValue)
+            .Select(a => new { SaleId = a.SalesTransactionId!.Value, BatchId = a.SalesTransaction!.SalesBatchId })
+            .Distinct().ToListAsync(ct);
+        var coordinator = new SalesBatchCancellationCoordinator(_db);
+        var batchIds = linkedSales.Where(s => s.BatchId.HasValue).Select(s => s.BatchId!.Value)
+            .Distinct().OrderBy(id => id).ToArray();
+        foreach (var batchId in batchIds) await coordinator.LockAsync(batchId, [], ct);
+        await coordinator.LockAsync(null, linkedSales.Select(s => s.SaleId).ToArray(), ct);
+        if (_db.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            var orderedIds = ids.OrderBy(id => id).ToArray();
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $@"SELECT 1 FROM ""LoadingReceipts"" WHERE ""Id"" = ANY({orderedIds}) ORDER BY ""Id"" FOR UPDATE", ct);
+        }
+        // EF may already track these rows from a controller's preflight. Refresh them
+        // only after obtaining locks so a waiting request observes the committed cancel.
+        foreach (var entry in _db.ChangeTracker.Entries<SalesTransaction>().Where(e => linkedSales.Any(s => s.SaleId == e.Entity.Id)).ToList())
+            await entry.ReloadAsync(ct);
+        foreach (var entry in _db.ChangeTracker.Entries<LoadingReceipt>().Where(e => ids.Contains(e.Entity.Id)).ToList())
+            await entry.ReloadAsync(ct);
         var receipts = await LoadReceiptsAsync(ids, tracking: true, ct);
 
         // مرحله ۱ — اعتبارسنجی کاملِ همهٔ ردیف‌ها پیش از هر تغییر: یا همه یا هیچ.
@@ -222,6 +246,7 @@ public sealed class LoadingReceiptCancellationService : ILoadingReceiptCancellat
         }
 
         await _db.SaveChangesAsync(ct);
+        foreach (var batchId in batchIds) await coordinator.FinalizeAsync(batchId, ct);
 
         // دیسپچ‌های لغوشده سطر مصرفِ دارایی دارند؛ بعد از ذخیره sync می‌شوند تا کارکردِ
         // باطل‌شده در پروندهٔ دارایی نماند (همان قاعدهٔ لغو دیسپچ در DispatchController).

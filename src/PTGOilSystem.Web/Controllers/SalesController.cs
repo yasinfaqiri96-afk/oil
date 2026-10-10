@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -985,17 +985,47 @@ public partial class SalesController : Controller
         var directReceiptId = await FindSingleDirectLoadingReceiptAsync(sale.Id);
         if (directReceiptId.HasValue)
         {
-            // A direct loading sale consumes the receipt itself. Cancelling only the sale would
-            // leave that receipt consuming the source forever; use the existing cancellation owner.
-            var cancellation = await _loadingReceiptCancellation.CancelAsync([directReceiptId.Value], reason, CurrentUserIdOrNull());
-            TempData[cancellation.Succeeded ? "ok" : "err"] = cancellation.Succeeded
-                ? "فروش مستقیم بارگیری لغو شد و ماندهٔ بار آزاد گردید."
-                : string.Join(" ", cancellation.Blockers.Select(b => b.Reason));
-            if (cancellation.Succeeded && createReplacement)
-                return RedirectToAction(nameof(Create), new { correctedFromSaleId = sale.Id, returnUrl });
-            if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
-                return Redirect(returnUrl);
-            return RedirectToAction(nameof(Details), new { id });
+            await using var directTransaction = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync() : null;
+            try
+            {
+                var coordinator = new SalesBatchCancellationCoordinator(_db);
+                await coordinator.LockAsync(sale.SalesBatchId, [sale.Id]);
+                await _db.Entry(sale).ReloadAsync();
+                if (sale.IsCancelled)
+                {
+                    TempData["ok"] = "این فروش قبلاً لغو شده است.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
+                _db.UseExpectedVersion(sale, version);
+                var cancellation = await _loadingReceiptCancellation.CancelWithinCurrentTransactionAsync(
+                    [directReceiptId.Value], reason, CurrentUserIdOrNull());
+                if (cancellation.Succeeded)
+                {
+                    sale.CancelReason = reason;
+                    sale.CancelledAtUtc = DateTime.UtcNow;
+                    sale.CancelledByUserId = CurrentUserIdOrNull();
+                    _formTokens.Stamp(formToken, "Sale.Cancel", nameof(SalesTransaction));
+                    await _db.SaveChangesAsync();
+                    await coordinator.FinalizeAsync(sale.SalesBatchId);
+                    if (directTransaction is not null) await directTransaction.CommitAsync();
+                }
+                else if (directTransaction is not null) await directTransaction.RollbackAsync();
+                TempData[cancellation.Succeeded ? "ok" : "err"] = cancellation.Succeeded
+                    ? "فروش مستقیم بارگیری لغو شد و ماندهٔ بار آزاد گردید."
+                    : string.Join(" ", cancellation.Blockers.Select(b => b.Reason));
+                if (cancellation.Succeeded && createReplacement)
+                    return RedirectToAction(nameof(Create), new { correctedFromSaleId = sale.Id, returnUrl });
+                if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
+                    return Redirect(returnUrl);
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            catch (Exception exception)
+            {
+                if (directTransaction is not null) await directTransaction.RollbackAsync();
+                _logger.LogError(exception, "Failed to cancel direct loading sale {SaleId}.", sale.Id);
+                TempData["err"] = "لغو فروش انجام نشد؛ هیچ تغییری ثبت نشد. وضعیت و اسناد مالی را بررسی کنید.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
         }
         if (await _db.LoadingReceiptAllocations.AsNoTracking().AnyAsync(a => a.SalesTransactionId == sale.Id))
         {
@@ -1029,45 +1059,42 @@ public partial class SalesController : Controller
             transaction = await _db.Database.BeginTransactionAsync();
         }
 
-        sale.IsCancelled = true;
-        sale.CancelReason = reason;
-        sale.CancelledAtUtc = DateTime.UtcNow;
-        sale.CancelledByUserId = CurrentUserIdOrNull();
-
-        // PTG-P0-01 — ابطال هم یک‌بارمصرف است: توکن با همان SaveChanges سند مصرف می‌شود.
-        _formTokens.Stamp(formToken, "Sale.Cancel", nameof(SalesTransaction));
-
-        // فروش مستقیم از موتر حرکت موجودی ندارد و تنها ردِ آن لینکِ موتر است. اگر
-        // TruckDispatch.SalesTransactionId (که یکتاست) روی همین فروشِ لغوشده مانده باشد، موتر برای
-        // فروش دوبارهٔ باقی‌مانده قفل می‌ماند. لینک را به یک فروشِ فعالِ دیگرِ همان موتر منتقل
-        // می‌کنیم و اگر نبود آزادش می‌کنیم. مقدار باقی‌مانده جای دیگری ذخیره نشده و همیشه از
-        // فروش‌های لغونشده محاسبه می‌شود، پس هیچ عددی نیاز به برگشت دستی ندارد.
-        var linkedDispatch = await _db.TruckDispatches
-            .FirstOrDefaultAsync(d => d.SalesTransactionId == sale.Id);
-        if (linkedDispatch is not null)
-        {
-            var dispatchId = linkedDispatch.Id;
-            linkedDispatch.SalesTransactionId = await _db.SalesTransactions
-                .Where(s => s.Id != sale.Id && !s.IsCancelled && s.TruckDispatchId == dispatchId)
-                .OrderBy(s => s.Id)
-                .Select(s => (int?)s.Id)
-                .FirstOrDefaultAsync();
-        }
-
-        // لغو آخرین سطر فعالِ فروش گروهی، سرخطِ آن را هم لغو می‌کند؛ وگرنه سرخط با جمعِ کهنه فعال
-        // می‌ماند. سطرها اسناد خودشان را دارند و برگشتشان همین‌جا انجام شد، پس سرخط فقط وضعیت می‌گیرد.
-        if (sale.SalesBatchId is int salesBatchId
-            && !await _db.SalesTransactions.AnyAsync(s => s.SalesBatchId == salesBatchId && s.Id != sale.Id && !s.IsCancelled))
-        {
-            var salesBatch = await _db.SalesBatches.FirstOrDefaultAsync(b => b.Id == salesBatchId);
-            if (salesBatch is not null)
-            {
-                salesBatch.IsCancelled = true;
-            }
-        }
-
+        var cancellationCoordinator = new SalesBatchCancellationCoordinator(_db);
         try
         {
+            await cancellationCoordinator.LockAsync(sale.SalesBatchId, [sale.Id]);
+            await _db.Entry(sale).ReloadAsync();
+            if (sale.IsCancelled)
+            {
+                TempData["ok"] = "این فروش قبلاً لغو شده است.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            _db.UseExpectedVersion(sale, version);
+            sale.IsCancelled = true;
+            sale.CancelReason = reason;
+            sale.CancelledAtUtc = DateTime.UtcNow;
+            sale.CancelledByUserId = CurrentUserIdOrNull();
+
+            // PTG-P0-01 — ابطال هم یک‌بارمصرف است: توکن با همان SaveChanges سند مصرف می‌شود.
+            _formTokens.Stamp(formToken, "Sale.Cancel", nameof(SalesTransaction));
+
+            // فروش مستقیم از موتر حرکت موجودی ندارد و تنها ردِ آن لینکِ موتر است. اگر
+            // TruckDispatch.SalesTransactionId (که یکتاست) روی همین فروشِ لغوشده مانده باشد، موتر برای
+            // فروش دوبارهٔ باقی‌مانده قفل می‌ماند. لینک را به یک فروشِ فعالِ دیگرِ همان موتر منتقل
+            // می‌کنیم و اگر نبود آزادش می‌کنیم. مقدار باقی‌مانده جای دیگری ذخیره نشده و همیشه از
+            // فروش‌های لغونشده محاسبه می‌شود، پس هیچ عددی نیاز به برگشت دستی ندارد.
+            var linkedDispatch = await _db.TruckDispatches
+                .FirstOrDefaultAsync(d => d.SalesTransactionId == sale.Id);
+            if (linkedDispatch is not null)
+            {
+                var dispatchId = linkedDispatch.Id;
+                linkedDispatch.SalesTransactionId = await _db.SalesTransactions
+                    .Where(s => s.Id != sale.Id && !s.IsCancelled && s.TruckDispatchId == dispatchId)
+                    .OrderBy(s => s.Id)
+                    .Select(s => (int?)s.Id)
+                    .FirstOrDefaultAsync();
+            }
+
             await LedgerReversalWriter.ReverseAsync(
                 _db,
                 originalLedger,
@@ -1085,6 +1112,7 @@ public partial class SalesController : Controller
 
             await _db.SaveChangesAsync();
             await ReverseSaleAccountingAsync(sale);
+            await cancellationCoordinator.FinalizeAsync(sale.SalesBatchId);
 
             if (transaction is not null)
             {

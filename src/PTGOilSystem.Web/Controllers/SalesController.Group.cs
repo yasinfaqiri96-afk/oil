@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -416,7 +416,7 @@ public partial class SalesController
         {
             LoadingRegisterId = loading.Id, TerminalId = model.LoadingSaleTerminalId!.Value,
             ReceiptDate = model.SaleDate.Date, ReceivedQuantityMt = quantity,
-            ReceiptDestination = LoadingReceiptDestination.DirectDispatch, LossMode = ReceiptLossMode.None,
+            ReceiptDestination = LoadingReceiptDestination.DirectDispatch, LossMode = ReceiptLossMode.ImmediateKnownLoss,
             ReferenceDocument = invoice, Notes = model.Notes
         };
         var allocation = new LoadingReceiptAllocation
@@ -942,10 +942,6 @@ public partial class SalesController
             return RedirectToAction(nameof(GroupDetails), new { id });
         }
 
-        var sales = await _db.SalesTransactions
-            .Where(s => s.SalesBatchId == batch.Id && !s.IsCancelled)
-            .ToListAsync();
-
         IDbContextTransaction? transaction = null;
         if (_db.Database.IsRelational())
         {
@@ -954,6 +950,17 @@ public partial class SalesController
 
         try
         {
+            var coordinator = new SalesBatchCancellationCoordinator(_db);
+            await coordinator.LockAsync(batch.Id, []);
+            await _db.Entry(batch).ReloadAsync();
+            if (batch.IsCancelled)
+            {
+                TempData["ok"] = "این فروش گروهی قبلاً لغو شده است.";
+                return RedirectToAction(nameof(GroupDetails), new { id });
+            }
+            var sales = await _db.SalesTransactions.Where(s => s.SalesBatchId == batch.Id && !s.IsCancelled)
+                .OrderBy(s => s.Id).ToListAsync();
+            await coordinator.LockAsync(null, sales.Select(s => s.Id).ToArray());
             foreach (var sale in sales)
             {
                 await ReverseGroupSaleLineAsync(sale);
@@ -967,8 +974,8 @@ public partial class SalesController
                 }
             }
 
-            batch.IsCancelled = true;
             await _db.SaveChangesAsync();
+            await coordinator.FinalizeAsync(batch.Id);
 
             await _audit.LogAndSaveAsync(
                 nameof(SalesBatch),
