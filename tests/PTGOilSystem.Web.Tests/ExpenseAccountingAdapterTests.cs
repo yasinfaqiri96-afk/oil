@@ -12,6 +12,8 @@ using PTGOilSystem.Web.Configuration;
 using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Accounting;
+using PTGOilSystem.Web.Services.Expenses;
+using PTGOilSystem.Web.Services.Ledger;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
@@ -587,6 +589,91 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
         Assert.Null(result.Journal);
         Assert.Equal(0, await db.JournalEntries.CountAsync(
             x => x.SourceEventId == ExpenseAccountingAdapter.BuildCreatedSourceEventId(expense.Id)));
+    }
+
+    [Fact]
+    public async Task Editing_The_Amount_Of_An_Expense_With_A_Posted_Journal_Cannot_Split_Ledger_From_Journal()
+    {
+        await using var db = fixture.CreateDbContext();
+        var (expense, adapter) = await PostPayableExpenseAsync(db);
+
+        var form = await EditFormAsync(db, adapter, expense.Id);
+        form.Amount = 450m;
+        var controller = EditController(db, adapter);
+        Assert.IsType<ViewResult>(await controller.Edit(expense.Id, form));
+        Assert.False(controller.ModelState.IsValid);
+        db.ChangeTracker.Clear();
+
+        // The operational ledger and the posted general-ledger journal describe the same amount.
+        var journal = await LoadJournalAsync(db, expense.Id);
+        var ledger = await db.LedgerEntries.AsNoTracking().SingleAsync(l => l.SourceType == "Expense" && l.SourceId == expense.Id);
+        var stored = await db.ExpenseTransactions.AsNoTracking().SingleAsync(e => e.Id == expense.Id);
+        Assert.Equal(300m, journal.Lines.Sum(l => l.Debit));
+        Assert.Equal(300m, ledger.AmountUsd);
+        Assert.Equal(300m, stored.AmountUsd);
+    }
+
+    [Fact]
+    public async Task Editing_Only_The_Description_Of_An_Expense_With_A_Posted_Journal_Is_Allowed()
+    {
+        await using var db = fixture.CreateDbContext();
+        var (expense, adapter) = await PostPayableExpenseAsync(db);
+
+        var form = await EditFormAsync(db, adapter, expense.Id);
+        form.Description = "Corrected description";
+        var controller = EditController(db, adapter);
+        Assert.IsType<RedirectToActionResult>(await controller.Edit(expense.Id, form));
+        db.ChangeTracker.Clear();
+
+        var stored = await db.ExpenseTransactions.AsNoTracking().SingleAsync(e => e.Id == expense.Id);
+        Assert.Equal("Corrected description", stored.Description);
+        Assert.Equal(300m, stored.AmountUsd);
+        Assert.Equal(300m, (await LoadJournalAsync(db, expense.Id)).Lines.Sum(l => l.Debit));
+    }
+
+    /// <summary>Posts one payable expense through the canonical share posting (ledger, journal, audit).</summary>
+    private static async Task<(ExpenseTransaction Expense, ExpenseAccountingAdapter Adapter)> PostPayableExpenseAsync(ApplicationDbContext db)
+    {
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var expenseType = await AddExpenseTypeAsync(db, ExpensePayableKind.AccruedExpense);
+        var adapter = CreateAdapter(db, pilotEnabled: true);
+        var expense = new ExpenseTransaction
+        {
+            ExpenseTypeId = expenseType.Id,
+            ContractId = scope.Contract.Id,
+            ServiceProviderId = scope.ServiceProvider.Id,
+            ExpenseDate = ExpenseDate,
+            Amount = 300m,
+            Currency = "USD",
+            AppliedFxRateToUsd = 1m,
+            AmountUsd = 300m,
+            Description = "Posted expense"
+        };
+        var conversion = await new CurrencyConversionService(new PricingService(db)).ResolveToBaseAsync("USD", ExpenseDate, null);
+        var posting = new GroupExpensePostingService(db, new ExpenseSettlementValidator(),
+            new ExpenseLedgerPoster(new LedgerPostingService(db)), new AuditService(db), adapter);
+        var result = await posting.PostShareAsync(expense, expenseType, conversion, ExpenseSettlementMode.Payable);
+        Assert.Equal(PaymentPostingStatus.Posted, result!.Status);
+        db.ChangeTracker.Clear();
+        return (expense, adapter);
+    }
+
+    private static async Task<ExpenseCreateViewModel> EditFormAsync(ApplicationDbContext db, ExpenseAccountingAdapter adapter, int expenseId)
+    {
+        var view = Assert.IsType<ViewResult>(await EditController(db, adapter).Edit(expenseId));
+        db.ChangeTracker.Clear();
+        return Assert.IsType<ExpenseCreateViewModel>(view.Model);
+    }
+
+    private static ExpensesController EditController(ApplicationDbContext db, ExpenseAccountingAdapter adapter)
+    {
+        var context = new DefaultHttpContext();
+        return new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, adapter)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, new GroupExpenseTempDataProvider())
+        };
     }
 
     private static async Task<JournalEntry> LoadJournalAsync(ApplicationDbContext db, int expenseId)

@@ -286,14 +286,19 @@ public sealed class DashboardServicePostgresTests(AccountingPostgreSqlFixture fi
             .CountAsync(l => l.LoadingDate >= todayUtc && l.LoadingDate < tomorrowUtc);
         var expectedTodayDispatchCount = await refDb.TruckDispatches
             .CountAsync(d => d.Status != DispatchStatus.Cancelled && d.DispatchDate >= todayUtc && d.DispatchDate < tomorrowUtc);
+        // The fixture database is shared with other tests, so the reference applies the same
+        // rules as the dashboard: a cancelled receipt is not a receipt, and an active customer
+        // payment application counts as payment.
         var expectedLoadingsWithoutReceipt = await refDb.LoadingRegisters
-            .CountAsync(l => !refDb.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id));
+            .CountAsync(l => !refDb.LoadingReceipts.Any(r => r.LoadingRegisterId == l.Id && !r.IsCancelled));
         var expectedReceiptsWithoutAllocation = await refDb.LoadingReceipts
-            .CountAsync(r => !refDb.LoadingReceiptAllocations.Any(a => a.LoadingReceiptId == r.Id));
+            .CountAsync(r => !r.IsCancelled && !refDb.LoadingReceiptAllocations.Any(a => a.LoadingReceiptId == r.Id));
         var expectedLoadingsWithoutCustoms = await refDb.LoadingRegisters
             .CountAsync(l => !refDb.CustomsDeclarations.Any(c => c.LoadingRegisterId == l.Id));
         var expectedSalesWithoutPayment = await refDb.SalesTransactions
-            .CountAsync(s => !s.IsCancelled && !refDb.PaymentTransactions.Any(p => p.SalesTransactionId == s.Id));
+            .CountAsync(s => !s.IsCancelled && !refDb.PaymentTransactions.Any(p => p.SalesTransactionId == s.Id)
+                && !refDb.CustomerPaymentAllocationApplications.Any(a => a.SalesTransactionId == s.Id
+                    && a.Status == CustomerPaymentAllocationApplicationStatus.Active));
         var expectedContractsWithoutFinalPrice = await refDb.Contracts
             .CountAsync(c => c.Status == ContractStatus.Active
                 && c.UnitPriceUsd == null

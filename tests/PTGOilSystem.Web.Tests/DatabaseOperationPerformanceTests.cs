@@ -16,10 +16,12 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Expenses;
 using PTGOilSystem.Web.Models.Loading;
+using PTGOilSystem.Web.Models.PartyStatements;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Accounting;
 using PTGOilSystem.Web.Services.Operations;
+using PTGOilSystem.Web.Services.PartyStatements;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -368,6 +370,8 @@ public sealed class DatabaseOperationPerformanceTests(
         AssertSuccessful(creator, created);
         var batchId = await db.SalesBatches.Select(b => b.Id).SingleAsync();
         var purchaseJournalsBefore = await db.JournalEntries.CountAsync(j => j.SourceModule == PurchaseAccountingAdapter.SourceModule);
+        // The official party balance (statements, contract closing, reports) sees the receivable.
+        Assert.Equal(RowCount * 600m, await ContractPartyBalanceAsync(db, scope.Contract.Id, PartyStatementPartyType.Customer, scope.Customer.Id));
         db.ChangeTracker.Clear();
         var controller = CreateSalesController(db, accountingEnabled);
 
@@ -382,6 +386,7 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Equal(RowCount, await db.LoadingReceiptAllocations.CountAsync(a => a.Status == LoadingReceiptAllocationStatus.Cancelled));
         Assert.Empty(await db.InventoryMovements.ToListAsync());
         await AssertLedgerReversedAsync(db, "Sale");
+        Assert.Equal(0m, await ContractPartyBalanceAsync(db, scope.Contract.Id, PartyStatementPartyType.Customer, scope.Customer.Id));
 
         // The purchase side is untouched and every loading is sellable again in full.
         Assert.Equal(purchaseJournalsBefore, await db.JournalEntries.CountAsync(j => j.SourceModule == PurchaseAccountingAdapter.SourceModule));
@@ -413,6 +418,7 @@ public sealed class DatabaseOperationPerformanceTests(
         AssertSuccessful(creator, created);
         // Batches are not reached by the fixture's contract cascade; this test's rows identify its own.
         var batchId = await db.ExpenseTransactions.Select(e => e.ExpenseBatchId!.Value).Distinct().SingleAsync();
+        Assert.Equal(-RowCount * 1m, await ContractPartyBalanceAsync(db, scope.Contract.Id, PartyStatementPartyType.ServiceProvider, scope.ServiceProvider.Id));
         db.ChangeTracker.Clear();
         var controller = CreateExpensesController(db, accountingEnabled);
 
@@ -425,7 +431,19 @@ public sealed class DatabaseOperationPerformanceTests(
         Assert.Equal(RowCount, await db.ExpenseTransactions.CountAsync(e => e.IsCancelled));
         Assert.Empty(await db.PaymentTransactions.ToListAsync());
         await AssertLedgerReversedAsync(db, "Expense");
+        Assert.Equal(0m, await ContractPartyBalanceAsync(db, scope.Contract.Id, PartyStatementPartyType.ServiceProvider, scope.ServiceProvider.Id));
         await AssertJournalsReversedAsync(db, ExpenseAccountingAdapter.SourceModule, accountingEnabled ? RowCount : 0);
+    }
+
+    /// <summary>Closing balance from the official party balance engine (positive = owed to the company).</summary>
+    private static async Task<decimal> ContractPartyBalanceAsync(
+        ApplicationDbContext db, int contractId, PartyStatementPartyType partyType, int partyId)
+    {
+        var balances = await PartyBalanceReadService.CreateDefault(db)
+            .GetContractBalancesAsync([contractId], resolveNames: false);
+        return balances.TryGetValue(contractId, out var contract)
+            ? contract.Parties.Where(p => p.PartyType == partyType && p.PartyId == partyId).Sum(p => p.ClosingBalanceUsd)
+            : 0m;
     }
 
     /// <summary>Each source keeps its original ledger row plus one equal opposite row.</summary>

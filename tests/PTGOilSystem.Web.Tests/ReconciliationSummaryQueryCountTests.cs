@@ -36,8 +36,14 @@ public sealed class ReconciliationSummaryQueryCountTests(
     /// «مانده‌های غیرصفر» از موتورِ رسمیِ مانده خوانده می‌شود (نه جمعِ خامِ Debit/Credit)، پس
     /// چهار رفت‌وبرگشتِ ثابت (نه به ازای هر ردیف) اضافه شد: سه منبعِ اسنادِ صراف برای ماندهٔ
     /// قرارداد (پرداخت، تسویه، سندِ پرداختنیِ صراف) و یک جست‌وجوی نامِ طرف‌حساب ⇒ ۵۲ + ۴.
+    ///
+    /// The shared collection database now also holds direct loading sales, loading expense
+    /// lines, transport legs and sarraf documents. 18 statements run only
+    /// when their category has rows: an empty database takes 42 round-trips, the fully seeded
+    /// collection 60 (2026-10-10), as 50 distinct statements with no statement repeated per row.
+    /// The ceiling is that measured maximum, so any new statement in this path still fails.
     /// </summary>
-    private const int SummaryRoundTripCeiling = 56;
+    private const int SummaryRoundTripCeiling = 60;
 
     private sealed class CountingInterceptor : DbCommandInterceptor
     {

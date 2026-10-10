@@ -85,13 +85,38 @@ Group cancellation had the same tracking growth (100-row sale cancel with accoun
 
 `SalesAccountingAdapterTests.Direct_Loading_Cogs_Uses_Posted_Purchase_And_Reverses_Without_Inventory_Pool` failed before this work: it looked for the COGS reversal by `SourceEntityType = SalesTransaction`, but every reversal journal's source entity is the reversed journal (`AccountingPostingService.ReverseAsync`, unchanged since July). It now finds both journals by their COGS source events; the in-transit net-zero assertion is unchanged.
 
+The cancellation tests also read the official party balance (`PartyBalanceReadService.GetContractBalancesAsync`, the engine behind statements, contract closing and reports): the customer receivable (600 × rows) and the service-provider payable (rows) return to zero after cancellation.
+
+### Full suite (isolated build, heavy benchmarks excluded)
+
+`dotnet test … --filter "Category!=Performance&Category!=PreviewSeed" --blame-hang-timeout 20m`, TRX `.artifacts/mashal/results/full-suite.trx`: 4,076 tests, 4,074 passed, 2 failed, 11.6 min. Both failures came from the shared `AccountingPostgreSql` collection database, not from product code:
+
+- `DashboardServicePostgresTests`: its LINQ reference (last changed 2026-08-03) still counted cancelled receipts as receipts, while the dashboard has excluded them since 2026-09-23; it failed whenever another test in the shared database had cancelled a receipt. The reference now applies the dashboard's rules (cancelled receipt ≠ receipt; an active customer payment application counts as payment).
+- `ReconciliationSummaryQueryCountTests`: 42 round-trips alone, 60 in the collection. A command-by-command comparison showed 18 statements that only run when their category has rows (direct loading sales, loading expense lines, transport legs, sarraf documents) — 50 distinct statements, none repeated per row, so no N+1. The ceiling is now the measured 60 with that evidence.
+
+After these changes the whole collection passes: 354/354.
+
+### Data-integrity finding: editing a posted expense
+
+Reproduced with a test before fixing: with accounting enabled, editing the amount of an expense whose journal was posted (300 → 450) was accepted, updated the operational ledger to 450 and left the posted journal at 300. Expense accounting has only "created" and "reversed" events, and the edit path called neither. The fix follows the existing sale rule (`GetQuantityEditBlockerAsync`): when the expense's journal is posted, only the description (and technical stamps) may change; any other stored change is rejected with a message to cancel and enter a replacement. Description-only edits remain allowed (separate test). With accounting off (production today) no journal exists and behavior is unchanged.
+
+### Local preview and browser check
+
+Disposable database `ptg_oil_accounting_test_mashal_preview`, seeded through the real controllers with accounting enabled (24 loadings with posted purchases, a 6-row group sale, a 2-row group sale then cancelled, a 10-row group freight expense, a 4-loading bulk receipt). The app ran from the isolated build on `http://127.0.0.1:5001` (Development, auto sign-in off, real login). The user's own instance on port 5000 was not touched.
+
+- `tests/browser/integrated-journey-responsive.cjs`: journey at 1440/1024/768/390 RTL with no horizontal overflow, 3 navigation groups, 7 tabs, stable avatars, keyboard focus kept; Contracts, Loading, group sale and group expense forms at 390 without overflow; no script errors; no business writes.
+- Group pages read back: GSALE-1 active 360 t / 230,400 USD (6 × 60 t × 640); GSALE-2 cancelled with active 0 and its registered 120 t kept as history; GEXP-1 7,500 USD (10 × 60 t × 12.5); contract summary loaded 1,440 t, remaining 560 t, sold 360 t, expenses 7,500, 5.21 per t, purchase payable 720,000 — all match hand calculation. All pages 200, no overflow at 1440/390, no script errors.
+
 ### Branch re-check
 
 `git fetch` shows the same heads as above. `git cherry`: integrity, backfill, expenses-finance, receipt-concurrency, ux, qa and main have nothing missing. `sales-sources` shows two "+" commits only because of conflict resolution; `git range-diff` confirms their content is present (`LossMode = ImmediateKnownLoss` already came from `76a8daf`; the `SupportedActions` change is parenthesization only).
 
 ## Open items / exact resume point
 
-1. Finish the full-suite run and record TRX counts; rebuild tests (the stalled host holds the test `bin` DLLs).
-2. Measure the 1,000-row group expense (and group sale) with accounting enabled and determine the dominant cost before changing code.
-3. Local preview on a disposable simulated database (`ptg_oil_accounting_test_mashal_preview`), then `tests/browser/integrated-journey-responsive.cjs` at 1440/1024/768/390.
-4. Known baseline limitation: 18 `PartnerSettlementImport` cases need the external `Payment.xlsx` fixture, which is not in the repository.
+Done in the resume session: items 1–3 of the previous list (full suite with TRX, 1,000-row measurement and fix, local preview and browser check).
+
+1. Heavy benchmarks run separately: `--filter "FullyQualifiedName~DatabaseOperationPerformanceTests"` (1,000 rows by default; `PTG_PERF_ROWS` scales a local run). Remaining `Category=Performance` classes (`ScaleAndPerformanceTests`, `PurchaseAccountingBatchPerformanceTests`, `LoadingWorkbookParserPerformanceTests`) were not part of this session's runs.
+2. Not decided here (business decisions): whether a posted expense should support an in-place financial correction (reverse + repost) instead of cancel-and-replace; the GSALE status row shows "نیاز به بررسی" for a fully cancelled batch.
+3. Known baseline limitation (unchanged): 18 `PartnerSettlementImport` cases need the external `Payment.xlsx` fixture, which is not in the repository.
+4. Uncommitted user UI edits (`Views/*/CreateGroup.cshtml`, CSS 11/45/50/64) and the backup files remain uncommitted; the preview build included them.
+5. Nothing merged into `main`, nothing pushed or deployed, no customer database used.

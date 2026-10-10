@@ -2147,6 +2147,25 @@ public partial class ExpensesController : Controller
                 return View("Create", model);
             }
 
+            // Same rule as a sale: once this expense's general-ledger journal is posted, a
+            // financial edit would change the operational ledger alone. Only the description
+            // stays editable; financial corrections go through cancellation and a replacement.
+            if (await HasPostedExpenseJournalAsync(expense.Id) && HasFinancialChange(expense))
+            {
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync();
+                }
+
+                ModelState.AddModelError(string.Empty,
+                    "برای این مصرف سند حسابداری ثبت شده است؛ فقط توضیحات قابل ویرایش است. برای اصلاح مبلغ یا مشخصات مالی، مصرف را لغو و مصرف جایگزین ثبت کنید.");
+                model.Description = normalizedDescription;
+                model.ManualExpenseTypeName = manualExpenseTypeName;
+                await PopulateLookupsAsync(createModel: model);
+                ViewData["ExpenseFormMode"] = "Edit";
+                return View("Create", model);
+            }
+
             var ledgerRequest = new ExpenseLedgerRequest
             {
                 Expense = expense,
@@ -3339,6 +3358,33 @@ public partial class ExpensesController : Controller
             IsCancelled = batch.IsCancelled,
             Shares = shares
         });
+    }
+
+    private Task<bool> HasPostedExpenseJournalAsync(int expenseId)
+    {
+        var sourceEventId = Services.Accounting.ExpenseAccountingAdapter.BuildCreatedSourceEventId(expenseId);
+        return _db.JournalEntries.AsNoTracking().AnyAsync(j =>
+            j.SourceModule == Services.Accounting.ExpenseAccountingAdapter.SourceModule
+            && j.SourceEventId == sourceEventId);
+    }
+
+    // Columns an edit may change without touching the posted journal: the description and
+    // technical values (concurrency version, audit stamps) that the save itself maintains.
+    private static readonly HashSet<string> NonFinancialExpenseProperties =
+    [
+        nameof(ExpenseTransaction.Description),
+        nameof(ExpenseTransaction.Version),
+        nameof(BaseEntity.CreatedAtUtc),
+        nameof(BaseEntity.UpdatedAtUtc),
+        nameof(BaseEntity.CreatedByUserId),
+        nameof(BaseEntity.UpdatedByUserId)
+    ];
+
+    private bool HasFinancialChange(ExpenseTransaction expense)
+    {
+        var entry = _db.Entry(expense);
+        entry.DetectChanges();
+        return entry.Properties.Any(p => p.IsModified && !NonFinancialExpenseProperties.Contains(p.Metadata.Name));
     }
 
     // هستهٔ مشترک لغو یک بچ: هر سهم IsCancelled + سند معکوس Ledger (همان مسیر امن لغو تکی).
