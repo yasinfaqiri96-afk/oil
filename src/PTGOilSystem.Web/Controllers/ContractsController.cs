@@ -1189,7 +1189,10 @@ public partial class ContractsController : Controller
         var relockedLoadings = new List<LoadingRegister>();
         foreach (var loading in loadings)
         {
+            var previousLoadingPriceUsd = loading.LoadingPriceUsd;
             loading.LoadingPriceUsd = finalPrice.Value;
+            await TransportLegPurchaseCostSync.SyncFromLoadingAsync(
+                _db, loading.Id, previousLoadingPriceUsd, loading.LoadingPriceUsd);
 
             // اگر تسویه روبلی است، همان لحظهٔ قطعی‌سازی مبلغ روبل هم قفل می‌شود.
             // نرخ بر اساس سیاست قرارداد حل می‌شود: نرخ ثابت قرارداد، یا نرخ ذخیره‌شدهٔ همان بارگیری

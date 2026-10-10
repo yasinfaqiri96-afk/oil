@@ -179,6 +179,27 @@ public class BulkReceiptLossBatchingTests
         Assert.Equal(0, await db.InventoryMovements.CountAsync());
     }
 
+    [Fact]
+    public async Task BulkCreate_Rejects_A_Receipt_Dated_Before_The_Loading_And_Writes_Nothing()
+    {
+        await using var db = BuildContext(new SaveChangesCountingInterceptor());
+        SeedLoadings(db, loadingCount: 1, loadedQuantityMtEach: 100m);
+        await db.SaveChangesAsync();
+        var model = BuildModel(
+            loadingIds: [1],
+            totalReceivedQuantityMt: 90m,
+            totalLossQuantityMt: 10m,
+            totalLossToleranceQuantityMt: 2m);
+        model.ReceiptDate = new DateTime(2026, 4, 22); // بارگیری 2026-04-23 است
+
+        var result = await BuildAjaxController(db).BulkCreate(model);
+
+        var error = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("success = False", error.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await db.LoadingReceipts.CountAsync());
+        Assert.Equal(0, await db.InventoryMovements.CountAsync());
+    }
+
     private static async Task<int> CountSaveChangesForImmediateLossAsync(int loadingCount)
     {
         var counter = new SaveChangesCountingInterceptor();
