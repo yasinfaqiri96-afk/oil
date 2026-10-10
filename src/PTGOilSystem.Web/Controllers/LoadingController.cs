@@ -2836,9 +2836,12 @@ public partial class LoadingController : Controller
             loading.TransportExpenseUsd,
             loading.RailwayExpenseUsd);
 
+        var previousLoadingPriceUsd = loading.LoadingPriceUsd;
         loading.LoadingDate = model.LoadingDate;
         loading.LoadedQuantityMt = model.LoadedQuantityMt;
         loading.LoadingPriceUsd = model.LoadingPriceUsd;
+        await TransportLegPurchaseCostSync.SyncFromLoadingAsync(
+            _db, loading.Id, previousLoadingPriceUsd, loading.LoadingPriceUsd);
         loading.BillOfLadingNumber = model.BillOfLadingNumber;
         loading.RwbNo = model.RwbNo;
         loading.WagonNumber = model.WagonNumber;
@@ -2986,8 +2989,11 @@ public partial class LoadingController : Controller
             ("LoadingPriceUsd", loading.LoadingPriceUsd, model.LoadingPriceUsd),
             ("Notes", loading.Notes, model.PricingNote));
 
+        var previousLoadingPriceUsd = loading.LoadingPriceUsd;
         loading.LoadingPriceUsd = model.LoadingPriceUsd;
         loading.Notes = model.PricingNote;
+        await TransportLegPurchaseCostSync.SyncFromLoadingAsync(
+            _db, loading.Id, previousLoadingPriceUsd, loading.LoadingPriceUsd);
 
         await _audit.LogAndSaveAsync(nameof(LoadingRegister), loading.Id, AuditAction.Update, diff: diff);
 

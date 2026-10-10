@@ -1,0 +1,45 @@
+using PTGOilSystem.Web.Models.Entities;
+using PTGOilSystem.Web.Models.Loading;
+using PTGOilSystem.Web.Services.Exceptions;
+
+namespace PTGOilSystem.Web.Services.LoadingReceipts;
+
+public sealed record LoadingDirectSaleDraft(SalesTransaction Sale, CurrencyConversionResult Conversion);
+
+// Extracted from LoadingReceiptsController: the single and group paths share the same
+// historical conversion and sale construction, while retaining the receipt/allocation trace.
+public sealed class LoadingDirectSaleDraftService(ICurrencyConversionService currencyConversion)
+{
+    public async Task<LoadingDirectSaleDraft> BuildAsync(LoadingReceiptAllocationLineInput line, LoadingRegister loading)
+    {
+        if (loading.Contract is null)
+            throw new BusinessRuleException("DIRECT_SALE_SOURCE_CONTRACT_REQUIRED", "قرارداد خرید منبع باید مشخص باشد.");
+        var conversion = await currencyConversion.ResolveToBaseAsync(line.SaleCurrency,
+            line.SaleDate!.Value.Date, line.SaleAppliedFxRateToUsd);
+        return Build(line, loading, conversion);
+    }
+
+    public static LoadingDirectSaleDraft Build(LoadingReceiptAllocationLineInput line,
+        LoadingRegister loading, CurrencyConversionResult conversion)
+    {
+        if (loading.Contract is null)
+            throw new BusinessRuleException("DIRECT_SALE_SOURCE_CONTRACT_REQUIRED", "قرارداد خرید منبع باید مشخص باشد.");
+        var totalInCurrency = decimal.Round(line.QuantityMt * line.SaleUnitPriceInCurrency!.Value,
+            4, MidpointRounding.AwayFromZero);
+        return new(new SalesTransaction
+        {
+            ContractId = null, CompanyId = loading.Contract.CompanyId,
+            SourcePurchaseContractId = loading.ContractId,
+            CustomerId = line.SaleCustomerId, SupplierId = line.SaleSupplierId,
+            ProductId = loading.ProductId, DestinationLocationId = line.DestinationLocationId,
+            ShipmentId = null, SaleStage = SaleStage.InTransit,
+            InvoiceNumber = line.SaleInvoiceNumber!, SaleDate = line.SaleDate.Value.Date,
+            QuantityMt = line.QuantityMt, Currency = conversion.SourceCurrencyCode,
+            UnitPriceInCurrency = line.SaleUnitPriceInCurrency.Value,
+            AppliedFxRateToUsd = conversion.AppliedRateToBase,
+            UnitPriceUsd = conversion.ConvertToBase(line.SaleUnitPriceInCurrency.Value),
+            TotalInCurrency = totalInCurrency, TotalUsd = conversion.ConvertToBase(totalInCurrency),
+            Notes = line.SaleNotes
+        }, conversion);
+    }
+}

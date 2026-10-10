@@ -16,6 +16,28 @@ namespace PTGOilSystem.Web.Tests;
 
 public class SupplierPaymentAllocationTests
 {
+    [Fact]
+    public async Task Large_Allocation_Preserves_Twelve_Digit_Contract_Inverse_And_Historical_Amounts()
+    {
+        await using var db = await NewSeededDbAsync();
+        var service = new SupplierPaymentAllocationService(db);
+        var allocation = await service.CreateAsync(new SupplierPaymentAllocationCreateRequest(
+            10, 1, new DateTime(2026, 2, 2), 1000000m, 77m, null, null, null));
+        Assert.Equal(77m, allocation.ContractCurrencyPerUsdRate);
+        Assert.Equal(0.012987012987m, allocation.ContractCurrencyFxRateToUsd);
+        Assert.Equal(77000000m, allocation.AllocatedContractCurrencyAmount);
+        Assert.Equal(1000000m, decimal.Round(allocation.AllocatedContractCurrencyAmount
+            * allocation.ContractCurrencyFxRateToUsd, 4, MidpointRounding.AwayFromZero));
+        var paymentBefore = await db.PaymentTransactions.AsNoTracking().SingleAsync(p => p.Id == 10);
+        await service.ReverseAsync(new SupplierPaymentAllocationReverseRequest(allocation.Id, "test", "tester"));
+        var paymentAfter = await db.PaymentTransactions.AsNoTracking().SingleAsync(p => p.Id == 10);
+        Assert.Equal(paymentBefore.Amount, paymentAfter.Amount);
+        Assert.Equal(paymentBefore.AmountUsd, paymentAfter.AmountUsd);
+        Assert.Equal(paymentBefore.AppliedFxRateToUsd, paymentAfter.AppliedFxRateToUsd);
+        Assert.Equal(2, await db.PaymentTransactions.CountAsync());
+        Assert.Equal(1000000m, await service.GetAllocatablePaymentAmountAsync(10));
+    }
+
     // 1) پرداخت 1,000,000 USD و تخصیص 650,000 USD.
     [Fact]
     public async Task Allocation_650k_Locks_Book_And_Contract_Currency_Amounts()

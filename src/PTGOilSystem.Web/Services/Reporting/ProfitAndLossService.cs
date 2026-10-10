@@ -199,16 +199,7 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
             .ToListAsync(ct);
 
         var saleIds = sales.Select(s => s.Id).ToArray();
-        var costs = saleIds.Length == 0
-            ? []
-            : await _db.SalesCostConsumptions.AsNoTracking()
-                .Where(c => c.Status == SalesCostConsumptionStatus.Active
-                    && saleIds.Contains(c.SalesTransactionId))
-                .GroupBy(c => c.SalesTransactionId)
-                .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-                .ToListAsync(ct);
-
-        var costBySale = costs.ToDictionary(c => c.SaleId, c => c.CostUsd);
+        var costBySale = await LoadVerifiedSaleCostsAsync(saleIds, ct);
         return sales
             .GroupBy(s => s.ContractId)
             .ToDictionary(
@@ -247,15 +238,7 @@ public sealed partial class ProfitAndLossService : IProfitAndLossService
             .Select(s => new { s.Id, s.TotalUsd })
             .ToListAsync(ct);
         var saleIds = sales.Select(s => s.Id).ToArray();
-        var costs = saleIds.Length == 0
-            ? []
-            : await _db.SalesCostConsumptions.AsNoTracking()
-                .Where(c => c.Status == SalesCostConsumptionStatus.Active
-                    && saleIds.Contains(c.SalesTransactionId))
-                .GroupBy(c => c.SalesTransactionId)
-                .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-                .ToListAsync(ct);
-        var costBySale = costs.ToDictionary(c => c.SaleId, c => c.CostUsd);
+        var costBySale = await LoadVerifiedSaleCostsAsync(saleIds, ct);
 
         // مصرفی که بر عهدهٔ طرفِ بیرونیِ قرارداد است از سودِ شرکت کم نمی‌شود (CostResponsibilityPolicy).
         var expenseQuery = _db.ExpenseTransactions.AsNoTracking()

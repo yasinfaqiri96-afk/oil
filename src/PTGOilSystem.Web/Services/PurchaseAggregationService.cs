@@ -321,6 +321,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
             .AsNoTracking()
             .Where(e => (!_reportBefore.HasValue || e.ExpenseDate < _reportBefore.Value) && !e.IsCancelled
                 && !e.CustomsDeclarationId.HasValue
+                // A group share is an additional cost, not the original loading's fixed-field mirror.
+                && !e.ExpenseBatchId.HasValue
                 && e.LoadingRegisterId.HasValue
                 && loadingRegisterIds.Contains(e.LoadingRegisterId.Value))
             .Select(e => e.LoadingRegisterId!.Value)

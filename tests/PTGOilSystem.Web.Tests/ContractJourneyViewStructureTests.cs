@@ -6,6 +6,42 @@ namespace PTGOilSystem.Web.Tests;
 public class ContractJourneyViewStructureTests
 {
     [Fact]
+    public void ContractJourney_Navigation_Groups_Keep_Existing_Source_Routes_And_Native_Links()
+    {
+        var view = ReadContractJourneyDetailsMarkup();
+        var rail = ReadRepoFile("src/PTGOilSystem.Web/Views/ContractJourney/_ContractJourneyDetailTabsRail.cshtml");
+        var css = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css");
+
+        Assert.Contains("GroupLabel = T(\"بارها و عملیات\", \"Cargo operations\")", view);
+        Assert.Contains("GroupLabel = T(\"مالی و مصارف\", \"Finance and expenses\")", view);
+        Assert.Contains("Model.Tabs.GroupBy(tab => tab.GroupKey)", rail);
+        Assert.Contains("asp-route-contractId=\"@Model.ContractId\"", rail);
+        Assert.Contains("asp-route-lockContract=\"@Model.LockContract\"", rail);
+        Assert.Contains("aria-current=", rail);
+        Assert.DoesNotContain("role=\"tab\"", rail);
+        Assert.Contains(".ak-navigation-group", css);
+        Assert.Contains("flex: 1 1 100%;", css);
+        Assert.Contains("href=\"@ReturnUrl(stepTab)\"", view);
+        Assert.Contains("step.Number == 5 && Model.IsPurchaseContract", view);
+        Assert.Contains("T(\"مصارف\", \"Expenses\"), expenseState", view);
+        Assert.Contains("href=\"@ReturnUrl(LossesPresentationTab)\"", view);
+    }
+
+    [Fact]
+    public void ContractJourney_Tab_Failure_Offers_Real_Requested_Url_And_Preserves_Keyboard_Focus()
+    {
+        var js = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/contract-journey-tabs.js");
+        var view = ReadContractJourneyDetailsMarkup();
+
+        Assert.Contains("showError(url);", js);
+        Assert.Contains("retry.href = url;", js);
+        Assert.Contains("retry.setAttribute(\"data-no-spa\", \"true\");", js);
+        Assert.Contains("error.setAttribute(\"role\", \"alert\");", js);
+        Assert.Contains("restoredLink.focus({ preventScroll: true });", js);
+        Assert.Contains("data-retry-text=", view);
+    }
+
+    [Fact]
     public void Contract_Details_Uses_Shared_Export_Menu_For_The_Active_Tab()
     {
         var details = ReadContractJourneyDetailsMarkup();
@@ -925,7 +961,13 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("اطلاعات ضروری فروش", view);
         Assert.Contains("فقط فیلدهای ستاره‌دار برای ثبت فروش لازم‌اند", view);
         Assert.Contains("<input asp-for=\"ReceiptDestination\" type=\"hidden\" data-receipt-destination", view);
-        Assert.Contains("<label asp-for=\"SaleCustomerId\" class=\"ak-label\">@T(\"مشتری\", \"Customer\") <b>*</b>", view);
+        // The buyer selector now supports customer and supplier buyers; both
+        // parsed domain keys must surface server validation next to this field.
+        Assert.Contains("<label asp-for=\"SaleBuyerKey\" class=\"ak-label\">@T(\"خریدار\", \"Buyer\") <b>*</b>", view);
+        Assert.Contains("<select asp-for=\"SaleBuyerKey\" asp-items=\"ViewBag.Buyers\"", view);
+        Assert.Contains("asp-validation-for=\"SaleBuyerKey\"", view);
+        Assert.Contains("asp-validation-for=\"SaleCustomerId\"", view);
+        Assert.Contains("asp-validation-for=\"SaleSupplierId\"", view);
         Assert.Contains("<label asp-for=\"ReceivedQuantityMt\">@T(\"مقدار فروش\", \"Sale quantity\") <b>*</b>", view);
         Assert.Contains("<label asp-for=\"SaleUnitPriceInCurrency\" class=\"ak-label\">@T(\"قیمت فی تن\", \"Unit price per MT\") <b>*</b>", view);
         Assert.Contains("کرایه حمل (اختیاری)", view);
@@ -1729,7 +1771,16 @@ public class ContractJourneyViewStructureTests
         Assert.DoesNotContain("data-loading-expense-panel", rowEditor);
         Assert.Contains("_LoadingExpenseEditor", editExpenses);
         Assert.DoesNotContain("loadingExpensesModal", details);
-        Assert.Contains("ModalTarget = \"loadingIndexExpensesModal\"", index);
+        // Index owns a remote row-specific modal, rather than a static header
+        // menu item's ModalTarget. Keep the actual trigger, endpoint and loader.
+        Assert.Contains("data-bs-toggle=\"modal\" data-bs-target=\"#loadingIndexExpensesModal\"", index);
+        Assert.Contains("data-expense-url=\"@Url.Action(\"EditExpenses\", \"Loading\"", index);
+        Assert.Contains("data-loading-expense-remote-modal=\"true\"", index);
+        Assert.Contains("ViewData[\"LoadingExpenseEditorAssets\"] = true;", index);
+        var expenseScript = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/loading-expense-editor.js");
+        Assert.Contains("const trigger = event.relatedTarget;", expenseScript);
+        Assert.Contains("trigger?.getAttribute(\"data-expense-url\")", expenseScript);
+        Assert.Contains("modal.addEventListener(\"show.bs.modal\"", expenseScript);
         Assert.Contains("Href = expenseEditorUrl", details);
         Assert.Contains("data-bs-toggle=\"modal\"", detailActionBar);
         Assert.Contains("loadingIndexExpensesModal", index);

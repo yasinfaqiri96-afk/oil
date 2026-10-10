@@ -78,11 +78,7 @@ public sealed partial class ProfitAndLossService
                     .ToList());
 
         var saleIds = sales.Keys.ToArray();
-        var poolCostBySale = await _db.SalesCostConsumptions.AsNoTracking()
-            .Where(c => c.Status == SalesCostConsumptionStatus.Active && saleIds.Contains(c.SalesTransactionId))
-            .GroupBy(c => c.SalesTransactionId)
-            .Select(g => new { SaleId = g.Key, CostUsd = g.Sum(c => c.CostUsd) })
-            .ToDictionaryAsync(c => c.SaleId, c => c.CostUsd, ct);
+        var poolCostBySale = await LoadVerifiedSaleCostsAsync(saleIds, ct);
 
         return new SaleCostInputs(sales, sharesBySale, poolCostBySale);
     }
@@ -124,11 +120,17 @@ public sealed partial class ProfitAndLossService
             var costedShares = scoped.Where(s => s.UnitCostUsd.HasValue).ToList();
             if (costedShares.Count > 0)
             {
-                contractCosted++;
                 foreach (var share in costedShares)
                 {
                     var key = (share.ContractId, share.UnitCostUsd!.Value);
                     buckets[key] = buckets.GetValueOrDefault(key) + share.QuantityMt;
+                }
+
+                // فروشی که سهمِ بی‌بها هم دارد بهای کامل ندارد: عایدِ آن سهم بدون بها در سود می‌نشیند،
+                // پس فروش «بی‌بها» شمرده می‌شود تا گزارش NeedsReview شود و سودش قطعی خوانده نشود.
+                if (costedShares.Count == scoped.Count)
+                {
+                    contractCosted++;
                 }
 
                 continue;

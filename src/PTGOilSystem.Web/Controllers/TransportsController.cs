@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -247,6 +248,7 @@ public sealed class TransportsController : Controller
         TransportBulkFromLoadingViewModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        ViewData["BulkRequestToken"] = formToken;
         model.Filter ??= new TransportBulkLoadingFilter();
 
         List<BulkStartTransportFromLoadingRow> rows;
@@ -295,7 +297,17 @@ public sealed class TransportsController : Controller
                 .ToList();
         }
 
-        if (rows.Count == 0 && ModelState.IsValid)
+        var canRecoverCompletedRequest = false;
+        if (rows.Count == 0 && ModelState.IsValid && !string.IsNullOrWhiteSpace(formToken))
+        {
+            // A filter replay after all rows committed has no convertible source left.
+            // Recover the same request's outcomes instead of reporting an empty selection.
+            var prefix = TransportWorkflowService.BulkRequestPrefix(formToken.Trim());
+            int? requestOwner = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var ownerId) ? ownerId : null;
+            canRecoverCompletedRequest = await _db.ProcessedFormTokens.AsNoTracking()
+                .AnyAsync(token => token.Purpose.StartsWith(prefix) && token.UserId == requestOwner);
+        }
+        if (rows.Count == 0 && ModelState.IsValid && !canRecoverCompletedRequest)
         {
             ModelState.AddModelError(string.Empty, model.UseFilterSelection
                 ? "هیچ بارگیریِ قابل تبدیلی مطابق این فیلتر پیدا نشد."
@@ -334,8 +346,9 @@ public sealed class TransportsController : Controller
             return await RenderBulkAsync(model);
         }
 
-        if (result.CreatedCount == 0)
+        if (result.CompletedCount == 0)
         {
+            TempData["err"] = "هیچ موردی ثبت نشد.";
             foreach (var failure in DescribeFailures(result.Failures))
             {
                 ModelState.AddModelError(string.Empty, failure);
@@ -343,14 +356,42 @@ public sealed class TransportsController : Controller
             return await RenderBulkAsync(model);
         }
 
-        TempData["ok"] = $"{result.CreatedCount:N0} بارگیری به حمل تبدیل شد.";
+        TempData["ok"] = result.Failures.Count == 0
+            ? $"همه ثبت شد: {result.CompletedCount:N0} بارگیری به حمل تبدیل شده است."
+            : $"بخشی ثبت شد: {result.CompletedCount:N0} بارگیری به حمل تبدیل شده است.";
+        if (result.PreviouslyCreatedLegIds.Count > 0)
+            TempData["ok"] += $" {result.PreviouslyCreatedLegIds.Count:N0} مورد در تلاش قبلی ثبت شده بود و دوباره ثبت نشد.";
         if (result.Failures.Count > 0)
         {
-            TempData["err"] = "تبدیل نشد — " + string.Join(" | ", DescribeFailures(result.Failures));
+            // Keep the same request and only its unfinished manual rows on screen.
+            // A retry then recovers previous outcomes instead of creating new transports.
+            if (!model.UseFilterSelection)
+            {
+                var failedLoadings = result.Failures.Select(f => f.LoadingRegisterId).ToHashSet();
+                model.Rows = model.Rows.Where(row => failedLoadings.Contains(row.LoadingRegisterId)).ToList();
+            }
+            ModelState.Clear();
+            foreach (var failure in DescribeFailures(result.Failures)) ModelState.AddModelError(string.Empty, failure);
+            ViewData["BulkCompletedCount"] = result.CompletedCount;
+            return await RenderBulkAsync(model);
         }
         return !string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl)
             ? Redirect(model.ReturnUrl)
             : RedirectToAction("Index", "InventoryTransportLegs");
+    }
+
+    [Authorize(Policy = AuthPolicies.ManageData)]
+    [HttpGet]
+    public async Task<IActionResult> BulkFromLoadingProgress(string requestToken, bool asJson = false, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestToken) || requestToken.Length > 256)
+            return BadRequest("شناسهٔ درخواست معتبر نیست.");
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Forbid();
+        var rows = await new TransportBulkRequestQuery(_db).GetCompletedRowsAsync(requestToken, userId, ct);
+        if (asJson) return Json(new { completedCount = rows.Count, completedRows = rows });
+        ViewData["CompletedCount"] = rows.Count;
+        return View("BulkFromLoadingProgress", rows.Take(100).ToList());
     }
 
     /// <summary>

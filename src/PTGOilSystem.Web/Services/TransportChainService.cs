@@ -100,7 +100,30 @@ public sealed class TransportChainService : ITransportChainService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { Sources = command.Sources.Select(source => source with
+        {
+            QuantityMt = decimal.Round(source.QuantityMt, 4, MidpointRounding.AwayFromZero)
+        }).ToList() };
+        await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(ct)
+            : null;
+        try
+        {
+            await _receipts.LockLegsAsync(command.Sources.Select(s => s.SourceLegId), ct);
+            var result = await ContinueToVehicleCoreAsync(command, ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
+            return result;
+        }
+        catch
+        {
+            if (transaction is not null) await transaction.RollbackAsync(ct);
+            throw;
+        }
+    }
 
+    private async Task<ContinueToVehicleResult> ContinueToVehicleCoreAsync(
+        ContinueToVehicleCommand command, CancellationToken ct)
+    {
         if (command.Sources.Count == 0)
         {
             throw new BusinessRuleException(
@@ -151,7 +174,7 @@ public sealed class TransportChainService : ITransportChainService
             // نگهداشت مقدار: انتقال هرگز از باقیماندهٔ واقعی والد بیشتر نمی‌شود. همین نگهبان
             // ارسال دوباره را هم بی‌اثر می‌کند، چون رسید اول باقیمانده را پایین آورده است.
             var remainingMt = await _quantities.GetRemainingMtAsync(sourceLeg.Id, ct);
-            if (source.QuantityMt > remainingMt + Epsilon)
+            if (decimal.Round(source.QuantityMt, 4, MidpointRounding.AwayFromZero) > remainingMt)
             {
                 throw new BusinessRuleException(
                     "TRANSPORT_CHAIN_QTY_EXCEEDS_REMAINING",

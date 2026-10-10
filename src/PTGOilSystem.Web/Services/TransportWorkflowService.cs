@@ -1,4 +1,8 @@
 using System.Data;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using PTGOilSystem.Web.Data;
@@ -6,6 +10,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
 using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Security;
 
 namespace PTGOilSystem.Web.Services;
 
@@ -108,6 +113,13 @@ public sealed record BulkStartTransportFromLoadingRow
     public string? Reference { get; init; }
     public string? Notes { get; init; }
 
+    /// <summary>Stable row identity for clients retrying a subset of rows from the same loading.</summary>
+    public string? RequestRowId { get; init; }
+
+    // Derived from the request identity and stable loading/occurrence identity; never trusted from clients.
+    internal string? RequestRowToken { get; init; }
+    internal string? RequestRowPurpose { get; init; }
+
     /// <summary>برچسبِ ردیف فقط برای پیام خطا؛ هیچ اثری در ثبت ندارد.</summary>
     public string? Label { get; init; }
 }
@@ -125,7 +137,7 @@ public sealed record BulkStartTransportFromLoadingCommand
 
     public const int DefaultChunkSize = 200;
 
-    /// <summary>توکن ضدتکراری فرم؛ در اولین دستهٔ موفق مصرف می‌شود.</summary>
+    /// <summary>شناسهٔ درخواست؛ هر ردیف موفق در همان تراکنش به این درخواست مرتبط می‌شود.</summary>
     public string? FormToken { get; init; }
 }
 
@@ -139,7 +151,9 @@ public sealed record BulkStartTransportFromLoadingResult
 {
     public required IReadOnlyList<int> CreatedLegIds { get; init; }
     public required IReadOnlyList<BulkStartTransportFromLoadingFailure> Failures { get; init; }
+    public IReadOnlyList<int> PreviouslyCreatedLegIds { get; init; } = [];
     public int CreatedCount => CreatedLegIds.Count;
+    public int CompletedCount => CreatedCount + PreviouslyCreatedLegIds.Count;
 }
 
 public sealed record SettleTransportFreightCommand
@@ -172,6 +186,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
     // اختیاری تا ساخت مستقیمِ سرویس در تست‌ها دست‌نخورده بماند؛ نبودش یعنی بدون محافظ
     // ضدتکراری (fail-open)، دقیقاً مثل بقیهٔ مسیرهای پروژه.
     private readonly IFormTokenGuard? _formTokens;
+    private readonly ICurrentUserContext? _currentUser;
 
     public TransportWorkflowService(
         ApplicationDbContext db,
@@ -179,7 +194,8 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         ITransportChainService chain,
         InventoryTransportReceiptService outcomes,
         ILossEventWorkflowService losses,
-        IFormTokenGuard? formTokens = null)
+        IFormTokenGuard? formTokens = null,
+        ICurrentUserContext? currentUser = null)
     {
         _db = db;
         _inventoryStarts = inventoryStarts;
@@ -187,6 +203,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         _outcomes = outcomes;
         _losses = losses;
         _formTokens = formTokens;
+        _currentUser = currentUser;
     }
 
     public Task<InventoryTransportBatch> StartFromInventoryAsync(
@@ -200,6 +217,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) };
         if (command.QuantityMt <= 0m)
         {
             throw Rule("TRANSPORT_LOADING_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");
@@ -242,6 +260,9 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                 throw Rule("TRANSPORT_LOADING_NOT_FOUND", "بارگیری انتخاب‌شده پیدا نشد.");
             }
 
+            if (loading.IsCancelled || loading.IsArchived)
+                throw Rule("TRANSPORT_LOADING_INACTIVE", "این بارگیری لغو یا از فهرست فعال خارج شده است.");
+
             var receivedMt = await _db.LoadingReceipts
                 .AsNoTracking()
                 .Where(r => r.LoadingRegisterId == loading.Id && !r.IsCancelled)
@@ -264,7 +285,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                     && a.InventoryTransportLeg.Status != InventoryTransportLegStatus.Cancelled)
                 .SumAsync(a => (decimal?)a.QuantityMt, ct) ?? 0m;
             var availableMt = AvailableFromLoadingMt(loading.LoadedQuantityMt, receivedMt, shortageMt, transportedMt);
-            if (command.QuantityMt > availableMt + Epsilon)
+            if (decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) > availableMt)
             {
                 throw InsufficientLoading(availableMt);
             }
@@ -335,13 +356,55 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         }
 
         var createdLegIds = new List<int>();
+        var previousLegIds = new List<int>();
         var failures = new List<BulkStartTransportFromLoadingFailure>();
-        var rows = command.Rows ?? [];
+        var rows = (command.Rows ?? []).Select(row => row with
+        {
+            QuantityMt = decimal.Round(row.QuantityMt, 4, MidpointRounding.AwayFromZero)
+        }).ToList();
+        if (!string.IsNullOrWhiteSpace(command.FormToken))
+        {
+            var request = command.FormToken.Trim();
+            // Older versions stamped only the first chunk. Its row identities cannot be
+            // reconstructed safely, so never rerun that legacy request automatically.
+            if (await _db.ProcessedFormTokens.AsNoTracking().AnyAsync(t => t.Token == request, ct))
+                throw Rule("TRANSPORT_BULK_LEGACY_REQUEST", "این درخواست قبلاً ثبت شده است؛ تاریخچهٔ حمل را بررسی کنید.");
+            var prefix = BulkRequestPrefix(request);
+            var occurrences = new Dictionary<int, int>();
+            rows = rows.Select(row =>
+            {
+                var occurrence = occurrences.GetValueOrDefault(row.LoadingRegisterId);
+                occurrences[row.LoadingRegisterId] = occurrence + 1;
+                return row with
+                {
+                    RequestRowToken = Hash($"{request}|" + (string.IsNullOrWhiteSpace(row.RequestRowId)
+                        ? $"loading:{row.LoadingRegisterId}:occurrence:{occurrence}" : "row:" + row.RequestRowId.Trim())),
+                    RequestRowPurpose = prefix + Hash(JsonSerializer.Serialize(new
+                    {
+                        row.LoadingRegisterId, Quantity = row.QuantityMt.ToString("G29", CultureInfo.InvariantCulture), row.TransportType, row.TruckId,
+                        row.WagonId, row.VesselId, row.DriverId, row.ServiceProviderId,
+                        row.Reference, row.Notes, Date = command.TransportDate.Date
+                    }))
+                };
+            }).ToList();
+            if (rows.GroupBy(row => row.RequestRowToken).Any(group => group.Count() > 1))
+                throw Rule("TRANSPORT_BULK_ROW_ID_DUPLICATE", "شناسهٔ ردیف‌های این درخواست تکراری است.");
+            var completed = await _db.ProcessedFormTokens.AsNoTracking()
+                .Where(t => t.Purpose.StartsWith(prefix))
+                .ToDictionaryAsync(t => t.Token, ct);
+            if (completed.Values.Any(token => token.UserId != _currentUser?.UserId))
+                throw Rule("TRANSPORT_BULK_REQUEST_OWNER", "این درخواست متعلق به کاربر دیگری است.");
+            foreach (var row in rows)
+                if (completed.TryGetValue(row.RequestRowToken!, out var token)) ValidateCompletedRow(row, token);
+            previousLegIds.AddRange(completed.Values.Where(t => t.ReferenceId.HasValue).Select(t => t.ReferenceId!.Value));
+            rows = rows.Where(row => !completed.ContainsKey(row.RequestRowToken!)).ToList();
+        }
         if (rows.Count == 0)
         {
             return new BulkStartTransportFromLoadingResult
             {
                 CreatedLegIds = createdLegIds,
+                PreviouslyCreatedLegIds = previousLegIds,
                 Failures = failures
             };
         }
@@ -360,34 +423,23 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             accepted.Add(row);
         }
 
-        // ۲) دسته‌دسته. هر دسته یک تراکنش و یک SaveChanges.
+        // ۲) دسته‌دسته. هر دسته یک تراکنش؛ درخواست دارای شناسه یک ذخیرهٔ دوم برای ارتباط نتیجه دارد.
         var chunkSize = command.ChunkSize > 0
             ? command.ChunkSize
             : BulkStartTransportFromLoadingCommand.DefaultChunkSize;
-        var tokenPending = !string.IsNullOrWhiteSpace(command.FormToken);
         for (var offset = 0; offset < accepted.Count; offset += chunkSize)
         {
             var chunk = accepted.GetRange(offset, Math.Min(chunkSize, accepted.Count - offset));
-            var stampToken = tokenPending ? command.FormToken : null;
             try
             {
-                var legIds = await ConvertChunkAsync(chunk, command.TransportDate, stampToken, ct);
+                var legIds = await ConvertChunkAsync(chunk, command.TransportDate, previousLegIds, ct);
                 createdLegIds.AddRange(legIds);
-                if (stampToken is not null)
-                {
-                    tokenPending = false;
-                }
             }
-            catch (DbUpdateException duplicate) when (_formTokens?.IsDuplicate(duplicate) == true)
-            {
-                // ثبتِ تکراریِ همان فرم — نباید با تلاش دوباره حملِ تکراری ساخته شود.
-                throw;
-            }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // دسته شکست خورد؛ همان ردیف‌ها را تکی اجرا می‌کنیم تا فقط ردیفِ مقصر رد شود.
                 _db.ChangeTracker.Clear();
-                await ConvertChunkRowByRowAsync(chunk, command.TransportDate, createdLegIds, failures, ct);
+                await ConvertChunkRowByRowAsync(chunk, command.TransportDate, createdLegIds, previousLegIds, failures, ct);
             }
 
             _db.ChangeTracker.Clear();
@@ -396,15 +448,28 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         return new BulkStartTransportFromLoadingResult
         {
             CreatedLegIds = createdLegIds,
+            PreviouslyCreatedLegIds = previousLegIds.Distinct().ToList(),
             Failures = failures
         };
     }
 
-    /// <summary>یک دسته در یک تراکنش: یک قفلِ گروهی، سه کوئری تجمیعی، یک SaveChanges.</summary>
+    internal static string BulkRequestPrefix(string requestToken)
+        => "Transport.BulkRow:" + Hash(requestToken)[..32] + ":";
+
+    private static string Hash(string value)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static void ValidateCompletedRow(BulkStartTransportFromLoadingRow row, ProcessedFormToken token)
+    {
+        if (token.Purpose != row.RequestRowPurpose || token.ReferenceType != nameof(InventoryTransportLeg) || !token.ReferenceId.HasValue)
+            throw Rule("TRANSPORT_BULK_REQUEST_CHANGED", "این ردیف با همین درخواست قبلاً ثبت شده است؛ برای عملیات تازه درخواست جدید بسازید.");
+    }
+
+    /// <summary>یک دسته در یک تراکنش، با قفل گروهی و ارتباط اتمیک نتیجهٔ هر ردیفِ درخواست.</summary>
     private async Task<List<int>> ConvertChunkAsync(
         IReadOnlyList<BulkStartTransportFromLoadingRow> chunk,
         DateTime transportDate,
-        string? formToken,
+        List<int> previousLegIds,
         CancellationToken ct)
     {
         // ترتیب صعودیِ شناسه برای قفل‌گرفتن، تا دو درخواست هم‌زمان روی دو دسته قفل‌ها را
@@ -434,6 +499,12 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             }
 
             var loadings = lockedLoadings.ToDictionary(l => l.Id);
+            var rowTokens = chunk.Where(r => r.RequestRowToken is not null).Select(r => r.RequestRowToken!).ToArray();
+            var completed = rowTokens.Length == 0 ? new Dictionary<string, ProcessedFormToken>()
+                : await _db.ProcessedFormTokens.AsNoTracking()
+                    .Where(t => rowTokens.Contains(t.Token)).ToDictionaryAsync(t => t.Token, ct);
+            if (completed.Values.Any(token => token.UserId != _currentUser?.UserId))
+                throw Rule("TRANSPORT_BULK_REQUEST_OWNER", "این درخواست متعلق به کاربر دیگری است.");
             var received = await ReceivedByLoadingAsync(idArray, ct);
             var shortage = await ShortageByLoadingAsync(idArray, ct);
             var transported = await TransportedByLoadingAsync(idArray, ct);
@@ -442,21 +513,31 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
             // بیشتر از مانده بردارند — همان چیزی که در مسیر تکی با خواندن دوبارهٔ مانده رخ می‌داد.
             var consumedInChunk = new Dictionary<int, decimal>();
             var batches = new List<InventoryTransportBatch>(chunk.Count);
+            var rowRecords = new List<(ProcessedFormToken Token, InventoryTransportBatch Batch)>();
             var usageWriter = new AssetUsageChargeService(_db);
 
             foreach (var row in chunk)
             {
+                if (row.RequestRowToken is not null && completed.TryGetValue(row.RequestRowToken, out var existing))
+                {
+                    ValidateCompletedRow(row, existing);
+                    if (!previousLegIds.Contains(existing.ReferenceId!.Value)) previousLegIds.Add(existing.ReferenceId.Value);
+                    continue;
+                }
                 if (!loadings.TryGetValue(row.LoadingRegisterId, out var loading))
                 {
                     throw Rule("TRANSPORT_LOADING_NOT_FOUND", "بارگیری انتخاب‌شده پیدا نشد.");
                 }
+
+                if (loading.IsCancelled || loading.IsArchived)
+                    throw Rule("TRANSPORT_LOADING_INACTIVE", "این بارگیری لغو یا از فهرست فعال خارج شده است.");
 
                 var availableMt = AvailableFromLoadingMt(
                     loading.LoadedQuantityMt,
                     received.GetValueOrDefault(loading.Id),
                     shortage.GetValueOrDefault(loading.Id),
                     transported.GetValueOrDefault(loading.Id) + consumedInChunk.GetValueOrDefault(loading.Id));
-                if (row.QuantityMt > availableMt + Epsilon)
+                if (decimal.Round(row.QuantityMt, 4, MidpointRounding.AwayFromZero) > availableMt)
                 {
                     throw InsufficientLoading(availableMt);
                 }
@@ -481,14 +562,23 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                     operationalAssetId: null,
                     transportDate.Date,
                     ct);
-                batches.Add(BuildLoadingConversion(loading, draft, carrierParty));
+                var batch = BuildLoadingConversion(loading, draft, carrierParty);
+                batches.Add(batch);
+                if (row.RequestRowToken is not null)
+                {
+                    (_formTokens ?? new FormTokenGuard(_db, _currentUser)).Stamp(row.RequestRowToken, row.RequestRowPurpose!, nameof(InventoryTransportLeg));
+                    rowRecords.Add((_db.ProcessedFormTokens.Local.Last(t => t.Token == row.RequestRowToken), batch));
+                }
                 consumedInChunk[loading.Id] =
                     consumedInChunk.GetValueOrDefault(loading.Id) + row.QuantityMt;
             }
 
             _db.InventoryTransportBatches.AddRange(batches);
-            _formTokens?.Stamp(formToken, "Transport.BulkFromLoading", nameof(InventoryTransportLeg));
-            await _db.SaveChangesAsync(ct);
+            if (batches.Count > 0) await _db.SaveChangesAsync(ct);
+            // Identity keys are assigned by the first save; persist their durable request
+            // correlation before committing, so a disconnect/retry can recover the results.
+            foreach (var (token, batch) in rowRecords) token.ReferenceId = batch.Legs.Single().Id;
+            if (rowRecords.Count > 0) await _db.SaveChangesAsync(ct);
 
             if (transaction is not null)
             {
@@ -512,6 +602,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         IReadOnlyList<BulkStartTransportFromLoadingRow> chunk,
         DateTime transportDate,
         List<int> createdLegIds,
+        List<int> previousLegIds,
         List<BulkStartTransportFromLoadingFailure> failures,
         CancellationToken ct)
     {
@@ -519,29 +610,15 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         {
             try
             {
-                var leg = await StartFromLoadingAsync(new StartTransportFromLoadingCommand
-                {
-                    LoadingRegisterId = row.LoadingRegisterId,
-                    QuantityMt = row.QuantityMt,
-                    TransportType = row.TransportType,
-                    TruckId = row.TruckId,
-                    WagonId = row.WagonId,
-                    VesselId = row.VesselId,
-                    DriverId = row.DriverId,
-                    ServiceProviderId = row.ServiceProviderId,
-                    TransportDate = transportDate,
-                    Reference = row.Reference,
-                    Notes = row.Notes
-                }, ct);
-                createdLegIds.Add(leg.Id);
+                var ids = await ConvertChunkAsync([row], transportDate, previousLegIds, ct);
+                createdLegIds.AddRange(ids);
             }
             catch (BusinessRuleException ex)
             {
                 failures.Add(new BulkStartTransportFromLoadingFailure(
                     row.LoadingRegisterId, row.Label, ex.Code, ex.Message));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException
-                && _formTokens?.IsDuplicate(ex) != true)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // ردیفِ این خطا خودش برگشت خورده (تراکنشِ همان ردیف). اگر اینجا نمی‌گرفتیم،
                 // خطای ردیفِ ۳ از هزاران ردیفِ ثبت‌شدهٔ قبلی هم یک 500 می‌ساخت و کاربر
@@ -802,6 +879,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = command with { QuantityMt = decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) };
         if (command.QuantityMt <= 0m)
         {
             throw Rule("TRANSPORT_RECEIPT_QTY_INVALID", "مقدار حمل باید بزرگ‌تر از صفر باشد.");
@@ -860,7 +938,7 @@ public sealed class TransportWorkflowService : ITransportWorkflowService
                 .OrderBy(x => x.ContractId)
                 .ToList();
             var availableTotal = available.Sum(x => x.QuantityMt);
-            if (command.QuantityMt > availableTotal + Epsilon)
+            if (decimal.Round(command.QuantityMt, 4, MidpointRounding.AwayFromZero) > availableTotal)
             {
                 throw Rule(
                     "TRANSPORT_RECEIPT_INSUFFICIENT",

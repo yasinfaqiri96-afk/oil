@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +16,7 @@ using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
+using PTGOilSystem.Web.Services.LoadingReceipts;
 
 namespace PTGOilSystem.Web.Controllers;
 
@@ -130,7 +131,8 @@ public partial class SalesController : Controller
         InventoryTransportReceiptService? receiptService = null,
         ITransportQuantityService? quantities = null,
         IInventoryMovementWriter? movements = null,
-        ITransportSourceAllocationService? sourceAllocations = null)
+        ITransportSourceAllocationService? sourceAllocations = null,
+        ILoadingReceiptCancellationService? loadingReceiptCancellation = null)
     {
         _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
@@ -148,6 +150,9 @@ public partial class SalesController : Controller
         _formTokens = formTokens ?? new FormTokenGuard(db);
         _movements = movements ?? new InventoryMovementWriter(db, stock);
         _sourceAllocations = sourceAllocations ?? new TransportSourceAllocationService(db);
+        _loadingReceiptCancellation = loadingReceiptCancellation ?? new LoadingReceiptCancellationService(
+            db, audit, Microsoft.Extensions.Logging.Abstractions.NullLogger<LoadingReceiptCancellationService>.Instance,
+            stock: _stock, salesAccounting: _salesAccounting, movements: _movements);
         // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
         _receiptService = receiptService
             ?? new InventoryTransportReceiptService(
@@ -159,6 +164,7 @@ public partial class SalesController : Controller
                 sourceAllocations: _sourceAllocations);
     }
 
+    private readonly ILoadingReceiptCancellationService _loadingReceiptCancellation;
     private readonly InventoryTransportReceiptService _receiptService;
     // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
     private readonly ITransportQuantityService _quantities;
@@ -976,6 +982,27 @@ public partial class SalesController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
 
+        var directReceiptId = await FindSingleDirectLoadingReceiptAsync(sale.Id);
+        if (directReceiptId.HasValue)
+        {
+            // A direct loading sale consumes the receipt itself. Cancelling only the sale would
+            // leave that receipt consuming the source forever; use the existing cancellation owner.
+            var cancellation = await _loadingReceiptCancellation.CancelAsync([directReceiptId.Value], reason, CurrentUserIdOrNull());
+            TempData[cancellation.Succeeded ? "ok" : "err"] = cancellation.Succeeded
+                ? "فروش مستقیم بارگیری لغو شد و ماندهٔ بار آزاد گردید."
+                : string.Join(" ", cancellation.Blockers.Select(b => b.Reason));
+            if (cancellation.Succeeded && createReplacement)
+                return RedirectToAction(nameof(Create), new { correctedFromSaleId = sale.Id, returnUrl });
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url?.IsLocalUrl(returnUrl) == true)
+                return Redirect(returnUrl);
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        if (await _db.LoadingReceiptAllocations.AsNoTracking().AnyAsync(a => a.SalesTransactionId == sale.Id))
+        {
+            TempData["err"] = "این فروش بخشی از یک رسید چندبخشی است؛ لغو یا اصلاح را از صفحهٔ همان رسید انجام دهید.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
         var originalLedger = await _db.LedgerEntries
             .AsNoTracking()
             .Where(l => l.SourceType == "Sale" && l.SourceId == sale.Id)
@@ -1025,6 +1052,18 @@ public partial class SalesController : Controller
                 .OrderBy(s => s.Id)
                 .Select(s => (int?)s.Id)
                 .FirstOrDefaultAsync();
+        }
+
+        // لغو آخرین سطر فعالِ فروش گروهی، سرخطِ آن را هم لغو می‌کند؛ وگرنه سرخط با جمعِ کهنه فعال
+        // می‌ماند. سطرها اسناد خودشان را دارند و برگشتشان همین‌جا انجام شد، پس سرخط فقط وضعیت می‌گیرد.
+        if (sale.SalesBatchId is int salesBatchId
+            && !await _db.SalesTransactions.AnyAsync(s => s.SalesBatchId == salesBatchId && s.Id != sale.Id && !s.IsCancelled))
+        {
+            var salesBatch = await _db.SalesBatches.FirstOrDefaultAsync(b => b.Id == salesBatchId);
+            if (salesBatch is not null)
+            {
+                salesBatch.IsCancelled = true;
+            }
         }
 
         try

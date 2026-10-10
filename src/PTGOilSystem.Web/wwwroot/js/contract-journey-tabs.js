@@ -69,7 +69,7 @@
     }
 
     function onTabClick(event) {
-        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        if (event.button !== 0 || event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
 
         var link = event.target.closest("[data-contract-journey-tab-link]");
         if (!link || !document.querySelector("[data-contract-journey-page]")) return;
@@ -95,6 +95,7 @@
         var key = cacheKey(url);
         if (!key) return;
         var version = ++navigationVersion;
+        var pageAtRequest = document.querySelector("[data-contract-journey-page]");
 
         var cached = forceReload ? null : tabCache.get(key);
         if (cached) {
@@ -105,14 +106,14 @@
         setLoading(true);
         prefetchTab(url, forceReload)
             .then(function (parsed) {
-                if (version !== navigationVersion) return;
+                if (version !== navigationVersion || pageAtRequest !== document.querySelector("[data-contract-journey-page]")) return;
                 setLoading(false);
                 applyTab(parsed, url, pushState);
             })
             .catch(function () {
-                if (version !== navigationVersion) return;
+                if (version !== navigationVersion || pageAtRequest !== document.querySelector("[data-contract-journey-page]")) return;
                 setLoading(false);
-                showError();
+                showError(url);
             });
     }
 
@@ -249,9 +250,20 @@
             return;
         }
 
+        // Replacing navigation must not drop a keyboard user back to the body.
+        var focusedLink = nav.contains(document.activeElement)
+            ? document.activeElement.closest("[data-contract-journey-tab-link]") : null;
+        var focusedHref = focusedLink ? focusedLink.getAttribute("href") : null;
+
         content.innerHTML = parsed.contentHtml;
         writeAttributes(content, parsed.contentAttributes);
         nav.innerHTML = parsed.navHtml;
+        if (focusedHref) {
+            var restoredLink = Array.prototype.find.call(nav.querySelectorAll("[data-contract-journey-tab-link]"), function (link) {
+                return link.getAttribute("href") === focusedHref;
+            });
+            if (restoredLink) restoredLink.focus({ preventScroll: true });
+        }
         page.className = parsed.pageClassName;
         document.title = parsed.title;
 
@@ -294,7 +306,7 @@
         content.prepend(loading);
     }
 
-    function showError() {
+    function showError(url) {
         var content = document.querySelector("[data-contract-journey-tab-content]");
         if (!content) return;
 
@@ -304,7 +316,21 @@
         var error = document.createElement("div");
         error.className = "alert alert-warning border mb-3";
         error.setAttribute("data-contract-journey-tab-error", "true");
-        error.textContent = content.getAttribute("data-error-text") || "Could not load this tab. Try again.";
+        error.setAttribute("role", "alert");
+        var message = document.createElement("p");
+        message.className = "mb-2";
+        message.textContent = content.getAttribute("data-error-text") || "This section could not open. Try again.";
+        error.append(message);
+
+        // A real GET link remains usable even when fetch or the page cache is
+        // unavailable. Keep the requested contract, tab and lock in its URL.
+        var retry = document.createElement("a");
+        retry.href = url;
+        retry.className = "ak-name";
+        retry.setAttribute("data-no-spa", "true");
+        retry.setAttribute("data-contract-journey-tab-retry", "true");
+        retry.textContent = content.getAttribute("data-retry-text") || "Open this section again";
+        error.append(retry);
         content.prepend(error);
     }
 

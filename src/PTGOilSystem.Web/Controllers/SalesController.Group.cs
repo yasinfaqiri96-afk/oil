@@ -10,6 +10,9 @@ using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.Operations;
+using PTGOilSystem.Web.Services.LoadingReceipts;
+using PTGOilSystem.Web.Models.Loading;
 using PTGOilSystem.Web.Services.Exceptions;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -22,6 +25,7 @@ namespace PTGOilSystem.Web.Controllers;
 public partial class SalesController
 {
     private const decimal QtyEpsilon = 0.0001m;
+    private readonly Dictionary<string, int> _groupAccountingSkippedReasons = new(StringComparer.Ordinal);
 
     // مالکِ ردیفِ فروشی که با primitiveهای زیر ساخته می‌شود: یا یک SalesBatch (فروش گروهی)
     // یا یک PreSaleOrder (تحویل پیش‌فروش). خودِ ردیف در هر دو حالت SalesTransaction عادی است.
@@ -31,251 +35,52 @@ public partial class SalesController
 
     private sealed record StockTupleKey(int ProductId, int TerminalId, int StorageTankId, int ContractId);
 
-    private async Task<List<GroupSaleSourceItem>> LoadSellableSourcesAsync()
+    private CargoSourceQueryService CargoSources => new(_db, _stock, _quantities, _businessClock);
+
+    private async Task<List<GroupSaleSourceItem>> LoadSellableSourcesAsync(bool includeLoadings = true)
     {
-        var items = new List<GroupSaleSourceItem>();
-        items.AddRange(await LoadSellableTerminalStockAsync());
-        items.AddRange(await LoadSellableTruckDispatchesAsync());
-        items.AddRange(await LoadSellableLegsAsync());
-
-        return items
-            .OrderByDescending(i => i.MoveDate)
-            .ThenBy(i => i.KindLabel)
-            .ThenByDescending(i => i.Id)
-            .ToList();
-    }
-
-    private async Task<List<GroupSaleSourceItem>> LoadSellableTerminalStockAsync()
-    {
-        var asOf = _businessClock.Today;
-
-        var balances = await _db.InventoryMovements
-            .AsNoTracking()
-            .Where(m => m.StorageTankId != null)
-            .Select(m => new
-            {
-                m.ProductId,
-                m.TerminalId,
-                StorageTankId = m.StorageTankId!.Value,
-                ContractId = m.ContractId
-                    ?? (m.LoadingReceipt != null && m.LoadingReceipt.LoadingRegister != null
-                        ? (int?)m.LoadingReceipt.LoadingRegister.ContractId
-                        : null),
-                m.Direction,
-                m.QuantityMt
-            })
-            .Where(x => x.ContractId != null)
-            .GroupBy(x => new { x.ProductId, x.TerminalId, x.StorageTankId, ContractId = x.ContractId!.Value })
-            .Select(g => new
-            {
-                g.Key,
-                Net = g.Sum(x =>
-                    x.Direction == MovementDirection.In || x.Direction == MovementDirection.Adjustment
-                        ? x.QuantityMt
-                        : x.Direction == MovementDirection.Out || x.Direction == MovementDirection.Transfer
-                            ? -x.QuantityMt
-                            : 0m)
-            })
-            .Where(x => x.Net > QtyEpsilon)
-            .ToListAsync();
-
-        if (balances.Count == 0)
+        var action = includeLoadings ? CargoAction.DirectSale : CargoAction.PreSaleDelivery;
+        var stock = await CargoSources.LoadStockSourcesAsync(_businessClock.Today);
+        var dispatches = await CargoSources.LoadDispatchSourcesAsync();
+        var transports = await CargoSources.LoadTransportSourcesAsync();
+        var all = stock.Concat(dispatches).Concat(transports);
+        if (includeLoadings) all = all.Concat(await CargoSources.LoadLoadingSourcesAsync());
+        var eligible = all.Where(s => CargoOperationEligibility.Evaluate(s, action).Allowed).ToList();
+        var tankIds = eligible.Where(s => s.Kind == CargoSourceKind.Stock && s.StorageTankId.HasValue)
+            .Select(s => s.StorageTankId!.Value).Distinct().ToArray();
+        var tanks = await _db.StorageTanks.AsNoTracking().Where(t => tankIds.Contains(t.Id))
+            .Select(t => new { t.Id, Name = t.DisplayName ?? t.TankCode }).ToDictionaryAsync(t => t.Id, t => t.Name);
+        var terminalIds = eligible.Where(s => s.TerminalId.HasValue).Select(s => s.TerminalId!.Value).Distinct().ToArray();
+        var terminals = await _db.Terminals.AsNoTracking().Where(t => terminalIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Name);
+        return eligible.Select(s =>
         {
-            return [];
-        }
-
-        var contractIds = balances.Select(b => b.Key.ContractId).Distinct().ToArray();
-        var terminalIds = balances.Select(b => b.Key.TerminalId).Distinct().ToArray();
-        var tankIds = balances.Select(b => b.Key.StorageTankId).Distinct().ToArray();
-        var productIds = balances.Select(b => b.Key.ProductId).Distinct().ToArray();
-
-        var contracts = await _db.Contracts
-            .AsNoTracking()
-            .Where(c => contractIds.Contains(c.Id) && c.ContractType == ContractType.Purchase)
-            .Select(c => new { c.Id, c.ContractNumber, c.CompanyId, CompanyName = c.Company != null ? c.Company.Name : "" })
-            .ToDictionaryAsync(c => c.Id);
-        var terminals = await _db.Terminals.AsNoTracking()
-            .Where(t => terminalIds.Contains(t.Id))
-            .Select(t => new { t.Id, t.Name }).ToDictionaryAsync(t => t.Id, t => t.Name);
-        var tanks = await _db.StorageTanks.AsNoTracking()
-            .Where(t => tankIds.Contains(t.Id))
-            .Select(t => new { t.Id, Display = t.DisplayName ?? t.TankCode }).ToDictionaryAsync(t => t.Id, t => t.Display);
-        var products = await _db.Products.AsNoTracking()
-            .Where(p => productIds.Contains(p.Id))
-            .Select(p => new { p.Id, p.Name }).ToDictionaryAsync(p => p.Id, p => p.Name);
-
-        var result = new List<GroupSaleSourceItem>();
-        foreach (var b in balances)
-        {
-            if (!contracts.TryGetValue(b.Key.ContractId, out var contract))
+            var kind = s.Kind switch
             {
-                continue; // فقط قرارداد خرید معتبر
-            }
-
-            var free = await _stock.GetFreeQuantityMtAsync(
-                b.Key.ProductId,
-                terminalId: b.Key.TerminalId,
-                contractId: b.Key.ContractId,
-                storageTankId: b.Key.StorageTankId,
-                asOfUtc: asOf);
-            if (free <= QtyEpsilon)
+                CargoSourceKind.Loading => GroupSaleSourceKind.LoadingRegister,
+                CargoSourceKind.Stock => GroupSaleSourceKind.TerminalStock,
+                CargoSourceKind.Dispatch => GroupSaleSourceKind.TruckDispatch,
+                _ => s.VehicleLabel == "واگن" ? GroupSaleSourceKind.WagonLeg : GroupSaleSourceKind.TransportLeg
+            };
+            var label = s.Kind switch { CargoSourceKind.Loading => "بارگیری", CargoSourceKind.Stock => "موجودی مخزن",
+                CargoSourceKind.Dispatch => "موتر در جریان", _ => s.VehicleLabel == "واگن" ? "واگن در جریان" : "انتقال در مسیر" };
+            var key = s.Kind switch { CargoSourceKind.Loading => $"Loading:{s.Id}", CargoSourceKind.Dispatch => $"Dispatch:{s.Id}",
+                CargoSourceKind.Stock => $"Stock:{s.ProductId}-{s.TerminalId}-{s.StorageTankId}-{s.ContractId}", _ => $"Leg:{s.Id}" };
+            return new GroupSaleSourceItem
             {
-                continue;
-            }
-
-            result.Add(new GroupSaleSourceItem
-            {
-                Key = $"Stock:{b.Key.ProductId}-{b.Key.TerminalId}-{b.Key.StorageTankId}-{b.Key.ContractId}",
-                Kind = GroupSaleSourceKind.TerminalStock,
-                KindLabel = "موجودی مخزن",
-                Id = 0,
-                VehicleKind = "مخزن",
-                Number = tanks.GetValueOrDefault(b.Key.StorageTankId, $"#{b.Key.StorageTankId}"),
-                Route = terminals.GetValueOrDefault(b.Key.TerminalId, $"#{b.Key.TerminalId}"),
-                ProductName = products.GetValueOrDefault(b.Key.ProductId, ""),
-                CompanyName = contract.CompanyName,
-                ContractNumber = contract.ContractNumber,
-                AvailableMt = decimal.Round(free, 4, MidpointRounding.AwayFromZero),
-                IsFullVehicle = false,
-                StatusLabel = "قابل فروش",
-                MoveDate = asOf,
-                ProductId = b.Key.ProductId,
-                TerminalId = b.Key.TerminalId,
-                StorageTankId = b.Key.StorageTankId,
-                SourcePurchaseContractId = b.Key.ContractId,
-                CompanyId = contract.CompanyId
-            });
-        }
-
-        return result;
-    }
-
-    private async Task<List<GroupSaleSourceItem>> LoadSellableTruckDispatchesAsync()
-    {
-        // دیسپچ سازگاریِ «ادامهٔ حمل» بارِ خودش را ندارد؛ همان بار به‌صورت مرحلهٔ فرزند در
-        // LoadSellableLegsAsync می‌آید. نگه‌داشتنش یعنی یک بار دو بار قابل فروش دیده شود.
-        var continuedReceiptIds = TransportChainProjection.ContinuedTransferReceiptIds(_db);
-
-        var dispatches = await _db.TruckDispatches
-            .AsNoTracking()
-            .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
-                        && d.SalesTransactionId == null
-                        && !(d.InventoryTransportReceiptId != null
-                            && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)))
-            .OrderByDescending(d => d.DispatchDate)
-            .Select(d => new
-            {
-                d.Id,
-                TruckPlate = d.Truck != null ? d.Truck.PlateNumber : null,
-                ProductName = d.Product != null ? d.Product.Name : "",
-                ContractNumber = d.Contract != null ? d.Contract.ContractNumber : "",
-                CompanyName = d.Contract != null && d.Contract.Company != null ? d.Contract.Company.Name : "",
-                DestinationName = d.DestinationLocation != null ? d.DestinationLocation.Name : null,
-                d.LoadedQuantityMt,
-                d.DischargedQuantityMt,
-                d.IsFreightSettled,
-                d.Status,
-                d.DispatchDate
-            })
-            .ToListAsync();
-
-        // وزن مؤثر فروش = وزن تخلیه‌شده (اگر کرایه تسویه شده)، وگرنه وزن بارگیری.
-        return dispatches.Select(d => new GroupSaleSourceItem
-        {
-            Key = $"Dispatch:{d.Id}",
-            Kind = GroupSaleSourceKind.TruckDispatch,
-            KindLabel = "موتر در جریان",
-            Id = d.Id,
-            VehicleKind = "موتر",
-            Number = d.TruckPlate ?? $"#{d.Id}",
-            Route = BuildGroupRoute(d.ContractNumber, d.DestinationName),
-            ProductName = d.ProductName,
-            CompanyName = d.CompanyName,
-            ContractNumber = d.ContractNumber,
-            AvailableMt = decimal.Round(d.DischargedQuantityMt ?? d.LoadedQuantityMt, 4, MidpointRounding.AwayFromZero),
-            IsFullVehicle = true,
-            StatusLabel = d.IsFreightSettled ? "کرایه تسویه‌شده"
-                : d.Status == DispatchStatus.InTransit ? "در راه" : "بارگیری‌شده",
-            MoveDate = d.DispatchDate
-        }).ToList();
-    }
-
-    private async Task<List<GroupSaleSourceItem>> LoadSellableLegsAsync()
-    {
-        // حمل‌های Loaded/InTransit که هنوز به موجودی تخلیه/فروخته نشده‌اند. رسیدِ «فقط تسویهٔ کرایه»
-        // (دریافت صفر، بدون فروش) مانع فروش نیست؛ بار (وزن تخلیه) هنوز روی وسیله و قابل فروش است.
-        var legs = await _db.InventoryTransportLegs
-            .AsNoTracking()
-            .Where(l => (l.Status == InventoryTransportLegStatus.Loaded || l.Status == InventoryTransportLegStatus.InTransit)
-                        // رسیدِ ToInventory/DirectDispatch حمل را از فهرست خارج می‌کند (رفتار تاریخی).
-                        // رسیدِ DirectSale مانع نیست: حملِ نیمه‌فروخته باید تا صفرشدن باقیمانده (که با
-                        // Received شدن از فهرست خارج می‌شود) دوباره دیده شود تا تحویل جزئیِ بعدی ممکن باشد.
-                        && !_db.InventoryTransportReceipts.Any(r => r.InventoryTransportLegId == l.Id && !r.IsCancelled
-                            && r.ReceiptDestination != InventoryTransportReceiptDestination.DirectSale
-                            && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId != null)))
-            .OrderByDescending(l => l.LoadedDate)
-            .Select(l => new
-            {
-                l.Id,
-                l.TransportType,
-                l.WagonNumber,
-                l.RwbNo,
-                TruckPlate = l.Truck != null ? l.Truck.PlateNumber : null,
-                ProductName = l.Product != null ? l.Product.Name : "",
-                ContractNumber = l.SourcePurchaseContract != null ? l.SourcePurchaseContract.ContractNumber : "",
-                CompanyName = l.SourcePurchaseContract != null && l.SourcePurchaseContract.Company != null
-                    ? l.SourcePurchaseContract.Company.Name : "",
-                SourceName = l.SourceTerminal != null ? l.SourceTerminal.Name : null,
-                DestinationName = l.DestinationTerminal != null
-                    ? l.DestinationTerminal.Name
-                    : (l.DestinationLocation != null ? l.DestinationLocation.Name : null),
-                l.QuantityMt,
-                l.IsFreightSettled,
-                l.Status,
-                l.LoadedDate
-            })
-            .ToListAsync();
-
-        if (legs.Count == 0)
-        {
-            return [];
-        }
-
-        // مقدار مصرف‌شده (کسری تسویه) هر حمل تا وزن مؤثر فروش = باقیمانده = مقدار حمل − مصرف = وزن تخلیه.
-        var legIds = legs.Select(l => l.Id).ToList();
-        var remainingByLeg = await _quantities.GetRemainingMtAsync(legIds);
-
-        var result = new List<GroupSaleSourceItem>();
-        foreach (var l in legs)
-        {
-            remainingByLeg.TryGetValue(l.Id, out var availableMt);
-            if (availableMt <= QtyEpsilon)
-            {
-                continue;
-            }
-
-            var isWagon = l.TransportType == LoadingTransportType.Wagon;
-            result.Add(new GroupSaleSourceItem
-            {
-                Key = $"Leg:{l.Id}",
-                Kind = isWagon ? GroupSaleSourceKind.WagonLeg : GroupSaleSourceKind.TransportLeg,
-                KindLabel = isWagon ? "واگن در جریان" : "انتقال در مسیر",
-                Id = l.Id,
-                VehicleKind = isWagon ? "واگن" : (l.TransportType == LoadingTransportType.Truck ? "موتر" : "انتقال"),
-                Number = l.WagonNumber ?? l.RwbNo ?? l.TruckPlate ?? $"#{l.Id}",
-                Route = BuildGroupRoute(l.SourceName, l.DestinationName),
-                ProductName = l.ProductName,
-                CompanyName = l.CompanyName,
-                ContractNumber = l.ContractNumber,
-                AvailableMt = availableMt,
-                IsFullVehicle = true,
-                StatusLabel = l.IsFreightSettled ? "کرایه تسویه‌شده"
-                    : l.Status == InventoryTransportLegStatus.InTransit ? "در راه" : "بارگیری‌شده",
-                MoveDate = l.LoadedDate
-            });
-        }
-
-        return result;
+                Key = key, Kind = kind, Id = s.Id, KindLabel = label, VehicleKind = s.VehicleLabel,
+                Number = s.Kind == CargoSourceKind.Stock ? tanks.GetValueOrDefault(s.StorageTankId ?? 0, s.Number) : s.Number,
+                Route = s.Kind == CargoSourceKind.Stock ? terminals.GetValueOrDefault(s.TerminalId ?? 0, "") : s.Route,
+                ProductName = s.ProductName, CompanyName = s.CompanyName, ContractNumber = s.ContractNumber,
+                AvailableMt = decimal.Round(s.Kind == CargoSourceKind.Stock
+                    ? (action == CargoAction.PreSaleDelivery ? s.PhysicalStockMt ?? 0m : s.SellableStockMt ?? 0m)
+                    : s.RemainingQuantityMt, 4, MidpointRounding.AwayFromZero),
+                IsFullVehicle = s.Kind is CargoSourceKind.Transport or CargoSourceKind.Dispatch,
+                StatusLabel = s.Kind == CargoSourceKind.Loading ? "ماندهٔ بارگیری" : s.StatusLabel,
+                MoveDate = s.Date, ProductId = s.ProductId, CompanyId = s.CompanyId,
+                TerminalId = s.TerminalId ?? 0, StorageTankId = s.StorageTankId ?? 0, SourcePurchaseContractId = s.ContractId
+            };
+        }).OrderByDescending(s => s.MoveDate).ThenBy(s => s.KindLabel).ThenByDescending(s => s.Id).ToList();
     }
 
     // شمارهٔ محمولهٔ منبعِ فروش را از قرارداد خرید پیدا می‌کند تا فروش گروهی در «فروشات محموله» شمرده شود.
@@ -353,6 +158,9 @@ public partial class SalesController
     private async Task PopulateGroupSaleLookupsAsync(GroupSaleCreateViewModel model)
     {
         await PopulateBuyerLookupAsync(model.BuyerKey);
+        ViewBag.LoadingSaleTerminals = new SelectList(await _db.Terminals.AsNoTracking()
+            .OrderBy(t => t.Name).Select(t => new { t.Id, t.Name }).ToListAsync(),
+            "Id", "Name", model.LoadingSaleTerminalId);
 
         ViewBag.Currencies = new SelectList(
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code)
@@ -379,8 +187,10 @@ public partial class SalesController
 
     [Authorize(Policy = AuthPolicies.ManageData)]
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateGroup(GroupSaleCreateViewModel model)
+    public async Task<IActionResult> CreateGroup(GroupSaleCreateViewModel model,
+        [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        _groupAccountingSkippedReasons.Clear();
         model.Currency = SystemCurrency.Normalize(model.Currency);
         model.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
         model.PaymentNote = string.IsNullOrWhiteSpace(model.PaymentNote) ? null : model.PaymentNote.Trim();
@@ -413,6 +223,14 @@ public partial class SalesController
                 : $"{i.Kind}:{i.Id}")
             .Select(g => g.First())
             .ToList();
+
+        if (selections.Any(i => !Enum.IsDefined(i.Kind)))
+            ModelState.AddModelError(string.Empty, "نوع منبع فروش معتبر نیست.");
+
+        if (selections.Any(i => i.Kind == GroupSaleSourceKind.LoadingRegister)
+            && !(model.LoadingSaleTerminalId is > 0 && await _db.Terminals.AsNoTracking()
+                .AnyAsync(t => t.Id == model.LoadingSaleTerminalId)))
+            ModelState.AddModelError(nameof(model.LoadingSaleTerminalId), "محل فروش مستقیم بارگیری را انتخاب کنید.");
 
         if (selections.Count == 0)
         {
@@ -449,6 +267,18 @@ public partial class SalesController
 
         try
         {
+            // Lock all selected loadings in stable order before any remainder is re-read.
+            var loadingIds = selections.Where(i => i.Kind == GroupSaleSourceKind.LoadingRegister)
+                .Select(i => i.Id).Distinct().OrderBy(i => i).ToArray();
+            if (loadingIds.Length > 0 && _db.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $@"SELECT 1 FROM ""LoadingRegisters"" WHERE ""Id"" = ANY({loadingIds}) ORDER BY ""Id"" FOR UPDATE");
+
+            var loadingSources = (await CargoSources.LoadLoadingSourcesAsync(loadingIds))
+                .ToDictionary(s => s.Id);
+            var sourceLoadings = await _db.LoadingRegisters.AsNoTracking().Include(l => l.Contract)
+                .Where(l => loadingIds.Contains(l.Id)).ToDictionaryAsync(l => l.Id);
+
             var batch = new SalesBatch
             {
                 CustomerId = model.CustomerId,
@@ -461,6 +291,7 @@ public partial class SalesController
                 Notes = model.Notes,
                 PaymentNote = model.PaymentNote
             };
+            _formTokens.Stamp(formToken, "Sale.CreateGroup", nameof(SalesBatch));
             _db.SalesBatches.Add(batch);
             await _db.SaveChangesAsync();
 
@@ -482,7 +313,12 @@ public partial class SalesController
                         await CreateTerminalStockLineAsync(owner, selection, model, conversion, invoice),
                     GroupSaleSourceKind.TruckDispatch =>
                         await CreateTruckDispatchLineAsync(owner, selection, model, conversion, invoice),
-                    _ => await CreateLegLineAsync(owner, selection, model, conversion, invoice, receiptService)
+                    GroupSaleSourceKind.LoadingRegister =>
+                        await CreateLoadingLineAsync(owner, selection, model, conversion, invoice,
+                            loadingSources.GetValueOrDefault(selection.Id), sourceLoadings.GetValueOrDefault(selection.Id)),
+                    GroupSaleSourceKind.WagonLeg or GroupSaleSourceKind.TransportLeg =>
+                        await CreateLegLineAsync(owner, selection, model, conversion, invoice, receiptService),
+                    _ => throw new BusinessRuleException("GROUP_SALE_SOURCE_INVALID", "نوع منبع فروش معتبر نیست.")
                 };
 
                 totalQty += sale.QuantityMt;
@@ -516,7 +352,16 @@ public partial class SalesController
             }
 
             TempData["ok"] = $"فروش گروهی {batch.BatchNumber} برای {selections.Count} منبع ثبت شد.";
+            if (_groupAccountingSkippedReasons.Count > 0)
+                TempData["warn"] = "فروش ثبت شد؛ برخی اسناد حسابداری ثبت نشده‌اند: "
+                    + string.Join("؛ ", _groupAccountingSkippedReasons.Select(r => $"{r.Key} ({r.Value} مورد)"));
             return RedirectToAction(nameof(GroupDetails), new { id = batch.Id });
+        }
+        catch (Exception ex) when (_formTokens.IsDuplicate(ex))
+        {
+            if (transaction is not null) await transaction.RollbackAsync();
+            TempData["ok"] = "این درخواست فروش گروهی قبلاً ثبت شده است.";
+            return RedirectToAction(nameof(Index));
         }
         catch (BusinessRuleException ex)
         {
@@ -540,6 +385,89 @@ public partial class SalesController
     }
 
     // ---------- ساخت ردیف‌ها (هر کدام از primitiveهای فروشِ موجود) ----------
+
+    private async Task<SalesTransaction> CreateLoadingLineAsync(
+        SaleLineOwner owner, GroupSaleSelectedInput input, GroupSaleCreateViewModel model, CurrencyConversionResult conversion, string invoice,
+        CargoSourceSnapshot? source, LoadingRegister? loading)
+    {
+        if (source is null || loading is null)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_MISSING", "بارگیری انتخاب‌شده یافت نشد.");
+        var eligibility = CargoOperationEligibility.Evaluate(source, CargoAction.DirectSale);
+        if (!eligibility.Allowed)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_NOT_ELIGIBLE", eligibility.Reason!);
+        if (model.SaleDate.Date < loading.LoadingDate.Date)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_DATE_INVALID", "تاریخ فروش نمی‌تواند قبل از تاریخ بارگیری باشد؛ نخست تاریخ بارگیری را بررسی کنید.");
+        var quantity = input.QuantityMt ?? 0m;
+        if (quantity <= 0m || decimal.Round(quantity, 4, MidpointRounding.AwayFromZero) != quantity)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_QUANTITY", "مقدار فروش بارگیری باید مثبت و حداکثر چهار رقم اعشار باشد.");
+        if (quantity > source.RemainingQuantityMt)
+            throw new BusinessRuleException("GROUP_SALE_LOADING_REMAINDER", "مقدار فروش از ماندهٔ معتبر بارگیری بیشتر است.");
+        var draft = LoadingDirectSaleDraftService.Build(new LoadingReceiptAllocationLineInput
+        {
+            QuantityMt = quantity, SaleDate = model.SaleDate, SaleCurrency = model.Currency,
+            SaleAppliedFxRateToUsd = conversion.AppliedRateToBase, SaleUnitPriceInCurrency = model.UnitPriceInCurrency,
+            SaleCustomerId = model.CustomerId, SaleSupplierId = model.SupplierId,
+            SaleInvoiceNumber = invoice, SaleNotes = model.Notes
+        }, loading, conversion);
+        var sale = draft.Sale;
+        sale.SalesBatchId = owner.SalesBatchId;
+        sale.PreSaleOrderId = owner.PreSaleOrderId;
+        var receipt = new LoadingReceipt
+        {
+            LoadingRegisterId = loading.Id, TerminalId = model.LoadingSaleTerminalId!.Value,
+            ReceiptDate = model.SaleDate.Date, ReceivedQuantityMt = quantity,
+            ReceiptDestination = LoadingReceiptDestination.DirectDispatch, LossMode = ReceiptLossMode.None,
+            ReferenceDocument = invoice, Notes = model.Notes
+        };
+        var allocation = new LoadingReceiptAllocation
+        {
+            LoadingReceipt = receipt, SalesTransaction = sale,
+            SourcePurchaseContractId = loading.ContractId,
+            Destination = LoadingReceiptAllocationDestination.DirectSale,
+            Status = LoadingReceiptAllocationStatus.Completed, QuantityMt = quantity,
+            TerminalId = receipt.TerminalId, ReferenceDocument = invoice, Notes = model.Notes
+        };
+        _db.LoadingReceipts.Add(receipt);
+        _db.SalesTransactions.Add(sale);
+        _db.LoadingReceiptAllocations.Add(allocation);
+        await _db.SaveChangesAsync();
+        Ledger.Post(SaleLedgerFactory.BuildSaleLedgerEntry(sale, draft.Conversion, loading.ContractId));
+        await _db.SaveChangesAsync();
+        if (_salesAccounting is null)
+            RecordGroupAccountingSkip("حسابداری این مسیر فعال نیست");
+        else
+        {
+            var revenue = await _salesAccounting.TryPostSaleAsync(sale);
+            var cogs = await _salesAccounting.TryPostCogsAsync(sale);
+            foreach (var result in new[] { revenue, cogs })
+            {
+                if (result.Status != Services.Accounting.PaymentPostingStatus.Skipped) continue;
+                RecordGroupAccountingSkip(result.Reason switch
+                {
+                    "ACCOUNTING_DISABLED" or "PILOT_DISABLED" => "ثبت حسابداری این عملیات فعال نیست",
+                    "SOURCE_PURCHASE_NOT_POSTED_AT_SALE" => "قیمت یا سند خرید در زمان فروش قطعی نشده بود",
+                    "SOURCE_PURCHASE_NOT_VALUED" => "بهای خرید منبع مشخص نیست",
+                    "DIRECT_SALE_RECEIPT_HAS_INVENTORY_JOURNAL_NEEDS_REVIEW" or "DIRECT_SALE_HISTORICAL_QUANTITY_NEEDS_REVIEW" => "سند تاریخی رسید نیاز به بررسی مالی دارد",
+                    "DIRECT_SALE_SOURCE_QUANTITY_MISMATCH" => "مقدار فروش با سهم بار منبع مطابقت ندارد",
+                    "ACCOUNTING_SETTINGS_MISSING" or "ACCOUNTING_SETTINGS_INVALID_ACCOUNTS" or "IN_TRANSIT_ACCOUNT_MISSING" => "حساب‌های لازم برای ثبت مالی تنظیم نشده‌اند",
+                    "SALE_COMPANY_UNKNOWN" => "شرکت مالک فروش مشخص نیست",
+                    "INVALID_SALE_FX" or "INVALID_SALE_CONVERSION" => "نرخ یا تبدیل ارز فروش نیاز به بررسی دارد",
+                    "SALE_CANCELLED" => "فروش لغو شده است",
+                    _ => "ثبت حسابداری این فروش نیاز به بررسی مالی دارد"
+                });
+            }
+        }
+        await _audit.LogAndSaveAsync(nameof(LoadingReceipt), receipt.Id, AuditAction.Insert,
+            diff: AuditDiffFormatter.ForCreate(("LoadingRegisterId", loading.Id),
+                ("ReceivedQuantityMt", quantity), ("ReceiptDestination", receipt.ReceiptDestination)));
+        await _audit.LogAndSaveAsync(nameof(LoadingReceiptAllocation), allocation.Id, AuditAction.Insert,
+            diff: AuditDiffFormatter.ForCreate(("LoadingReceiptId", receipt.Id),
+                ("SourcePurchaseContractId", loading.ContractId), ("SalesTransactionId", sale.Id), ("QuantityMt", quantity)));
+        return sale;
+    }
+
+    private void RecordGroupAccountingSkip(string reason)
+        => _groupAccountingSkippedReasons[reason] = _groupAccountingSkippedReasons.GetValueOrDefault(reason) + 1;
 
     private async Task<SalesTransaction> CreateTerminalStockLineAsync(
         SaleLineOwner owner,
@@ -569,6 +497,17 @@ public partial class SalesController
         {
             throw new BusinessRuleException("GROUP_SALE_STOCK_TANK_TERMINAL", "مخزن به ترمینال انتخابی تعلق ندارد.");
         }
+
+        var source = (await CargoSources.LoadStockSourcesAsync(model.SaleDate.Date,
+            productId: input.ProductId, terminalId: input.TerminalId, storageTankId: input.StorageTankId,
+            contractId: input.SourcePurchaseContractId)).SingleOrDefault()
+            ?? throw new BusinessRuleException("GROUP_SALE_STOCK_SOURCE_MISSING", "منبع موجودی انتخاب‌شده ماندهٔ معتبر ندارد.");
+        var action = owner.PreSaleOrderId.HasValue ? CargoAction.PreSaleDelivery : CargoAction.DirectSale;
+        var eligibility = CargoOperationEligibility.Evaluate(source, action);
+        if (!eligibility.Allowed)
+            throw new BusinessRuleException("GROUP_SALE_STOCK_SOURCE_NOT_ELIGIBLE", eligibility.Reason!);
+        if (!owner.PreSaleOrderId.HasValue && qty > source.SellableStockMt)
+            throw new BusinessRuleException("GROUP_SALE_STOCK_RESERVED", "مقدار فروش از موجودی قابل فروش پس از پیش‌فروش‌ها بیشتر است.");
 
         var allocations = await EnsureSufficientTerminalStockAsync(
             input.ProductId, qty, model.SaleDate.Date,
@@ -663,8 +602,13 @@ public partial class SalesController
         var sourceContract = dispatch.Contract
             ?? throw new BusinessRuleException("GROUP_SALE_DISPATCH_CONTRACT", "قرارداد خرید این موتر معتبر نیست.");
 
-        // وزن فروش = وزن تخلیه‌شده (اگر کرایه تسویه شده)، وگرنه وزن بارگیری.
-        var qty = dispatch.DischargedQuantityMt ?? dispatch.LoadedQuantityMt;
+        var source = (await CargoSources.LoadDispatchSourcesAsync([dispatch.Id])).SingleOrDefault()
+            ?? throw new BusinessRuleException("GROUP_SALE_DISPATCH_SOURCE_MISSING", "موتر انتخاب‌شده منبع فروش فعال ندارد.");
+        var eligibility = CargoOperationEligibility.Evaluate(source,
+            owner.PreSaleOrderId.HasValue ? CargoAction.PreSaleDelivery : CargoAction.DirectSale);
+        if (!eligibility.Allowed)
+            throw new BusinessRuleException("GROUP_SALE_DISPATCH_SOURCE_NOT_ELIGIBLE", eligibility.Reason!);
+        var qty = source.RemainingQuantityMt;
         var currentLegId = await _sourceAllocations.ResolveCurrentLegIdAsync(dispatch);
         var sourcePlan = currentLegId.HasValue
             ? await _sourceAllocations.BuildFromLegAsync(currentLegId.Value, qty)
@@ -741,23 +685,12 @@ public partial class SalesController
             throw new BusinessRuleException("GROUP_SALE_LEG_NOT_IN_TRANSIT", $"حمل #{leg.Id} دیگر در جریان نیست.");
         }
 
-        // مسیر کل‌وسیله (گروهی/واگن): حملی که رسید/فروش قبلی دارد اصلاً دوباره فروخته نمی‌شود.
-        // مسیر جزئیِ پیش‌فروش (requestedQtyMt): تحویل چندمرحله‌ای مجاز است تا باقیماندهٔ حمل صفر شود،
-        // پس این گارد فقط در مسیر تاریخی اعمال می‌شود. رسیدِ «فقط تسویهٔ کرایه» هیچ‌کدام را مانع نمی‌شود.
-        if (requestedQtyMt is null
-            && await _db.InventoryTransportReceipts.AsNoTracking()
-                .AnyAsync(r => r.InventoryTransportLegId == leg.Id && !r.IsCancelled
-                    && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId != null)))
-        {
-            throw new BusinessRuleException("GROUP_SALE_LEG_ALREADY_RECEIVED", $"حمل #{leg.Id} قبلاً رسید/فروش دارد.");
-        }
-
-        // وزن فروش = باقیماندهٔ حمل (مقدار حمل − کسری تسویه) = وزن تخلیه‌شده، نه وزن بارگیری اولیه.
-        var sellableMt = await _quantities.GetRemainingMtAsync(leg.Id);
-        if (sellableMt <= 0.0001m)
-        {
-            throw new BusinessRuleException("GROUP_SALE_LEG_NOTHING_TO_SELL", $"حمل #{leg.Id} باری برای فروش ندارد.");
-        }
+        var source = (await CargoSources.LoadTransportSourcesAsync([leg.Id])).Single();
+        var eligibility = CargoOperationEligibility.Evaluate(source,
+            owner.PreSaleOrderId.HasValue ? CargoAction.PreSaleDelivery : CargoAction.DirectSale);
+        if (!eligibility.Allowed)
+            throw new BusinessRuleException("GROUP_SALE_LEG_SOURCE_NOT_ELIGIBLE", eligibility.Reason!);
+        var sellableMt = source.RemainingQuantityMt;
 
         // مقدار این تحویل: در مسیر تاریخی کل باقیمانده؛ در مسیر جزئی فقط مقدار واردشدهٔ کاربر،
         // سقف‌گذاری‌شده به باقیماندهٔ واقعی حمل (سقف مانده پیش‌فروش جداگانه در PreSaleDeliver کنترل می‌شود).
@@ -870,6 +803,14 @@ public partial class SalesController
             })
             .ToDictionaryAsync(x => x.SaleId);
 
+        var loadingBySale = await _db.LoadingReceiptAllocations.AsNoTracking()
+            .Where(a => a.SalesTransactionId.HasValue && saleIds.Contains(a.SalesTransactionId.Value))
+            .Select(a => new { SaleId = a.SalesTransactionId!.Value,
+                Number = a.LoadingReceipt!.LoadingRegister!.WagonNumber
+                    ?? a.LoadingReceipt.LoadingRegister.RwbNo ?? a.ReferenceDocument,
+                a.LoadingReceipt.LoadingRegister.TransportType })
+            .ToDictionaryAsync(a => a.SaleId);
+
         // تطبیقِ نقد: هر ردیف می‌داند چه مقدار از دریافت‌ها روی خودش نشسته و چه مقدار باز مانده.
         var applications = await LoadReceiptApplicationsAsync(saleIds);
         var appliedBySale = applications
@@ -935,6 +876,14 @@ public partial class SalesController
                     kindLabel = isWagon ? "واگن در جریان" : "انتقال در مسیر";
                     vehicleKind = isWagon ? "واگن" : "انتقال";
                     number = leg.Number ?? leg.Plate ?? "-";
+                }
+                else if (loadingBySale.TryGetValue(l.Id, out var loading))
+                {
+                    kindLabel = "بارگیری";
+                    vehicleKind = loading.TransportType == LoadingTransportType.Wagon ? "واگن"
+                        : loading.TransportType == LoadingTransportType.Truck ? "موتر"
+                        : loading.TransportType == LoadingTransportType.Vessel ? "کشتی" : "نامشخص";
+                    number = loading.Number ?? "-";
                 }
                 else
                 {
@@ -1009,6 +958,13 @@ public partial class SalesController
             {
                 await ReverseGroupSaleLineAsync(sale);
                 sale.IsCancelled = true;
+                await _db.SaveChangesAsync();
+                if (_salesAccounting is not null)
+                {
+                    await _salesAccounting.TryReverseSaleAsync(sale, _businessClock.Today);
+                    await _salesAccounting.TryReverseCogsAsync(sale, _businessClock.Today);
+                    await _salesAccounting.TryReleaseAdvanceApplicationsAsync(sale, _businessClock.Today);
+                }
             }
 
             batch.IsCancelled = true;
@@ -1041,8 +997,29 @@ public partial class SalesController
         return RedirectToAction(nameof(GroupDetails), new { id });
     }
 
+    private Task<int?> FindSingleDirectLoadingReceiptAsync(int saleId)
+        => _db.LoadingReceiptAllocations.AsNoTracking()
+            .Where(a => a.SalesTransactionId == saleId && a.Destination == LoadingReceiptAllocationDestination.DirectSale
+                && a.LoadingReceipt != null && !a.LoadingReceipt.IsCancelled
+                && !_db.LoadingReceiptAllocations.Any(other => other.LoadingReceiptId == a.LoadingReceiptId && other.Id != a.Id))
+            .Select(a => (int?)a.LoadingReceiptId).FirstOrDefaultAsync();
+
     private async Task ReverseGroupSaleLineAsync(SalesTransaction sale)
     {
+        var directReceiptId = await FindSingleDirectLoadingReceiptAsync(sale.Id);
+        if (directReceiptId.HasValue)
+        {
+            var result = await _loadingReceiptCancellation.CancelWithinCurrentTransactionAsync(
+                [directReceiptId.Value], "لغو فروش گروهی مستقیم بارگیری", CurrentUserIdOrNull());
+            if (!result.Succeeded)
+                throw new BusinessRuleException("GROUP_SALE_LOADING_CANCEL_BLOCKED", string.Join(" ", result.Blockers.Select(b => b.Reason)));
+            return;
+        }
+
+        if (await _db.LoadingReceiptAllocations.AsNoTracking().AnyAsync(a => a.SalesTransactionId == sale.Id))
+            throw new BusinessRuleException("GROUP_SALE_MIXED_RECEIPT_CANCEL_REQUIRED",
+                "این فروش بخشی از یک رسید چندبخشی است؛ لغو یا اصلاح را از صفحهٔ همان رسید انجام دهید.");
+
         // لجرِ معکوس (مطابق لغوِ فروش تکی).
         var originalLedger = await _db.LedgerEntries
             .AsNoTracking()

@@ -134,11 +134,13 @@ public sealed partial class ProfitAndLossService
             {
                 LoadingRegisterId = e.LoadingRegisterId!.Value,
                 IsDriver = e.DriverId.HasValue,
+                e.ExpenseBatchId,
                 Code = e.ExpenseType != null ? e.ExpenseType.Code : null,
                 e.AmountUsd
             })
             .ToListAsync(ct);
-        var withOfficialExpenses = documents.Select(d => d.LoadingRegisterId).ToHashSet();
+        var withOfficialExpenses = documents.Where(d => !d.ExpenseBatchId.HasValue)
+            .Select(d => d.LoadingRegisterId).ToHashSet();
         var withExpenseLines = (await _db.LoadingExpenseLines.AsNoTracking()
                 .Where(l => registerIds.Contains(l.LoadingRegisterId))
                 .Select(l => l.LoadingRegisterId)

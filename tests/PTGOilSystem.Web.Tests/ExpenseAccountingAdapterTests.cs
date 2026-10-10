@@ -1,3 +1,10 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using PTGOilSystem.Web.Controllers;
+using PTGOilSystem.Web.Models.Expenses;
+using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -20,6 +27,285 @@ namespace PTGOilSystem.Web.Tests;
 public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fixture)
 {
     private static readonly DateTime ExpenseDate = new(2026, 7, 15);
+
+    [Theory]
+    [InlineData(ExpenseSettlementMode.Payable)]
+    [InlineData(ExpenseSettlementMode.PaidImmediately)]
+    [InlineData(ExpenseSettlementMode.NonCash)]
+    public async Task Group_Loading_Expenses_Preserve_Original_Quantity_Lineage_Settlement_And_Journals(ExpenseSettlementMode mode)
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccruedExpense);
+        var first = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Contract.ProductId,
+            LoadedQuantityMt = 20m, LoadingDate = ExpenseDate, TransportType = LoadingTransportType.Wagon, WagonNumber = "GROUP-ONE" };
+        var second = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Contract.ProductId,
+            LoadedQuantityMt = 30m, LoadingDate = ExpenseDate, TransportType = LoadingTransportType.Wagon, WagonNumber = "GROUP-TWO" };
+        db.LoadingRegisters.AddRange(first, second);
+        await db.SaveChangesAsync();
+        // Late costs remain legitimate even after the entire loading is received.
+        db.LoadingReceipts.Add(new LoadingReceipt { LoadingRegisterId = first.Id,
+            ReceiptDate = ExpenseDate, ReceivedQuantityMt = 20m, TerminalId = scope.Terminal.Id });
+        await db.SaveChangesAsync();
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateAdapter(db, true))
+        {
+            ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider())
+        };
+        var model = new GroupExpenseCreateViewModel
+        {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = mode,
+            CashAccountId = mode == ExpenseSettlementMode.PaidImmediately ? scope.CashAccount.Id : null,
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id,
+                ServiceProviderId = mode == ExpenseSettlementMode.Payable ? scope.ServiceProvider.Id : null,
+                AllocationMethod = ExpenseAllocationMethod.ByQuantity, RatePerTon = 3m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Loading", Id = first.Id },
+                new GroupExpenseSelectedInput { Kind = "Loading", Id = second.Id }]
+        };
+        var requestToken = Guid.NewGuid().ToString("N");
+        var result = await controller.CreateGroup(model, requestToken);
+        Assert.IsType<RedirectToActionResult>(result);
+        var expenses = await db.ExpenseTransactions.AsNoTracking()
+            .Where(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id).OrderBy(e => e.Id).ToListAsync();
+        Assert.Equal(2, expenses.Count);
+        Assert.Equal(new[] { 60m, 90m }, expenses.Select(e => e.AmountUsd));
+        Assert.All(expenses, e =>
+        {
+            Assert.Equal(scope.Contract.Id, e.ContractId);
+            Assert.Null(e.TransportLegId); Assert.Null(e.TruckDispatchId);
+            Assert.Equal(mode, e.SettlementMode);
+        });
+        Assert.Equal(expenses[0].ExpenseBatchId, expenses[1].ExpenseBatchId);
+        foreach (var expense in expenses)
+        {
+            var journal = await LoadJournalAsync(db, expense.Id);
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Debit));
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Credit));
+            Assert.Equal(mode == ExpenseSettlementMode.PaidImmediately
+                ? scope.Settings.CashBankControlAccountId : scope.Settings.AccruedExpenseAccountId,
+                journal.Lines.Single(l => l.Credit > 0).AccountId);
+            Assert.Single(await db.LedgerEntries.Where(l => l.SourceType == "Expense" && l.SourceId == expense.Id).ToListAsync());
+        }
+        var retry = await controller.CreateGroup(model, requestToken);
+        Assert.IsType<RedirectToActionResult>(retry);
+        db.ChangeTracker.Clear();
+        Assert.Equal(2, await db.ExpenseTransactions.CountAsync(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id));
+        Assert.Single(await db.ExpenseBatches.Where(b => b.Id == expenses[0].ExpenseBatchId).ToListAsync());
+        await controller.CancelGroup(expenses[0].ExpenseBatchId!.Value);
+        db.ChangeTracker.Clear();
+        Assert.All(await db.ExpenseTransactions.Where(e => e.ExpenseBatchId == expenses[0].ExpenseBatchId).ToListAsync(),
+            e => Assert.True(e.IsCancelled));
+        var reversedIds = expenses.Select(e => ExpenseAccountingAdapter.BuildReversedSourceEventId(e.Id)).ToArray();
+        Assert.Equal(2, await db.JournalEntries.CountAsync(j => reversedIds.Contains(j.SourceEventId!)));
+    }
+
+    private sealed class GroupExpenseTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
+        public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
+    }
+
+    [Fact]
+    public async Task Group_Expense_Failure_After_First_Real_Journal_Rolls_Back_All_Shares_Ledgers_And_Audit()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccountsPayable);
+        var first = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 20m, LoadingDate = ExpenseDate };
+        var second = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 30m, LoadingDate = ExpenseDate };
+        db.LoadingRegisters.AddRange(first, second); await db.SaveChangesAsync();
+        var auditCount = await db.AuditLogs.CountAsync();
+        var adapter = new FailSecondExpenseAdapter(CreateAdapter(db, true));
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, adapter)
+        { ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider()) };
+        var requestToken = Guid.NewGuid().ToString("N");
+        var result = await controller.CreateGroup(new GroupExpenseCreateViewModel {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = ExpenseSettlementMode.Payable,
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id, ServiceProviderId = scope.ServiceProvider.Id,
+                AllocationMethod = ExpenseAllocationMethod.FixedPerOperation, AmountPerOperation = 10m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Loading", Id = first.Id },
+                new GroupExpenseSelectedInput { Kind = "Loading", Id = second.Id }] }, requestToken);
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Equal(1, adapter.PostedBeforeFailure);
+        await using var verified = fixture.CreateDbContext();
+        Assert.Equal(0, await verified.ExpenseTransactions.CountAsync(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id));
+        Assert.Equal(0, await verified.ExpenseBatches.CountAsync(b => b.ExpenseTypeId == type.Id));
+        Assert.Equal(0, await verified.LedgerEntries.CountAsync(l => l.ContractId == scope.Contract.Id && l.SourceType == "Expense"));
+        Assert.Equal(0, await verified.JournalEntries.CountAsync(j => j.CompanyId == scope.Company.Id
+            && j.SourceModule == ExpenseAccountingAdapter.SourceModule));
+        Assert.Equal(auditCount, await verified.AuditLogs.CountAsync());
+        Assert.Equal(0, await verified.ProcessedFormTokens.CountAsync(t => t.Token == requestToken));
+    }
+
+    private sealed class FailSecondExpenseAdapter(IExpenseAccountingAdapter inner) : IExpenseAccountingAdapter
+    {
+        private int calls;
+        public int PostedBeforeFailure { get; private set; }
+        public async Task<ExpenseAccountingResult> TryPostExpenseAsync(ExpenseTransaction expense, CancellationToken cancellationToken = default)
+        {
+            if (++calls == 2) throw new InvalidOperationException("Injected failure after the first real accounting post");
+            var result = await inner.TryPostExpenseAsync(expense, cancellationToken);
+            if (result.Status == PaymentPostingStatus.Posted) PostedBeforeFailure++;
+            return result;
+        }
+        public Task<ExpenseAccountingResult> TryPostExpenseReversalAsync(ExpenseTransaction expense, CancellationToken cancellationToken = default)
+            => inner.TryPostExpenseReversalAsync(expense, cancellationToken);
+        public Task<int?> ResolvePayableAccountIdAsync(ExpenseTransaction expense, int companyId, CancellationToken cancellationToken = default)
+            => inner.ResolvePayableAccountIdAsync(expense, companyId, cancellationToken);
+    }
+
+    [Fact]
+    public async Task Group_Expense_For_MultiSource_Transport_Preserves_Contract_Shares_And_Exact_Total()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var secondContract = new Contract { CompanyId = scope.Company.Id, ProductId = scope.Product.Id,
+            SupplierId = scope.Supplier.Id, ContractNumber = PaymentAccountingAdapterTests.Unique("MULTI"),
+            ContractType = ContractType.Purchase, Status = ContractStatus.Active, ContractDate = ExpenseDate,
+            QuantityMt = 100m, PricingMethod = PricingMethod.Fixed, UnitPriceUsd = 500m };
+        db.Contracts.Add(secondContract); await db.SaveChangesAsync();
+        var firstLoading = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 40m, LoadingDate = ExpenseDate };
+        var secondLoading = new LoadingRegister { ContractId = secondContract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 60m, LoadingDate = ExpenseDate };
+        db.LoadingRegisters.AddRange(firstLoading, secondLoading); await db.SaveChangesAsync();
+        var leg = new InventoryTransportLeg { SourcePurchaseContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            SourceTerminalId = scope.Terminal.Id, TransportType = LoadingTransportType.Truck,
+            QuantityMt = 100m, LoadedDate = ExpenseDate, Status = InventoryTransportLegStatus.Loaded,
+            Allocations = [new InventoryTransportLegAllocation { SourcePurchaseContractId = scope.Contract.Id,
+                SourceLoadingRegisterId = firstLoading.Id, QuantityMt = 40m },
+                new InventoryTransportLegAllocation { SourcePurchaseContractId = secondContract.Id,
+                    SourceLoadingRegisterId = secondLoading.Id, QuantityMt = 60m }] };
+        db.InventoryTransportLegs.Add(leg); await db.SaveChangesAsync();
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccountsPayable);
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateAdapter(db, true))
+        { ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider()) };
+        var result = await controller.CreateGroup(new GroupExpenseCreateViewModel {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = ExpenseSettlementMode.Payable,
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id, ServiceProviderId = scope.ServiceProvider.Id,
+                AllocationMethod = ExpenseAllocationMethod.FixedPerOperation, AmountPerOperation = 100.01m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Leg", Id = leg.Id }] }, Guid.NewGuid().ToString("N"));
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        var expenses = await db.ExpenseTransactions.Where(e => e.TransportLegId == leg.Id).OrderBy(e => e.ContractId).ToListAsync();
+        Assert.Equal(2, expenses.Count);
+        Assert.Equal(new[] { scope.Contract.Id, secondContract.Id }, expenses.Select(e => e.ContractId!.Value));
+        Assert.Equal(new[] { 40m, 60.01m }, expenses.Select(e => e.Amount));
+        Assert.Equal(100.01m, expenses.Sum(e => e.AmountUsd));
+        Assert.Equal(1, (await db.ExpenseBatches.SingleAsync(b => b.Id == expenses[0].ExpenseBatchId)).OperationCount);
+        Assert.Equal(2, await db.InventoryTransportLegAllocations.CountAsync(a => a.InventoryTransportLegId == leg.Id
+            && (a.SourceLoadingRegisterId == firstLoading.Id || a.SourceLoadingRegisterId == secondLoading.Id)));
+        Assert.Equal(0, await db.InventoryMovements.CountAsync(m => m.ContractId == secondContract.Id));
+        foreach (var expense in expenses)
+        {
+            var journal = await LoadJournalAsync(db, expense.Id);
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Debit));
+            Assert.Equal(expense.AmountUsd, journal.Lines.Sum(l => l.Credit));
+            Assert.All(journal.Lines, l => Assert.Equal(expense.ContractId, l.ContractId));
+        }
+    }
+
+    [Fact]
+    public async Task Accounting_Rejects_Payment_For_Expense_Already_Posted_To_Cash()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccruedExpense);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+        });
+        Assert.Equal(PaymentPostingStatus.Posted, (await CreateAdapter(db, true).TryPostExpenseAsync(expense)).Status);
+        var secondPayment = await AddExpensePaymentAsync(db, scope, expense, PaymentKind.ExpensePayment);
+        var result = await PaymentAccountingAdapterTests.CreateAdapter(db,
+            PaymentAccountingAdapterTests.PilotsFor(expensePayment: true)).TryPostPaymentAsync(secondPayment);
+        Assert.Equal(PaymentPostingStatus.Skipped, result.Status);
+        Assert.Equal("EXPENSE_ALREADY_PAID_CASH", result.Reason);
+        Assert.Equal(0, await db.JournalEntries.CountAsync(j => j.SourceModule == PaymentAccountingAdapter.SourceModule
+            && j.SourceEntityId == secondPayment.Id));
+    }
+
+    [Fact]
+    public async Task Standalone_Cash_Expense_Supports_Mixed_Currency_Account_With_Locked_Fx()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db, paymentCurrency: "RUB");
+        scope.CashAccount.AccountType = CashAccountType.Mixed;
+        scope.CashAccount.Currency = "USD";
+        await db.SaveChangesAsync();
+        var type = await AddExpenseTypeAsync(db, null);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+            e.Amount = 77m; e.Currency = "RUB";
+            e.AppliedFxRateToUsd = 0.012987012987m; e.AmountUsd = 1m;
+        });
+        Assert.Equal(PaymentPostingStatus.Posted, (await CreateAdapter(db, true).TryPostExpenseAsync(expense)).Status);
+        var credit = (await LoadJournalAsync(db, expense.Id)).Lines.Single(l => l.Credit > 0);
+        Assert.Equal(scope.Settings.CashBankControlAccountId, credit.AccountId);
+        Assert.Equal(0.012987012987m, credit.ExchangeRate);
+        Assert.Equal(1m, credit.Credit);
+        Assert.Equal("RUB", credit.TransactionCurrencyCode);
+    }
+
+    [Fact]
+    public async Task Standalone_Paid_Expense_Credits_Cash_Once_Without_A_Payable_Or_New_Payment()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, null);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+        });
+        var adapter = CreateAdapter(db, true);
+        var paymentCount = await db.PaymentTransactions.CountAsync();
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostExpenseAsync(expense)).Status);
+        Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryPostExpenseAsync(expense)).Status);
+        var journal = await LoadJournalAsync(db, expense.Id);
+        var credit = Assert.Single(journal.Lines.Where(l => l.Credit > 0));
+        Assert.Equal(scope.Settings.CashBankControlAccountId, credit.AccountId);
+        Assert.Equal(scope.CashAccount.Id, credit.CashAccountId);
+        Assert.Null(credit.PartyId);
+        Assert.Equal(paymentCount, await db.PaymentTransactions.CountAsync());
+        var totals = await new PTGOilSystem.Web.Services.Reporting.CashPositionReader(db)
+            .ReadAccountTotalsAsync(new[] { scope.CashAccount.Id }, null);
+        Assert.Equal(expense.Amount, Assert.Single(totals).NativeOut);
+        Assert.Equal(PaymentPostingStatus.Posted, (await adapter.TryPostExpenseReversalAsync(expense)).Status);
+        Assert.Equal(PaymentPostingStatus.Duplicate, (await adapter.TryPostExpenseReversalAsync(expense)).Status);
+    }
+
+    [Fact]
+    public async Task Paid_Expense_With_Explicit_Payment_Link_Does_Not_Credit_Cash_Again()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.CommissionPayable);
+        var expense = await AddExpenseAsync(db, scope, type, e =>
+        {
+            e.SettlementMode = ExpenseSettlementMode.PaidImmediately;
+            e.CashAccountId = scope.CashAccount.Id;
+        });
+        await AddExpensePaymentAsync(db, scope, expense, PaymentKind.CommissionPayment);
+        Assert.Equal(PaymentPostingStatus.Posted, (await CreateAdapter(db, true).TryPostExpenseAsync(expense)).Status);
+        var credit = Assert.Single((await LoadJournalAsync(db, expense.Id)).Lines.Where(l => l.Credit > 0));
+        Assert.Equal(scope.Settings.CommissionPayableAccountId, credit.AccountId);
+        Assert.Null(credit.CashAccountId);
+    }
 
     [Fact]
     public void SourceEventId_Format_Is_Stable()

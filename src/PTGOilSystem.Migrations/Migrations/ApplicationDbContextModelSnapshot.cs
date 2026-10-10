@@ -8988,10 +8988,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)");
 
                     b.Property<decimal>("ContractCurrencyFxRateToUsd")
-                        .HasColumnType("numeric(18,6)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<decimal>("ContractCurrencyPerUsdRate")
-                        .HasColumnType("numeric(18,6)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<int>("ContractId")
                         .HasColumnType("integer");
@@ -9025,10 +9025,10 @@ namespace PTGOilSystem.Web.Migrations
                         .HasColumnType("character varying(10)");
 
                     b.Property<decimal>("PaymentCurrencyFxRateToUsdAtAllocation")
-                        .HasColumnType("numeric(18,6)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<decimal>("PaymentCurrencyPerUsdRateAtAllocation")
-                        .HasColumnType("numeric(18,6)");
+                        .HasColumnType("numeric(24,12)");
 
                     b.Property<decimal>("PaymentFxRateToUsd")
                         .HasColumnType("numeric(18,6)");

@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
+@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
 @using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Sales
 @using PTGOilSystem.Web.Models.Shared
@@ -35,6 +35,7 @@
        روی «در حال ثبت…» قفل می‌کرد؛ این فرم قفلِ ضدِ دابل‌کلیکِ خودش را با آزادسازیِ امنِ زمان‌دار دارد. *@
     <form asp-action="CreateGroup" method="post" id="gsaleForm" class="ak-form" data-no-spa data-no-submit-guard novalidate>
         @Html.AntiForgeryToken()
+        @Html.FormToken()
         <input asp-for="ReturnUrl" type="hidden" />
         <div id="gsaleItemsContainer"></div>
 
@@ -43,7 +44,7 @@
                 <span class="ak-page-icon"><i class="bi bi-cart-plus"></i></span>
                 <div>
                     <h1>ثبت فروش گروهی</h1>
-                    <p>فروش همزمان از چند منبع: موجودی مخازن، موترها، واگن‌ها و انتقال‌های در مسیر</p>
+                    <p>فروش همزمان از چند منبع: بارگیری‌ها، موجودی مخازن، موترها، واگن‌ها و بارهای در راه</p>
                 </div>
             </div>
             <a href="@cancelUrl" class="btn btn-light ak-secondary-action" aria-label="بستن"><i class="bi bi-x-lg"></i></a>
@@ -128,7 +129,7 @@
             <div>
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">تعیین مقدار فروش هر منبع</h2>
-                    <p class="ak-note">موجودی مخازن قابل فروش بر اساس تن است؛ موتر و واگن به صورت کامل فروخته می‌شوند.</p>
+                    <p class="ak-note">بارگیری‌ها و موجودی مخازن به مقدار انتخابی فروخته می‌شوند؛ موتر و واگن به صورت کامل فروخته می‌شوند.</p>
                     <div class="ak-table-wrap">
                         <table class="ak-table">
                             <thead>
@@ -154,6 +155,14 @@
             <div>
                 <div class="ak-form-section">
                     <h2 class="ak-section-title">مشخصات فروش</h2>
+                    <div class="ak-field">
+                        <label asp-for="LoadingSaleTerminalId">محل فروش مستقیم بارگیری</label>
+                        <select asp-for="LoadingSaleTerminalId" asp-items="ViewBag.LoadingSaleTerminals" class="ak-input">
+                            <option value="">انتخاب محل (برای فروش از بارگیری الزامی)</option>
+                        </select>
+                        <span asp-validation-for="LoadingSaleTerminalId" class="ak-field-error"></span>
+                        <small>این محل فقط برای ثبت سند فروش بارگیری است؛ جنس وارد مخزن نمی‌شود.</small>
+                    </div>
                     <div class="ak-form-grid">
                         <div class="ak-field">
                             <label asp-for="BuyerKey">خریدار <em>*</em></label>

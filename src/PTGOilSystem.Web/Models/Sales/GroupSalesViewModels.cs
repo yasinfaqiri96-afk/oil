@@ -86,6 +86,9 @@ public sealed class GroupSaleCreateViewModel
     [StringLength(1000)]
     public string? Notes { get; set; }
 
+    [Display(Name = "محل فروش مستقیم بارگیری")]
+    public int? LoadingSaleTerminalId { get; set; }
+
     public List<GroupSaleSelectedInput> Items { get; set; } = [];
 
     [StringLength(1000)]

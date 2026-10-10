@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -967,7 +967,7 @@ public class PaymentsController : Controller
         }
 
         NormalizeCreateModel(model);
-        var context = await ValidateAndResolveAsync(model);
+        var context = await ValidateAndResolveAsync(model, editingPaymentId: id);
 
         if (!ModelState.IsValid || context is null)
         {
@@ -2756,7 +2756,7 @@ public class PaymentsController : Controller
             .ToList();
     }
 
-    private async Task<ResolvedPaymentContext?> ValidateAndResolveAsync(PaymentCreateViewModel model)
+    private async Task<ResolvedPaymentContext?> ValidateAndResolveAsync(PaymentCreateViewModel model, int? editingPaymentId = null)
     {
         if (!MatchesExpectedDirection(model.PaymentKind, model.Direction))
         {
@@ -2888,6 +2888,23 @@ public class PaymentsController : Controller
             if (expense is null)
             {
                 ModelState.AddModelError(nameof(model.ExpenseTransactionId), "هزینه انتخاب‌شده معتبر نیست.");
+            }
+            else if (expense.IsCancelled)
+            {
+                ModelState.AddModelError(nameof(model.ExpenseTransactionId), "مصرف انتخاب‌شده لغو شده است.");
+            }
+            else if (expense.SettlementMode == ExpenseSettlementMode.NonCash)
+            {
+                ModelState.AddModelError(nameof(model.ExpenseTransactionId), "این مصرف بدون حرکت پول ثبت شده است و پرداخت نقدی ندارد.");
+            }
+            else if (expense.SettlementMode == ExpenseSettlementMode.PaidImmediately)
+            {
+                // Preserve edits of the explicit paired commission payment, but never create
+                // another payment for an expense already declared paid from cash.
+                var samePairedPayment = editingPaymentId.HasValue && await _db.PaymentTransactions.AsNoTracking()
+                    .AnyAsync(p => p.Id == editingPaymentId.Value && p.ExpenseTransactionId == expense.Id);
+                if (!samePairedPayment)
+                    ModelState.AddModelError(nameof(model.ExpenseTransactionId), "این مصرف قبلاً نقد پرداخت شده است؛ پرداخت دوباره مجاز نیست.");
             }
         }
 

@@ -6,13 +6,35 @@ using PTGOilSystem.Web.Models.Entities;
 
 namespace PTGOilSystem.Web.Services.Accounting;
 
+public enum AccountingBackfillItemStatus
+{
+    Posted,
+    AlreadyPosted,
+    Skipped,
+    Cancelled,
+    NeedsReview,
+    Error
+}
+
+public sealed record AccountingBackfillItem(
+    int EntityId,
+    AccountingBackfillItemStatus Status,
+    string? Reason,
+    bool MissingJournal = false);
+
 public sealed record AccountingBackfillStep(
     string Name,
     int Candidates,
     int Posted,
     int SkippedExisting,
     int SkippedOther,
-    IReadOnlyList<string> Reasons);
+    IReadOnlyList<string> Reasons)
+{
+    public IReadOnlyList<AccountingBackfillItem> Items { get; init; } = [];
+    public int MissingJournal => Items.Count(x => x.MissingJournal);
+    public int NeedsReview => Items.Count(x => x.Status == AccountingBackfillItemStatus.NeedsReview);
+    public int Cancelled => Items.Count(x => x.Status == AccountingBackfillItemStatus.Cancelled);
+}
 
 public sealed record AccountingBackfillReport(
     bool DryRun,
@@ -122,7 +144,8 @@ public sealed class AccountingBackfillService(
             x => x.Id,
             x => PurchaseAccountingAdapter.BuildCreatedSourceEventId(x.Id, 0),
             PurchaseAccountingAdapter.SourceModule,
-            cancellationToken));
+            cancellationToken,
+            PurchaseAccountingAdapter.PurchaseSourceEntityType));
 
         var loadingReceipts = await db.LoadingReceipts.AsNoTracking()
             .OrderBy(x => x.ReceiptDate).ThenBy(x => x.Id)
@@ -139,8 +162,7 @@ public sealed class AccountingBackfillService(
             cancellationToken));
 
         var transportReceipts = await db.InventoryTransportReceipts.AsNoTracking()
-            .Where(x => !x.IsCancelled
-                && x.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
+            .Where(x => x.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory
                 && x.ReceivedQuantityMt > 0m)
             .OrderBy(x => x.ReceiptDate).ThenBy(x => x.Id)
             .ToListAsync(cancellationToken);
@@ -247,92 +269,188 @@ public sealed class AccountingBackfillService(
         Func<TEntity, int> idOf,
         Func<TEntity, string> sourceEventIdOf,
         string sourceModule,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? revisionedSourceEntityType = null)
         where TResult : class
     {
         var posted = 0;
         var skippedExisting = 0;
         var skippedOther = 0;
         var reasons = new List<string>();
-
-        if (dryRun)
-        {
-            // Read-only preview: what already carries its journal, and what does not. It cannot
-            // say why a pending item would skip, because that answer depends on the postings the
-            // earlier stages of this same run would have made.
-            var eventIds = entities.Select(sourceEventIdOf).ToList();
-            var existing = await db.JournalEntries.AsNoTracking()
-                .Where(x => x.SourceModule == sourceModule
-                    && x.SourceEventId != null
-                    && eventIds.Contains(x.SourceEventId))
-                .Select(x => x.SourceEventId!)
-                .ToListAsync(cancellationToken);
-            var existingSet = existing.ToHashSet(StringComparer.Ordinal);
-            skippedExisting = entities.Count(x => existingSet.Contains(sourceEventIdOf(x)));
-            posted = entities.Count - skippedExisting;
-            return new AccountingBackfillStep(
-                name, entities.Count, posted, skippedExisting, 0, reasons);
-        }
+        var items = new List<AccountingBackfillItem>(entities.Count);
+        var eventIds = entities.Select(sourceEventIdOf).ToList();
+        var entityIds = entities.Select(idOf).ToList();
+        var journals = await db.JournalEntries.AsNoTracking()
+            .Where(x => x.SourceModule == sourceModule && !x.IsReversal
+                && ((x.SourceEventId != null && eventIds.Contains(x.SourceEventId))
+                    || (revisionedSourceEntityType != null
+                        && x.SourceEntityType == revisionedSourceEntityType
+                        && x.SourceEntityId.HasValue && entityIds.Contains(x.SourceEntityId.Value))))
+            .Select(x => new { x.Id, x.SourceEventId, x.SourceEntityId, x.Status,
+                Reversed = db.JournalEntries.Any(r => r.ReversalOfJournalEntryId == x.Id
+                    && r.Status == JournalEntryStatus.Posted) })
+            .ToListAsync(cancellationToken);
+        var byEvent = journals.Where(x => x.SourceEventId != null)
+            .ToLookup(x => x.SourceEventId!, StringComparer.Ordinal);
+        var byEntity = journals.Where(x => x.SourceEntityId.HasValue)
+            .ToLookup(x => x.SourceEntityId!.Value);
 
         foreach (var entity in entities)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entityId = idOf(entity);
+            var cancellationReason = CancellationReason(entity);
+            if (cancellationReason is not null)
+            {
+                AddSkip(entityId, AccountingBackfillItemStatus.Cancelled, cancellationReason);
+                continue;
+            }
 
-            var relational = db.Database.IsRelational();
-            await using var transaction = relational
+            var existing = revisionedSourceEntityType is null
+                ? byEvent[sourceEventIdOf(entity)].OrderBy(x => x.Id).LastOrDefault()
+                : byEntity[entityId].OrderBy(x => x.Id).LastOrDefault();
+            if (existing is not null)
+            {
+                if (existing.Reversed)
+                    AddSkip(entityId, AccountingBackfillItemStatus.Skipped, "SOURCE_JOURNAL_REVERSED");
+                else if (existing.Status == JournalEntryStatus.Posted)
+                {
+                    // Backfill fills gaps. Repricing a posted historical purchase is a separate,
+                    // explicitly requested revision operation, never a side effect of backfill.
+                    skippedExisting++;
+                    items.Add(new(entityId, AccountingBackfillItemStatus.AlreadyPosted, "ALREADY_POSTED"));
+                }
+                else
+                    AddSkip(entityId, AccountingBackfillItemStatus.NeedsReview, "SOURCE_JOURNAL_NOT_POSTED");
+                continue;
+            }
+
+            var knownSkip = KnownSkipReason(entity);
+            if (knownSkip is not null)
+            {
+                AddSkip(entityId, AccountingBackfillItemStatus.Skipped, knownSkip, missingJournal: true);
+                continue;
+            }
+            if (dryRun)
+            {
+                // Missing is not eligible: prices, mappings, periods and dependency postings
+                // are checked by the real adapter. No adapter or seeder runs during preview.
+                AddSkip(entityId, AccountingBackfillItemStatus.NeedsReview,
+                    "MISSING_JOURNAL_REQUIRES_ADAPTER_VALIDATION", missingJournal: true);
+                continue;
+            }
+
+            await using var transaction = db.Database.IsRelational()
                 ? await db.Database.BeginTransactionAsync(cancellationToken)
                 : null;
             try
             {
-                var result = await post(entity, cancellationToken);
+                // Re-read mutable source rows under the transaction's PostgreSQL row lock.
+                // A cancellation committed after candidate discovery must not be resurrected.
+                var current = await RefreshSourceAsync(entity, cancellationToken);
+                cancellationReason = CancellationReason(current);
+                if (cancellationReason is not null)
+                {
+                    if (transaction is not null)
+                        await transaction.CommitAsync(cancellationToken);
+                    AddSkip(entityId, AccountingBackfillItemStatus.Cancelled, cancellationReason, true);
+                    continue;
+                }
+                var result = await post(current, cancellationToken);
                 var (status, reason) = Describe(result);
-
+                if (transaction is not null)
+                    await transaction.CommitAsync(cancellationToken);
                 switch (status)
                 {
                     case PaymentPostingStatus.Posted:
                         posted++;
+                        items.Add(new(entityId, AccountingBackfillItemStatus.Posted, null));
                         break;
                     case PaymentPostingStatus.Duplicate:
                         skippedExisting++;
+                        items.Add(new(entityId, AccountingBackfillItemStatus.AlreadyPosted, reason));
                         break;
                     default:
-                        skippedOther++;
-                        if (reason is not null && !reasons.Contains(reason))
-                            reasons.Add(reason);
+                        AddSkip(entityId, AccountingBackfillItemStatus.Skipped, reason ?? "ADAPTER_SKIPPED", true);
                         break;
                 }
-
-                if (transaction is not null)
-                    await transaction.CommitAsync(cancellationToken);
             }
             catch (AccountingValidationException validation)
             {
-                // The ledger refused this document — a wrong company, a closed period, a broken
-                // mapping. Nothing was written, and it is the document that is wrong, not the
-                // backfill: record why and carry on with the rest.
                 if (transaction is not null)
                     await transaction.RollbackAsync(cancellationToken);
                 db.ChangeTracker.Clear();
-
-                skippedOther++;
-                if (!reasons.Contains(validation.Code))
-                    reasons.Add(validation.Code);
+                AddSkip(entityId, AccountingBackfillItemStatus.Skipped, validation.Code, true);
                 logger.LogWarning(
                     "Accounting backfill skipped {Step} #{EntityId}: {Code} - {Message}",
-                    name, idOf(entity), validation.Code, validation.Message);
+                    name, entityId, validation.Code, validation.Message);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (transaction is not null)
+                    await transaction.RollbackAsync(CancellationToken.None);
+                db.ChangeTracker.Clear();
+                throw;
             }
             catch (Exception exception)
             {
                 if (transaction is not null)
                     await transaction.RollbackAsync(cancellationToken);
                 db.ChangeTracker.Clear();
-
-                var message = $"{name} #{idOf(entity)}: {exception.GetType().Name}: {exception.Message}";
+                var message = $"{name} #{entityId}: {exception.GetType().Name}: {exception.Message}";
                 errors.Add(message);
-                logger.LogError(exception, "Accounting backfill failed on {Step} #{EntityId}", name, idOf(entity));
+                items.Add(new(entityId, AccountingBackfillItemStatus.Error, message, true));
+                logger.LogError(exception, "Accounting backfill failed on {Step} #{EntityId}", name, entityId);
             }
         }
+        return new AccountingBackfillStep(name, entities.Count, posted, skippedExisting, skippedOther, reasons)
+        {
+            Items = items
+        };
 
-        return new AccountingBackfillStep(name, entities.Count, posted, skippedExisting, skippedOther, reasons);
+        void AddSkip(int id, AccountingBackfillItemStatus status, string reason, bool missingJournal = false)
+        {
+            skippedOther++;
+            if (!reasons.Contains(reason))
+                reasons.Add(reason);
+            items.Add(new(id, status, reason, missingJournal));
+        }
+    }
+
+    private static string? CancellationReason<TEntity>(TEntity entity) => entity switch
+    {
+        LoadingRegister { IsCancelled: true } => "LOADING_CANCELLED",
+        LoadingReceipt { IsCancelled: true } => "RECEIPT_CANCELLED",
+        InventoryTransportReceipt { IsCancelled: true } => "RECEIPT_CANCELLED",
+        _ => null
+    };
+
+    private static string? KnownSkipReason<TEntity>(TEntity entity) => entity switch
+    {
+        LoadingReceipt { ReceiptDestination: not LoadingReceiptDestination.ToInventory }
+            => "RECEIPT_DESTINATION_NOT_INVENTORY",
+        LoadingReceipt { ReceivedQuantityMt: <= 0m } => "INVALID_RECEIPT_QUANTITY",
+        _ => null
+    };
+
+    private async Task<TEntity> RefreshSourceAsync<TEntity>(TEntity entity, CancellationToken cancellationToken)
+    {
+        if (!db.Database.IsNpgsql())
+            return entity;
+        object current = entity switch
+        {
+            LoadingRegister loading => await db.LoadingRegisters
+                .FromSqlInterpolated($"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = {loading.Id} FOR UPDATE")
+                .AsNoTracking().SingleAsync(cancellationToken),
+            LoadingReceipt receipt => await db.LoadingReceipts
+                .FromSqlInterpolated($"SELECT *, xmin FROM \"LoadingReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
+                .AsNoTracking().SingleAsync(cancellationToken),
+            InventoryTransportReceipt receipt => await db.InventoryTransportReceipts
+                .FromSqlInterpolated($"SELECT *, xmin FROM \"InventoryTransportReceipts\" WHERE \"Id\" = {receipt.Id} FOR UPDATE")
+                .AsNoTracking().SingleAsync(cancellationToken),
+            _ => entity!
+        };
+        return (TEntity)current;
     }
 
     private static (PaymentPostingStatus Status, string? Reason) Describe(object result) => result switch

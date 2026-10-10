@@ -129,6 +129,10 @@ public sealed class PurchaseAccountingAdapter(
         var current = posted.LastOrDefault();
         if (current is not null)
         {
+            if (await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.ReversalOfJournalEntryId == current.Id && x.Status == JournalEntryStatus.Posted,
+                cancellationToken))
+                return Skipped(loading.Id, "PURCHASE_ALREADY_REVERSED");
             if (current.Lines.Sum(x => x.Debit) == amountUsd)
             {
                 LogOutcome(loading.Id, "Purchase", companyId, amountUsd,
@@ -189,7 +193,9 @@ public sealed class PurchaseAccountingAdapter(
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
             SourceEntityId: loading.Id,
-            Description: $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}");
+            Description: PurchaseQuantitySnapshot.Append(
+                $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}",
+                loading.LoadedQuantityMt));
 
         try
         {
@@ -283,7 +289,11 @@ public sealed class PurchaseAccountingAdapter(
         {
             var loading = loadings[index];
             PurchaseContext context;
-            if (loading.LoadedQuantityMt <= 0m)
+            if (loading.IsCancelled)
+            {
+                context = BatchFail("LOADING_CANCELLED");
+            }
+            else if (loading.LoadedQuantityMt <= 0m)
             {
                 context = BatchFail("INVALID_LOADED_QUANTITY");
             }
@@ -414,6 +424,10 @@ public sealed class PurchaseAccountingAdapter(
             return Skipped(receipt.Id, "ACCOUNTING_DISABLED");
         if (!_options.Pilots.InventoryReceipt)
             return Skipped(receipt.Id, "PILOT_DISABLED");
+        if (receipt.IsCancelled)
+            return Skipped(receipt.Id, "RECEIPT_CANCELLED");
+        if (receipt.ReceiptDestination != LoadingReceiptDestination.ToInventory)
+            return Skipped(receipt.Id, "RECEIPT_DESTINATION_NOT_INVENTORY");
         if (receipt.ReceivedQuantityMt <= 0m)
             return Skipped(receipt.Id, "INVALID_RECEIPT_QUANTITY");
 
@@ -430,21 +444,18 @@ public sealed class PurchaseAccountingAdapter(
         var companyId = context.CompanyId!.Value;
 
         // Goods can only leave in-transit once the purchase that put them there is posted.
-        var purchaseIsPosted = await db.JournalEntries.AsNoTracking().AnyAsync(
-            x => x.CompanyId == companyId
-                && x.SourceModule == SourceModule
-                && x.SourceEntityType == PurchaseSourceEntityType
-                && x.SourceEntityId == loading.Id
-                && x.Status == JournalEntryStatus.Posted
-                && !x.IsReversal,
-            cancellationToken);
-        if (!purchaseIsPosted)
-            return Skipped(receipt.Id, "PURCHASE_NOT_POSTED");
+        var purchaseSkipReason = await ValidatePostedPurchaseAsync(loading.Id, context, cancellationToken);
+        if (purchaseSkipReason is not null)
+            return Skipped(receipt.Id, purchaseSkipReason);
 
         var sourceEventId = BuildReceiptSourceEventId(receipt.Id);
         var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
         if (existing is not null)
         {
+            if (await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.ReversalOfJournalEntryId == existing.Id && x.Status == JournalEntryStatus.Posted,
+                cancellationToken))
+                return Skipped(receipt.Id, "RECEIPT_ALREADY_REVERSED");
             LogOutcome(receipt.Id, "InventoryReceipt", companyId, existing.Lines.Sum(x => x.Debit),
                 existing.Lines.Sum(x => x.Debit), PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
             return new PurchaseAccountingResult(
@@ -624,22 +635,20 @@ public sealed class PurchaseAccountingAdapter(
         // Goods can only leave in-transit once the purchase that put them there is posted.
         foreach (var loadingId in loadingIds)
         {
-            var purchaseIsPosted = await db.JournalEntries.AsNoTracking().AnyAsync(
-                x => x.CompanyId == companyId
-                    && x.SourceModule == SourceModule
-                    && x.SourceEntityType == PurchaseSourceEntityType
-                    && x.SourceEntityId == loadingId
-                    && x.Status == JournalEntryStatus.Posted
-                    && !x.IsReversal,
-                cancellationToken);
-            if (!purchaseIsPosted)
-                return Skipped(receipt.Id, "PURCHASE_NOT_POSTED");
+            var purchaseSkipReason = await ValidatePostedPurchaseAsync(
+                loadingId, contextByLoading[loadingId], cancellationToken);
+            if (purchaseSkipReason is not null)
+                return Skipped(receipt.Id, purchaseSkipReason);
         }
 
         var sourceEventId = BuildTransportReceiptSourceEventId(receipt.Id);
         var existing = await FindJournalAsync(companyId, sourceEventId, cancellationToken);
         if (existing is not null)
         {
+            if (await db.JournalEntries.AsNoTracking().AnyAsync(
+                x => x.ReversalOfJournalEntryId == existing.Id && x.Status == JournalEntryStatus.Posted,
+                cancellationToken))
+                return Skipped(receipt.Id, "RECEIPT_ALREADY_REVERSED");
             LogOutcome(receipt.Id, "TransportInventoryReceipt", companyId, existing.Lines.Sum(x => x.Debit),
                 existing.Lines.Sum(x => x.Debit), PaymentPostingStatus.Duplicate, "DUPLICATE_SOURCE_EVENT");
             return new PurchaseAccountingResult(
@@ -961,13 +970,17 @@ public sealed class PurchaseAccountingAdapter(
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
             SourceEntityId: loading.Id,
-            Description: $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}");
+            Description: PurchaseQuantitySnapshot.Append(
+                $"Purchase #{loading.Id} revision {revision} on {loading.LoadingDate:yyyy-MM-dd}",
+                loading.LoadedQuantityMt));
     }
 
     private async Task<PurchaseContext> ResolvePurchaseContextAsync(
         LoadingRegister loading,
         CancellationToken cancellationToken)
     {
+        if (loading.IsCancelled)
+            return Fail("LOADING_CANCELLED");
         if (loading.LoadedQuantityMt <= 0m)
             return Fail("INVALID_LOADED_QUANTITY");
 
@@ -1019,6 +1032,32 @@ public sealed class PurchaseAccountingAdapter(
 
         static PurchaseContext Fail(string reason, int? companyId = null)
             => new(companyId, 0, null, null, reason);
+    }
+
+    private async Task<string?> ValidatePostedPurchaseAsync(
+        int loadingId,
+        PurchaseContext context,
+        CancellationToken cancellationToken)
+    {
+        var activeAmounts = await db.JournalEntries.AsNoTracking()
+            .Where(x => x.CompanyId == context.CompanyId
+                && x.SourceModule == SourceModule
+                && x.SourceEntityType == PurchaseSourceEntityType
+                && x.SourceEntityId == loadingId
+                && x.Status == JournalEntryStatus.Posted && !x.IsReversal
+                && !db.JournalEntries.Any(r => r.ReversalOfJournalEntryId == x.Id
+                    && r.Status == JournalEntryStatus.Posted))
+            .Select(x => x.Lines.Sum(line => line.Debit))
+            .ToListAsync(cancellationToken);
+        if (activeAmounts.Count == 0)
+            return "PURCHASE_NOT_POSTED";
+        if (activeAmounts.Count != 1)
+            return "MULTIPLE_ACTIVE_PURCHASE_JOURNALS";
+        // A current price edited without its own posted revision cannot revalue an old
+        // arrival during backfill. The explicit repricing workflow remains unchanged.
+        return activeAmounts[0] == context.AmountUsd
+            ? null
+            : "PURCHASE_PRICE_CHANGED_NEEDS_REVIEW";
     }
 
     private async Task<List<JournalEntry>> LoadPostedRevisionsAsync(

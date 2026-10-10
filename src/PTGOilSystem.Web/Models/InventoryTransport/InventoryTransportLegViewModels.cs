@@ -880,6 +880,9 @@ public sealed class InventoryTransportReceiptCreateViewModel
 {
     public int InventoryTransportLegId { get; set; }
 
+    /// <summary>Remaining cargo shown when this form was opened; detects stale submissions.</summary>
+    public decimal? ExpectedRemainingMt { get; set; }
+
     [Display(Name = "Receipt Date")]
     [DataType(DataType.Date)]
     public DateTime ReceiptDate { get; set; } = AfghanistanBusinessClock.SystemToday;

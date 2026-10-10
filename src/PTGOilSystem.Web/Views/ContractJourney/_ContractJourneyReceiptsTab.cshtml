@@ -50,6 +50,7 @@
                 {
                 <form asp-controller="LoadingReceipts" asp-action="BulkCreate" method="post" class="ak-form" data-bulk-receipt-form data-bulk-receipt-collapsed="true" data-no-spa="true">
                     @Html.AntiForgeryToken()
+                    @Html.FormToken()
                     <input type="hidden" name="ContractId" value="@Model.ContractId" />
                     <input type="hidden" name="ReturnUrl" value="@receiptsReturnUrl" />
 

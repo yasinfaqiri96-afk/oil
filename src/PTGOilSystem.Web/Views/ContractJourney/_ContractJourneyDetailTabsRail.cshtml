@@ -1,10 +1,15 @@
 @using PTGOilSystem.Web.Models.ContractJourney
 @model PTGOilSystem.Web.Models.ContractJourney.ContractJourneyDetailTabsRailViewModel
 
-<nav class="ptg-tabs-rail" role="tablist" aria-label="@Model.AriaLabel" data-contract-journey-tab-nav="true">
-                @for (var tabIndex = 0; tabIndex < Model.Tabs.Count; tabIndex++)
+<div class="ak-navigation-groups" role="group" aria-label="@Model.AriaLabel" data-contract-journey-tab-nav="true">
+    @foreach (var group in Model.Tabs.GroupBy(tab => tab.GroupKey))
+    {
+        var groupLabel = group.First().GroupLabel;
+        <div class="ak-navigation-group" data-navigation-group="@group.Key">
+            <span class="ak-navigation-group-label">@groupLabel</span>
+            <nav class="ptg-tabs-rail" aria-label="@groupLabel">
+                @foreach (var tab in group)
                 {
-                    var tab = Model.Tabs[tabIndex];
                     var isLossesPresentationTab = string.Equals(tab.Key, "losses", StringComparison.OrdinalIgnoreCase);
                     var routeTab = isLossesPresentationTab ? ContractJourneyTabs.Details.Costs : tab.Key;
                     var isActive = Model.ActiveTab == tab.Key;
@@ -17,10 +22,11 @@
                        data-contract-journey-tab-link="true"
                        data-contract-journey-tab="@tab.Key"
                        data-no-spa="true"
-                       role="tab"
-                       aria-selected="@(isActive ? "true" : "false")"
                        aria-current="@(isActive ? "page" : null)">
                         <span data-tab-label="@tab.Label">@tab.Label</span>
                     </a>
                 }
-</nav>
+            </nav>
+        </div>
+    }
+</div>

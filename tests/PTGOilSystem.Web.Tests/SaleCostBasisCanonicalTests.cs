@@ -106,6 +106,39 @@ public class SaleCostBasisCanonicalTests
     }
 
     [Fact]
+    public async Task Sale_With_An_Uncosted_Contract_Share_Needs_Review_Instead_Of_Counting_As_Costed()
+    {
+        await using var db = NewDb();
+        Seed(db);
+        // قرارداد B تا تاریخ فروش هیچ بارگیری ندارد، پس سهمِ آن بهای واحد ندارد.
+        db.LoadingRegisters.AddRange(
+            Loading(1, PurchaseA, 100m, 500m, new DateTime(2026, 7, 1)),
+            Loading(2, PurchaseB, 100m, 600m, new DateTime(2026, 7, 25)));
+        db.SalesTransactions.Add(Sale(100, 10m, 8_000m, new DateTime(2026, 7, 5)));
+        db.SalesTransactionSourceAllocations.AddRange(
+            new SalesTransactionSourceAllocation { Id = 1, SalesTransactionId = 100, SourcePurchaseContractId = PurchaseA, QuantityMt = 6m, AmountUsd = 4_800m },
+            new SalesTransactionSourceAllocation { Id = 2, SalesTransactionId = 100, SourcePurchaseContractId = PurchaseB, QuantityMt = 4m, AmountUsd = 3_200m });
+        await db.SaveChangesAsync();
+
+        var service = new ProfitAndLossService(db);
+        var whole = await service.BuildForSalesAsync([100]);
+        var company = await service.BuildCompanyPeriodAsync(
+            new ManagementReportFilterViewModel { FromDate = From, ToDate = To }, To);
+        var a = await service.BuildForPurchaseContractSalesAsync(PurchaseA, [100]);
+
+        // بهای سهمِ بهادار می‌ماند، ولی فروش کامل‌بها نیست و سود آن قطعی خوانده نمی‌شود.
+        Assert.Equal(3_000m, whole.CostOfGoodsSoldUsd);
+        Assert.Equal(1, whole.UncostedSaleCount);
+        Assert.Equal(PnlConfidence.NeedsReview, whole.Confidence);
+        Assert.Equal(1, company.UncostedSaleCount);
+        Assert.Equal(0, company.ContractCostedSaleCount);
+        Assert.Equal(PnlConfidence.NeedsReview, company.Confidence);
+        // در پروندهٔ قرارداد A فقط سهمِ A دیده می‌شود که بها دارد.
+        Assert.Equal(3_000m, a.CostOfGoodsSoldUsd);
+        Assert.Equal(PnlConfidence.Estimated, a.Confidence);
+    }
+
+    [Fact]
     public async Task Overview_Export_Lists_Operational_Indicators_Apart_From_Net_Profit()
     {
         await using var db = NewDb();

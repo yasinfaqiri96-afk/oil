@@ -13,7 +13,7 @@ namespace PTGOilSystem.Web.Services;
 // منطق واحدِ ثبت رسید انتقال از موجودی برای یک تخصیص/leg.
 // هم کنترلر تک‌تخصیص (InventoryTransportReceipts/Create) و هم workflow گروهی (InventoryTransportLegs)
 // از همین سرویس استفاده می‌کنند تا هیچ منطق مالی موازی ساخته نشود.
-// این سرویس تراکنش را مدیریت نمی‌کند؛ فراخوان باید همهٔ legها را در یک تراکنش واحد بسازد و در صورت خطا rollback کند.
+// عملیات گروهی تراکنش فراخوان را حفظ می‌کند؛ فراخوان تکی بدون تراکنش یک مرز مستقل و اتمیک می‌گیرد.
 public sealed class InventoryTransportReceiptService
 {
     public const string ReceiptFreightExpenseCode = "TRANSPORT-RECEIPT-FREIGHT";
@@ -25,6 +25,7 @@ public sealed class InventoryTransportReceiptService
     public const string TransportFreightExpenseCode = "TRANSPORT-FREIGHT";
 
     private readonly ApplicationDbContext _db;
+    private readonly Dictionary<int, decimal> _validatedRemaining = new();
 
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private ILedgerPostingService? _ledgerPosting;
@@ -99,8 +100,10 @@ public sealed class InventoryTransportReceiptService
         ModelStateDictionary modelState,
         string keyPrefix = "")
     {
+        NormalizeReceiptQuantities(model);
         // باقیمانده حمل = مقدار کل منهای مجموع رسیدهای قبلی (دریافت + کسری). چند رسید جزئی مجاز است تا باقیمانده صفر شود.
         var remainingMt = await GetRemainingQuantityAsync(leg);
+        _validatedRemaining[leg.Id] = remainingMt;
 
         NormalizeTruckReceiptFields(model, leg, remainingMt);
 
@@ -112,7 +115,7 @@ public sealed class InventoryTransportReceiptService
             modelState.AddModelError(keyPrefix + nameof(model.InventoryTransportLegId), "فقط حمل‌های Loaded یا InTransit می‌توانند رسید مقصد بگیرند.");
         }
 
-        if (remainingMt <= 0.0001m)
+        if (remainingMt <= 0m)
         {
             modelState.AddModelError(keyPrefix + nameof(model.InventoryTransportLegId), "این حمل کاملاً تخلیه شده است؛ باقیمانده‌ای برای رسید جدید وجود ندارد.");
         }
@@ -127,10 +130,18 @@ public sealed class InventoryTransportReceiptService
             modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt), "Received quantity must be greater than zero.");
         }
 
-        // تخلیهٔ واقعی می‌تواند از بارگیری بیشتر یا کمتر باشد (اختلاف ترازوی مبدأ و مقصد).
-        // هیچ نوع حملی به‌خاطر «بیشتر از باقیمانده» مسدود نمی‌شود؛ اختلاف مثبت به‌عنوان
-        // مازاد و اختلاف منفی به‌عنوان کسری ثبت می‌شود. تنها قید باقی‌مانده این است که
-        // حملِ کاملاً تخلیه‌شده رسید جدید نگیرد (بالاتر بررسی شده است).
+        // وزن واقعی مقصد می‌تواند بیشتر باشد؛ مازاد باید با کسری منفی ثبت شود،
+        // بنابراین مصرف واقعی مبدأ (دریافت + کسری) از مانده تجاوز نمی‌کند.
+        if (decimal.Round(model.ReceivedQuantityMt + model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero) > remainingMt)
+        {
+            modelState.AddModelError(keyPrefix + nameof(model.ReceivedQuantityMt),
+                "مجموع دریافت و کسری از ماندهٔ قابل دریافت بیشتر است؛ اضافه‌وزن ترازو را جدا ثبت کنید.");
+        }
+        if (model.ExpectedRemainingMt.HasValue && model.ExpectedRemainingMt.Value != remainingMt)
+        {
+            modelState.AddModelError(keyPrefix + nameof(model.InventoryTransportLegId),
+                "ماندهٔ این بار تغییر کرده است؛ صفحه را تازه و مقدار را دوباره بررسی کنید.");
+        }
 
         if (UsesUnloadFreightFlow(leg))
         {
@@ -218,8 +229,69 @@ public sealed class InventoryTransportReceiptService
     }
 
     // ساختِ تمام رکوردهای یک رسید (رسید، کرایه، کسری، حرکت موجودی/فروش/دیسپچ، وضعیت leg).
-    // تراکنش را مدیریت نمی‌کند. leg باید tracked باشد.
+    // تراکنش موجود را حفظ می‌کند یا برای فراخوان مستقل تراکنش می‌سازد. leg باید tracked باشد.
     public async Task<InventoryTransportReceipt> ApplyAsync(
+        InventoryTransportReceiptCreateViewModel model,
+        InventoryTransportLeg leg,
+        CurrencyConversionResult? saleConversion)
+    {
+        NormalizeReceiptQuantities(model);
+        // Callers batching several outcomes keep ownership of their transaction. A direct
+        // service call also gets an atomic boundary; a lock without a transaction is unsafe.
+        await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync()
+            : null;
+        try
+        {
+            if (model.InventoryTransportLegId != leg.Id || model.ReceivedQuantityMt < 0m
+                || (!model.SettlementOnly && model.ReceivedQuantityMt <= 0m))
+                throw new BusinessRuleException("TRANSPORT_RECEIPT_INVALID_QUANTITY", "بار و مقدار دریافت معتبر نیست.");
+            await LockLegsAsync([leg.Id]);
+            var remaining = await GetRemainingQuantityAsync(leg);
+            if (leg.Status is not (InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit)
+                || remaining <= 0m)
+                throw new BusinessRuleException("TRANSPORT_RECEIPT_NO_REMAINING", "این بار ماندهٔ قابل دریافت ندارد.");
+            if ((model.ExpectedRemainingMt.HasValue && model.ExpectedRemainingMt.Value != remaining)
+                || (_validatedRemaining.TryGetValue(leg.Id, out var validated) && validated != remaining))
+                throw new BusinessRuleException("TRANSPORT_RECEIPT_STALE", "ماندهٔ این بار تغییر کرده است؛ صفحه را تازه و مقدار را دوباره بررسی کنید.");
+            if (decimal.Round(model.ReceivedQuantityMt + model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero) > remaining)
+                throw new BusinessRuleException("TRANSPORT_RECEIPT_EXCEEDS_REMAINING", "مجموع دریافت و کسری از ماندهٔ قابل دریافت بیشتر است.");
+            var receipt = await ApplyCoreAsync(model, leg, saleConversion);
+            if (transaction is not null) await transaction.CommitAsync();
+            _validatedRemaining.Remove(leg.Id);
+            return receipt;
+        }
+        catch
+        {
+            if (transaction is not null) await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    // Ordered locks also protect continuation/group commands, before their first write.
+    public async Task LockLegsAsync(IEnumerable<int> legIds, CancellationToken ct = default)
+    {
+        var ids = legIds.Distinct().OrderBy(id => id).ToArray();
+        if (ids.Length == 0 || _db.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL") return;
+        if (_db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Transport mutation locks require a transaction.");
+        var fresh = await _db.InventoryTransportLegs
+            .FromSqlInterpolated($@"SELECT * FROM ""InventoryTransportLegs"" WHERE ""Id"" = ANY({ids}) ORDER BY ""Id"" FOR UPDATE")
+            .AsNoTracking().ToListAsync(ct);
+        foreach (var current in fresh)
+        {
+            var tracked = _db.InventoryTransportLegs.Local.FirstOrDefault(l => l.Id == current.Id);
+            if (tracked is null) continue;
+            // Keep intentional freight/party changes made by callers; refresh the fields
+            // determining eligibility and the optimistic concurrency token only.
+            tracked.Status = current.Status;
+            tracked.QuantityMt = current.QuantityMt;
+            tracked.Version = current.Version;
+            _db.Entry(tracked).Property(l => l.Version).OriginalValue = current.Version;
+        }
+    }
+
+    private async Task<InventoryTransportReceipt> ApplyCoreAsync(
         InventoryTransportReceiptCreateViewModel model,
         InventoryTransportLeg leg,
         CurrencyConversionResult? saleConversion)
@@ -397,11 +469,14 @@ public sealed class InventoryTransportReceiptService
 
         // فقط وقتی باقیمانده حمل صفر شد، حمل «تکمیل» می‌شود؛ در تخلیهٔ جزئی حمل باز می‌ماند تا باقیمانده هم رسید بگیرد.
         var remainingAfterMt = await GetRemainingQuantityAsync(leg);
-        if (remainingAfterMt <= 0.0001m)
+        if (remainingAfterMt <= 0m)
         {
             leg.Status = InventoryTransportLegStatus.Received;
-            await _db.SaveChangesAsync();
         }
+        // A partial receipt also changes the source balance. Touch its versioned row so
+        // a concurrent cancellation/edit cannot use an unchanged source concurrency token.
+        leg.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
         // لایهٔ Lineage (پشت flag Lineage:WriteLots؛ با flag خاموش no-op). فقط رکوردهای نسب‌نامه insert می‌شود.
         await _lineage.OnLegReceiptAsync(leg, receipt, inboundMovement, shortageLoss);
@@ -620,6 +695,14 @@ public sealed class InventoryTransportReceiptService
                 : model.DirectDispatchTicketSerialNumber.Trim(),
             Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim()
         };
+
+    private static void NormalizeReceiptQuantities(InventoryTransportReceiptCreateViewModel model)
+    {
+        // PostgreSQL rounds each numeric(…,4) column separately. Validate those same
+        // stored units, not a rounded sum of higher-precision client values.
+        model.ReceivedQuantityMt = decimal.Round(model.ReceivedQuantityMt, 4, MidpointRounding.AwayFromZero);
+        model.ShortageQuantityMt = decimal.Round(model.ShortageQuantityMt, 4, MidpointRounding.AwayFromZero);
+    }
 
     // باقیمانده حمل = مقدار کل منهای مجموع رسیدهای فعال (دریافت + کسری). مبنای مجاز بودن رسید جزئی بعدی.
     private Task<decimal> GetRemainingQuantityAsync(InventoryTransportLeg leg)

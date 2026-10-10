@@ -10,6 +10,52 @@ namespace PTGOilSystem.Web.Tests;
 public class ProfitAndLossServiceTests
 {
     [Fact]
+    public async Task Verified_Report_Uses_Exact_Unreversed_Cogs_Without_DoubleCounting_Pool_Or_Revenue_Journals()
+    {
+        await using var db = NewDb();
+        SeedReferences(db);
+        db.SalesTransactions.AddRange(Sale(1, 1000m), Sale(2, 500m));
+        db.SalesCostConsumptions.Add(Cost(1, 600m, SalesCostConsumptionStatus.Active));
+        var ignoredPoolMirror = CogsJournal(1, 800m);
+        var direct = CogsJournal(2, 250m);
+        db.JournalEntries.AddRange(ignoredPoolMirror, direct);
+        await db.SaveChangesAsync();
+        var service = new ProfitAndLossService(db);
+        var verified = (await service.BuildForSaleContractsAsync([1]))[1];
+        Assert.Equal(850m, verified.CostOfGoodsSoldUsd);
+        Assert.Equal(650m, verified.GrossProfitUsd);
+        Assert.Equal(PnlConfidence.Verified, verified.Confidence);
+        Assert.Equal(0, verified.UncostedSaleCount);
+        // Later operational price changes do not change this posted cost snapshot.
+        db.LoadingRegisters.Add(new LoadingRegister { ContractId = 1, ProductId = 1,
+            LoadingDate = new DateTime(2026, 5, 1), LoadedQuantityMt = 20m, LoadingPriceUsd = 9000m });
+        await db.SaveChangesAsync();
+        Assert.Equal(850m, (await service.BuildForSaleContractsAsync([1]))[1].CostOfGoodsSoldUsd);
+        var reversal = CogsJournal(2, 250m);
+        reversal.JournalNumber = "COGS-REV";
+        reversal.SourceEventId = PTGOilSystem.Web.Services.Accounting.SalesAccountingAdapter.BuildCogsReversedSourceEventId(2);
+        reversal.IsReversal = true; reversal.ReversalOfJournalEntryId = direct.Id;
+        db.JournalEntries.Add(reversal); await db.SaveChangesAsync();
+        var after = (await service.BuildForSaleContractsAsync([1]))[1];
+        Assert.Equal(600m, after.CostOfGoodsSoldUsd);
+        Assert.Equal(1, after.UncostedSaleCount);
+        Assert.Equal(PnlConfidence.NeedsReview, after.Confidence);
+    }
+
+    private static JournalEntry CogsJournal(int saleId, decimal cost) => new()
+    {
+        CompanyId = 1, FiscalYearId = 1, FiscalPeriodId = 1,
+        JournalNumber = "COGS-" + saleId, Status = JournalEntryStatus.Posted,
+        AccountingDate = new DateTime(2026, 5, 10), DocumentDate = new DateTime(2026, 5, 10),
+        OperationDate = new DateTime(2026, 5, 10),
+        SourceModule = PTGOilSystem.Web.Services.Accounting.SalesAccountingAdapter.SourceModule,
+        SourceEntityType = nameof(SalesTransaction), SourceEntityId = saleId,
+        SourceEventId = PTGOilSystem.Web.Services.Accounting.SalesAccountingAdapter.BuildCogsSourceEventId(saleId),
+        Lines = [new JournalEntryLine { AccountId = 1, Debit = cost, Credit = 0m },
+            new JournalEntryLine { AccountId = 2, Debit = 0m, Credit = cost }]
+    };
+
+    [Fact]
     public async Task Contract_Pnl_Uses_Only_Active_Historical_Cost_And_Flags_Missing_Cost()
     {
         await using var db = NewDb();
