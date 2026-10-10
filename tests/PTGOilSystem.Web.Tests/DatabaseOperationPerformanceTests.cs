@@ -204,7 +204,18 @@ public sealed class DatabaseOperationPerformanceTests(
         db.SavingChanges += (_, _) =>
         {
             saves++;
-            peakTracked = Math.Max(peakTracked, db.ChangeTracker.Entries().Count());
+            // Enumerating Entries otherwise adds another DetectChanges pass just for
+            // measurement. Restore the flag before SaveChanges performs its own work.
+            var detectChanges = db.ChangeTracker.AutoDetectChangesEnabled;
+            try
+            {
+                db.ChangeTracker.AutoDetectChangesEnabled = false;
+                peakTracked = Math.Max(peakTracked, db.ChangeTracker.Entries().Count());
+            }
+            finally
+            {
+                db.ChangeTracker.AutoDetectChangesEnabled = detectChanges;
+            }
         };
         counter.Reset();
         var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
