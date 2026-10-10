@@ -29,22 +29,22 @@ public sealed partial class CargoSourceQueryService
         return legs.Select(l => new CargoSourceSnapshot(CargoSourceKind.Transport, l.Id,
             l.SourcePurchaseContractId, l.ProductId, l.SourcePurchaseContract?.CompanyId ?? 0,
             l.SourcePurchaseContract?.ContractNumber ?? "", l.Product?.Name ?? "", l.SourcePurchaseContract?.Company?.Name ?? "",
-            l.WagonNumber ?? l.RwbNo ?? l.Truck?.PlateNumber ?? $"#{l.Id}",
+            l.WagonNumber ?? l.Truck?.PlateNumber ?? l.RwbNo ?? $"#{l.Id}",
             l.TransportType == LoadingTransportType.Wagon ? "واگن" : l.TransportType == LoadingTransportType.Truck ? "موتر" : "انتقال",
             $"{l.SourceTerminal?.Name ?? "؟"} ← {l.DestinationTerminal?.Name ?? l.DestinationLocation?.Name ?? "؟"}", l.LoadedDate, l.QuantityMt,
             quantities[l.Id].ReceivedToInventoryMt, quantities[l.Id].ShortageMt, quantities[l.Id].TransferredToVehicleMt, quantities[l.Id].RemainingMt,
             l.Status == InventoryTransportLegStatus.Cancelled, l.IsArchived,
             l.SourcePurchaseContract?.ContractType == ContractType.Purchase,
-            SupportedActions: l.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit
+            SupportedActions: (l.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit)
                 ? (!blockedForFullSale.Contains(l.Id)
-                    ? [CargoAction.Receive, CargoAction.DirectSale, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery]
-                    : [CargoAction.Receive, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery])
-                : [CargoAction.Expense],
+                    ? new[] { CargoAction.Receive, CargoAction.DirectSale, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery }
+                    : new[] { CargoAction.Receive, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery })
+                : new[] { CargoAction.Expense },
             OwnershipShares: l.Allocations.Select(a => new CargoOwnershipShare(a.SourcePurchaseContractId,
                 a.QuantityMt, a.SourceLoadingRegisterId, a.SourceLoadingReceiptId, a.SourcePurchaseContract?.Status)).ToList(),
             ContractStatus: l.SourcePurchaseContract?.Status,
             StatusLabel: l.IsFreightSettled ? "کرایه تسویه‌شده" : l.Status == InventoryTransportLegStatus.InTransit ? "در راه" : "بارگیری‌شده",
-            SoldQuantityMt: quantities[l.Id].SoldMt)).ToList();
+            SoldQuantityMt: quantities[l.Id].SoldMt, AlternateNumber: l.RwbNo)).ToList();
     }
 
     public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadDispatchSourcesAsync(IReadOnlyCollection<int>? dispatchIds = null, CancellationToken ct = default)
@@ -63,8 +63,8 @@ public sealed partial class CargoSourceQueryService
             d.DestinationLocation?.Name ?? "", d.DispatchDate, d.LoadedQuantityMt, 0m, 0m, 0m,
             d.SalesTransactionId.HasValue ? 0m : d.DischargedQuantityMt ?? d.LoadedQuantityMt,
             d.Status == DispatchStatus.Cancelled, false, d.Contract?.ContractType == ContractType.Purchase,
-            SupportedActions: d.Status is DispatchStatus.Loaded or DispatchStatus.InTransit
-                ? [CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.Expense] : [CargoAction.Expense], ContractStatus: d.Contract?.Status,
+            SupportedActions: (d.Status is DispatchStatus.Loaded or DispatchStatus.InTransit)
+                ? new[] { CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.Expense } : new[] { CargoAction.Expense }, ContractStatus: d.Contract?.Status,
             StatusLabel: d.IsFreightSettled ? "کرایه تسویه‌شده" : d.Status == DispatchStatus.InTransit ? "در راه" : "بارگیری‌شده")).ToList();
     }
 
