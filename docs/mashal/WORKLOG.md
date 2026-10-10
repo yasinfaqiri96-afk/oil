@@ -10,7 +10,7 @@
 
 ## Baseline and issue classification
 
-Full fresh test-project build and full test execution are in progress on the unmodified repair base. Results will be captured under `/workspace/mashal-artifacts/baseline`, with a committed human-readable summary. Previous audit selected 576 tests: 573 passed, 3 failed, 0 skipped; that is not a full-suite baseline.
+Full baseline completed on the unmodified repair base: 3947 executed, 3921 passed, 26 failed, 0 skipped (8m41s). Failures: 18 missing external Payment.xlsx cases, five stale localized expectations and three stale view contracts. Artifacts are under `/workspace/mashal-artifacts/baseline`; none have been rewritten.
 
 | Finding | Current evidence | State before repair |
 | --- | --- | --- |
@@ -57,4 +57,8 @@ Full fresh test-project build and full test execution are in progress on the unm
 
 ## Current checkpoint
 
-Foundation inspection is complete; fresh baseline execution is running. No implementation tests have yet passed. Root owns loading receipt accounting/replay and proportional allocation. Backfill, transport concurrency/retry, sale sources, expense/finance, UX and QA are each isolated in their assigned worktree.
+Recovery completed and all seven repair/specialist branches were pushed safely without merging main. Latest critical build: zero errors, 18 warnings. Revalidated focused run: **147 passed, zero failed, zero skipped**, 52 seconds, including real PostgreSQL receipt/accounting/backfill/concurrency cases. Original failed run remains as evidence; allocator deferred floors and receipt xmin refresh defects were fixed before this passing execution.
+
+Evidence: `/workspace/mashal-artifacts/phase2/critical-revalidated.trx`, `.log` and `critical-revalidated-summary.json`. Structural UI cases matching the broad receipt-name filter are tracked in the later UI phase rather than this operational run.
+
+Next: review/integrate prepared transport retry, sales/shared sources, expense/financial and UX commits; validate them together with the newer remote-main changes on the review branch. No production access, historical backfill or deployment occurred. Updated remote main is `df96f9a`; its automatic transport-cost synchronization requires an additional history-safety guard before incorporation.
