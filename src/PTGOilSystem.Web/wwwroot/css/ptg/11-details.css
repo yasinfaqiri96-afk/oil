@@ -1163,9 +1163,10 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
    label at the start of the row, figure at the end, hairline between rows. */
 .ak-journey-step .ak-cycle-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: 12px;
+    gap: 2px 12px;
     padding: 8px 0;
     border-top: 1px solid rgba(var(--ak-step-rgb), .10);
 }
