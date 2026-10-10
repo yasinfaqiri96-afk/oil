@@ -64,7 +64,8 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
             Items = [new GroupExpenseSelectedInput { Kind = "Loading", Id = first.Id },
                 new GroupExpenseSelectedInput { Kind = "Loading", Id = second.Id }]
         };
-        var result = await controller.CreateGroup(model, Guid.NewGuid().ToString("N"));
+        var requestToken = Guid.NewGuid().ToString("N");
+        var result = await controller.CreateGroup(model, requestToken);
         Assert.IsType<RedirectToActionResult>(result);
         var expenses = await db.ExpenseTransactions.AsNoTracking()
             .Where(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id).OrderBy(e => e.Id).ToListAsync();
@@ -87,6 +88,11 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
                 journal.Lines.Single(l => l.Credit > 0).AccountId);
             Assert.Single(await db.LedgerEntries.Where(l => l.SourceType == "Expense" && l.SourceId == expense.Id).ToListAsync());
         }
+        var retry = await controller.CreateGroup(model, requestToken);
+        Assert.IsType<RedirectToActionResult>(retry);
+        db.ChangeTracker.Clear();
+        Assert.Equal(2, await db.ExpenseTransactions.CountAsync(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id));
+        Assert.Single(await db.ExpenseBatches.Where(b => b.Id == expenses[0].ExpenseBatchId).ToListAsync());
         await controller.CancelGroup(expenses[0].ExpenseBatchId!.Value);
         db.ChangeTracker.Clear();
         Assert.All(await db.ExpenseTransactions.Where(e => e.ExpenseBatchId == expenses[0].ExpenseBatchId).ToListAsync(),
@@ -99,6 +105,61 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
     {
         public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
         public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
+    }
+
+    [Fact]
+    public async Task Group_Expense_Failure_After_First_Real_Journal_Rolls_Back_All_Shares_Ledgers_And_Audit()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccountsPayable);
+        var first = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 20m, LoadingDate = ExpenseDate };
+        var second = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Product.Id,
+            LoadedQuantityMt = 30m, LoadingDate = ExpenseDate };
+        db.LoadingRegisters.AddRange(first, second); await db.SaveChangesAsync();
+        var auditCount = await db.AuditLogs.CountAsync();
+        var adapter = new FailSecondExpenseAdapter(CreateAdapter(db, true));
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, adapter)
+        { ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider()) };
+        var requestToken = Guid.NewGuid().ToString("N");
+        var result = await controller.CreateGroup(new GroupExpenseCreateViewModel {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = ExpenseSettlementMode.Payable,
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id, ServiceProviderId = scope.ServiceProvider.Id,
+                AllocationMethod = ExpenseAllocationMethod.FixedPerOperation, AmountPerOperation = 10m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Loading", Id = first.Id },
+                new GroupExpenseSelectedInput { Kind = "Loading", Id = second.Id }] }, requestToken);
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Equal(1, adapter.PostedBeforeFailure);
+        await using var verified = fixture.CreateDbContext();
+        Assert.Equal(0, await verified.ExpenseTransactions.CountAsync(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id));
+        Assert.Equal(0, await verified.ExpenseBatches.CountAsync(b => b.ExpenseTypeId == type.Id));
+        Assert.Equal(0, await verified.LedgerEntries.CountAsync(l => l.ContractId == scope.Contract.Id && l.SourceType == "Expense"));
+        Assert.Equal(0, await verified.JournalEntries.CountAsync(j => j.CompanyId == scope.Company.Id
+            && j.SourceModule == ExpenseAccountingAdapter.SourceModule));
+        Assert.Equal(auditCount, await verified.AuditLogs.CountAsync());
+        Assert.Equal(0, await verified.ProcessedFormTokens.CountAsync(t => t.Token == requestToken));
+    }
+
+    private sealed class FailSecondExpenseAdapter(IExpenseAccountingAdapter inner) : IExpenseAccountingAdapter
+    {
+        private int calls;
+        public int PostedBeforeFailure { get; private set; }
+        public async Task<ExpenseAccountingResult> TryPostExpenseAsync(ExpenseTransaction expense, CancellationToken cancellationToken = default)
+        {
+            if (++calls == 2) throw new InvalidOperationException("Injected failure after the first real accounting post");
+            var result = await inner.TryPostExpenseAsync(expense, cancellationToken);
+            if (result.Status == PaymentPostingStatus.Posted) PostedBeforeFailure++;
+            return result;
+        }
+        public Task<ExpenseAccountingResult> TryPostExpenseReversalAsync(ExpenseTransaction expense, CancellationToken cancellationToken = default)
+            => inner.TryPostExpenseReversalAsync(expense, cancellationToken);
+        public Task<int?> ResolvePayableAccountIdAsync(ExpenseTransaction expense, int companyId, CancellationToken cancellationToken = default)
+            => inner.ResolvePayableAccountIdAsync(expense, companyId, cancellationToken);
     }
 
     [Fact]
