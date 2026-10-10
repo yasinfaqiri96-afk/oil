@@ -3,7 +3,7 @@
 ## Workspace and authorization
 
 - Reference audit: `/workspace/system-audit/system-scenarios-fa.html` (and its Markdown source), based on `b7cea8a4de2d1589c79f61b9055e83eb5d9c998b`.
-- Remote main is still that commit. Repair branch starts at `73344bef35a7103b8e717b9849ec5cf345e0e3da`, which contains only the already requested avatar changes (PR 2).
+- Remote main was based on that commit at the original baseline; after recovery it advanced to `df96f9a`. Repair branch starts at `73344bef35a7103b8e717b9849ec5cf345e0e3da`, which contains only the already requested avatar changes (PR 2).
 - Original `/workspace/oil` remains untouched with four staged avatar files. Binary index/working patches, manifest and repository bundle saved outside the repository at `/workspace/mashal-baseline-backup`.
 - Implementation worktree: `/workspace/mashal-repair`, branch `fix/mashal-integrity-workflows`. Specialist worktrees are separate; integration occurs by reviewed commits.
 - Authorized scope includes the financial and inventory corrections requested in the mission. No production connection, production backfill, customer data reset, deployment or historical rate rewrite is authorized or performed.
