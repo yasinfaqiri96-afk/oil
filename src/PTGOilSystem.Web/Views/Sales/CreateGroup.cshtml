@@ -1,4 +1,4 @@
-@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
+﻿@model PTGOilSystem.Web.Models.Sales.GroupSaleCreateViewModel
 @using PTGOilSystem.Web.Models
 @using PTGOilSystem.Web.Models.Sales
 @using PTGOilSystem.Web.Models.Shared
@@ -146,6 +146,7 @@
                             <tbody id="qtyBody"></tbody>
                         </table>
                     </div>
+                    <div class="ak-subform-toolbar"><span id="qtyPageInfo" class="ak-note" aria-live="polite"></span><nav id="qtyPager" aria-label="صفحه‌های مقدار فروش"></nav></div>
                 </div>
             </div>
         </section>
@@ -237,9 +238,10 @@
                             </tfoot>
                         </table>
                     </div>
+                    <div class="ak-subform-toolbar"><span id="previewPageInfo" class="ak-note" aria-live="polite"></span><nav id="previewPager" aria-label="صفحه‌های پیش‌نمایش فروش"></nav></div>
                     <div class="ak-note">
                         <i class="bi bi-shield-check"></i>
-                        برای هر منبع یک سند فروش جداگانه با موجودی و سند حسابداری خودش ثبت می‌شود؛ همه زیر یک رکورد اصلی گروهی قرار می‌گیرند.
+                        برای هر منبع یک سند فروش جداگانه در همین گروه ثبت می‌شود. ماندهٔ بار و شرایط ثبت اسناد مالی هنگام ثبت دوباره بررسی می‌شوند.
                     </div>
                 </div>
             </div>
@@ -296,13 +298,31 @@
             step: 1,
             page: 1,
             pageSize: 10,
+            qtyPage: 1,
+            previewPage: 1,
+            selectedPageSize: 50,
             selected: new Map(), // key -> { src, qty }
             filtered: sources.slice()
         };
 
         var $ = function (id) { return document.getElementById(id); };
+        // Metadata can contain user-entered product, vehicle and customer names.
+        // Escape display text and attribute values before inserting HTML.
+        function escapeHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+            });
+        }
+        function selectedPage(items, property, pager, info, render) {
+            var pages = Math.max(1, Math.ceil(items.length / state.selectedPageSize));
+            state[property] = Math.min(state[property], pages);
+            var start = (state[property] - 1) * state.selectedPageSize;
+            $(info).textContent = items.length === 0 ? '' : 'نمایش ' + (start + 1) + ' تا ' + Math.min(start + state.selectedPageSize, items.length) + ' از ' + items.length + ' مورد';
+            renderPager($(pager), state[property], pages, function (page) { state[property] = page; render(); });
+            return { start: start, items: items.slice(start, start + state.selectedPageSize) };
+        }
         function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-        function fmtQty(n) { return Number(n).toLocaleString('en-US', { maximumFractionDigits: 3 }); }
+        function fmtQty(n) { return Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 }); }
 
         // صفحه‌بندی هم‌شکل با کامپوننت مشترک سیستم (_Pagination.cshtml): پنجرهٔ ۵تایی،
         // «/» ابتدا/انتها، «…» و صفحهٔ اول/آخر. کلاینت‌ساید چون داده در همین ویزارد است.
@@ -360,7 +380,7 @@
                 if (!matchesAny('fContract', o.contract)) return false;
                 if (!matchesAny('fProduct', o.product)) return false;
                 if (!matchesAny('fStatus', o.status)) return false;
-                if (q && (o.number + ' ' + o.route + ' ' + o.contract + ' ' + o.kindLabel + ' ' + o.company + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
+                if (q && (o.number + ' ' + escapeHtml(o.route) + ' ' + o.contract + ' ' + escapeHtml(o.kindLabel) + ' ' + escapeHtml(o.company) + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;
@@ -388,14 +408,14 @@
                 tr.innerHTML =
                     '<td class="ak-col-check"><input type="checkbox" ' + (checked ? 'checked' : '') + '></td>' +
                     '<td>' + (start + idx + 1) + '</td>' +
-                    '<td>' + o.kindLabel + '</td>' +
-                    '<td>' + o.vehicle + '</td>' +
-                    '<td class="ak-num">' + o.number + '</td>' +
-                    '<td>' + o.route + '</td>' +
-                    '<td>' + o.product + '</td>' +
-                    '<td>' + o.company + '</td>' +
+                    '<td>' + escapeHtml(o.kindLabel) + '</td>' +
+                    '<td>' + escapeHtml(o.vehicle) + '</td>' +
+                    '<td class="ak-num">' + escapeHtml(o.number) + '</td>' +
+                    '<td>' + escapeHtml(o.route) + '</td>' +
+                    '<td>' + escapeHtml(o.product) + '</td>' +
+                    '<td>' + escapeHtml(o.company) + '</td>' +
                     '<td class="ak-num">' + fmtQty(o.available) + '</td>' +
-                    '<td><span class="ak-status is-active">' + o.status + '</span></td>';
+                    '<td><span class="ak-status is-active">' + escapeHtml(o.status) + '</span></td>';
                 tr.addEventListener('click', function (e) {
                     if (e.target.tagName === 'INPUT') return;
                     toggle(o);
@@ -433,7 +453,7 @@
             var byKind = {};
             items.forEach(function (s) { byKind[s.src.kindLabel] = (byKind[s.src.kindLabel] || 0) + 1; });
             $('sumKinds').innerHTML = Object.keys(byKind).map(function (v) {
-                return '<div><span>' + v + '</span><b>' + byKind[v] + '</b></div>';
+                return '<div><span>' + escapeHtml(v) + '</span><b>' + byKind[v] + '</b></div>';
             }).join('') || '<div class="ak-note">—</div>';
         }
 
@@ -442,20 +462,21 @@
             var body = $('qtyBody');
             body.innerHTML = '';
             var items = Array.from(state.selected.values());
-            items.forEach(function (s, i) {
+            var page = selectedPage(items, 'qtyPage', 'qtyPager', 'qtyPageInfo', renderQty);
+            page.items.forEach(function (s, i) {
                 var tr = document.createElement('tr');
                 var qtyCell;
                 if (s.src.isFull) {
                     qtyCell = '<td class="ak-num"><b>' + fmtQty(s.src.available) + '</b> <small class="ak-note">(کامل)</small></td>';
                 } else {
-                    qtyCell = '<td><input type="number" step="0.0001" min="0" max="' + s.src.available + '" class="ak-input gsale-qty-input" data-key="' + s.src.key + '" value="' + (s.qty || '') + '"></td>';
+                    qtyCell = '<td><input type="number" step="0.0001" min="0" max="' + s.src.available + '" class="ak-input gsale-qty-input" data-key="' + escapeHtml(s.src.key) + '" value="' + (s.qty || '') + '"></td>';
                 }
                 tr.innerHTML =
-                    '<td>' + (i + 1) + '</td>' +
-                    '<td>' + s.src.kindLabel + '</td>' +
-                    '<td class="ak-num">' + s.src.number + '</td>' +
-                    '<td>' + s.src.route + '</td>' +
-                    '<td>' + s.src.product + '</td>' +
+                    '<td>' + (page.start + i + 1) + '</td>' +
+                    '<td>' + escapeHtml(s.src.kindLabel) + '</td>' +
+                    '<td class="ak-num">' + escapeHtml(s.src.number) + '</td>' +
+                    '<td>' + escapeHtml(s.src.route) + '</td>' +
+                    '<td>' + escapeHtml(s.src.product) + '</td>' +
                     '<td class="ak-num">' + fmtQty(s.src.available) + '</td>' +
                     qtyCell;
                 body.appendChild(tr);
@@ -480,43 +501,40 @@
             var body = $('previewBody');
             body.innerHTML = '';
             var totalQty = 0, total = 0;
-            items.forEach(function (s, i) {
+            items.forEach(function (s) {
+                var qty = s.src.isFull ? Number(s.src.available) : Number(s.qty || 0);
+                totalQty += qty;
+                total += Math.round(qty * price * 100) / 100;
+            });
+            var page = selectedPage(items, 'previewPage', 'previewPager', 'previewPageInfo', renderPreview);
+            page.items.forEach(function (s, i) {
                 var qty = s.src.isFull ? Number(s.src.available) : Number(s.qty || 0);
                 var amount = Math.round(qty * price * 100) / 100;
-                totalQty += qty; total += amount;
                 var tr = document.createElement('tr');
                 tr.innerHTML =
-                    '<td>' + (i + 1) + '</td>' +
-                    '<td>' + s.src.kindLabel + '</td>' +
-                    '<td class="ak-num">' + s.src.number + '</td>' +
-                    '<td>' + s.src.product + '</td>' +
+                    '<td>' + (page.start + i + 1) + '</td>' +
+                    '<td>' + escapeHtml(s.src.kindLabel) + '</td>' +
+                    '<td class="ak-num">' + escapeHtml(s.src.number) + '</td>' +
+                    '<td>' + escapeHtml(s.src.product) + '</td>' +
                     '<td class="ak-num">' + fmtQty(qty) + '</td>' +
                     '<td class="ak-num">' + fmt(amount) + '</td>';
                 body.appendChild(tr);
             });
             var cust = $('BuyerKey');
             $('previewMeta').innerHTML =
-                '<span><b>مشتری:</b> ' + (cust.options[cust.selectedIndex] ? cust.options[cust.selectedIndex].text : '-') + '</span>' +
-                '<span><b>نرخ هر تن:</b> ' + fmt(price) + ' ' + (curSel.value || 'USD') + '</span>' +
+                '<span><b>مشتری:</b> ' + escapeHtml(cust.options[cust.selectedIndex] ? cust.options[cust.selectedIndex].text : '-') + '</span>' +
+                '<span><b>نرخ هر تن:</b> ' + fmt(price) + ' ' + escapeHtml(curSel.value || 'USD') + '</span>' +
                 '<span><b>تعداد منابع:</b> ' + items.length + '</span>';
             $('previewQty').textContent = fmtQty(totalQty);
             $('previewTotal').textContent = fmt(total);
-            syncItemsInputs();
         }
 
-        // ---------- ساخت فیلدهای Items ----------
-        function syncItemsInputs() {
-            var container = $('gsaleItemsContainer');
-            container.innerHTML = '';
+        // All selected rows are submitted, including rows outside the visible page.
+        // FormData avoids creating thousands of hidden DOM inputs on modern browsers.
+        function writeItems(append) {
             var i = 0;
             state.selected.forEach(function (s) {
-                var mk = function (name, value) {
-                    var inp = document.createElement('input');
-                    inp.type = 'hidden';
-                    inp.name = 'Items[' + i + '].' + name;
-                    inp.value = value;
-                    container.appendChild(inp);
-                };
+                var mk = function (name, value) { append('Items[' + i + '].' + name, value == null ? '' : String(value)); };
                 mk('Kind', s.src.kind);
                 mk('Id', s.src.id);
                 mk('QuantityMt', s.src.isFull ? s.src.available : (s.qty || 0));
@@ -528,6 +546,22 @@
                     mk('CompanyId', s.src.companyId);
                 }
                 i++;
+            });
+        }
+
+        var form = $('gsaleForm');
+        var usesFormDataEvent = 'FormDataEvent' in window;
+        if (usesFormDataEvent) {
+            form.addEventListener('formdata', function (event) { writeItems(function (name, value) { event.formData.append(name, value); }); });
+        }
+        function syncItemsInputs() {
+            var container = $('gsaleItemsContainer');
+            container.innerHTML = '';
+            if (usesFormDataEvent) return;
+            writeItems(function (name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden'; input.name = name; input.value = value;
+                container.appendChild(input);
             });
         }
 
@@ -545,11 +579,14 @@
                 var q = Number(s.qty || 0);
                 return !(q > 0) || q > Number(s.src.available) + 0.0001;
             });
-            if (bad) { alert('مقدار فروش موجودی مخازن باید بزرگ‌تر از صفر و حداکثر برابر موجودی آزاد باشد.'); return false; }
+            if (bad) { alert('مقدار فروش باید بزرگ‌تر از صفر و حداکثر برابر ماندهٔ قابل فروش همان بار یا مخزن باشد.'); return false; }
             return true;
         }
 
         function validateStep3() {
+            if (Array.from(state.selected.values()).some(function (s) { return s.src.kind === 5; }) && !$('LoadingSaleTerminalId').value) {
+                alert('محل فروش مستقیم بارگیری را انتخاب کنید.'); return false;
+            }
             if (!$('BuyerKey').value) { alert('خریدار را انتخاب کنید.'); return false; }
             if (!(parseFloat($('UnitPriceInCurrency').value) > 0)) { alert('نرخ فروش هر تن را وارد کنید.'); return false; }
             var cur = (curSel && curSel.value) || 'USD';
