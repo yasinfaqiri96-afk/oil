@@ -331,6 +331,8 @@ public sealed class BulkFromLoadingConcurrencyTests(BulkFromLoadingPerformanceFi
         await fixture.TruncateAsync();
         await using var db = fixture.CreateDbContext();
         await BulkFromLoadingPerformanceTests.SeedAsync(db, 2);
+        // Filter rows take each loading's own vehicle; a truck loading without one is rejected.
+        await db.LoadingRegisters.ExecuteUpdateAsync(s => s.SetProperty(l => l.TruckId, 1));
         db.ChangeTracker.Clear();
         var model = new TransportBulkFromLoadingViewModel
         {
