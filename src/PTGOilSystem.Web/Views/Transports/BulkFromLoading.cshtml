@@ -266,7 +266,8 @@
     <script>
         (function () {
             var progressLink = document.querySelector('[data-bulk-progress-link]');
-            var requestToken = document.querySelector('input[name="__FormToken"]');
+            var progressForm = progressLink && progressLink.closest('form');
+            var requestToken = progressForm && progressForm.querySelector('input[name="__FormToken"]');
             if (progressLink && requestToken) {
                 progressLink.href += '?requestToken=' + encodeURIComponent(requestToken.value);
                 progressLink.hidden = false;

@@ -348,6 +348,7 @@ public sealed class TransportsController : Controller
 
         if (result.CompletedCount == 0)
         {
+            TempData["err"] = "هیچ موردی ثبت نشد.";
             foreach (var failure in DescribeFailures(result.Failures))
             {
                 ModelState.AddModelError(string.Empty, failure);
