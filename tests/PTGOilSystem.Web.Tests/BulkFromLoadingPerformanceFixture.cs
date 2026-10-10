@@ -110,7 +110,7 @@ public sealed class BulkFromLoadingPerformanceFixture : IAsyncLifetime
         await using var db = CreateDbContext();
         await db.Database.ExecuteSqlRawAsync(
             """
-            TRUNCATE "InventoryTransportLegAllocations", "InventoryTransportLegs",
+            TRUNCATE "AuditLogs", "InventoryTransportLegAllocations", "InventoryTransportLegs",
                      "InventoryTransportBatches", "LoadingReceipts", "LossEvents",
                      "ProcessedFormTokens", "LoadingRegisters", "Contracts",
                      "Trucks", "Terminals", "Products", "Suppliers", "Companies"

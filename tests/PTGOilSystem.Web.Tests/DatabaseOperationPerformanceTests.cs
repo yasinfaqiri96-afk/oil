@@ -2,7 +2,10 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -50,6 +53,7 @@ public sealed class DatabaseOperationPerformanceTests(
             purchaseAccounting: CreateAdapter(db, accountingEnabled))
         {
             ControllerContext = new ControllerContext { HttpContext = context },
+            Url = new UrlHelper(new ActionContext(context, new RouteData(), new ActionDescriptor())),
             TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
         };
         var rows = Enumerable.Range(1, RowCount).Select(index => new LoadingCreateRowViewModel
@@ -73,6 +77,7 @@ public sealed class DatabaseOperationPerformanceTests(
 
         var result = await MeasureAsync(db, counter, "import", accountingEnabled, () => controller.Create(model));
         AssertSuccessful(controller, result);
+        Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(RowCount, await db.LoadingRegisters.CountAsync());
         Assert.Equal(RowCount, await db.AuditLogs.CountAsync(a => a.EntityName == nameof(LoadingRegister)));
         Assert.Equal((decimal)RowCount, await db.LoadingRegisters.SumAsync(a => a.LoadedQuantityMt));
@@ -112,6 +117,7 @@ public sealed class DatabaseOperationPerformanceTests(
             purchaseAccounting: CreateAdapter(db, accountingEnabled))
         {
             ControllerContext = new ControllerContext { HttpContext = context },
+            Url = new UrlHelper(new ActionContext(context, new RouteData(), new ActionDescriptor())),
             TempData = new TempDataDictionary(context, new EmptyTempDataProvider())
         };
         var model = new LoadingReceiptBulkCreateViewModel
@@ -122,11 +128,13 @@ public sealed class DatabaseOperationPerformanceTests(
             TerminalId = scope.Terminal.Id,
             StorageTankId = scope.Tank.Id,
             TotalReceivedQuantityMt = RowCount,
-            ReferenceDocument = "PERF-RECEIPT"
+            ReferenceDocument = "PERF-RECEIPT",
+            ReturnUrl = $"/ContractJourney/Details?contractId={scope.Contract.Id}&tab=receipts"
         };
 
         var result = await MeasureAsync(db, counter, "bulk_receipt", accountingEnabled, () => controller.BulkCreate(model));
         AssertSuccessful(controller, result);
+        Assert.IsType<RedirectResult>(result);
         Assert.Equal(RowCount, await db.LoadingReceipts.CountAsync());
         Assert.Equal(RowCount, await db.LoadingReceiptAllocations.CountAsync());
         Assert.Equal(RowCount, await db.InventoryMovements.CountAsync());
@@ -214,7 +222,6 @@ public sealed class DatabaseOperationPerformanceTests(
     {
         Assert.True(controller.ModelState.IsValid,
             string.Join("; ", controller.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
-        Assert.IsType<RedirectToActionResult>(result);
     }
 
     private static async Task AssertJournalsAsync(ApplicationDbContext db, string sourceType, bool accountingEnabled)
