@@ -5,11 +5,11 @@ using PTGOilSystem.Web.Models.Entities;
 namespace PTGOilSystem.Web.Services.Operations;
 
 public enum CargoSourceKind { Loading, Stock, Transport, Dispatch, Receipt }
-public enum CargoAction { Receive, DirectSale, StartTransport, ContinueTransport, Expense, History }
+public enum CargoAction { Receive, DirectSale, StartTransport, ContinueTransport, Expense, History, PreSaleDelivery }
 
 // These quantities deliberately have different meanings; a physical stock balance is not
 // a reservation-adjusted sellable balance or a transport's unreceived balance.
-public sealed record CargoOwnershipShare(int ContractId, decimal QuantityMt, int? SourceLoadingRegisterId = null, int? SourceLoadingReceiptId = null);
+public sealed record CargoOwnershipShare(int ContractId, decimal QuantityMt, int? SourceLoadingRegisterId = null, int? SourceLoadingReceiptId = null, ContractStatus? ContractStatus = null);
 
 public sealed record CargoSourceSnapshot(
     CargoSourceKind Kind, int Id, int ContractId, int ProductId, int CompanyId,
@@ -22,7 +22,8 @@ public sealed record CargoSourceSnapshot(
     int? TerminalId = null, int? StorageTankId = null,
     IReadOnlyCollection<CargoAction>? SupportedActions = null,
     IReadOnlyList<CargoOwnershipShare>? OwnershipShares = null,
-    ContractStatus? ContractStatus = null)
+    ContractStatus? ContractStatus = null,
+    string StatusLabel = "", decimal SoldQuantityMt = 0m)
 {
     public decimal ConsumedQuantityMt => OriginalQuantityMt - RemainingQuantityMt;
 }
@@ -34,9 +35,11 @@ public static class CargoOperationEligibility
     public static CargoEligibility Evaluate(CargoSourceSnapshot source, CargoAction action)
     {
         if (action == CargoAction.History) return new(true, null);
-        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Closed)
+        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Closed
+            || source.OwnershipShares?.Any(s => s.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Closed) == true)
             return new(false, "قرارداد این بار بسته شده است؛ نخست آن را از مسیر مجاز باز کنید.");
-        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Cancelled)
+        if (source.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Cancelled
+            || source.OwnershipShares?.Any(s => s.ContractStatus == PTGOilSystem.Web.Models.Entities.ContractStatus.Cancelled) == true)
             return new(false, "قرارداد این بار لغو شده است.");
         if (source.IsCancelled) return new(false, "این بار لغو شده است.");
         if (source.IsArchived) return new(false, "این بار بایگانی شده است.");
@@ -64,7 +67,8 @@ public static class CargoOperationEligibility
 
 // Read-only application projection over the existing receipt/loss/allocation authorities.
 // Command callers must acquire the LoadingRegister row lock before re-reading this projection.
-public sealed partial class CargoSourceQueryService(ApplicationDbContext db)
+public sealed partial class CargoSourceQueryService(ApplicationDbContext db, IStockService? stockService = null,
+    ITransportQuantityService? quantityService = null, PTGOilSystem.Web.Services.Time.IAfghanistanBusinessClock? businessClock = null)
 {
     public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadLoadingSourcesAsync(
         IReadOnlyCollection<int>? loadingIds = null, CancellationToken ct = default)

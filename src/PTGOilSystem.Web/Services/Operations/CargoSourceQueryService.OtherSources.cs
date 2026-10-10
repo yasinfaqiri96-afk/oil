@@ -18,31 +18,43 @@ public sealed partial class CargoSourceQueryService
             || l.Status == InventoryTransportLegStatus.InTransit));
         var legs = await query.Include(l => l.SourcePurchaseContract).ThenInclude(c => c!.Company)
             .Include(l => l.Product).Include(l => l.Truck).Include(l => l.SourceTerminal)
-            .Include(l => l.DestinationTerminal).Include(l => l.Allocations).ToListAsync(ct);
-        var remaining = await new TransportQuantityService(db).GetRemainingMtAsync(legs.Select(l => l.Id).ToArray(), ct);
+            .Include(l => l.DestinationTerminal).Include(l => l.DestinationLocation).Include(l => l.Allocations).ThenInclude(a => a.SourcePurchaseContract).ToListAsync(ct);
+        var quantities = await (quantityService ?? new TransportQuantityService(db)).GetQuantitiesAsync(legs.Select(l => l.Id).ToArray(), ct);
+        var ids = legs.Select(l => l.Id).ToArray();
+        var blockedForFullSale = (await db.InventoryTransportReceipts.AsNoTracking()
+            .Where(r => ids.Contains(r.InventoryTransportLegId) && !r.IsCancelled
+                && r.ReceiptDestination != InventoryTransportReceiptDestination.DirectSale
+                && (r.ReceivedQuantityMt > 0m || r.SalesTransactionId.HasValue))
+            .Select(r => r.InventoryTransportLegId).Distinct().ToListAsync(ct)).ToHashSet();
         return legs.Select(l => new CargoSourceSnapshot(CargoSourceKind.Transport, l.Id,
             l.SourcePurchaseContractId, l.ProductId, l.SourcePurchaseContract?.CompanyId ?? 0,
             l.SourcePurchaseContract?.ContractNumber ?? "", l.Product?.Name ?? "", l.SourcePurchaseContract?.Company?.Name ?? "",
             l.WagonNumber ?? l.RwbNo ?? l.Truck?.PlateNumber ?? $"#{l.Id}",
-            l.TransportType == LoadingTransportType.Wagon ? "واگن" : "موتر",
-            $"{l.SourceTerminal?.Name} ← {l.DestinationTerminal?.Name}", l.LoadedDate, l.QuantityMt,
-            0m, 0m, 0m, remaining.GetValueOrDefault(l.Id),
+            l.TransportType == LoadingTransportType.Wagon ? "واگن" : l.TransportType == LoadingTransportType.Truck ? "موتر" : "انتقال",
+            $"{l.SourceTerminal?.Name ?? "؟"} ← {l.DestinationTerminal?.Name ?? l.DestinationLocation?.Name ?? "؟"}", l.LoadedDate, l.QuantityMt,
+            quantities[l.Id].ReceivedToInventoryMt, quantities[l.Id].ShortageMt, quantities[l.Id].TransferredToVehicleMt, quantities[l.Id].RemainingMt,
             l.Status == InventoryTransportLegStatus.Cancelled, l.IsArchived,
             l.SourcePurchaseContract?.ContractType == ContractType.Purchase,
             SupportedActions: l.Status is InventoryTransportLegStatus.Loaded or InventoryTransportLegStatus.InTransit
-                ? [CargoAction.Receive, CargoAction.DirectSale, CargoAction.ContinueTransport, CargoAction.Expense]
+                ? (!blockedForFullSale.Contains(l.Id)
+                    ? [CargoAction.Receive, CargoAction.DirectSale, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery]
+                    : [CargoAction.Receive, CargoAction.ContinueTransport, CargoAction.Expense, CargoAction.PreSaleDelivery])
                 : [CargoAction.Expense],
             OwnershipShares: l.Allocations.Select(a => new CargoOwnershipShare(a.SourcePurchaseContractId,
-                a.QuantityMt, a.SourceLoadingRegisterId, a.SourceLoadingReceiptId)).ToList(),
-            ContractStatus: l.SourcePurchaseContract?.Status)).ToList();
+                a.QuantityMt, a.SourceLoadingRegisterId, a.SourceLoadingReceiptId, a.SourcePurchaseContract?.Status)).ToList(),
+            ContractStatus: l.SourcePurchaseContract?.Status,
+            StatusLabel: l.IsFreightSettled ? "کرایه تسویه‌شده" : l.Status == InventoryTransportLegStatus.InTransit ? "در راه" : "بارگیری‌شده",
+            SoldQuantityMt: quantities[l.Id].SoldMt)).ToList();
     }
 
-    public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadDispatchSourcesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadDispatchSourcesAsync(IReadOnlyCollection<int>? dispatchIds = null, CancellationToken ct = default)
     {
         var continued = TransportChainProjection.ContinuedTransferReceiptIds(db);
-        var rows = await db.TruckDispatches.AsNoTracking()
-            .Where(d => (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
-                && !(d.InventoryTransportReceiptId.HasValue && continued.Contains(d.InventoryTransportReceiptId.Value)))
+        var query = db.TruckDispatches.AsNoTracking().AsQueryable();
+        if (dispatchIds is not null) query = query.Where(d => dispatchIds.Contains(d.Id));
+        else query = query.Where(d => d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit);
+        var rows = await query
+            .Where(d => !(d.InventoryTransportReceiptId.HasValue && continued.Contains(d.InventoryTransportReceiptId.Value)))
             .Include(d => d.Contract).ThenInclude(c => c!.Company).Include(d => d.Product)
             .Include(d => d.Truck).Include(d => d.DestinationLocation).ToListAsync(ct);
         return rows.Select(d => new CargoSourceSnapshot(CargoSourceKind.Dispatch, d.Id, d.ContractId,
@@ -50,8 +62,10 @@ public sealed partial class CargoSourceQueryService
             d.Contract?.Company?.Name ?? "", d.Truck?.PlateNumber ?? $"#{d.Id}", "موتر",
             d.DestinationLocation?.Name ?? "", d.DispatchDate, d.LoadedQuantityMt, 0m, 0m, 0m,
             d.SalesTransactionId.HasValue ? 0m : d.DischargedQuantityMt ?? d.LoadedQuantityMt,
-            false, false, d.Contract?.ContractType == ContractType.Purchase,
-            SupportedActions: [CargoAction.DirectSale, CargoAction.Expense], ContractStatus: d.Contract?.Status)).ToList();
+            d.Status == DispatchStatus.Cancelled, false, d.Contract?.ContractType == ContractType.Purchase,
+            SupportedActions: d.Status is DispatchStatus.Loaded or DispatchStatus.InTransit
+                ? [CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.Expense] : [CargoAction.Expense], ContractStatus: d.Contract?.Status,
+            StatusLabel: d.IsFreightSettled ? "کرایه تسویه‌شده" : d.Status == DispatchStatus.InTransit ? "در راه" : "بارگیری‌شده")).ToList();
     }
 
     public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadReceiptSourcesAsync(CancellationToken ct = default)
@@ -88,21 +102,28 @@ public sealed partial class CargoSourceQueryService
         }).ToList();
     }
 
-    public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadStockSourcesAsync(DateTime asOf, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CargoSourceSnapshot>> LoadStockSourcesAsync(DateTime asOf, CancellationToken ct = default,
+        int? productId = null, int? terminalId = null, int? storageTankId = null, int? contractId = null)
     {
-        var pools = await db.InventoryMovements.AsNoTracking()
+        var movementQuery = db.InventoryMovements.AsNoTracking().AsQueryable();
+        if (productId.HasValue) movementQuery = movementQuery.Where(m => m.ProductId == productId);
+        if (terminalId.HasValue) movementQuery = movementQuery.Where(m => m.TerminalId == terminalId);
+        if (storageTankId.HasValue) movementQuery = movementQuery.Where(m => m.StorageTankId == storageTankId);
+        var poolsQuery = movementQuery
             .Where(m => m.StorageTankId.HasValue && m.MovementDate <= asOf)
             .Select(m => new { m.ProductId, m.TerminalId, m.StorageTankId,
                 ContractId = m.ContractId ?? (m.LoadingReceipt != null ? (int?)m.LoadingReceipt.LoadingRegister!.ContractId : null) })
-            .Where(m => m.ContractId.HasValue).Distinct().ToListAsync(ct);
+            .Where(m => m.ContractId.HasValue).Distinct();
+        if (contractId.HasValue) poolsQuery = poolsQuery.Where(p => p.ContractId == contractId);
+        var pools = await poolsQuery.ToListAsync(ct);
         var contractIds = pools.Select(p => p.ContractId!.Value).Distinct().ToArray();
         var contracts = await db.Contracts.AsNoTracking().Where(c => contractIds.Contains(c.Id)
             && c.ContractType == ContractType.Purchase).Include(c => c.Company).Include(c => c.Product)
             .ToDictionaryAsync(c => c.Id, ct);
-        var companyStock = await new PreSaleReservationService(db, new AfghanistanBusinessClock(TimeProvider.System))
+        var companyStock = await new PreSaleReservationService(db, businessClock ?? new AfghanistanBusinessClock(TimeProvider.System))
             .GetSellableStockAsync(new ManagementReportFilterViewModel { ToDate = asOf }, ct);
         var scoped = companyStock.Where(s => s.CompanyId.HasValue).ToDictionary(s => (s.CompanyId!.Value, s.ProductId));
-        var stock = new StockService(db);
+        var stock = stockService ?? new StockService(db);
         var result = new List<CargoSourceSnapshot>();
         foreach (var p in pools)
         {
@@ -117,7 +138,8 @@ public sealed partial class CargoSourceQueryService
                 c.Product?.Name ?? "", c.Company?.Name ?? "", $"#{p.StorageTankId}", "مخزن", "", asOf,
                 physical, 0m, 0m, 0m, physical, false, false, true, PhysicalStockMt: physical,
                 SellableStockMt: sellableBound, TerminalId: p.TerminalId, StorageTankId: p.StorageTankId,
-                SupportedActions: [CargoAction.DirectSale, CargoAction.StartTransport, CargoAction.Expense], ContractStatus: c.Status));
+                SupportedActions: [CargoAction.DirectSale, CargoAction.PreSaleDelivery, CargoAction.StartTransport, CargoAction.Expense], ContractStatus: c.Status,
+                StatusLabel: "قابل فروش"));
         }
         return result;
     }
