@@ -416,7 +416,7 @@ public partial class SalesController
         {
             LoadingRegisterId = loading.Id, TerminalId = model.LoadingSaleTerminalId!.Value,
             ReceiptDate = model.SaleDate.Date, ReceivedQuantityMt = quantity,
-            ReceiptDestination = LoadingReceiptDestination.DirectDispatch, LossMode = ReceiptLossMode.None,
+            ReceiptDestination = LoadingReceiptDestination.DirectDispatch, LossMode = ReceiptLossMode.ImmediateKnownLoss,
             ReferenceDocument = invoice, Notes = model.Notes
         };
         var allocation = new LoadingReceiptAllocation

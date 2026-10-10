@@ -33,7 +33,7 @@ public sealed class LoadingDirectSaleDraftService(ICurrencyConversionService cur
             CustomerId = line.SaleCustomerId, SupplierId = line.SaleSupplierId,
             ProductId = loading.ProductId, DestinationLocationId = line.DestinationLocationId,
             ShipmentId = null, SaleStage = SaleStage.InTransit,
-            InvoiceNumber = line.SaleInvoiceNumber!, SaleDate = line.SaleDate.Value.Date,
+            InvoiceNumber = line.SaleInvoiceNumber!, SaleDate = line.SaleDate!.Value.Date,
             QuantityMt = line.QuantityMt, Currency = conversion.SourceCurrencyCode,
             UnitPriceInCurrency = line.SaleUnitPriceInCurrency.Value,
             AppliedFxRateToUsd = conversion.AppliedRateToBase,
