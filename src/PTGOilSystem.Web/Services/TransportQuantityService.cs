@@ -32,6 +32,14 @@ public interface ITransportQuantityService
         CancellationToken ct = default);
 
     Task<TransportLegQuantities> GetQuantitiesAsync(int legId, CancellationToken ct = default);
+
+    async Task<IReadOnlyDictionary<int, TransportLegQuantities>> GetQuantitiesAsync(
+        IReadOnlyCollection<int> legIds, CancellationToken ct = default)
+    {
+        var result = new Dictionary<int, TransportLegQuantities>();
+        foreach (var id in legIds.Distinct()) result[id] = await GetQuantitiesAsync(id, ct);
+        return result;
+    }
 }
 
 /// <summary>
@@ -98,45 +106,31 @@ public sealed class TransportQuantityService : ITransportQuantityService
     }
 
     public async Task<TransportLegQuantities> GetQuantitiesAsync(int legId, CancellationToken ct = default)
+        => (await GetQuantitiesAsync([legId], ct)).GetValueOrDefault(legId)
+            ?? new TransportLegQuantities(legId, 0m, 0m, 0m, 0m, 0m, 0m);
+
+    public async Task<IReadOnlyDictionary<int, TransportLegQuantities>> GetQuantitiesAsync(
+        IReadOnlyCollection<int> legIds, CancellationToken ct = default)
     {
-        var loadedMt = await _db.InventoryTransportLegs
-            .AsNoTracking()
-            .Where(l => l.Id == legId)
-            .Select(l => (decimal?)l.QuantityMt)
-            .FirstOrDefaultAsync(ct) ?? 0m;
-
-        var receipts = await _db.InventoryTransportReceipts
-            .AsNoTracking()
-            .Where(r => r.InventoryTransportLegId == legId && !r.IsCancelled)
-            .Select(r => new { r.ReceiptDestination, r.ReceivedQuantityMt, r.ShortageQuantityMt })
+        if (legIds.Count == 0) return new Dictionary<int, TransportLegQuantities>();
+        var loaded = await _db.InventoryTransportLegs.AsNoTracking().Where(l => legIds.Contains(l.Id))
+            .Select(l => new { l.Id, l.QuantityMt }).ToDictionaryAsync(l => l.Id, l => l.QuantityMt, ct);
+        var receipts = await _db.InventoryTransportReceipts.AsNoTracking()
+            .Where(r => legIds.Contains(r.InventoryTransportLegId) && !r.IsCancelled)
+            .Select(r => new { r.InventoryTransportLegId, r.ReceiptDestination, r.ReceivedQuantityMt, r.ShortageQuantityMt })
             .ToListAsync(ct);
-
-        // مقصد هر رسید سرنوشت فیزیکی همان مقدار است؛ کسری جدا شمرده می‌شود چون به هیچ مقصدی نرسید.
-        var soldMt = receipts
-            .Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale)
-            .Sum(r => r.ReceivedQuantityMt);
-        var receivedMt = receipts
-            .Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.ToInventory)
-            .Sum(r => r.ReceivedQuantityMt);
-        var transferredMt = receipts
-            .Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch)
-            .Sum(r => r.ReceivedQuantityMt);
-        // مقصد Mixed به هیچ‌کدام از سه سطل بالا تعلق ندارد؛ در مصرف هست ولی تفکیک نمی‌شود.
-        var mixedMt = receipts
-            .Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.Mixed)
-            .Sum(r => r.ReceivedQuantityMt);
-        var shortageMt = receipts.Sum(r => r.ShortageQuantityMt);
-
-        var consumedMt = soldMt + receivedMt + transferredMt + mixedMt + shortageMt;
-
-        return new TransportLegQuantities(
-            legId,
-            Round(loadedMt),
-            Round(soldMt),
-            Round(receivedMt + mixedMt),
-            Round(transferredMt),
-            Round(shortageMt),
-            Round(loadedMt - consumedMt));
+        var byLeg = receipts.ToLookup(r => r.InventoryTransportLegId);
+        return loaded.ToDictionary(l => l.Key, l =>
+        {
+            var rows = byLeg[l.Key];
+            var sold = rows.Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale).Sum(r => r.ReceivedQuantityMt);
+            var received = rows.Where(r => r.ReceiptDestination is InventoryTransportReceiptDestination.ToInventory or InventoryTransportReceiptDestination.Mixed)
+                .Sum(r => r.ReceivedQuantityMt);
+            var transferred = rows.Where(r => r.ReceiptDestination == InventoryTransportReceiptDestination.DirectDispatch).Sum(r => r.ReceivedQuantityMt);
+            var shortage = rows.Sum(r => r.ShortageQuantityMt);
+            return new TransportLegQuantities(l.Key, Round(l.Value), Round(sold), Round(received), Round(transferred),
+                Round(shortage), Round(l.Value - sold - received - transferred - shortage));
+        });
     }
 
     private IQueryable<decimal> ConsumedQuery(int legId)
