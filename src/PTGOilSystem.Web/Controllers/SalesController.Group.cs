@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Helpers;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.InventoryTransport;
@@ -307,6 +308,7 @@ public partial class SalesController
                 var invoice = $"{batch.BatchNumber}-{lineNo}";
 
                 var owner = new SaleLineOwner(batch.Id, null, batch.BatchNumber);
+                using var row = new SavedRowTrackingScope(_db);
                 var sale = selection.Kind switch
                 {
                     GroupSaleSourceKind.TerminalStock =>
@@ -324,6 +326,7 @@ public partial class SalesController
                 totalQty += sale.QuantityMt;
                 totalInCurrency += sale.TotalInCurrency;
                 totalUsd += sale.TotalUsd;
+                row.ReleaseSaved();
             }
 
             batch.TotalQuantityMt = decimal.Round(totalQty, 4, MidpointRounding.AwayFromZero);

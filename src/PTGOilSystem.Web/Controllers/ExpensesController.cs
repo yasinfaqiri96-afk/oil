@@ -3067,9 +3067,11 @@ public partial class ExpensesController : Controller
             // Keep eligibility and cancellation ordered on the same loading row as receipts/transport.
             if (_db.Database.IsRelational() && loadingIds.Count > 0)
             {
+                // Lock-only statements: tracking every locked row would make each later save
+                // in this transaction re-scan them.
                 var lockedLoadingIds = loadingIds.Order().ToArray();
-                await _db.LoadingRegisters.FromSqlInterpolated(
-                    $"SELECT * FROM \"LoadingRegisters\" WHERE \"Id\" = ANY ({lockedLoadingIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM \"LoadingRegisters\" WHERE \"Id\" = ANY ({lockedLoadingIds}) ORDER BY \"Id\" FOR UPDATE");
                 var current = await new CargoSourceQueryService(_db).LoadLoadingSourcesAsync(loadingIds);
                 if (current.Count != loadingIds.Count || current.Any(l => !CargoOperationEligibility.Evaluate(l, CargoAction.Expense).Allowed))
                     throw new BusinessRuleException("GROUP_EXPENSE_SOURCE_CHANGED", "بارگیری انتخاب‌شده لغو یا بایگانی شده است. فهرست را تازه کنید.");
@@ -3078,8 +3080,8 @@ public partial class ExpensesController : Controller
             if (_db.Database.IsRelational() && legIds.Count > 0)
             {
                 var lockedLegIds = legIds.Order().ToArray();
-                await _db.InventoryTransportLegs.FromSqlInterpolated(
-                    $"SELECT * FROM \"InventoryTransportLegs\" WHERE \"Id\" = ANY ({lockedLegIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM \"InventoryTransportLegs\" WHERE \"Id\" = ANY ({lockedLegIds}) ORDER BY \"Id\" FOR UPDATE");
                 var validCount = await _db.InventoryTransportLegs.AsNoTracking().CountAsync(l => legIds.Contains(l.Id)
                     && (l.Status == InventoryTransportLegStatus.Loaded || l.Status == InventoryTransportLegStatus.InTransit));
                 if (validCount != legIds.Count)
@@ -3088,8 +3090,8 @@ public partial class ExpensesController : Controller
             if (_db.Database.IsRelational() && dispatchIds.Count > 0)
             {
                 var lockedDispatchIds = dispatchIds.Order().ToArray();
-                await _db.TruckDispatches.FromSqlInterpolated(
-                    $"SELECT * FROM \"TruckDispatches\" WHERE \"Id\" = ANY ({lockedDispatchIds}) ORDER BY \"Id\" FOR UPDATE").ToListAsync();
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT 1 FROM \"TruckDispatches\" WHERE \"Id\" = ANY ({lockedDispatchIds}) ORDER BY \"Id\" FOR UPDATE");
                 var validCount = await _db.TruckDispatches.AsNoTracking().CountAsync(d => dispatchIds.Contains(d.Id)
                     && (d.Status == DispatchStatus.Loaded || d.Status == DispatchStatus.InTransit)
                     && !(d.InventoryTransportReceiptId != null && continuedReceiptIds.Contains(d.InventoryTransportReceiptId.Value)));
@@ -3180,14 +3182,17 @@ public partial class ExpensesController : Controller
                         CostResponsibility = model.CostResponsibility
                     };
 
+                    using var row = new SavedRowTrackingScope(_db);
                     await _groupExpensePosting.PostOperationAsync(expense, expenseType, conversion,
                         model.SettlementMode, model.CashAccountId);
+                    row.ReleaseSaved();
                 }
 
                 // Rounded row conversions are the actual posted USD total; do not advertise
                 // a different header value after multi-source or multi-operation splitting.
-                batch.TotalAmountUsd = _db.ChangeTracker.Entries<ExpenseTransaction>()
-                    .Where(e => e.Entity.ExpenseBatchId == batch.Id).Sum(e => e.Entity.AmountUsd);
+                // Every row is saved (4-decimal amounts) inside this transaction.
+                batch.TotalAmountUsd = await _db.ExpenseTransactions
+                    .Where(e => e.ExpenseBatchId == batch.Id).SumAsync(e => e.AmountUsd);
 
                 await _audit.LogAndSaveAsync(
                     nameof(ExpenseBatch),

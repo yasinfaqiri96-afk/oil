@@ -165,22 +165,12 @@ public partial class ApplicationDbContext : DbContext
     // --- Operational period lock (PTG-P1-01; independent of the disabled Accounting module) ---
     public DbSet<OperationalPeriodLock> OperationalPeriodLocks => Set<OperationalPeriodLock>();
 
-    public override int SaveChanges()
-    {
-        PrepareTrackedEntitiesForSave();
-        return base.SaveChanges();
-    }
-
+    // The parameterless overloads are not overridden: EF routes them through the
+    // acceptAllChangesOnSuccess overloads below, so preparation runs exactly once per save.
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         PrepareTrackedEntitiesForSave();
         return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        PrepareTrackedEntitiesForSave();
-        return base.SaveChangesAsync(cancellationToken);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
@@ -2620,12 +2610,27 @@ public partial class ApplicationDbContext : DbContext
 
     private void PrepareTrackedEntitiesForSave()
     {
-        ApplyAuditStamps();
-        ApplyConcurrencyVersions();
-        ApplyCanonicalSearchKeys();
-        NormalizeDateTimePropertiesToUtc();
-        EnforceOperationalPeriodLock();
-        EnforceClosedContractLock();
+        // Each ChangeTracker.Entries() call otherwise repeats a full DetectChanges pass over
+        // every tracked entity, which made large single-transaction group saves quadratic.
+        // States and FK fix-ups are detected once here; the steps below only stamp scalar
+        // values, which the save's own DetectChanges pass still picks up.
+        var autoDetectChanges = ChangeTracker.AutoDetectChangesEnabled;
+        if (autoDetectChanges)
+            ChangeTracker.DetectChanges();
+        ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            ApplyAuditStamps();
+            ApplyConcurrencyVersions();
+            ApplyCanonicalSearchKeys();
+            NormalizeDateTimePropertiesToUtc();
+            EnforceOperationalPeriodLock();
+            EnforceClosedContractLock();
+        }
+        finally
+        {
+            ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
+        }
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using PTGOilSystem.Web.Configuration;
@@ -34,7 +35,9 @@ public sealed class DatabaseOperationPerformanceTests(
     BulkFromLoadingPerformanceFixture fixture,
     ITestOutputHelper output)
 {
-    private const int RowCount = 1000;
+    // PTG_PERF_ROWS only scales a local measurement run; the default is the benchmark size.
+    private static readonly int RowCount =
+        int.TryParse(Environment.GetEnvironmentVariable("PTG_PERF_ROWS"), out var rows) && rows > 0 ? rows : 1000;
     private static readonly DateTime OperationDate = new(2026, 7, 22);
 
     [Theory]
@@ -112,6 +115,9 @@ public sealed class DatabaseOperationPerformanceTests(
         }).ToList();
         db.LoadingRegisters.AddRange(loadings);
         await db.SaveChangesAsync();
+        // A receipt journal requires the posted purchase that put the goods in transit.
+        // This setup posting is excluded from the operation measurement.
+        await CreateAdapter(db, accountingEnabled).TryPostPurchasesAsync(loadings);
         var context = new DefaultHttpContext();
         var controller = new LoadingReceiptsController(
             db,
@@ -446,7 +452,14 @@ public sealed class DatabaseOperationPerformanceTests(
                 db.ChangeTracker.AutoDetectChangesEnabled = detectChanges;
             }
         };
+        // Full change-detection passes are the per-save cost that grows with tracked entities.
+        var detectPasses = 0;
+        var detectWatch = new Stopwatch();
+        EventHandler<DetectChangesEventArgs> onDetecting = (_, _) => { detectPasses++; detectWatch.Start(); };
+        EventHandler<DetectedChangesEventArgs> onDetected = (_, _) => detectWatch.Stop();
         db.SavingChanges += onSave;
+        db.ChangeTracker.DetectingAllChanges += onDetecting;
+        db.ChangeTracker.DetectedAllChanges += onDetected;
         counter.Reset();
         var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
         var stopwatch = Stopwatch.StartNew();
@@ -458,10 +471,13 @@ public sealed class DatabaseOperationPerformanceTests(
         {
             stopwatch.Stop();
             db.SavingChanges -= onSave;
+            db.ChangeTracker.DetectingAllChanges -= onDetecting;
+            db.ChangeTracker.DetectedAllChanges -= onDetected;
             var allocatedBytes = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
             output.WriteLine($"DATABASE_PERF operation={operation} rows={RowCount} accounting={accountingEnabled} " +
                 $"ms={stopwatch.ElapsedMilliseconds} commands={counter.Commands} transactions={counter.Transactions} " +
-                $"saveChanges={saves} peakTracked={peakTracked} allocatedBytes={allocatedBytes}");
+                $"saveChanges={saves} peakTracked={peakTracked} detectChangesPasses={detectPasses} " +
+                $"detectChangesMs={detectWatch.ElapsedMilliseconds} allocatedBytes={allocatedBytes}");
         }
     }
 
