@@ -222,7 +222,8 @@ public sealed class BulkFromLoadingPerformanceTests(
             new InventoryTransportBatchService(db, stock),
             new TransportChainService(db, receipts, quantities),
             receipts,
-            new LossEventWorkflowService(db, stock, new AuditService(db)));
+            new LossEventWorkflowService(db, stock, new AuditService(db)),
+            formTokens: new FormTokenGuard(db));
     }
 
     internal static async Task SeedAsync(ApplicationDbContext db, int loadingCount, decimal loadedQuantityMt = 100m)
