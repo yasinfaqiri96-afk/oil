@@ -26,7 +26,8 @@ public static class TransportLegPurchaseCostSync
 
         var source = await db.LoadingRegisters.AsNoTracking()
             .Where(l => l.Id == loadingRegisterId && !l.IsCancelled && !l.IsArchived
-                && l.Contract != null && l.Contract.Status == ContractStatus.Active)
+                && l.Contract != null && l.Contract.Status != ContractStatus.Closed
+                && l.Contract.Status != ContractStatus.Cancelled)
             .Select(l => new { l.ContractId, CompanyId = l.Contract!.CompanyId, l.LoadingDate })
             .SingleOrDefaultAsync(ct);
         if (source is null)

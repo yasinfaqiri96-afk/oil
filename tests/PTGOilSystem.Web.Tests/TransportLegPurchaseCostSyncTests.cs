@@ -172,6 +172,19 @@ public class TransportLegPurchaseCostSyncTests
         Assert.Equal(700m, leg.PurchaseUnitCostUsd);
     }
 
+    [Fact]
+    public async Task Draft_Contract_Does_Not_Add_A_New_Restriction_To_Open_Estimate_Finalization()
+    {
+        await using var db = NewDb();
+        Seed(db, loadingPriceUsd: null);
+        db.Contracts.Local.Single().Status = ContractStatus.Draft;
+        var leg = Leg(1, unitCostUsd: null, loadingIds: [10]);
+        db.InventoryTransportLegs.Add(leg);
+        await db.SaveChangesAsync();
+        Assert.Equal(1, await TransportLegPurchaseCostSync.SyncFromLoadingAsync(db, 10, null, 700m));
+        Assert.Equal(700m, leg.PurchaseUnitCostUsd);
+    }
+
     private static InventoryTransportLeg Leg(int id, decimal? unitCostUsd, int[] loadingIds)
     {
         var leg = new InventoryTransportLeg
