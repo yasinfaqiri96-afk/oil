@@ -2256,13 +2256,25 @@ public partial class LoadingReceiptsController : Controller
                     createdRows.Add((receipt, movement, allocation));
                 }
 
-                _formTokens.Stamp(formToken, "LoadingReceipt.BulkCreate", nameof(LoadingReceipt));
-                _db.LoadingReceipts.AddRange(createdRows.Select(r => r.Receipt));
-                _db.LoadingReceiptAllocations.AddRange(createdRows.Select(r => r.Allocation));
-                await _movements.PostInboundRangeAsync(createdRows.Select(r => r.Movement).ToList());
+                // The saved operational rows are only read from here on; releasing them keeps
+                // each receipt journal's saves from re-scanning every row of a large batch.
+                using (var operationalRows = new SavedRowTrackingScope(_db))
+                {
+                    _formTokens.Stamp(formToken, "LoadingReceipt.BulkCreate", nameof(LoadingReceipt));
+                    _db.LoadingReceipts.AddRange(createdRows.Select(r => r.Receipt));
+                    _db.LoadingReceiptAllocations.AddRange(createdRows.Select(r => r.Allocation));
+                    await _movements.PostInboundRangeAsync(createdRows.Select(r => r.Movement).ToList());
+                    operationalRows.ReleaseSaved();
+                }
 
-                var accountingOutcomes = await new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting)
-                    .PostAsync(createdRows.Select(x => x.Receipt).ToList());
+                var receiptAccounting = new Services.Accounting.LoadingReceiptAccountingCoordinator(_purchaseAccounting);
+                var accountingOutcomes = new List<Services.Accounting.ReceiptAccountingOutcome>(createdRows.Count);
+                foreach (var row in createdRows)
+                {
+                    using var posting = new SavedRowTrackingScope(_db);
+                    accountingOutcomes.AddRange(await receiptAccounting.PostAsync([row.Receipt]));
+                    posting.ReleaseSaved();
+                }
                 foreach (var row in createdRows)
                 {
                     await _audit.LogAsync(

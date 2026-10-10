@@ -100,6 +100,22 @@ After these changes the whole collection passes: 354/354.
 
 Reproduced with a test before fixing: with accounting enabled, editing the amount of an expense whose journal was posted (300 → 450) was accepted, updated the operational ledger to 450 and left the posted journal at 300. Expense accounting has only "created" and "reversed" events, and the edit path called neither. The fix follows the existing sale rule (`GetQuantityEditBlockerAsync`): when the expense's journal is posted, only the description (and technical stamps) may change; any other stored change is rejected with a message to cancel and enter a replacement. Description-only edits remain allowed (separate test). With accounting off (production today) no journal exists and behavior is unchanged.
 
+### Heavy benchmarks (separate run) and bulk receipt scaling
+
+`--filter "FullyQualifiedName~DatabaseOperationPerformanceTests"` at 1,000 rows, TRX `.artifacts/mashal/results/perf-final.trx`: 14/14 passed. Now that the receipt benchmark posts purchases first, its receipt journals are really posted, and that exposed the same tracking growth in `LoadingReceiptsController.BulkCreate`: 1,000 receipts with accounting took 299.6 s (262.7 s in DetectChanges, 9,001 tracked). The saved operational rows (receipt, allocation, movement, form token) are now released before the journal loop, and each receipt is posted in its own `SavedRowTrackingScope`; the coordinator and all financial rules are unchanged. Result: 25.4 s (DetectChanges 0.65 s); receipt, receipt-integrity, purchase-adapter and valuation tests 78/78.
+
+| 1,000 rows | Before this session | Now |
+| --- | --- | --- |
+| Group expense + accounting | > 30 min (stalled) | 25.5 s |
+| Group sale + accounting | ≈ 25 min (extrapolated) | 54.1 s |
+| Cancel group sale + accounting | > 30 min (extrapolated from 100 rows) | 70.6 s |
+| Cancel group expense + accounting | — | 23.5 s |
+| Bulk receipt + accounting (journals posted) | 299.6 s | 25.4 s |
+
+### Live check of the posted-expense edit rule
+
+On the preview (seeded journals), editing the amount of GEXP-1's first share through the real form returned the form with the new message and kept 750.00; a description-only edit redirected to Details and was saved.
+
 ### Local preview and browser check
 
 Disposable database `ptg_oil_accounting_test_mashal_preview`, seeded through the real controllers with accounting enabled (24 loadings with posted purchases, a 6-row group sale, a 2-row group sale then cancelled, a 10-row group freight expense, a 4-loading bulk receipt). The app ran from the isolated build on `http://127.0.0.1:5001` (Development, auto sign-in off, real login). The user's own instance on port 5000 was not touched.
