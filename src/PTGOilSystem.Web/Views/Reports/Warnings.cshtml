@@ -3,7 +3,7 @@
     ViewData["Title"] = UiText.T(Context, "کارهای نیمه‌تمام", "Unfinished Work");
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "کارهای نیمه‌تمام", "Unfinished Work"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
@@ -18,7 +18,7 @@
             }
     </section>
 
-    <section class="ak-form-section">
+    <div class="ak-list">
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>
@@ -51,5 +51,5 @@
                 </tbody>
             </table>
         </div>
-    </section>
+    </div>
 </div>

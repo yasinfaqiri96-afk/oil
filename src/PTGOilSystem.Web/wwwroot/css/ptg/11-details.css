@@ -1692,6 +1692,142 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 }
 
+/* ---- stage card layout ----
+   Compact header (avatar + title + status) above a full-width two-figure strip.
+   The 140px art used to take half of a ~330px card and push long figures such
+   as "$ 1,234,567.89" onto a second line; now the figures own the card width
+   and line up across the path. Scoped to stage cards; partner cards keep their
+   own layout above. Declared after the breakpoint rules so it wins at every
+   width without !important. */
+.ak-journey-step:not(.ak-journey-partner) {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    gap: 14px;
+    min-height: 0;
+    padding: 18px;
+}
+
+.ak-journey-step:not(.ak-journey-partner) .ak-cycle-body {
+    display: contents;
+}
+
+.ak-journey-step:not(.ak-journey-partner) .ak-cycle-avatar {
+    grid-column: 1;
+    grid-row: 1;
+    flex: none;
+    align-self: center;
+    width: 72px;
+    height: 72px;
+}
+
+.ak-journey-step:not(.ak-journey-partner) .ak-journey-step-head {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 6px;
+    min-height: 0;
+    margin: 0;
+    padding-inline-end: 40px;
+}
+
+.ak-journey-step:not(.ak-journey-partner) .ak-cycle-title {
+    font-size: 17px;
+}
+
+.ak-journey-step .ak-cycle-stats {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: end;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 14px;
+    border-top: 1px solid rgba(var(--ak-step-rgb), .14);
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 4px;
+    margin: 0;
+    padding: 0 0 0 0;
+    padding-inline: 0 12px;
+    border: 0;
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-row + .ak-cycle-row {
+    padding-inline: 14px 0;
+    border-inline-start: 1px solid rgba(var(--ak-step-rgb), .14);
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-label {
+    flex: none;
+    color: var(--ak-detail-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-value {
+    flex: none;
+    max-width: 100%;
+    margin-inline-start: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: start;
+    white-space: nowrap;
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-value.ak-cycle-quantity {
+    flex-wrap: nowrap;
+    align-items: baseline;
+}
+
+.ak-journey-step .ak-cycle-stats .ak-cycle-quantity > span {
+    color: var(--ak-detail-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .ak-journey-step .ak-cycle-stats .ak-cycle-value {
+        font-size: 16px;
+    }
+}
+
+/* Narrow three-column panels (open sidebar): half a card is too small for a
+   full amount, so the two figures stack and each keeps one line. */
+@container (max-width: 1000px) {
+    .ak-journey-step .ak-cycle-stats {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .ak-journey-step .ak-cycle-stats .ak-cycle-row,
+    .ak-journey-step .ak-cycle-stats .ak-cycle-row + .ak-cycle-row {
+        flex-direction: row;
+        align-items: baseline;
+        justify-content: space-between;
+        padding-inline: 0;
+        border-inline-start: 0;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .ak-journey-step:not(.ak-journey-partner) {
+        grid-template-columns: 56px minmax(0, 1fr);
+        padding: 14px;
+    }
+
+    .ak-journey-step:not(.ak-journey-partner) .ak-cycle-avatar {
+        width: 56px;
+        height: 56px;
+    }
+}
+
 /* Storage-tank contract-flow fields match the supplied visual reference:
    pastel fill, hairline border, dark semantic figure and a compact 40px field. */
 [data-storage-tank-details] .ak-detail-table > thead > tr > th.storage-tank-flow-column,

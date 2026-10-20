@@ -629,6 +629,21 @@ public partial class AuditLogsController : Controller
         return ModuleLabels.TryGetValue(key.Trim(), out var label) ? label : key.Trim();
     }
 
+    // برچسب دری گزینه‌های فیلتر فهرست؛ همان برچسبی که ستون‌های جدول نشان می‌دهند.
+    internal static string ModuleFilterLabel(string module) => ModuleLabel(module);
+
+    internal static string ActionFilterLabel(string action) => ActionLabel(new AuditLog { Action = action });
+
+    internal static string CategoryFilterLabel(string category) => category switch
+    {
+        AuditLogCategories.Entity => "تغییر داده‌ها",
+        AuditLogCategories.Request => "درخواست صفحه",
+        AuditLogCategories.Authentication => "ورود و خروج",
+        AuditLogCategories.Security => "امنیتی",
+        AuditLogCategories.System => "سیستم",
+        _ => category
+    };
+
     private static string FieldLabel(string? field)
     {
         if (string.IsNullOrWhiteSpace(field))

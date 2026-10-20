@@ -22,23 +22,25 @@
                        canManage ? UiText.T(Context, "قرض گرفتن تیل", "Borrow") : (string?)null, "bi-box-arrow-in-down",
                        canManage ? (string?)Url.Action("Create", new { direction = CommodityLoanDirection.Borrow }) : (string?)null))" />
 
-    <p class="text-muted small">
+    <p class="ak-note">
         @UiText.T(Context,
-            "تیلی که قرض دادیم از موجودی شرکت کم می‌شود و طرف باید آن را برگرداند. تیلی که قرض گرفتیم به موجودی اضافه می‌شود و باید آن را پس بدهیم. تیل امانی در بخش جدا ثبت می‌شود.",
+            "تیلی که قرض دادیم از موجودی کم می‌شود و باید برگردد؛ تیلی که قرض گرفتیم به موجودی اضافه می‌شود و باید پس بدهیم.",
             "Company stock lent out, or stock borrowed with an in-kind return obligation. Separate from custody.")
-        <a asp-action="Report">@UiText.T(Context, "راپور باقی قرض تیل", "In-kind receivables & payables")</a>
     </p>
 
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه قرض تیل", "Loan summary")">
         <vc:stat-card title="@UiText.T(Context, "باقی قرض داده‌شده", "Lent outstanding")"
                       value="@StatCardFormatter.Number(open.Where(l => l.Direction == CommodityLoanDirection.Lend).Sum(l => l.OutstandingMt), 2)"
-                      unit="MT"></vc:stat-card>
+                      unit="MT"
+                      avatar="shipment-remaining"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "باقی قرض گرفته‌شده", "Borrowed outstanding")"
                       value="@StatCardFormatter.Number(open.Where(l => l.Direction == CommodityLoanDirection.Borrow).Sum(l => l.OutstandingMt), 2)"
-                      unit="MT"></vc:stat-card>
+                      unit="MT"
+                      avatar="total-inventory"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "وقت برگشت گذشته", "Overdue")"
                       value="@StatCardFormatter.Count(open.Count(l => l.IsOverdue(Model.Today)))"
-                      unit="@UiText.T(Context, "قرض", "loans")"></vc:stat-card>
+                      unit="@UiText.T(Context, "قرض", "loans")"
+                      avatar="warning"></vc:stat-card>
     </section>
 
     <nav class="ptg-tabs-rail" role="tablist" aria-label="@UiText.T(Context, "نوع قرض", "Loan direction")">
@@ -51,13 +53,29 @@
     </nav>
 
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <div class="ak-list-toolbar-actions">
+                <a class="btn btn-light ak-secondary-action" asp-action="Report">
+                    <i class="bi bi-clipboard-data" aria-hidden="true"></i>
+                    <span>@UiText.T(Context, "راپور باقی قرض تیل", "In-kind receivables & payables")</span>
+                </a>
+                @if (Model.IncludeCancelled)
+                {
+                    <a class="btn btn-light ak-secondary-action" asp-action="Index" asp-route-direction="@Model.Direction">@UiText.T(Context, "پنهان‌کردن لغوشده‌ها", "Hide cancelled")</a>
+                }
+                else
+                {
+                    <a class="btn btn-light ak-secondary-action" asp-action="Index" asp-route-direction="@Model.Direction" asp-route-cancelled="true">@UiText.T(Context, "نمایش لغوشده‌ها", "Show cancelled")</a>
+                }
+            </div>
+        </div>
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "قرض‌های تیل", "Commodity loans")">
                 <thead><tr>
                     <th>@UiText.T(Context, "قرض", "Loan")</th>
                     <th class="ak-col-grow">@UiText.T(Context, "طرف / جنس", "Counterparty / product")</th>
-                    <th class="text-end">@UiText.T(Context, "مقدار (MT)", "Qty (MT)")</th>
-                    <th class="text-end">@UiText.T(Context, "باقی قرض (MT)", "Open (MT)")</th>
+                    <th class="ak-col-num">@UiText.T(Context, "مقدار (MT)", "Qty (MT)")</th>
+                    <th class="ak-col-num">@UiText.T(Context, "باقی قرض (MT)", "Open (MT)")</th>
                     <th>@UiText.T(Context, "وقت برگشت", "Due")</th>
                 </tr></thead>
                 <tbody>
@@ -66,11 +84,14 @@
                         <tr class="@(l.Status == CommodityLoanStatus.Cancelled ? "text-muted" : null)">
                             <td>
                                 <a asp-action="Details" asp-route-id="@l.Id"><strong>@l.LoanNumber</strong></a>
-                                <div class="small">@CommodityLoanLabels.Direction(l.Direction)</div>
+                                <div class="ak-cell-note">@CommodityLoanLabels.Direction(l.Direction)</div>
                             </td>
-                            <td class="ak-col-grow">@l.CounterpartyName <small class="text-muted">· @l.ProductName · @l.QualitySpec</small></td>
-                            <td class="text-end ak-num">@NumberDisplay.Quantity(l.QuantityMt)</td>
-                            <td class="text-end ak-num">@NumberDisplay.Quantity(l.OutstandingMt)</td>
+                            <td class="ak-col-grow">
+                                @l.CounterpartyName
+                                <div class="ak-cell-note">@l.ProductName@(string.IsNullOrWhiteSpace(l.QualitySpec) ? "" : " · " + l.QualitySpec)</div>
+                            </td>
+                            <td class="ak-col-num ak-num">@NumberDisplay.Quantity(l.QuantityMt)</td>
+                            <td class="ak-col-num ak-num">@NumberDisplay.Quantity(l.OutstandingMt)</td>
                             <td>
                                 @l.DueDate.ToDisplayDate()
                                 @if (l.Status == CommodityLoanStatus.Cancelled)
@@ -95,15 +116,5 @@
                 </tbody>
             </table>
         </div>
-        <p class="small mt-2">
-            @if (Model.IncludeCancelled)
-            {
-                <a asp-action="Index" asp-route-direction="@Model.Direction">@UiText.T(Context, "پنهان‌کردن لغوشده‌ها", "Hide cancelled")</a>
-            }
-            else
-            {
-                <a asp-action="Index" asp-route-direction="@Model.Direction" asp-route-cancelled="true">@UiText.T(Context, "نمایش لغوشده‌ها", "Show cancelled")</a>
-            }
-        </p>
     </div>
 </div>

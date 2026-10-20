@@ -30,6 +30,7 @@ public partial class ReportsController : Controller
     private readonly ISaleContractAttributionReader _saleAttribution;
     private readonly IPartyBalanceReadService _partyBalances;
     private readonly ISupplierFxSettlementService _supplierFxSettlements;
+    private readonly IReceivablesPayablesReader _receivablesPayables;
     private readonly IStockService _stock;
     private readonly IPreSaleReservationService _preSaleReservations;
     private readonly INegativeStockAnalysisService _negativeStock;
@@ -52,7 +53,8 @@ public partial class ReportsController : Controller
         Services.Accounting.ISystemCompanyProvider? systemCompany = null,
         ISaleContractAttributionReader? saleAttribution = null,
         ISupplierFxSettlementService? supplierFxSettlements = null,
-        IGoodsInTransitReader? goodsInTransit = null)
+        IGoodsInTransitReader? goodsInTransit = null,
+        IReceivablesPayablesReader? receivablesPayables = null)
     {
         _db = db;
         _purchaseAggregation = purchaseAggregation ?? new PurchaseAggregationService(db);
@@ -67,6 +69,9 @@ public partial class ReportsController : Controller
             new CompanyFlowBalanceService(),
             new PartyDirectory(db));
         _supplierFxSettlements = supplierFxSettlements ?? new SupplierFxSettlementService(db);
+        // ردیف‌های «طلبات و بدهی‌ها» فقط از همین مرجع؛ کارت‌های داشبورد هم از آن می‌خوانند.
+        _receivablesPayables = receivablesPayables
+            ?? new ReceivablesPayablesReader(db, _partyBalances, _supplierFxSettlements);
         _stock = stock ?? new StockService(db);
         // یک مرجع واحد ساعت کابل برای همهٔ گزارش‌ها و خروجی‌های همین کنترلر.
         _businessClock = clock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -149,6 +154,9 @@ public partial class ReportsController : Controller
     /// در دو دسته تکرار نمی‌شود و هیچ محاسبه‌ای اینجا انجام نمی‌گیرد — فقط مسیر.
     /// Routeهای قدیمی (InventoryOperations، Warnings و غیره) دست‌نخورده باقی می‌مانند؛
     /// این فهرست فقط تعیین می‌کند چه چیزی در مرکز گزارشات دیده شود.
+    /// گزارش‌های تکراری از مرکز برداشته شدند ولی Routeشان باز است:
+    /// CompanyOverview (همان ارقام CompanyBalance)، ReceivablesPayables (همان مانده‌های PartyAging)،
+    /// Warnings (زیرمجموعهٔ Reconciliation) و فهرست عملیاتی ShipmentPnl (در تب عملیات).
     /// </summary>
     private static IReadOnlyList<ReportHubGroupViewModel> BuildReportHubGroups()
         =>
@@ -170,14 +178,6 @@ public partial class ReportsController : Controller
                     },
                     new()
                     {
-                        Action = nameof(CompanyOverview),
-                        TitleFa = "وضعیت مالی شرکت", TitleEn = "Company Financial Status",
-                        DescriptionFa = "پول نقد، طلبات، بدهی‌ها و مفاد شرکت در یک صفحه.",
-                        DescriptionEn = "Cash, receivables, payables and profit on one page.",
-                        Icon = "bi-clipboard-data", ToneClass = "tone-mint"
-                    },
-                    new()
-                    {
                         Action = nameof(ContractPnl),
                         TitleFa = "مفاد قراردادها", TitleEn = "Contract Profit",
                         DescriptionFa = "مصارف، فروش و مفاد هر قرارداد خرید.",
@@ -186,28 +186,11 @@ public partial class ReportsController : Controller
                     },
                     new()
                     {
-                        Controller = "ShipmentPnl", Action = "Index",
-                        TitleFa = "مفاد محموله‌ها", TitleEn = "Shipment Profit",
-                        DescriptionFa = "فروش و مصارف هر محموله به‌تفکیک.",
-                        DescriptionEn = "Revenue and cost per shipment.",
-                        Icon = "bi-truck", ToneClass = "tone-blue"
-                    },
-                    new()
-                    {
                         Controller = "ContractJourney", Action = "Index",
                         TitleFa = "مسیر قرارداد", TitleEn = "Contract Journey",
                         DescriptionFa = "از عقد قرارداد تا بارگیری، حمل، فروش و تصفیه.",
                         DescriptionEn = "From contract to loading, transport, sale and settlement.",
                         Icon = "bi-signpost-split", ToneClass = "tone-lavender"
-                    },
-                    new()
-                    {
-                        // پیش‌تر این صفحه ساخته شده بود ولی هیچ لینکی به آن نمی‌رفت.
-                        Action = nameof(Warnings),
-                        TitleFa = "کارهای نیمه‌تمام", TitleEn = "Unfinished Work",
-                        DescriptionFa = "ثبت‌هایی که ناقص مانده‌اند و تا تکمیل نشوند ارقام را ناقص نگه می‌دارند.",
-                        DescriptionEn = "Incomplete entries that keep the figures incomplete until they are finished.",
-                        Icon = "bi-exclamation-triangle", ToneClass = "tone-rose"
                     }
                 ]
             },
@@ -218,14 +201,6 @@ public partial class ReportsController : Controller
                 Icon = "bi-wallet2",
                 Cards =
                 [
-                    new()
-                    {
-                        Action = nameof(ReceivablesPayables),
-                        TitleFa = "طلبات و بدهی‌ها", TitleEn = "Receivables & Payables",
-                        DescriptionFa = "مانده مشتری، تأمین‌کننده، شرکت خدماتی و صراف در یک جدول.",
-                        DescriptionEn = "Customer, supplier, service provider and sarraf balances in one table.",
-                        Icon = "bi-people", ToneClass = "tone-amber"
-                    },
                     new()
                     {
                         Action = nameof(PartyAging),
@@ -839,69 +814,12 @@ public partial class ReportsController : Controller
         ManagementReportFilterViewModel filter,
         IReadOnlyCollection<PartyStatementPartyType>? partyTypes = null)
     {
-        // «طلبات و بدهی‌ها» فقط طرف‌حساب بیرونی را می‌شمارد؛ حساب جاریِ خودِ جوازها
-        // طرف معامله نیست. رجوع: PartyBalanceSnapshotFilters.ExternalPartiesOnly.
-        var balanceRows = (await _partyBalances.GetBalancesAsync(
-                filter,
-                HttpContext?.RequestAborted ?? CancellationToken.None,
-                partyTypes))
-            .ExternalPartiesOnly();
         // ماندهٔ کارمند همان ماندهٔ معاش است؛ بدون «دیدن معاش» در گزارش مانده/کهنگی هم نمی‌آید.
-        if (User is not null && !RoleAccessRules.CanViewEmployeeSalary(User))
-        {
-            balanceRows = balanceRows.Where(row => row.PartyType != PartyStatementPartyType.Employee).ToList();
-        }
-        var supplierIds = balanceRows
-            .Where(row => row.PartyType == PartyStatementPartyType.Supplier)
-            .Select(row => row.PartyId)
-            .Distinct()
-            .ToArray();
-        var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
-        var fxSettlements = await _supplierFxSettlements.GetManyAsync(
-            supplierIds,
-            filter.ContractId,
-            filter.ToDate,
-            cancellationToken);
-
-        // در نمای همهٔ قراردادها، تعدیل ثبت‌شدهٔ SupplierFxDifference از قبل داخل ماندهٔ
-        // رسمی است؛ فقط بخشِ ثبت‌نشده را به‌صورت read-only اصلاح می‌کنیم تا دوباره‌شماری نشود.
-        // در فیلتر یک قرارداد، سطر شناسایی عمداً ContractId ندارد و در ماندهٔ خام هم نیست؛
-        // بنابراین کل تفاوت همان قرارداد باید در ستون تعدیل گزارش دیده شود.
-        var recognizedFxEffects = filter.ContractId.HasValue
-            ? new Dictionary<int, decimal>()
-            : await LoadRecognizedSupplierFxEffectsAsync(supplierIds, filter.ToDate, cancellationToken);
-        var policies = new PartyStatementPolicyResolver();
-        var rows = balanceRows.Select(balance => new ReceivablePayableRowViewModel
-        {
-            PartyType = balance.PartyType.ToString(),
-            PartyId = balance.PartyId,
-            PartyName = balance.PartyName,
-            OpeningBalanceUsd = balance.OpeningBalanceUsd,
-            // The report keeps its historical Debit/Credit column names for route/UI
-            // compatibility. Their values now come from the official statement
-            // convention: Debit = received, Credit = given.
-            DebitUsd = balance.TotalReceiptUsd,
-            CreditUsd = balance.TotalOutflowUsd,
-            FxAdjustmentUsd = balance.PartyType == PartyStatementPartyType.Supplier
-                && fxSettlements.TryGetValue(balance.PartyId, out var fx)
-                ? decimal.Round(
-                    -(fx.RealizedFxDifferenceUsd + recognizedFxEffects.GetValueOrDefault(balance.PartyId)),
-                    4,
-                    MidpointRounding.AwayFromZero)
-                : 0m,
-            LastEntryDate = balance.LastEntryDate,
-            BalanceKind = balance.PartyType == PartyStatementPartyType.Supplier
-                && fxSettlements.TryGetValue(balance.PartyId, out var supplierFx)
-                    ? policies.Resolve(balance.PartyType).BalanceMeaning(
-                        balance.ClosingBalanceUsd + decimal.Round(
-                            -(supplierFx.RealizedFxDifferenceUsd
-                                + recognizedFxEffects.GetValueOrDefault(balance.PartyId)),
-                            4,
-                            MidpointRounding.AwayFromZero),
-                        isEnglish: false)
-                    : balance.BalanceMeaning,
-            DetailsController = balance.DetailsController
-        }).ToList();
+        var rows = await _receivablesPayables.ReadRowsAsync(
+            filter,
+            includeEmployees: User is null || RoleAccessRules.CanViewEmployeeSalary(User),
+            partyTypes,
+            HttpContext?.RequestAborted ?? CancellationToken.None);
 
         // تاریخ مبنای «راکد بودن» حساب: انتهای بازهٔ فیلتر، وگرنه امروز.
         var asOfDate = filter.ToDate?.Date ?? _businessClock.Today;
@@ -934,39 +852,6 @@ public partial class ReportsController : Controller
         Enum.GetValues<PartyStatementPartyType>()
             .Where(type => type != PartyStatementPartyType.Partner)
             .ToArray();
-
-    private async Task<Dictionary<int, decimal>> LoadRecognizedSupplierFxEffectsAsync(
-        IReadOnlyCollection<int> supplierIds,
-        DateTime? toDate,
-        CancellationToken ct)
-    {
-        if (supplierIds.Count == 0)
-        {
-            return [];
-        }
-
-        var query = _db.LedgerEntries.AsNoTracking()
-            .Where(l => l.SupplierId.HasValue
-                && supplierIds.Contains(l.SupplierId.Value)
-                && l.SourceType == SupplierFxRecognitionService.PartyLedgerSourceType);
-
-        if (toDate.HasValue)
-        {
-            var end = toDate.Value.Date.AddDays(1);
-            query = query.Where(l => l.EntryDate < end);
-        }
-
-        var rows = await query
-            .Select(l => new { SupplierId = l.SupplierId!.Value, l.Side, l.AmountUsd })
-            .ToListAsync(ct);
-
-        return rows
-            .GroupBy(row => row.SupplierId)
-            // ماندهٔ گزارش برای طرف‌حساب: Debit/برد مثبت و Credit/رسید منفی است.
-            .ToDictionary(
-                group => group.Key,
-                group => group.Sum(row => row.Side == LedgerSide.Debit ? row.AmountUsd : -row.AmountUsd));
-    }
 
     private async Task<InventoryOperationsReportViewModel> BuildInventoryOperationsReportAsync(ManagementReportFilterViewModel filter)
     {

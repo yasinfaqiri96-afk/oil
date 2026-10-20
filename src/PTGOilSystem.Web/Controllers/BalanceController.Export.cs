@@ -24,26 +24,28 @@ public partial class BalanceController
             [
                 new("قرارداد", "Contract", Width: 18), new("نوع", "Type", Width: 12), new("وضعیت", "Status", Width: 12),
                 new("تأمین‌کننده", "Supplier", Width: 22), new("جنس", "Product", Width: 16),
-                new("واحد", "Unit", Width: 12), new("مقدار MT", "Quantity MT", TabularExportValueType.Number, 15),
-                new("محموله‌ها", "Shipments", TabularExportValueType.Integer, 12), new("فروش USD", "Sales USD", TabularExportValueType.Number, 16),
-                new("مصارف USD", "Expenses USD", TabularExportValueType.Number, 16), new("اسناد دفتر", "Ledger entries", TabularExportValueType.Integer, 13),
+                new("مقدار MT", "Quantity MT", TabularExportValueType.Number, 15),
+                new("قیمت خرید USD/MT", "Purchase price USD/MT", TabularExportValueType.Number, 16),
+                new("ارزش خرید USD", "Purchase value USD", TabularExportValueType.Number, 17),
+                new("مصارف USD", "Expenses USD", TabularExportValueType.Number, 16), new("فروش USD", "Sales USD", TabularExportValueType.Number, 16),
                 new("مانده USD", "Balance USD", TabularExportValueType.Number, 17)
             ],
             Rows = items.Select(item => new TabularExportRow(
             [
                 TabularExportCell.Text(item.ContractNumber), TabularExportCell.Text(item.ContractTypeName), TabularExportCell.Text(item.StatusName),
                 TabularExportCell.Text(item.SupplierName), TabularExportCell.Text(item.ProductName),
-                TabularExportCell.Text(item.ContractUnitText), TabularExportCell.Number(item.QuantityMt), TabularExportCell.Integer(item.ShipmentCount),
-                TabularExportCell.Number(item.TotalSalesUsd), TabularExportCell.Number(item.TotalExpensesUsd), TabularExportCell.Integer(item.RelatedLedgerCount),
+                TabularExportCell.Number(item.QuantityMt), TabularExportCell.Number(item.PurchaseUnitPriceUsd),
+                TabularExportCell.Number(item.PurchaseValueUsd),
+                TabularExportCell.Number(item.TotalExpensesUsd), TabularExportCell.Number(item.TotalSalesUsd),
                 TabularExportCell.Number(item.BaseBalanceUsd)
             ])),
             Totals = new TabularExportRow(
             [
                 TabularExportCell.Text("جمع / Total"), TabularExportCell.Text(null), TabularExportCell.Text(null),
-                TabularExportCell.Text(null), TabularExportCell.Text(null), TabularExportCell.Text(null),
-                TabularExportCell.Number(null), TabularExportCell.Integer(items.Sum(i => (long)i.ShipmentCount)),
-                TabularExportCell.Number(model.FilteredTotalSalesUsd), TabularExportCell.Number(model.FilteredTotalExpensesUsd),
-                TabularExportCell.Integer(items.Sum(i => (long)i.RelatedLedgerCount)),
+                TabularExportCell.Text(null), TabularExportCell.Text(null),
+                TabularExportCell.Number(null), TabularExportCell.Number(null),
+                TabularExportCell.Number(model.FilteredTotalPurchaseValueUsd),
+                TabularExportCell.Number(model.FilteredTotalExpensesUsd), TabularExportCell.Number(model.FilteredTotalSalesUsd),
                 TabularExportCell.Number(model.FilteredBalanceUsd)
             ])
         });

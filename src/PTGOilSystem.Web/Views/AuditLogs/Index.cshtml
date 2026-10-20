@@ -7,17 +7,61 @@
 
 <div class="ak-list-page">
     <div class="ak-list">
+        @{
+            var f = Model.Filter;
+            var categories = ViewData["Categories"] as IEnumerable<string> ?? Enumerable.Empty<string>();
+
+            // دو کد خام (مثلاً Insert و Create) می‌توانند یک برچسب دری داشته باشند؛
+            // آن‌وقت کد خام کنار برچسب می‌آید تا دو گزینهٔ هم‌نام در فهرست نباشد.
+            List<AkFilterOption> LabeledOptions(IEnumerable<string> values, Func<string, string> label)
+            {
+                var pairs = values.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => (Value: v, Label: label(v))).ToList();
+                var repeated = pairs.GroupBy(p => p.Label).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
+                return pairs
+                    .Select(p => new AkFilterOption(p.Value, repeated.Contains(p.Label) && p.Label != p.Value ? $"{p.Label} ({p.Value})" : p.Label))
+                    .OrderBy(o => o.Label)
+                    .ToList();
+            }
+
+            var logFilter = new AkSearchFilterModel("q", q,
+                UiText.T(Context, "شماره سند، کاربر، بخش یا متن...", "Document, user, module, or text..."),
+                new List<AkFilterDefinition>
+                {
+                    new("fromUtc", UiText.T(Context, "بازه تاریخ", "Date range"), "daterange", null,
+                        f.FromUtc?.ToString("yyyy-MM-dd"), "toUtc", f.ToUtc?.ToString("yyyy-MM-dd")),
+                    new("user", UiText.T(Context, "کاربر", "User"), "select",
+                        Model.Users.Select(u => new AkFilterOption(u, u)).ToList(), f.User),
+                    new("module", UiText.T(Context, "بخش", "Module"), "select",
+                        LabeledOptions(Model.Modules, PTGOilSystem.Web.Controllers.AuditLogsController.ModuleFilterLabel), f.Module),
+                    new("action", UiText.T(Context, "عملیات", "Action"), "select",
+                        LabeledOptions(Model.Actions, PTGOilSystem.Web.Controllers.AuditLogsController.ActionFilterLabel), f.Action),
+                    new("category", UiText.T(Context, "نوع لاگ", "Log type"), "select",
+                        LabeledOptions(categories, PTGOilSystem.Web.Controllers.AuditLogsController.CategoryFilterLabel), f.Category),
+                    new("severity", UiText.T(Context, "اهمیت", "Severity"), "select",
+                        Model.SeverityOptions.Select(o => new AkFilterOption(o.Value, o.Label)).ToList(), f.Severity),
+                    new("success", UiText.T(Context, "نتیجه", "Result"), "select",
+                        new List<AkFilterOption>
+                        {
+                            new("true", UiText.T(Context, "موفق", "Succeeded")),
+                            new("false", UiText.T(Context, "ناموفق", "Failed"))
+                        }, f.Success)
+                });
+
+            // خروجی لغوها هم همان فیلترهای فعال صفحه را می‌گیرد، نه فقط متن جست‌وجو.
+            var cancellationRoute = Context.Request.Query
+                .Where(p => p.Key is not ("page" or "pageSize" or "format" or "cancellationsOnly"))
+                .ToDictionary(p => p.Key, p => p.Value.ToString());
+            cancellationRoute["format"] = "excel";
+            cancellationRoute["cancellationsOnly"] = "true";
+        }
         <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-                     model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "شماره سند، کاربر، بخش یا متن...", "Document, user, module, or text..."))" />
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="logFilter" />
             @* خروجی همان فیلتر صفحه را می‌گیرد؛ لینک دوم فقط لغوها و برگشت‌ها را می‌دهد. *@
             <partial name="~/Views/Shared/_ExportMenu.cshtml"
                      model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
             <a class="btn btn-light ak-secondary-action"
                asp-action="Export"
-               asp-route-format="excel"
-               asp-route-q="@q"
-               asp-route-cancellationsOnly="true">
+               asp-all-route-data="cancellationRoute">
                 <i class="bi bi-x-octagon" aria-hidden="true"></i>
                 <span>@UiText.T(Context, "خروجی لغوها", "Cancellations export")</span>
             </a>

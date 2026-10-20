@@ -301,9 +301,33 @@ public partial class BalanceController : Controller
                 UnitCode = c.Unit != null ? c.Unit.Code : null,
                 UnitNamePersian = c.Unit != null ? c.Unit.NamePersian : null,
                 UnitName = c.Unit != null ? c.Unit.Name : null,
-                c.QuantityMt
+                c.QuantityMt,
+                c.PricingMethod,
+                c.UnitPriceUsd,
+                c.ManualFinalPriceUsd
             })
             .ToListAsync();
+
+        // قیمت خرید فقط از مرجع واحد قیمت قرارداد؛ قرارداد فروش قیمت خرید ندارد.
+        static decimal? PurchasePrice(ContractType type, PricingMethod method, decimal? unitPriceUsd, decimal? manualFinalPriceUsd)
+            => type == ContractType.Purchase
+                ? ContractPricingAdapter.GetCanonicalFinalPrice(new Contract
+                {
+                    PricingMethod = method,
+                    UnitPriceUsd = unitPriceUsd,
+                    ManualFinalPriceUsd = manualFinalPriceUsd
+                })
+                : null;
+
+        var purchasePricing = await contractQuery
+            .Where(c => c.ContractType == ContractType.Purchase)
+            .Select(c => new { c.QuantityMt, c.PricingMethod, c.UnitPriceUsd, c.ManualFinalPriceUsd })
+            .ToListAsync();
+        var totalPurchaseValueUsd = purchasePricing.Sum(c =>
+        {
+            var price = PurchasePrice(ContractType.Purchase, c.PricingMethod, c.UnitPriceUsd, c.ManualFinalPriceUsd);
+            return price.HasValue ? decimal.Round(c.QuantityMt * price.Value, 2, MidpointRounding.AwayFromZero) : 0m;
+        });
 
         // ردیف‌ها همان صفحهٔ جاری‌اند، ولی جمع‌های کارت‌های بالا روی همهٔ نتایجِ فیلتر است؛
         // پس تجمیع‌ها برای همهٔ شناسه‌های فیلترشده ساخته می‌شوند (در دیتابیس، یک query برای هر جمع).
@@ -421,6 +445,8 @@ public partial class BalanceController : Controller
                     contract.UnitName),
                 QuantityMt = contract.QuantityMt,
                 ShipmentCount = shipmentCount,
+                IsPurchase = contract.ContractType == ContractType.Purchase,
+                PurchaseUnitPriceUsd = PurchasePrice(contract.ContractType, contract.PricingMethod, contract.UnitPriceUsd, contract.ManualFinalPriceUsd),
                 TotalSalesUsd = salesTotal,
                 TotalExpensesUsd = expensesTotal,
                 RelatedLedgerCount = ledgerCount,
@@ -430,6 +456,7 @@ public partial class BalanceController : Controller
 
         return View(new ContractsBalanceViewModel
         {
+            FilteredTotalPurchaseValueUsd = totalPurchaseValueUsd,
             FilteredTotalSalesUsd = salesSummary.Values.Sum(),
             FilteredTotalExpensesUsd = expensesSummary.Values.Sum(),
             FilteredBalanceUsd = contractBalances.Values.Sum(balance => balance.NetBalanceUsd),

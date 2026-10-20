@@ -74,7 +74,7 @@ public partial class ReportsController
                 new("به", "To", Width: 20),
                 new("مقدار در مسیر MT", "In transit MT", TabularExportValueType.Number, 16),
                 new("روز در راه", "Days on road", TabularExportValueType.Integer, 12),
-                new("رسیدن تخمینی", "Expected arrival", TabularExportValueType.Date, 14),
+                new("ارزش بار USD", "Load value USD", TabularExportValueType.Number, 16),
                 new("وضعیت", "Status", Width: 14)
             ],
             Rows = model.Rows.Select(r => new TabularExportRow(
@@ -89,7 +89,7 @@ public partial class ReportsController
                 TabularExportCell.Text(r.DestinationLabel ?? "—"),
                 TabularExportCell.Number(r.QuantityMt),
                 TabularExportCell.Integer(r.DaysOnRoad),
-                TabularExportCell.Date(r.ExpectedArrivalDate),
+                TabularExportCell.Number(model.ValuesUsd.GetValueOrDefault((r.Kind, r.SourceId))),
                 TabularExportCell.Text(r.IsDelayed ? "تأخیردار" : GoodsInTransitStageLabel(r.Stage))
             ])),
             Totals = new TabularExportRow(
@@ -100,7 +100,7 @@ public partial class ReportsController
                 TabularExportCell.Text(null),
                 TabularExportCell.Number(model.Totals.TotalQuantityMt),
                 TabularExportCell.Text(null),
-                TabularExportCell.Text(null),
+                TabularExportCell.Number(model.TotalValueUsd),
                 TabularExportCell.Text($"{model.Totals.RowCount:N0} بار / {model.Totals.DelayedCount:N0} تأخیردار")
             ])
         });
@@ -142,13 +142,80 @@ public partial class ReportsController
             ? rows.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList()
             : rows;
 
+        var values = await ReadGoodsInTransitValuesAsync(rows, cancellationToken);
+
         return new GoodsInTransitReportViewModel
         {
             Filter = filter,
             Rows = pageRows,
             Totals = snapshot.Totals,
+            ValuesUsd = values,
+            TotalValueUsd = values.Values.Sum(v => v ?? 0m),
+            UnvaluedCount = values.Values.Count(v => v is null),
             CurrentPage = currentPage,
             PageCount = pageCount
         };
+    }
+
+    /// <summary>
+    /// ارزش هر بار = مقدار در مسیر × بهای واحد قرارداد خرید همان بار، از همان مرجعی که «بیلانس کلی
+    /// شرکت» بار در راه را ارزش می‌گذارد (<see cref="IProfitAndLossService.BuildPurchaseCostBasisAsync"/>،
+    /// قرارداد بارگیری / قرارداد مبدأ حمل داخلی / قرارداد دیسپچ). بدون بهای واحد null است، نه صفر.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<(GoodsInTransitKind Kind, int SourceId), decimal?>> ReadGoodsInTransitValuesAsync(
+        IReadOnlyList<GoodsInTransitRowViewModel> rows,
+        CancellationToken ct)
+    {
+        IReadOnlyList<int> IdsOf(GoodsInTransitKind kind)
+            => rows.Where(r => r.Kind == kind).Select(r => r.SourceId).Distinct().ToList();
+
+        var loadingIds = IdsOf(GoodsInTransitKind.FromOrigin);
+        var legIds = IdsOf(GoodsInTransitKind.InternalTransfer);
+        var dispatchIds = IdsOf(GoodsInTransitKind.CustomerDelivery);
+
+        var loadingContracts = loadingIds.Count == 0
+            ? new Dictionary<int, int?>()
+            : await _db.LoadingRegisters.AsNoTracking().Where(l => loadingIds.Contains(l.Id))
+                .ToDictionaryAsync(l => l.Id, l => (int?)l.ContractId, ct);
+        var legContracts = legIds.Count == 0
+            ? new Dictionary<int, int?>()
+            : await _db.InventoryTransportLegs.AsNoTracking().Where(l => legIds.Contains(l.Id))
+                .ToDictionaryAsync(l => l.Id, l => (int?)l.SourcePurchaseContractId, ct);
+        var dispatchContracts = dispatchIds.Count == 0
+            ? new Dictionary<int, int?>()
+            : await _db.TruckDispatches.AsNoTracking().Where(d => dispatchIds.Contains(d.Id))
+                .ToDictionaryAsync(d => d.Id, d => (int?)d.ContractId, ct);
+
+        int? ContractOf(GoodsInTransitRowViewModel row) => row.Kind switch
+        {
+            GoodsInTransitKind.FromOrigin => loadingContracts.GetValueOrDefault(row.SourceId),
+            GoodsInTransitKind.InternalTransfer => legContracts.GetValueOrDefault(row.SourceId),
+            _ => dispatchContracts.GetValueOrDefault(row.SourceId)
+        };
+
+        var contractIds = rows.Select(ContractOf).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        var purchaseIds = contractIds.Count == 0
+            ? new List<int>()
+            : await _db.Contracts.AsNoTracking()
+                .Where(c => contractIds.Contains(c.Id) && c.ContractType == ContractType.Purchase)
+                .Select(c => c.Id)
+                .ToListAsync(ct);
+        var basis = purchaseIds.Count == 0
+            ? PurchaseCostBasis.Empty
+            : await _profitAndLoss.BuildPurchaseCostBasisAsync(purchaseIds, _businessClock.Today, ct);
+
+        var values = new Dictionary<(GoodsInTransitKind, int), decimal?>();
+        foreach (var row in rows)
+        {
+            var contractId = ContractOf(row);
+            decimal? unitCost = contractId.HasValue && basis.Contracts.TryGetValue(contractId.Value, out var snapshot)
+                ? snapshot.UnitCostUsd
+                : null;
+            values[(row.Kind, row.SourceId)] = unitCost is > 0m
+                ? decimal.Round(row.QuantityMt * unitCost.Value, 2, MidpointRounding.AwayFromZero)
+                : null;
+        }
+
+        return values;
     }
 }

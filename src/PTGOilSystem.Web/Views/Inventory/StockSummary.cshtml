@@ -1,70 +1,60 @@
 @model PTGOilSystem.Web.Models.Inventory.InventoryStockSummaryIndexViewModel
 @{
-    ViewData["Title"] = "خلاصه موجودی";
+    ViewData["Title"] = UiText.T(Context, "خلاصه موجودی", "Stock summary");
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var canManage = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
 }
 
-<div class="ak-form-page">
-    <div class="ak-page-header">
-        <div class="ak-page-heading">
-<h1 class="ak-page-title">خلاصه موجودی</h1>
-            <p class="ak-note">این مقادیر مستقیماً از منطق <code>StockService</code> گرفته می‌شود و نمای تجمیعی موجودی را نشان می‌دهد.</p>
-        </div>
-    </div>
+@* موجودی ملکی هر جنس در هر ترمینال، از همان StockService؛ برگشت به «حرکت‌های موجودی». *@
+<div class="ak-form-page ak-list-page">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((T("خلاصه موجودی ملکی", "Owned stock summary"), canManage,
+                       canManage ? T("ثبت حرکت جدید", "New movement") : (string?)null, "bi-plus-lg",
+                       canManage ? (string?)Url.Action("Create") : (string?)null, (string?)null,
+                       T("حرکت‌های موجودی", "Inventory movements"), "bi-arrow-right", Url.Action("Index")))" />
 
-    <div class="ak-detail-toolbar no-print">
-        <div>
-            <form method="get" class="ak-form-grid">
-                <div class="ak-field ak-col-full">
-                    <div class="ak-detail-toolbar-actions d-flex justify-content-between align-items-center flex-wrap gap-3">
-                        <div class="d-flex align-items-center flex-wrap gap-2"></div>
-                        <div class="d-flex align-items-center flex-wrap gap-2">
-                            <a asp-action="Create" class="btn ak-primary-action"><i class="bi bi-plus-lg me-1"></i> ثبت حرکت جدید</a>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="ak-table-wrap">
+    <div class="ak-list">
         <div class="ak-table-wrap">
-            <table class="ak-table align-middle mb-0">
+            <table class="ak-table">
                 <thead>
                     <tr>
-                        <th>کد جنس</th>
-                        <th>@UiText.T(Context,"جنس","Product")</th>
-                        <th>@UiText.T(Context,"ترمینال","Terminal")</th>
-                        <th>قرارداد خرید منبع موجودی</th>
-                        <th class="text-end">موجودی ملکی (MT)</th>
-                        <th class="text-end">تعداد حرکت</th>
-                        <th>آخرین تاریخ</th>
+                        <th class="ak-col-grow">@T("جنس", "Product")</th>
+                        <th>@T("ترمینال", "Terminal")</th>
+                        <th>@T("قرارداد خرید منبع", "Source purchase contract")</th>
+                        <th class="ak-col-num">@T("موجودی ملکی (MT)", "Owned stock (MT)")</th>
+                        <th class="ak-col-num">@T("تعداد حرکت", "Movements")</th>
+                        <th>@T("آخرین حرکت", "Last movement")</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var row in Model.Rows)
                     {
                         <tr>
-                            <td><code>@row.ProductCode</code></td>
-                            <td>@row.ProductName</td>
+                            <td class="ak-col-grow">
+                                @row.ProductName
+                                <div class="ak-cell-note">@row.ProductCode</div>
+                            </td>
                             <td>@row.TerminalName</td>
-                            <td>@(row.ContractNumber ?? "-")</td>
-                            <td class="text-end fw-semibold">@NumberDisplay.Quantity(row.FreeQuantityMt)</td>
-                            <td class="text-end">@row.MovementCount</td>
+                            <td>@(row.ContractNumber ?? "—")</td>
+                            <td class="ak-col-num ak-num fw-semibold">@NumberDisplay.Quantity(row.FreeQuantityMt)</td>
+                            <td class="ak-col-num ak-num">@row.MovementCount.ToString("N0")</td>
                             <td>@row.LastMovementDate.ToDisplayDate()</td>
                         </tr>
                     }
                     @if (!Model.Rows.Any())
                     {
                         <tr>
-                            <td colspan="7">
-                                @await Html.PartialAsync("_EmptyState", ("برای این بخش هنوز حرکتی ثبت نشده است", "پس از ثبت اسناد موجودی، خلاصه موجودی در این صفحه نمایش داده می‌شود.", "bi-bar-chart"))
+                            <td colspan="6">
+                                @await Html.PartialAsync("_EmptyState", (T("برای این بخش هنوز حرکتی ثبت نشده است", "No movement recorded yet"), T("پس از ثبت اسناد موجودی، خلاصه موجودی در این صفحه نمایش داده می‌شود.", "After recording movements, the stock summary appears here."), "bi-bar-chart"))
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-    </div>
 
-    @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+        <div class="ak-pager">
+            @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+        </div>
+    </div>
 </div>

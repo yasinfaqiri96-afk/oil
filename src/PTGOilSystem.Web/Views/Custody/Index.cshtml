@@ -23,9 +23,9 @@
                        canManage ? UiText.T(Context, "ثبت بار در راه", "Register in-transit load") : (string?)null, "bi-truck",
                        canManage ? (string?)Url.Action("Receive", new { inTransit = true }) : (string?)null))" />
 
-    <p class="text-muted small">
+    <p class="ak-note">
         @UiText.T(Context,
-            "تیلی که مالکش کس دیگری است. ثبت آن خرید، بدهی، فروش یا مفاد برای شرکت نمی‌سازد و در ارزش موجودی شرکت شمرده نمی‌شود.",
+            "تیلی که مالکش کس دیگری است؛ خرید، بدهی، فروش یا مفاد برای شرکت نمی‌سازد و در ارزش موجودی شرکت نیست.",
             "Stock owned by someone else. Recording it creates no purchase, payable, sale or profit and is not part of company inventory value.")
     </p>
 
@@ -36,10 +36,12 @@
                       avatar="total-inventory"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "قابل تحویل", "Deliverable")"
                       value="@StatCardFormatter.Number(active.Sum(l => l.FreeMt), 2)"
-                      unit="MT"></vc:stat-card>
+                      unit="MT"
+                      avatar="shipment-remaining"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "مسدود", "On hold")"
                       value="@StatCardFormatter.Number(active.Sum(l => l.HeldMt), 2)"
-                      unit="MT"></vc:stat-card>
+                      unit="MT"
+                      avatar="warning"></vc:stat-card>
         <vc:stat-card title="@UiText.T(Context, "بارهای در راه", "Loads in transit")"
                       value="@StatCardFormatter.Count(inTransit)"
                       unit="@UiText.T(Context, "بار", "loads")"
@@ -92,8 +94,8 @@
                         <th class="ak-col-grow">@UiText.T(Context, "مالک", "Owner")</th>
                         <th>@UiText.T(Context, "جنس", "Product")</th>
                         <th>@UiText.T(Context, "محل", "Location")</th>
-                        <th class="text-end">@UiText.T(Context, "موجودی (MT)", "Balance (MT)")</th>
-                        <th class="text-end">@UiText.T(Context, "قابل تحویل (MT)", "Deliverable (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "موجودی (MT)", "Balance (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "قابل تحویل (MT)", "Deliverable (MT)")</th>
                         <th>@UiText.T(Context, "وضعیت", "Status")</th>
                     </tr></thead>
                     <tbody>
@@ -104,8 +106,8 @@
                                 <td class="ak-col-grow"><a asp-action="Owner" asp-route-key="@CustodyParty.Key(lot.OwnerPartyType, lot.OwnerPartyId)">@lot.OwnerName</a> <small class="text-muted">(@CustodyParty.TypeLabel(lot.OwnerPartyType))</small></td>
                                 <td>@lot.ProductName</td>
                                 <td>@(string.IsNullOrEmpty(lot.Locations) ? "—" : lot.Locations)</td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(lot.BalanceMt)</td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(lot.FreeMt)</td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(lot.BalanceMt)</td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(lot.FreeMt)</td>
                                 <td>
                                     @if (lot.Status == CustodyLotStatus.InTransit)
                                     {
@@ -133,9 +135,9 @@
     }
     else if (Model.Tab == "ours")
     {
-        <p class="text-muted small">
+        <p class="ak-note">
             @UiText.T(Context,
-                "تیلِ ملکیِ شرکت که در مخزنِ دیگران است. در موجودی ملکی و ارزش موجودی شرکت هست، ولی جزو موجودی فزیکی مخازن ما نیست. فروش، انتقال و تحویل آن از همان مسیرهای عادی موجودی انجام می‌شود. برای تعریف مخزنِ طرف دیگر، در ترمینال «متعلق به طرف دیگر» را انتخاب کنید.",
+                "تیل ملکی شرکت در مخزن دیگران؛ جزو موجودی و ارزش موجودی شرکت است ولی در مخازن ما نیست. برای افزودن، در تعریف ترمینال «متعلق به طرف دیگر» را انتخاب کنید.",
                 "Company-owned stock held at someone else's facility. It is company inventory but not in our physical tanks. Mark a terminal as belonging to another party to track it here.")
         </p>
         <div class="ak-list">
@@ -145,7 +147,7 @@
                         <th class="ak-col-grow">@UiText.T(Context, "نگهدارنده", "Held by")</th>
                         <th>@UiText.T(Context, "ترمینال / مخزن", "Terminal")</th>
                         <th>@UiText.T(Context, "جنس", "Product")</th>
-                        <th class="text-end">@UiText.T(Context, "مقدار (MT)", "Quantity (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مقدار (MT)", "Quantity (MT)")</th>
                     </tr></thead>
                     <tbody>
                         @foreach (var row in Model.AtThirdParties)
@@ -154,7 +156,7 @@
                                 <td class="ak-col-grow">@row.CustodianName</td>
                                 <td>@row.TerminalName</td>
                                 <td>@row.ProductName</td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(row.QuantityMt)</td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(row.QuantityMt)</td>
                             </tr>
                         }
                         @if (!Model.AtThirdParties.Any())
@@ -168,7 +170,7 @@
     }
     else
     {
-        <p class="text-muted small">
+        <p class="ak-note">
             @UiText.T(Context,
                 "مجموعِ داخلِ هر مخزن = تیلِ ملکیِ شرکت + سهمِ هر مالکِ امانی. فقط تأسیساتِ خودِ ما.",
                 "Each tank total = company-owned stock + each custody owner's share. Our own facilities only.")
@@ -180,10 +182,10 @@
                         <th>@UiText.T(Context, "ترمینال / مخزن", "Terminal / tank")</th>
                         <th>@UiText.T(Context, "جنس", "Product")</th>
                         <th class="ak-col-grow">@UiText.T(Context, "سهم مالکان", "Owner shares")</th>
-                        <th class="text-end">@UiText.T(Context, "ملکی (MT)", "Company (MT)")</th>
-                        <th class="text-end">@UiText.T(Context, "امانی (MT)", "Custody (MT)")</th>
-                        <th class="text-end">@UiText.T(Context, "مجموع (MT)", "Total (MT)")</th>
-                        <th class="text-end">@UiText.T(Context, "ظرفیت (MT)", "Capacity (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "ملکی (MT)", "Company (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "امانی (MT)", "Custody (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "مجموع (MT)", "Total (MT)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "ظرفیت (MT)", "Capacity (MT)")</th>
                     </tr></thead>
                     <tbody>
                         @foreach (var p in Model.Physical)
@@ -208,10 +210,10 @@
                                         </div>
                                     }
                                 </td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(p.CompanyMt)</td>
-                                <td class="text-end ak-num">@NumberDisplay.Quantity(p.CustodyMt)</td>
-                                <td class="text-end ak-num"><strong>@NumberDisplay.Quantity(p.TotalMt)</strong></td>
-                                <td class="text-end ak-num">
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(p.CompanyMt)</td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(p.CustodyMt)</td>
+                                <td class="ak-col-num ak-num"><strong>@NumberDisplay.Quantity(p.TotalMt)</strong></td>
+                                <td class="ak-col-num ak-num">
                                     @NumberDisplay.Quantity(p.CapacityMt)
                                     @if (over)
                                     {

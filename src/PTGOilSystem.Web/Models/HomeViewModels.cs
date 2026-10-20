@@ -54,6 +54,24 @@ public class DashboardViewModel
     public int SarrafRateDiffCount { get; set; }
     public int ExcessShortageCount { get; set; }
     public int LowStockTankCount { get; set; }
+
+    // --- کارت‌های بالای داشبورد؛ null یعنی کاربر به گزارش مرجعِ همان عدد دسترسی ندارد ---
+    /// <summary>جمع بارهای در مسیر — همان راپور «بارهای در مسیر» (IGoodsInTransitReader).</summary>
+    public decimal? GoodsInTransitMt { get; set; }
+    /// <summary>کل طلبات — همان TotalReceivableUsd گزارش «طلبات و بدهی‌ها».</summary>
+    public decimal? TotalReceivableUsd { get; set; }
+    /// <summary>کل بدهی‌ها — همان TotalPayableUsd گزارش «طلبات و بدهی‌ها».</summary>
+    public decimal? TotalPayableUsd { get; set; }
+
+    /// <summary>ترکیب فروش: مقدار فروش هر محصول در همان بازهٔ نمودار روند.</summary>
+    public List<DashboardSalesMixItemViewModel> SalesMix { get; set; } = new();
+}
+
+public class DashboardSalesMixItemViewModel
+{
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = "";
+    public decimal QuantityMt { get; set; }
 }
 
 public class DashboardAlertViewModel

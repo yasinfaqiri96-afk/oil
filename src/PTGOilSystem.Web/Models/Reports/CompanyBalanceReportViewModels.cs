@@ -204,4 +204,15 @@ public sealed class CompanyBalanceDetailsViewModel
     public IReadOnlyList<CompanyBalanceDetailRowViewModel> Rows { get; init; } = [];
     public bool HasQuantity => Rows.Any(r => r.QuantityMt.HasValue);
     public decimal Total => Rows.Where(r => r.IsValued).Sum(r => r.Amount);
+
+    /// <summary>جمعی که روی سند اصلی چاپ شده، نه جمع دوبارهٔ ردیف‌های گردشده؛ صفحه و خروجی هر دو همین را نشان می‌دهند.</summary>
+    public decimal PrintedTotal => Section switch
+    {
+        CompanyBalanceSection.PeriodExpenses => Report.PeriodExpenses,
+        CompanyBalanceSection.SalesRevenue => Report.SalesRevenue,
+        _ => Report.Line(Section)?.Amount ?? 0m
+    };
+
+    /// <summary>درآمد و مصارف دوره بین دو تاریخ‌اند؛ بقیهٔ ردیف‌ها مانده تا «تا تاریخ».</summary>
+    public bool IsPeriodSection => Section is CompanyBalanceSection.PeriodExpenses or CompanyBalanceSection.SalesRevenue;
 }

@@ -2,87 +2,101 @@
 @using PTGOilSystem.Web.Models.Entities
 @{
     ViewData["Title"] = UiText.T(Context,"موجودی","Inventory");
+    string T(string fa, string en) => UiText.T(Context, fa, en);
     var movements = Model.Items.ToList();
     var canManage = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+
+    (string Text, string Tone) DirectionBadge(MovementDirection direction) => direction switch
+    {
+        MovementDirection.In => (T("ورود", "In"), "is-active"),
+        MovementDirection.Out => (T("خروج", "Out"), "is-inactive"),
+        MovementDirection.Transfer => (T("انتقال", "Transfer"), "is-pending"),
+        _ => (T("اصلاح موجودی", "Adjustment"), "is-pending")
+    };
 }
 
+@* الگوی مشترک فهرست: سربرگ ← لیست (جست‌وجو و میان‌بُرها در یک نوار) ← جدول ← صفحه‌بندی. *@
 <div class="ak-form-page ak-list-page">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-             model="@((UiText.T(Context, "حرکت‌های موجودی", "Inventory Movements"), true,
-                       canManage ? UiText.T(Context, "ثبت سند موجودی", "New Movement") : (string?)null, "bi-plus-lg",
+             model="@((T("حرکت‌های موجودی", "Inventory Movements"), true,
+                       canManage ? T("ثبت سند موجودی", "New Movement") : (string?)null, "bi-plus-lg",
                        canManage ? (string?)Url.Action("Create") : (string?)null, (string?)null,
                        (string?)null, (string?)null, (string?)null))" />
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@AkSearchFilterModel.SearchOnly(
-                 "q",
-                 Model.Query,
-                 UiText.T(Context, "جنس، ترمینال، قرارداد یا شماره سند...", "Product, terminal, contract or reference..."))" />
+    <p class="ak-note">@T("گردش تیل ملکی شرکت. تیل دیگران در تب «امانی» ثبت می‌شود.", "Movements of company-owned stock. Others' stock is recorded under Custody.")</p>
 
-    <p class="ak-note">این صفحه گردش تیل ملکی شرکت را نشان می‌دهد. تیل دیگران در تب «امانی» ثبت می‌شود.</p>
-    <div class="ak-detail-toolbar">
-        <a class="btn btn-light ak-secondary-action" asp-action="StockSummary">خلاصه موجودی ملکی</a>
-        <a class="btn btn-light ak-secondary-action" asp-action="StockCard">گردش و باقی موجودی</a>
-    </div>
-    <div class="ak-table-wrap">
+    <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly(
+                         "q",
+                         Model.Query,
+                         T("جنس، ترمینال، قرارداد یا شماره سند...", "Product, terminal, contract or reference..."))" />
+            <div class="ak-list-toolbar-actions">
+                <a class="btn btn-light ak-secondary-action" asp-action="StockSummary">
+                    <i class="bi bi-bar-chart" aria-hidden="true"></i>
+                    <span>@T("خلاصه موجودی", "Stock summary")</span>
+                </a>
+                <a class="btn btn-light ak-secondary-action" asp-action="StockCard">
+                    <i class="bi bi-card-list" aria-hidden="true"></i>
+                    <span>@T("کارت موجودی", "Stock card")</span>
+                </a>
+            </div>
+        </div>
+
         <div class="ak-table-wrap">
-            <table class="ak-table align-middle mb-0">
+            <table class="ak-table">
                 <thead>
                     <tr>
-                        <th>@UiText.T(Context,"تاریخ","Date")</th>
-                        <th>@UiText.T(Context,"نوع حرکت","Movement Type")</th>
-                        <th>@UiText.T(Context,"جنس","Product")</th>
-                        <th>@UiText.T(Context,"ترمینال","Terminal")</th>
-                        <th>@UiText.T(Context,"قرارداد منبع","Source Contract")</th>
-                        <th>@UiText.T(Context,"مخزن","Tank")</th>
-                        <th class="text-end">@UiText.T(Context,"مقدار (MT)","Qty (MT)")</th>
-                        <th>@UiText.T(Context,"شماره سند","Reference")</th>
-                        <th>دلیل و یادداشت</th>
+                        <th>@T("تاریخ", "Date")</th>
+                        <th>@T("نوع حرکت", "Movement Type")</th>
+                        <th>@T("جنس", "Product")</th>
+                        <th>@T("ترمینال / مخزن", "Terminal / tank")</th>
+                        <th>@T("قرارداد منبع", "Source Contract")</th>
+                        <th class="ak-col-num">@T("مقدار (MT)", "Qty (MT)")</th>
+                        <th class="ak-col-grow">@T("شماره سند / یادداشت", "Reference / note")</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var item in movements)
                     {
+                        var badge = DirectionBadge(item.Direction);
                         <tr>
                             <td>@item.MovementDate.ToDisplayDate()</td>
+                            <td><span class="ak-status @badge.Tone">@badge.Text</span></td>
+                            <td>@item.ProductName</td>
                             <td>
-                                @switch (item.Direction)
+                                @item.TerminalName
+                                @if (!string.IsNullOrWhiteSpace(item.StorageTankCode))
                                 {
-                                    case MovementDirection.In:
-                                        <span class="ak-status is-active">@UiText.T(Context,"ورود","In")</span>
-                                        break;
-                                    case MovementDirection.Out:
-                                        <span class="ak-status is-inactive">@UiText.T(Context,"خروج","Out")</span>
-                                        break;
-                                    case MovementDirection.Transfer:
-                                        <span class="ak-status is-pending">@UiText.T(Context,"انتقال","Transfer")</span>
-                                        break;
-                                    case MovementDirection.Adjustment:
-                                        <span class="ak-status is-pending">@UiText.T(Context,"اصلاح موجودی","Adjustment")</span>
-                                        break;
+                                    <div class="ak-cell-note">@item.StorageTankCode</div>
                                 }
                             </td>
-                            <td>@item.ProductName</td>
-                            <td>@item.TerminalName</td>
                             <td>@(string.IsNullOrWhiteSpace(item.ContractDisplayLabel) ? "—" : item.ContractDisplayLabel)</td>
-                            <td>@(item.StorageTankCode ?? "—")</td>
-                            <td class="text-end fw-semibold">@NumberDisplay.Quantity(item.QuantityMt)</td>
-                            <td>@(item.ReferenceDocument ?? "—")</td>
-                            <td class="ak-col-grow">@(item.Notes ?? "—")</td>
+                            <td class="ak-col-num ak-num fw-semibold">@NumberDisplay.Quantity(item.QuantityMt)</td>
+                            <td class="ak-col-grow">
+                                @(item.ReferenceDocument ?? "—")
+                                @if (!string.IsNullOrWhiteSpace(item.Notes))
+                                {
+                                    <div class="ak-cell-note">@item.Notes</div>
+                                }
+                            </td>
                         </tr>
                     }
                     @if (!movements.Any())
                     {
                         <tr>
-                            <td colspan="9">
-                                @await Html.PartialAsync("_EmptyState", (UiText.T(Context,"هنوز هیچ حرکت موجودی ثبت نشده است","No inventory movements recorded yet"), UiText.T(Context,"پس از ثبت سند موجودی معلومات این بخش کامل می‌شود.","After recording a movement, this section will be populated."), "bi-boxes"))
+                            <td colspan="7">
+                                @await Html.PartialAsync("_EmptyState", (T("هنوز هیچ حرکت موجودی ثبت نشده است","No inventory movements recorded yet"), T("پس از ثبت سند موجودی معلومات این بخش کامل می‌شود.","After recording a movement, this section will be populated."), "bi-boxes"))
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-    </div>
 
-    @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+        <div class="ak-pager">
+            @await Html.PartialAsync("_Pagination", (Model.CurrentPage, Model.PageCount))
+        </div>
+    </div>
 </div>

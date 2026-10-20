@@ -14,15 +14,32 @@
     var chartSales = JsonSerializer.Serialize(Model.MarketSalesSeries);
     var chartExpenses = JsonSerializer.Serialize(Model.MarketExpenseSeries);
 
-    // ترکیب فروش — سه حلقه هم‌مرکز.
-    var mixSegments = new[]
+    // ترکیب فروش — سه حلقهٔ هم‌مرکز، هر حلقه یک محصول (مقدار فروش MT در بازهٔ نمودار روند).
+    // بیش از سه محصول: حلقهٔ سوم جمع بقیهٔ محصولات است.
+    var mixPalette = new[]
     {
-        new { label = T("فروش", "Sales"),                  value = Model.SalesCount,             color = "var(--ptg-chart-positive)" },
-        new { label = T("در انتظار پرداخت", "Pending"),     value = Model.SalesWithoutPaymentCount, color = "var(--ptg-chart-warning)" },
-        new { label = T("کسری", "Shortage"),               value = Model.ShortageCount,          color = "var(--ptg-chart-negative)" }
+        (Color: "var(--ptg-chart-positive)", Dot: "dash-dot--green"),
+        (Color: "var(--ptg-chart-warning)", Dot: "dash-dot--amber"),
+        (Color: "var(--ptg-chart-negative)", Dot: "dash-dot--red")
     };
-    var mixTotal = mixSegments.Sum(s => s.value);
-    var mixJson = JsonSerializer.Serialize(mixSegments);
+    var mixProducts = Model.SalesMix.Count <= mixPalette.Length
+        ? Model.SalesMix.Select(p => (Name: p.ProductName, Mt: p.QuantityMt)).ToList()
+        : Model.SalesMix.Take(mixPalette.Length - 1)
+            .Select(p => (Name: p.ProductName, Mt: p.QuantityMt))
+            .Append((Name: T("سایر محصولات", "Other products"), Mt: Model.SalesMix.Skip(mixPalette.Length - 1).Sum(p => p.QuantityMt)))
+            .ToList();
+    var mixTotal = mixProducts.Sum(p => p.Mt);
+    var mixSegments = mixProducts
+        .Select((p, i) => new
+        {
+            label = p.Name,
+            value = p.Mt,
+            percent = mixTotal > 0m ? Math.Round(p.Mt / mixTotal * 100m, 0, MidpointRounding.AwayFromZero) : 0m,
+            color = mixPalette[i].Color,
+            dot = mixPalette[i].Dot
+        })
+        .ToList();
+    var mixJson = JsonSerializer.Serialize(mixSegments.Select(s => new { s.label, s.value, s.color }));
 }
 
 <div class="ak-form-page dashboard-page dashboard-ref">
@@ -45,25 +62,25 @@
 
     @* ===== ردیف کارت‌های خلاصه ===== *@
     <section class="ak-stat-grid" aria-label="@T("خلاصه امروز", "Today's summary")">
-        <vc:stat-card title="@T("فروش امروز", "Today's sales")"
-                      value="@StatCardFormatter.Number(Model.TodaySalesUsd, 0)"
-                      unit="USD"
-                      avatar="sales-value"></vc:stat-card>
-
-        <vc:stat-card title="@T("موجودی کل", "Total inventory")"
+        <vc:stat-card title="@T("موجودی مخازن", "Tank stock")"
                       value="@StatCardFormatter.Number(Model.TerminalStockMt, 2)"
                       unit="MT"
-                      avatar="total-inventory"></vc:stat-card>
+                      avatar="storage-tanks"></vc:stat-card>
 
-        <vc:stat-card title="@T("بارهای در جریان", "Loads in transit")"
-                      value="@StatCardFormatter.Count(Model.ShipmentsInTransitCount)"
-                      unit="@T("محموله", "loads")"
-                      avatar="transported"></vc:stat-card>
+        <vc:stat-card title="@T("بارهای در راه", "Goods in transit")"
+                      value="@StatCardFormatter.Number(Model.GoodsInTransitMt, 2)"
+                      unit="MT"
+                      avatar="in-transit"></vc:stat-card>
 
-        <vc:stat-card title="@T("قراردادهای فعال", "Active contracts")"
-                      value="@StatCardFormatter.Count(Model.ActiveContractCount)"
-                      unit="@T("قرارداد", "contracts")"
-                      avatar="contract-signed"></vc:stat-card>
+        <vc:stat-card title="@T("کل طلبات", "Total receivables")"
+                      value="@StatCardFormatter.Number(Model.TotalReceivableUsd, 0)"
+                      unit="USD"
+                      avatar="receivables"></vc:stat-card>
+
+        <vc:stat-card title="@T("کل بدهی‌ها", "Total payables")"
+                      value="@StatCardFormatter.Number(Model.TotalPayableUsd, 0)"
+                      unit="USD"
+                      avatar="payments-out"></vc:stat-card>
     </section>
 
     @* ===== نمودار روند + ترکیب فروش ===== *@
@@ -75,16 +92,16 @@
             <div class="dash-donut"
                  data-dashboard-donut
                  data-segments="@mixJson"
-                 data-total="@mixTotal"
-                 data-total-label="@T("مجموع", "Total")">
+                 data-total="@mixTotal.ToString(CultureInfo.InvariantCulture)"
+                 data-total-label="@T("مجموع MT", "Total MT")">
             </div>
             <div class="dash-mix-legend">
                 @foreach (var seg in mixSegments)
                 {
-                    <span class="dash-mix-item">
-                        <i class="dash-dot" style="background:@seg.color" aria-hidden="true"></i>
+                    <span class="dash-mix-item" title="@StatCardFormatter.Number(seg.value, 2) MT">
+                        <i class="dash-dot @seg.dot" aria-hidden="true"></i>
                         <span class="dash-mix-name">@seg.label</span>
-                        <strong class="dash-mix-count"><bdi>@StatCardFormatter.Count(seg.value)</bdi></strong>
+                        <strong class="dash-mix-count"><bdi>@StatCardFormatter.Number(seg.percent, 0)%</bdi></strong>
                     </span>
                 }
             </div>
@@ -94,6 +111,16 @@
             <header class="dash-card-head dash-trend-head">
                 <div class="dash-trend-title">
                     <h2>@T("روند درآمد و مصارف", "Revenue and expense trend")</h2>
+                </div>
+                <div class="dash-mix-legend dash-trend-legend">
+                    <span class="dash-mix-item">
+                        <i class="dash-dot dash-dot--green" aria-hidden="true"></i>
+                        <span class="dash-mix-name">@T("درآمد", "Revenue")</span>
+                    </span>
+                    <span class="dash-mix-item">
+                        <i class="dash-dot dash-dot--amber" aria-hidden="true"></i>
+                        <span class="dash-mix-name">@T("مصارف", "Expenses")</span>
+                    </span>
                 </div>
             </header>
             <div class="dash-trend-chart"

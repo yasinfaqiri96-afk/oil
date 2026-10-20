@@ -229,8 +229,12 @@
         });
 
         appendText(svg, "dash-donut-center-label", container.dataset.totalLabel || "Total", center, center - 8);
+        // عدد بزرگ (مثلاً مجموع MT) در وسط حلقهٔ داخلی جا نمی‌شود؛ خلاصه نمایش داده می‌شود.
         appendText(svg, "dash-donut-center-total",
-            new Intl.NumberFormat(locale()).format(total), center, center + 26);
+            total >= 10000
+                ? formatCompact(total)
+                : new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(total),
+            center, center + 26);
 
         container.appendChild(svg);
     }

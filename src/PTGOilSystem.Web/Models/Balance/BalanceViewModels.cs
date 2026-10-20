@@ -87,6 +87,19 @@ public sealed class ContractBalanceListItemViewModel
     public string ContractUnitText { get; init; } = "—";
     public decimal QuantityMt { get; init; }
     public int ShipmentCount { get; init; }
+    public bool IsPurchase { get; init; }
+
+    /// <summary>
+    /// قیمت قطعی خرید هر تُن (USD) از <c>ContractPricingAdapter.GetCanonicalFinalPrice</c>؛ فقط برای قرارداد خرید.
+    /// null یعنی قیمت هنوز قطعی نشده (مثلاً Platt's باز)، نه صفر.
+    /// </summary>
+    public decimal? PurchaseUnitPriceUsd { get; init; }
+
+    /// <summary>ارزش خرید = مقدار قرارداد × قیمت قطعی خرید؛ همان فرمول «مبلغ قرارداد» در گزارش مفاد قراردادها.</summary>
+    public decimal? PurchaseValueUsd => PurchaseUnitPriceUsd.HasValue
+        ? decimal.Round(QuantityMt * PurchaseUnitPriceUsd.Value, 2, MidpointRounding.AwayFromZero)
+        : null;
+
     public decimal TotalSalesUsd { get; init; }
     public decimal TotalExpensesUsd { get; init; }
     public int RelatedLedgerCount { get; init; }
@@ -101,6 +114,7 @@ public sealed class ContractsBalanceViewModel
     public int PageCount { get; init; } = 1;
     public int TotalCount { get; init; }
     /// <summary>جمع‌های کارت‌های بالای صفحه روی همهٔ نتایجِ فیلتر (نه فقط صفحهٔ جاری).</summary>
+    public decimal FilteredTotalPurchaseValueUsd { get; init; }
     public decimal FilteredTotalSalesUsd { get; init; }
     public decimal FilteredTotalExpensesUsd { get; init; }
     public decimal FilteredBalanceUsd { get; init; }

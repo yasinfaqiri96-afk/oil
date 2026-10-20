@@ -10,12 +10,8 @@
     var avatarMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["Reports|CompanyBalance"] = "/images/stat-cards/ref-reports/rep-analysis.webp",
-        ["Reports|CompanyOverview"] = "/images/stat-cards/ref-reports/rep-finance-pnl.webp",
         ["Reports|ContractPnl"] = "/images/stat-cards/ref-contract/contract-profit.webp",
-        ["ShipmentPnl|Index"] = "/images/stat-cards/ref-shipment/profit.webp",
-        ["Reports|Warnings"] = "/images/stat-cards/ref-reconciliation/recon-operations.webp",
 
-        ["Reports|ReceivablesPayables"] = "/images/stat-cards/ref-reconciliation/recon-amount.webp",
         ["Reports|PartyAging"] = "/images/stat-cards/ref-reconciliation/recon-documents.webp",
         ["Reports|CashFlow"] = "/images/stat-cards/ref-blue/party-payment.webp",
         ["Balance|Customers"] = "/images/stat-cards/ref-people/customers.webp",
@@ -108,3 +104,50 @@
         </div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        // برگشت از یک گزارش به مرکز گزارش‌ها همان تبی را باز می‌کند که کاربر در آن بود.
+        // ptg-tabs.js تب را در hash نگه می‌دارد، ولی لینک «گزارش‌ها» در سربرگ صفحات گزارش
+        // hash ندارد؛ پس آخرین تب در sessionStorage همین زبانه هم نگه داشته می‌شود.
+        (function () {
+            "use strict";
+            var KEY = "ptg-rephub-tab";
+
+            function remember(id) {
+                try { sessionStorage.setItem(KEY, id); } catch (_) { /* حافظهٔ مرورگر اختیاری است */ }
+            }
+
+            function restore() {
+                var rail = document.querySelector(".rephub-page .ptg-tabs-rail");
+                if (!rail || rail.hasAttribute("data-rephub-memory")) {
+                    return;
+                }
+                rail.setAttribute("data-rephub-memory", "true");
+                rail.addEventListener("click", function (event) {
+                    var tab = event.target.closest(".ptg-tab-item");
+                    var href = tab && tab.getAttribute("href");
+                    if (href && href.charAt(0) === "#") {
+                        remember(href.slice(1));
+                    }
+                });
+
+                var id = (location.hash || "").slice(1);
+                if (!id) {
+                    try { id = sessionStorage.getItem(KEY) || ""; } catch (_) { id = ""; }
+                }
+                var target = id ? rail.querySelector('.ptg-tab-item[href="#' + id + '"]') : null;
+                if (target && target.getAttribute("aria-selected") !== "true") {
+                    target.click();
+                }
+            }
+
+            // پس از راه‌اندازی موتور تب (DOMContentLoaded یا ptg:page-ready در ناوبری SPA).
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", function () { setTimeout(restore, 0); }, { once: true });
+            } else {
+                setTimeout(restore, 0);
+            }
+        })();
+    </script>
+}

@@ -120,6 +120,15 @@ public sealed class GoodsInTransitReportViewModel
     public GoodsInTransitFilterViewModel Filter { get; init; } = new();
     public IReadOnlyList<GoodsInTransitRowViewModel> Rows { get; init; } = [];
     public GoodsInTransitTotalsViewModel Totals { get; init; } = new();
+
+    /// <summary>
+    /// ارزش هر بار (کلید: نوع + شمارهٔ سند منبع) به USD، برای همهٔ نتایج فیلتر؛ null یعنی قرارداد بار
+    /// بهای واحد ندارد. مرجع: همان بهای واحد قرارداد خرید که بیلانس کلی شرکت به کار می‌برد.
+    /// </summary>
+    public IReadOnlyDictionary<(GoodsInTransitKind Kind, int SourceId), decimal?> ValuesUsd { get; init; }
+        = new Dictionary<(GoodsInTransitKind Kind, int SourceId), decimal?>();
+    public decimal TotalValueUsd { get; init; }
+    public int UnvaluedCount { get; init; }
     public int CurrentPage { get; init; } = 1;
     public int PageCount { get; init; } = 1;
 }

@@ -9,14 +9,7 @@
     var from = report.ReportFromDate.ToString("yyyy-MM-dd");
     var to = report.ReportToDate.ToString("yyyy-MM-dd");
     var backUrl = Url.Action("CompanyBalance", new { FromDate = from, ToDate = to, Currency = currency });
-    // جمع همان عددی است که روی سند اصلی چاپ شده، نه جمع دوبارهٔ ردیف‌های گردشده.
-    var total = Model.Section switch
-    {
-        CompanyBalanceSection.PeriodExpenses => report.PeriodExpenses,
-        CompanyBalanceSection.SalesRevenue => report.SalesRevenue,
-        _ => report.Line(Model.Section)?.Amount ?? 0m
-    };
-    var scope = Model.Section is CompanyBalanceSection.PeriodExpenses or CompanyBalanceSection.SalesRevenue
+    var scope = Model.IsPeriodSection
         ? Txt.Period(report.ReportFromDate, report.ReportToDate)
         : $"تا {Txt.Date(report.ReportToDate)}";
 }
@@ -32,9 +25,16 @@
                        T("بیلانس کلی شرکت", "Company Balance Sheet"), "bi-arrow-right", backUrl))" />
 
     <section class="ak-list">
-        <div class="cbr-details-head">
-            <span>@scope · <bdi>@currency</bdi></span>
-            <strong><bdi>@Txt.Money(total, currency)</bdi></strong>
+        @* خروجی همان پارامترهای صفحه (section، FromDate، ToDate، Currency) را از نشانی می‌گیرد. *@
+        <div class="ak-list-toolbar cbr-details-head">
+            <div class="cbr-details-head__total">
+                <span>@scope · <bdi>@currency</bdi></span>
+                <strong><bdi>@Txt.Money(Model.PrintedTotal, currency)</bdi></strong>
+            </div>
+            <div class="ak-list-toolbar-actions">
+                <partial name="~/Views/Shared/_ExportMenu.cshtml"
+                         model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("CompanyBalanceDetailsExport"))" />
+            </div>
         </div>
 
         @if (Model.Rows.Count == 0)
@@ -47,7 +47,7 @@
                 <table class="ak-table">
                     <thead>
                         <tr>
-                            <th scope="col">@Txt.DescriptionHeader</th>
+                            <th scope="col" class="ak-col-grow">@Txt.DescriptionHeader</th>
                             <th scope="col">@T("جزئیات", "Details")</th>
                             @if (Model.HasQuantity)
                             {
@@ -60,10 +60,10 @@
                         @foreach (var row in Model.Rows)
                         {
                             <tr>
-                                <td>
+                                <td class="ak-col-grow">
                                     @if (!string.IsNullOrWhiteSpace(row.LinkController) && row.LinkId.HasValue)
                                     {
-                                        <a href="@Url.Action(row.LinkAction ?? "Details", row.LinkController, new { id = row.LinkId })">@row.Name</a>
+                                        <a class="ak-name" href="@Url.Action(row.LinkAction ?? "Details", row.LinkController, new { id = row.LinkId })">@row.Name</a>
                                     }
                                     else
                                     {
@@ -88,6 +88,12 @@
                             </tr>
                         }
                     </tbody>
+                    <tfoot>
+                        <tr class="ak-table-total">
+                            <td colspan="@(Model.HasQuantity ? 3 : 2)">@T("جمع", "Total")</td>
+                            <td class="cbr-num"><bdi>@Txt.Amount(Model.PrintedTotal)</bdi></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         }

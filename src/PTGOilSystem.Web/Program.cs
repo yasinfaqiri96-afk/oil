@@ -225,6 +225,10 @@ builder.Services.AddScoped<ISupplierPaymentAllocationService, SupplierPaymentAll
 // موتور واحد «مانده قابل انتقال تأمین‌کننده» — منبع اصلی انتقال طلب به قرارداد.
 builder.Services.AddScoped<ISupplierTransferableBalanceService, SupplierTransferableBalanceService>();
 builder.Services.AddScoped<ISupplierFxSettlementService, SupplierFxSettlementService>();
+// ردیف‌های «طلبات و بدهی‌ها» — گزارش وب و کارت‌های داشبورد از همین می‌خوانند.
+builder.Services.AddScoped<
+    PTGOilSystem.Web.Services.Reporting.IReceivablesPayablesReader,
+    PTGOilSystem.Web.Services.Reporting.ReceivablesPayablesReader>();
 builder.Services.AddScoped<ISupplierFxRecognitionService, SupplierFxRecognitionService>();
 builder.Services.AddScoped<ISupplierBalanceTransferService, SupplierBalanceTransferService>();
 builder.Services.AddScoped<ICustomerPaymentAllocationService, CustomerPaymentAllocationService>();

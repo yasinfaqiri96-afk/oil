@@ -7,9 +7,9 @@ using Text = PTGOilSystem.Web.Models.Reports.CompanyBalanceReportText;
 namespace PTGOilSystem.Web.Services.Exports;
 
 /// <summary>
-/// «بیلانس کلی شرکت» روی A4 عمودی. چیدمان، رنگ، برچسب و قالب عدد همان صفحهٔ وب است
-/// (<c>Views/Reports/_CompanyBalanceSheet.cshtml</c> و <c>64-company-balance.css</c>): لوگو و
-/// مشخصات، عنوان، عدد اصلی، دو جدول هم‌ارتفاع، عملکرد دوره، جمع‌بندی و فوتر. هیچ query یا
+/// «بیلانس کلی شرکت» روی A4 عمودی. رنگ، برچسب و قالب عدد همان صفحهٔ وب است
+/// (<c>Views/Reports/_CompanyBalanceSheet.cshtml</c> و <c>64-company-balance.css</c>)؛ صفحهٔ وب نسخهٔ
+/// عریض صفحه‌نمایش است و اجزای چاپی (لوگو و مشخصات، عنوان، جمع‌بندی و فوتر) فقط اینجا می‌آیند. هیچ query یا
 /// محاسبه‌ای اینجا نیست؛ فقط مدل آماده چاپ می‌شود.
 /// </summary>
 internal sealed class CompanyBalancePdfDocument(CompanyBalanceReportViewModel model, string? logoPath) : IDocument

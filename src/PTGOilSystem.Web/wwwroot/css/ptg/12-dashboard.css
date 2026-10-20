@@ -224,6 +224,13 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-mix-name { font-weight: 600; }
 
+/* راهنمای رنگ نمودار روند (درآمد / مصارف) کنار عنوان کارت. */
+.dash-trend-legend {
+    justify-content: flex-end;
+    gap: 6px 16px;
+    padding-block-start: 4px;
+}
+
 .dash-mix-count {
     color: var(--text-primary);
     font-weight: 700;

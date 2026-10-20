@@ -1057,8 +1057,11 @@
                                     </h3>
                                     <span class="ak-journey-badge"><i class="bi @StepBadgeIcon(step.Number, step.State)" aria-hidden="true"></i>@StepBadgeText(step.State)</span>
                                 </div>
+                                @* دو آمار هر مرحله کنار هم و با عرض کامل کارت، زیر سربرگ آواتار و عنوان. *@
+                                <div class="ak-cycle-stats">
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@step.FirstLabel</span><span class="ak-cycle-value @(step.Number is 1 or 2 or 3 or 5 ? "ak-cycle-quantity" : null)">@(step.Number is 1 or 2 or 3 or 5 ? LifecycleQuantityMarkup(step.FirstValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.FirstValue))</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@step.SecondLabel</span><span class="ak-cycle-value @(step.Number == 2 ? "ak-cycle-quantity" : null)">@(step.Number == 2 ? LifecycleQuantityMarkup(step.SecondValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.SecondValue))</span></div>
+                                </div>
                             </div>
                             @if (step.Number < journeySteps.Count)
                             {

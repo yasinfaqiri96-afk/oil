@@ -2,8 +2,8 @@
 @using PTGOilSystem.Web.Models.Reports
 @using Txt = PTGOilSystem.Web.Models.Reports.CompanyBalanceReportText
 @{
-    // سند A4 گزارش. چیدمان و برچسب‌ها همان CompanyBalancePdfDocument است؛ هر تغییر اینجا باید
-    // در PDF هم اعمال شود. هیچ محاسبه‌ای اینجا نیست.
+    // نسخهٔ صفحه‌نمایشِ بیلانس. برچسب‌ها و ارقام همان CompanyBalancePdfDocument است، ولی اجزای چاپی
+    // (لوگو، تاریخ چاپ، شمارهٔ صفحه، عنوان دوم و جمع‌بندی تکراری) فقط در PDF می‌آیند. هیچ محاسبه‌ای اینجا نیست.
     var currency = Model.CurrencyCode;
     var rowCount = Math.Max(Model.AssetLines.Count, Model.LiabilityLines.Count);
     var from = Model.ReportFromDate.ToString("yyyy-MM-dd");
@@ -12,46 +12,44 @@
         => Url.Action("CompanyBalanceDetails", "Reports", new { section, FromDate = from, ToDate = to, Currency = currency }) ?? "#";
 
     var netProfitLoss = Model.NetProfitLoss;
-    var performance = new List<(string Label, decimal Value, bool Emphasis, CompanyBalanceSection? Section)>
+    var performance = new List<(string Label, decimal Value, CompanyBalanceSection? Section)>
     {
-        (Txt.Sales, Model.SalesRevenue, false, CompanyBalanceSection.SalesRevenue),
-        (Txt.CostOfSales, Model.CostOfSales, false, null),
-        (Model.GrossProfit < 0m ? Txt.GrossLoss : Txt.GrossProfit, Math.Abs(Model.GrossProfit), false, null),
-        (Txt.PeriodExpenses, Model.PeriodExpenses, false, CompanyBalanceSection.PeriodExpenses)
+        (Txt.Sales, Model.SalesRevenue, CompanyBalanceSection.SalesRevenue),
+        (Txt.CostOfSales, Model.CostOfSales, null),
+        (Model.GrossProfit < 0m ? Txt.GrossLoss : Txt.GrossProfit, Math.Abs(Model.GrossProfit), null),
+        (Txt.PeriodExpenses, Model.PeriodExpenses, CompanyBalanceSection.PeriodExpenses)
     };
     if (Model.NetExchangeResult != 0m)
     {
-        performance.Add((Txt.ExchangeResult, Model.NetExchangeResult, false, null));
+        performance.Add((Txt.ExchangeResult, Model.NetExchangeResult, null));
     }
     if (Model.CustodyIncome != 0m)
     {
-        performance.Add((Txt.CustodyIncome, Model.CustodyIncome, false, null));
+        performance.Add((Txt.CustodyIncome, Model.CustodyIncome, null));
     }
-    performance.Add((Txt.NetResultLabel(netProfitLoss), Math.Abs(netProfitLoss), true, null));
 }
 
 <article class="cbr-sheet" dir="rtl" lang="fa" aria-label="@Txt.Title">
-    <header class="cbr-head">
-        <dl class="cbr-meta">
-            <div><dt>تاریخ گزارش:</dt><dd><bdi dir="ltr">@Txt.Date(Model.ReportToDate)</bdi></dd></div>
-            <div><dt>دوره گزارش:</dt><dd>@Txt.Period(Model.ReportFromDate, Model.ReportToDate)</dd></div>
-            <div><dt>واحد پول:</dt><dd><bdi>@currency</bdi></dd></div>
-            <div><dt>تاریخ چاپ:</dt><dd><bdi dir="ltr">@Txt.PrintDate(Model.GeneratedAt)</bdi></dd></div>
-        </dl>
-        <div class="cbr-logo">
-            <img src="~/invoice-templates/fawad/logo.png" width="200" height="96" alt="@($"{Txt.BrandLatin} | {Txt.BrandName}")" asp-append-version="true" />
+    <p class="cbr-scope">
+        @Txt.Period(Model.ReportFromDate, Model.ReportToDate)
+        <span aria-hidden="true">·</span>
+        @Txt.AmountHeader(currency)
+    </p>
+
+    @* جواب اصلی در یک ردیف: دارایی‌ها − تعهدات = خالص وضعیت. *@
+    <section class="cbr-hero" aria-label="@Txt.HeroLabel">
+        <div class="cbr-hero__item">
+            <span class="cbr-hero__label">@Txt.TotalAssets</span>
+            <bdi class="cbr-hero__value">@Txt.Money(Model.TotalAssets, currency)</bdi>
         </div>
-    </header>
-
-    <div class="cbr-title">
-        <h1>@Txt.Title</h1>
-        <p>@Txt.Subtitle</p>
-    </div>
-
-    <section class="cbr-hero @(Model.NetCompanyBalance < 0m ? "is-negative" : null)" aria-label="@Txt.HeroLabel">
-        <span class="cbr-hero__label">@Txt.HeroLabel</span>
-        <bdi class="cbr-hero__value">@Txt.Money(Model.NetCompanyBalance, currency)</bdi>
-        <span class="cbr-hero__formula">@Txt.HeroFormula</span>
+        <div class="cbr-hero__item">
+            <span class="cbr-hero__label">@Txt.TotalLiabilities</span>
+            <bdi class="cbr-hero__value">@Txt.Money(Model.TotalLiabilities, currency)</bdi>
+        </div>
+        <div class="cbr-hero__item cbr-hero__item--net @(Model.NetCompanyBalance < 0m ? "is-negative" : null)">
+            <span class="cbr-hero__label">@Txt.HeroLabel</span>
+            <bdi class="cbr-hero__value">@Txt.Money(Model.NetCompanyBalance, currency)</bdi>
+        </div>
     </section>
 
     <div class="cbr-tables">
@@ -77,7 +75,12 @@
                             {
                                 var line = block.Lines[index];
                                 <tr>
-                                    <td><a class="cbr-link" href="@DetailsUrl(line.Section)">@line.LabelFa</a></td>
+                                    <td>
+                                        <a class="cbr-link" href="@DetailsUrl(line.Section)">
+                                            @line.LabelFa
+                                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                                        </a>
+                                    </td>
                                     <td class="cbr-num @(line.Amount < 0m ? "is-negative" : null)"><bdi>@Txt.Amount(line.Amount)</bdi></td>
                                 </tr>
                             }
@@ -98,48 +101,43 @@
         }
     </div>
 
-    <section class="cbr-performance" aria-label="@Txt.PerformanceTitle">
-        <div class="cbr-performance__head">
-            <h2 class="cbr-block__title">@Txt.PerformanceTitle</h2>
-            <span>@Txt.Period(Model.ReportFromDate, Model.ReportToDate)</span>
-        </div>
-        <div class="cbr-performance__scroll">
-            <table class="cbr-table cbr-table--strip">
-                <thead>
+    <section class="cbr-block cbr-performance" aria-label="@Txt.PerformanceTitle">
+        <h2 class="cbr-block__title">@Txt.PerformanceTitle</h2>
+        <table class="cbr-table">
+            <thead>
+                <tr>
+                    <th scope="col">@Txt.DescriptionHeader</th>
+                    <th scope="col" class="cbr-num">@Txt.AmountHeader(currency)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var cell in performance)
+                {
                     <tr>
-                        @foreach (var cell in performance)
-                        {
-                            <th scope="col" class="@(cell.Emphasis ? (netProfitLoss < 0m ? "is-result is-negative" : "is-result") : null)">@cell.Label</th>
-                        }
+                        <td>
+                            @if (cell.Section.HasValue)
+                            {
+                                <a class="cbr-link" href="@DetailsUrl(cell.Section.Value)">
+                                    @cell.Label
+                                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                                </a>
+                            }
+                            else
+                            {
+                                @cell.Label
+                            }
+                        </td>
+                        <td class="cbr-num"><bdi>@Txt.Amount(cell.Value)</bdi></td>
                     </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        @foreach (var cell in performance)
-                        {
-                            <td class="@(cell.Emphasis ? (netProfitLoss < 0m ? "is-result is-negative" : "is-result") : null)">
-                                @if (cell.Section.HasValue)
-                                {
-                                    <a class="cbr-link" href="@DetailsUrl(cell.Section.Value)"><bdi>@Txt.Amount(cell.Value)</bdi></a>
-                                }
-                                else
-                                {
-                                    <bdi>@Txt.Amount(cell.Value)</bdi>
-                                }
-                            </td>
-                        }
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="cbr-summary" aria-label="@Txt.NetBalance">
-        <div class="cbr-summary__row"><span>@Txt.TotalAssets</span><bdi>@Txt.Money(Model.TotalAssets, currency)</bdi></div>
-        <div class="cbr-summary__row"><span>@Txt.TotalLiabilities</span><bdi>@Txt.Money(Model.TotalLiabilities, currency)</bdi></div>
-        <div class="cbr-summary__row cbr-summary__row--net @(Model.NetCompanyBalance < 0m ? "is-negative" : null)">
-            <span>@Txt.NetBalance</span><bdi>@Txt.Money(Model.NetCompanyBalance, currency)</bdi>
-        </div>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="@(netProfitLoss < 0m ? "is-negative" : "is-result")">
+                    <th scope="row">@Txt.NetResultLabel(netProfitLoss)</th>
+                    <td class="cbr-num"><bdi>@Txt.Amount(Math.Abs(netProfitLoss))</bdi></td>
+                </tr>
+            </tfoot>
+        </table>
     </section>
 
     @if (Model.NotesFa.Count > 0)
@@ -151,12 +149,4 @@
             }
         </ul>
     }
-
-    <footer class="cbr-foot">
-        <div class="cbr-foot__brand">
-            <strong>@Txt.BrandLatin <span>|</span> @Txt.BrandName</strong>
-            <small>@Txt.BrandTagline</small>
-        </div>
-        <span class="cbr-foot__page">صفحه 1 از 1</span>
-    </footer>
 </article>

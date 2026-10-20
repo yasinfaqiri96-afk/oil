@@ -632,6 +632,31 @@ public class DashboardService : IDashboardService
                 .Where(e => e.Date >= weekStart && e.Date < weekStart.AddDays(7))
                 .Sum(e => e.AmountUsd))
             .ToList();
+        // ترکیب فروش: سهم هر محصول از مقدار فروش (MT) در همان بازهٔ نمودار روند.
+        var mixRows = await _db.SalesTransactions.AsNoTracking()
+            .Where(s => !s.IsCancelled && s.SaleDate >= firstWeekStart && s.SaleDate < lastWeekEnd)
+            .GroupBy(s => s.ProductId)
+            .Select(g => new { ProductId = g.Key, QuantityMt = g.Sum(s => s.QuantityMt) })
+            .ToListAsync(ct);
+        var mixProductIds = mixRows.Select(row => row.ProductId).ToArray();
+        var mixProducts = await _db.Products.AsNoTracking()
+            .Where(p => mixProductIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Code, p.Name })
+            .ToDictionaryAsync(p => p.Id, ct);
+        vm.SalesMix = mixRows
+            .Where(row => row.QuantityMt > 0m)
+            .Select(row => new DashboardSalesMixItemViewModel
+            {
+                ProductId = row.ProductId,
+                ProductName = mixProducts.TryGetValue(row.ProductId, out var product)
+                    ? FirstNonEmpty(product.Name, product.Code)
+                    : Text("کالا", "product"),
+                QuantityMt = row.QuantityMt
+            })
+            .OrderByDescending(row => row.QuantityMt)
+            .ThenBy(row => row.ProductName, StringComparer.Ordinal)
+            .ToList();
+
         vm.MarketSubtitle = Text(
             "روند درآمد و هزینه بر اساس تراکنش های ثبت شده",
             "Revenue and expense movement from posted transactions");

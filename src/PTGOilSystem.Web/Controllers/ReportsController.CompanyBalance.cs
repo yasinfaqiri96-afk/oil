@@ -29,9 +29,75 @@ public partial class ReportsController
         [FromQuery] CompanyBalanceReportFilterViewModel? filter,
         [FromQuery] CompanyBalanceSection? section)
     {
-        if (section is null || !Enum.IsDefined(section.Value))
+        var model = await BuildCompanyBalanceDetailsAsync(filter, section);
+        return model is null ? NotFound() : View(model);
+    }
+
+    /// <summary>
+    /// خروجی Excel/PDF جزئیات یک ردیف بیلانس؛ همان <see cref="BuildCompanyBalanceDetailsAsync"/> صفحه
+    /// با همان فیلتر، پس ردیف‌ها و جمع با صفحه یکی است.
+    /// </summary>
+    [HttpGet]
+    [EnableRateLimiting(RateLimitPolicies.CsvExport)]
+    public async Task<IActionResult> CompanyBalanceDetailsExport(
+        string? format,
+        [FromQuery] CompanyBalanceReportFilterViewModel? filter,
+        [FromQuery] CompanyBalanceSection? section)
+    {
+        var model = await BuildCompanyBalanceDetailsAsync(filter, section);
+        if (model is null)
         {
             return NotFound();
+        }
+
+        var report = model.Report;
+        var currency = report.CurrencyCode;
+        var columns = new List<TabularExportColumn>
+        {
+            new("شرح", "Description", Width: 30),
+            new("جزئیات", "Details", Width: 36)
+        };
+        if (model.HasQuantity)
+        {
+            columns.Add(new("مقدار (تن)", "Quantity (MT)", TabularExportValueType.Number, 16));
+        }
+        columns.Add(new($"مبلغ ({currency})", $"Amount ({currency})", TabularExportValueType.Number, 18));
+
+        TabularExportRow Row(string? name, string? secondary, decimal? quantity, decimal? amount)
+        {
+            var cells = new List<TabularExportCell> { TabularExportCell.Text(name), TabularExportCell.Text(secondary) };
+            if (model.HasQuantity)
+            {
+                cells.Add(TabularExportCell.Number(quantity));
+            }
+            cells.Add(TabularExportCell.Number(amount));
+            return new TabularExportRow(cells);
+        }
+
+        return TabularExportSupport.File(this, format, new TabularExportDocument
+        {
+            FileNameStem = $"PTG_Company_Balance_{model.Section}",
+            TitleFa = $"بیلانس کلی شرکت — {model.TitleFa}",
+            TitleEn = $"Company Balance Sheet — {model.TitleEn}",
+            KnownRowCount = model.Rows.Count,
+            Filters = TabularExportSupport.FilterSummary(
+                ("از تاریخ / From", model.IsPeriodSection ? report.ReportFromDate.ToString("yyyy-MM-dd") : null),
+                ("تا تاریخ / To", report.ReportToDate.ToString("yyyy-MM-dd")),
+                ("ارز / Currency", currency)),
+            Columns = columns,
+            // ردیف بی‌قیمت مبلغ ندارد (خالی)، نه صفر؛ همان «بدون قیمت خرید» صفحه.
+            Rows = model.Rows.Select(r => Row(r.Name, r.Secondary, r.QuantityMt, r.IsValued ? r.Amount : null)),
+            Totals = Row("جمع / Total", null, null, model.PrintedTotal)
+        });
+    }
+
+    private async Task<CompanyBalanceDetailsViewModel?> BuildCompanyBalanceDetailsAsync(
+        CompanyBalanceReportFilterViewModel? filter,
+        CompanyBalanceSection? section)
+    {
+        if (section is null || !Enum.IsDefined(section.Value))
+        {
+            return null;
         }
 
         var report = await BuildCompanyBalanceAsync(filter ?? new CompanyBalanceReportFilterViewModel());
@@ -43,14 +109,14 @@ public partial class ReportsController
             _ => (line?.LabelFa ?? "", line?.LabelEn ?? "")
         };
 
-        return View(new CompanyBalanceDetailsViewModel
+        return new CompanyBalanceDetailsViewModel
         {
             Report = report,
             Section = section.Value,
             TitleFa = titleFa,
             TitleEn = titleEn,
             Rows = report.DetailsFor(section.Value)
-        });
+        };
     }
 
     [EnableRateLimiting(RateLimitPolicies.HeavyReport)]

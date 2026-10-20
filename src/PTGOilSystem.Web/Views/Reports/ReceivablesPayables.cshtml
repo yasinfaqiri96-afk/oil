@@ -48,31 +48,27 @@
                     <tr>
                         <th class="ak-col-grow">@UiText.T(Context, "طرف حساب", "Party")</th>
                         <th>@UiText.T(Context, "نوع", "Type")</th>
-                        <th>@UiText.T(Context, "وضعیت", "Standing")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "اول دوره", "Opening")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "رسید", "Received")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "برد", "Given")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "گردش این بازه", "Movement in range")</th>
-                        <th>@UiText.T(Context, "آخرین تاریخ", "Last Date")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "طلب شرکت (USD)", "Company receivable (USD)")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "بدهی شرکت (USD)", "Company payable (USD)")</th>
+                        <th>@UiText.T(Context, "آخرین حرکت", "Last movement")</th>
                     </tr>
                 </thead>
                 <tbody>
+                    @* مانده از دید شرکت (CompanyClaimUsd): مثبت = طلب، منفی = بدهی؛ همان عدد کارت‌های بالا.
+                       ریز اول دوره/رسید/برد در خروجی Excel همین صفحه می‌ماند. *@
                     @foreach (var row in Model.Rows)
                     {
                         <tr>
                             <td class="ak-col-grow">@row.PartyName</td>
-                            <td>@row.PartyType</td>
-                            <td>@row.BalanceKind</td>
-                            <td class="ak-col-num ak-num">@row.OpeningBalanceUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num">@row.DebitUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num">@row.CreditUsd.ToString("N2")</td>
-                            <td class="ak-col-num ak-num @(row.PeriodMovementUsd < 0m ? "ak-number--negative" : row.PeriodMovementUsd > 0m ? "ak-number--positive" : null)">@row.PeriodMovementUsd.ToString("N2")</td>
-                            <td>@(row.LastEntryDate?.ToDisplayDate() ?? "-")</td>
+                            <td>@PTGOilSystem.Web.Controllers.ReportsController.PartyAgingPartyTypeLabel(row.PartyType)</td>
+                            <td class="ak-col-num ak-num">@(row.CompanyClaimUsd > 0m ? row.CompanyClaimUsd.ToString("N2") : "—")</td>
+                            <td class="ak-col-num ak-num">@(row.CompanyClaimUsd < 0m ? (-row.CompanyClaimUsd).ToString("N2") : "—")</td>
+                            <td>@(row.LastEntryDate?.ToDisplayDate() ?? "—")</td>
                         </tr>
                     }
                     @if (!Model.Rows.Any())
                     {
-                        <tr><td colspan="8"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
+                        <tr><td colspan="5"><div class="ak-empty"><i class="bi bi-people"></i> @UiText.T(Context, "مانده‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No balance found; change the filters.")</div></td></tr>
                     }
                 </tbody>
             </table>

@@ -383,9 +383,10 @@ public class ShellViewStructureTests
         Assert.Contains("data-sales=\"@chartSales\"", view);
         Assert.Contains("data-expenses=\"@chartExpenses\"", view);
 
-        // The only inline style is the mix-legend dot, whose colour comes from the model.
-        Assert.Equal(1, view.Split("style=", StringSplitOptions.None).Length - 1);
-        Assert.Contains("class=\"dash-dot\" style=\"background:@seg.color\"", view);
+        // No inline style: legend dots (sales mix and trend) take their colour from dash-dot--* classes.
+        Assert.DoesNotContain("style=", view);
+        Assert.Contains("class=\"dash-dot @seg.dot\"", view);
+        Assert.Contains("dash-trend-legend", view);
 
         Assert.Contains(".dashboard-page", css);
         Assert.DoesNotContain(".dash-quick", css);

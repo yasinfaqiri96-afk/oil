@@ -1,4 +1,5 @@
 @using PTGOilSystem.Web.Models.Reports
+@using PTGOilSystem.Web.Models.StatCards
 @model PTGOilSystem.Web.Models.Reports.GoodsInTransitReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "بارهای در مسیر", "Goods In Transit");
@@ -33,8 +34,8 @@
 
     <p class="ak-note">
         @UiText.T(Context,
-            "هر بار که حرکت کرده ولی هنوز به مقصد نرسیده است: بار در راه از مبدأ، حمل داخلی بین مخزن‌ها و موتری که هنوز تخلیه نشده. مقدار هر ردیف، مقدار باقی‌مانده در همان لحظه است.",
-            "Every load that has departed but not yet arrived: cargo on the way from origin, internal transfers between tanks, and trucks not yet unloaded. Each row shows the quantity still on the road.")
+            "باری که حرکت کرده و هنوز نرسیده است؛ مقدار هر سطر، مقداری است که هنوز در راه است.",
+            "Loads that have departed and not yet arrived; each row shows the quantity still on the road.")
     </p>
 
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه بارهای در مسیر", "Goods in transit summary")">
@@ -50,10 +51,11 @@
                       value="@t.DelayedCount.ToString("N0")"
                       unit="@UiText.T(Context, "بار", "loads")"
                       avatar="losses"></vc:stat-card>
-        <vc:stat-card title="@UiText.T(Context, "بیشترین روز در راه", "Longest on the road")"
-                      value="@t.MaxDaysOnRoad.ToString("N0")"
-                      unit="@UiText.T(Context, "روز", "days")"
-                      avatar="locations"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "ارزش بارها", "Value in transit")"
+                      value="@StatCardFormatter.Number(Model.TotalValueUsd, 0)"
+                      unit="USD"
+                      state="@(Model.UnvaluedCount > 0 ? "warning" : null)"
+                      avatar="purchase-value"></vc:stat-card>
     </section>
 
     <div class="ak-list">
@@ -102,7 +104,7 @@
                         <th>@UiText.T(Context, "مسیر", "Route")</th>
                         <th class="ak-col-num">@UiText.T(Context, "مقدار MT", "Quantity MT")</th>
                         <th class="ak-col-num">@UiText.T(Context, "روز در راه", "Days")</th>
-                        <th>@UiText.T(Context, "رسیدن تخمینی", "Expected arrival")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "ارزش بار (USD)", "Load value (USD)")</th>
                         <th>@UiText.T(Context, "وضعیت", "Status")</th>
                     </tr>
                 </thead>
@@ -138,7 +140,16 @@
                             </td>
                             <td class="ak-col-num ak-num">@NumberDisplay.Quantity(row.QuantityMt)</td>
                             <td class="ak-col-num ak-num">@row.DaysOnRoad.ToString("N0")</td>
-                            <td>@(row.ExpectedArrivalDate.HasValue ? row.ExpectedArrivalDate.ToDisplayDate() : "—")</td>
+                            <td class="ak-col-num ak-num">
+                                @if (Model.ValuesUsd.GetValueOrDefault((row.Kind, row.SourceId)) is { } valueUsd)
+                                {
+                                    @valueUsd.ToString("N2")
+                                }
+                                else
+                                {
+                                    <span class="ak-cell-note">@UiText.T(Context, "قیمت نامشخص", "Price unknown")</span>
+                                }
+                            </td>
                             <td>
                                 <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((StageLabel(row), StageTone(row)))" />
                             </td>
@@ -164,7 +175,9 @@
                                 <strong>@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</strong>
                             </td>
                             <td class="ak-col-num ak-num"><strong>@NumberDisplay.Quantity(t.TotalQuantityMt)</strong></td>
-                            <td colspan="3">
+                            <td></td>
+                            <td class="ak-col-num ak-num"><strong>@Model.TotalValueUsd.ToString("N2")</strong></td>
+                            <td>
                                 @UiText.T(Context, "از مبدأ", "From origin"): @t.FromOriginCount.ToString("N0") —
                                 @UiText.T(Context, "حمل داخلی", "Internal"): @t.InternalTransferCount.ToString("N0") —
                                 @UiText.T(Context, "با موتر", "Truck"): @t.CustomerDeliveryCount.ToString("N0")

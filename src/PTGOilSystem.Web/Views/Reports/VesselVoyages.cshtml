@@ -1,4 +1,5 @@
 ﻿@using PTGOilSystem.Web.Models.Reports
+@using PTGOilSystem.Web.Models.StatCards
 @model PTGOilSystem.Web.Models.Reports.VesselVoyageReportViewModel
 @{
     ViewData["Title"] = UiText.T(Context, "گزارش کشتی‌ها", "Vessel Voyages Report");
@@ -14,30 +15,24 @@
 
     <p class="ak-note">
         @UiText.T(Context,
-            "هر سطر یک سفر یا محموله کشتی است، نه یک کشتی؛ یک کشتی می‌تواند چند سفر داشته باشد. Shipperها، تخصیص هر Shipper و کرایه در «جزئیات» همان سطر باز می‌شوند. ستون کرایه فقط کرایهٔ خودِ کشتی است — کرایهٔ خط‌آهن، مخزن و موتر و همچنین دیمرج در آن نمی‌آید. نرخ کرایه ذخیره نمی‌شود و از مبلغ تقسیم بر مقدار به‌دست می‌آید.",
-            "Each row is one vessel voyage or cargo, not a vessel; one vessel can have many voyages. Shippers, per-shipper allocation and freight open inside the row details. The freight column covers vessel freight only — rail, storage and truck freight, and demurrage, are excluded. The freight rate is not stored and is derived from amount divided by quantity.")
+            "هر سطر یک سفر کشتی است. کرایه فقط کرایهٔ خود کشتی است (بدون دیمرج و کرایهٔ خشکی). Shipperها و ریز کرایه با دکمهٔ کنار هر سطر باز می‌شوند.",
+            "Each row is one vessel voyage. Freight is vessel freight only (no demurrage or inland freight). Shippers and freight lines open from the toggle beside each row.")
     </p>
 
+    @* چهار جواب اصلی؛ جمع دیزل و بنزین با فیلتر «محصول» و در خروجی همین صفحه دیده می‌شود. *@
     <section class="ak-stat-grid" aria-label="@UiText.T(Context, "خلاصه سفرهای کشتی", "Vessel voyages summary")">
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-list-check",
-            UiText.T(Context, "تعداد سفرها", "Voyages"), $"{t.VoyageCount:N0}",
-            UiText.T(Context, "سفر / محموله", "voyages"), ""))
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-box-seam",
-            UiText.T(Context, "کشتی‌های مختلف", "Distinct vessels"), $"{t.VesselCount:N0}",
-            UiText.T(Context, "کشتی", "vessels"), ""))
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-database",
-            UiText.T(Context, "مجموع مقدار", "Total quantity"), $"{t.TotalQuantityMt:N4} MT",
-            UiText.T(Context, "مقدار کل سفرها", "Total voyage quantity"), ""))
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-droplet-half",
-            UiText.T(Context, "مجموع دیزل", "Total diesel"), $"{t.TotalDieselMt:N4} MT",
-            UiText.T(Context, "از تخصیص قراردادها", "From contract allocations"), ""))
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-droplet",
-            UiText.T(Context, "مجموع بنزین", "Total gasoline"), $"{t.TotalGasolineMt:N4} MT",
-            UiText.T(Context, "از تخصیص قراردادها", "From contract allocations"), ""))
-        @await Html.PartialAsync("_ReferenceMetricCard", ("", "bi-cash-coin",
-            UiText.T(Context, "مجموع کرایه کشتی", "Total vessel freight"), $"{t.TotalFreightUsd:N2} USD",
-            UiText.T(Context, "بدون دیمرج و کرایه مسیر خشکی", "Excludes demurrage and inland freight"),
-            t.TotalFreightUsd > 0m ? "finance-negative" : ""))
+        <vc:stat-card title="@UiText.T(Context, "تعداد سفرها", "Voyages")"
+                      value="@t.VoyageCount.ToString("N0")"
+                      unit="@UiText.T(Context, "سفر", "voyages")" avatar="vessel"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "کشتی‌های مختلف", "Distinct vessels")"
+                      value="@t.VesselCount.ToString("N0")"
+                      unit="@UiText.T(Context, "کشتی", "vessels")" avatar="shipment-loaded"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع مقدار", "Total quantity")"
+                      value="@NumberDisplay.Quantity(t.TotalQuantityMt)"
+                      unit="MT" avatar="total-inventory"></vc:stat-card>
+        <vc:stat-card title="@UiText.T(Context, "مجموع کرایه کشتی", "Total vessel freight")"
+                      value="@StatCardFormatter.Number(t.TotalFreightUsd, 0)"
+                      unit="USD" avatar="transported"></vc:stat-card>
     </section>
 
     <div class="ak-list">
@@ -75,22 +70,16 @@
                 <thead>
                     <tr>
                         <th class="ak-col-check"></th>
-                        <th class="ak-col-num">@UiText.T(Context, "ردیف", "No")</th>
                         <th>@UiText.T(Context, "تاریخ", "Date")</th>
                         <th>@UiText.T(Context, "کد سفر", "Code No")</th>
-                        <th>@UiText.T(Context, "نام کشتی", "Vessel Name")</th>
+                        <th>@UiText.T(Context, "کشتی", "Vessel")</th>
                         <th>@UiText.T(Context, "محصول", "Kind - Cargo")</th>
                         <th class="ak-col-num">@UiText.T(Context, "مقدار MT", "Quantity MT")</th>
-                        <th>Consignee</th>
-                        <th>@UiText.T(Context, "بندر بارگیری", "Loading Port")</th>
-                        <th>@UiText.T(Context, "مقصد", "Destination")</th>
+                        <th>@UiText.T(Context, "بندر بارگیری ← مقصد", "Loading port → destination")</th>
                         <th>@UiText.T(Context, "مشتری", "Customer")</th>
                         <th>@UiText.T(Context, "تأمین‌کننده / Shipper", "Shipper")</th>
-                        <th>@UiText.T(Context, "کمپنی ترانسپورتی", "Transport company")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "نرخ کرایه کشتی USD/MT", "Vessel freight rate USD/MT")</th>
-                        <th class="ak-col-num">@UiText.T(Context, "کرایه کشتی کل USD", "Total vessel freight USD")</th>
-                        <th>@UiText.T(Context, "وضعیت سفر", "Voyage status")</th>
-                        <th>@UiText.T(Context, "توضیحات", "Notes")</th>
+                        <th class="ak-col-num">@UiText.T(Context, "کرایه کشتی USD", "Vessel freight USD")</th>
+                        <th>@UiText.T(Context, "وضعیت", "Status")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,10 +95,13 @@
                                     </button>
                                 }
                             </td>
-                            <td class="ak-col-num ak-num">@row.RowNumber.ToString("N0")</td>
                             <td>@(row.VoyageDate?.ToDisplayDate() ?? "—")</td>
                             <td>
                                 <a asp-controller="ShipmentPnl" asp-action="Details" asp-route-id="@row.ShipmentId">@row.ShipmentCode</a>
+                                @if (!string.IsNullOrWhiteSpace(row.Notes))
+                                {
+                                    <div class="ak-cell-note">@row.Notes</div>
+                                }
                             </td>
                             <td>@(row.VesselName ?? "—")</td>
                             <td>@(row.ProductText ?? "—")</td>
@@ -125,25 +117,36 @@
                                     </span>
                                 }
                             </td>
-                            <td>@(row.ConsigneeText ?? "—")</td>
-                            <td>@(row.LoadingPortName ?? "—")</td>
-                            <td>@(row.DestinationName ?? "—")</td>
-                            <td>@(row.CustomerText ?? "—")</td>
+                            <td>@(row.LoadingPortName ?? "—") @(UiText.IsEn(Context) ? "→" : "←") @(row.DestinationName ?? "—")</td>
+                            <td>
+                                @(row.CustomerText ?? "—")
+                                @if (!string.IsNullOrWhiteSpace(row.ConsigneeText))
+                                {
+                                    <div class="ak-cell-note">Consignee: @row.ConsigneeText</div>
+                                }
+                            </td>
                             <td>@(row.ShipperText ?? "—")</td>
-                            <td>@(row.TransportCompanyText ?? "—")</td>
-                            <td class="ak-col-num ak-num">@(row.FreightRateUsdPerMt?.ToString("N4") ?? "—")</td>
-                            <td class="ak-col-num ak-num">@row.FreightTotalUsd.ToString("N2")</td>
+                            <td class="ak-col-num ak-num">
+                                @row.FreightTotalUsd.ToString("N2")
+                                @if (row.FreightRateUsdPerMt.HasValue)
+                                {
+                                    <div class="ak-cell-note">@row.FreightRateUsdPerMt.Value.ToString("N2") USD/MT</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(row.TransportCompanyText))
+                                {
+                                    <div class="ak-cell-note">@row.TransportCompanyText</div>
+                                }
+                            </td>
                             <td>
                                 <span class="@PTGOilSystem.Web.Controllers.ReportsController.VesselVoyageStatusCss(row.Status)">
                                     @PTGOilSystem.Web.Controllers.ReportsController.VesselVoyageStatusLabel(row.Status)
                                 </span>
                             </td>
-                            <td>@(row.Notes ?? "—")</td>
                         </tr>
                         @if (row.HasDetails)
                         {
                             <tr class="collapse" id="@detailId">
-                                <td colspan="17">
+                                <td colspan="11">
                                     <div class="row g-3">
                                         @if (row.ShipperLines.Count > 0)
                                         {
@@ -223,7 +226,7 @@
                     @if (Model.Rows.Count == 0)
                     {
                         <tr>
-                            <td colspan="17">
+                            <td colspan="11">
                                 <div class="ak-empty">
                                     <i class="bi bi-water"></i>
                                     @UiText.T(Context, "سفر کشتی‌ای پیدا نشد؛ فیلترها را تغییر دهید.", "No vessel voyage found; change the filters.")
@@ -235,15 +238,12 @@
                 @if (Model.Rows.Count > 0)
                 {
                     <tfoot>
-                        <tr>
-                            <td colspan="6"><strong>@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</strong></td>
-                            <td class="ak-col-num ak-num"><strong>@t.TotalQuantityMt.ToString("N4")</strong></td>
-                            <td colspan="7"></td>
-                            <td class="ak-col-num ak-num"><strong>@t.TotalFreightUsd.ToString("N2")</strong></td>
-                            <td colspan="2">
-                                @t.VoyageCount.ToString("N0") @UiText.T(Context, "سفر", "voyages")
-                                — @t.VesselCount.ToString("N0") @UiText.T(Context, "کشتی", "vessels")
-                            </td>
+                        <tr class="ak-table-total">
+                            <td colspan="5">@UiText.T(Context, "جمع کل نتایج فیلترشده", "Total of filtered results")</td>
+                            <td class="ak-col-num ak-num">@t.TotalQuantityMt.ToString("N4")</td>
+                            <td colspan="3"></td>
+                            <td class="ak-col-num ak-num">@t.TotalFreightUsd.ToString("N2")</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 }
