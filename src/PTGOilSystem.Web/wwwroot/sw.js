@@ -13,7 +13,7 @@
  */
 'use strict';
 
-const VERSION = 'mashal-offline-v10';
+const VERSION = 'mashal-offline-v11';
 const SHELL_CACHE = VERSION + '-shell';
 const OFFLINE_URL = '/offline/index.html';
 const PAGE_LOADER_URL = '/offline/page.html';
