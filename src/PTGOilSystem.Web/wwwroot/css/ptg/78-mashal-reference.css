@@ -444,3 +444,47 @@ body.mashal-ui .mashal-transaction #roznamchaForm .journal-main-fieldset > .fte-
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-card .ak-field { gap: 0; min-height: 0; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-card .ak-label { height: 12px; min-height: 12px; margin-bottom: -12px; padding-block: 0; line-height: 12px; transform: translateY(-6px); }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-card > .journal-primary-grid { row-gap: 35px; }
+
+/* Unified light-variant primitives: every non-legacy page uses the same visual contract. */
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.ak-form-page,.ak-list-page,.ak-list-card,.ak-detail-section,.ak-hub-tile,.dash-card) {
+    background: #fff;
+    border: 1px solid #eceef2;
+    border-radius: 4px;
+    box-shadow: none;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.btn,.ak-primary-action,.ak-secondary-action) {
+    min-height: 32px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    box-shadow: none;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.btn-secondary,.ak-secondary-action) {
+    color: #656b75;
+    background: #f6f7fb;
+    border-color: #d9dee5;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.btn-outline-secondary,.btn-light) {
+    color: #656b75;
+    background: #fff;
+    border-color: #d9dee5;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.btn-primary,.ak-primary-action,.ak-save) {
+    color: #fff;
+    background: #2d60c9;
+    border-color: #2d60c9;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.badge,.ak-status,.status-badge) {
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.35;
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content :is(.modal-content,.dropdown-menu) {
+    border: 1px solid #eceef2;
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgb(24 40 70 / 8%);
+}
+body.boltz-shell.app-shell-authenticated.mashal-light #ptg-main-content .dropdown-item {
+    font-size: 12px;
+    min-height: 30px;
+}
