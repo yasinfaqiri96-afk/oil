@@ -38,7 +38,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dashboard-ref .dashboard-warning span {
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* KPI row uses the shared .ak-stat-grid / .ak-stat-card component, which now
@@ -72,7 +72,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-card-head h2 {
     margin: 0;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.01em;
 }
@@ -90,7 +90,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-trend-title h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.01em;
 }
@@ -98,7 +98,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-trend-title p {
     margin: 4px 0 0;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 14px;
 }.dash-dot {
     inline-size: 9px;
     block-size: 9px;
@@ -134,7 +134,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     fill: var(--text-secondary);
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     /* برچسب محورها زیر ۱۰px روی نمایشگر کوچک خوانا نبود. */
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: -0.02em;
 }
 
@@ -163,12 +163,12 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     justify-items: center;
     gap: 10px;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .dash-chart-empty i {
     color: var(--text-disabled);
-    font-size: 24px;
+    font-size: 25px;
 }
 
 /* mix / donut card */
@@ -194,7 +194,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-donut-center-label {
     fill: var(--text-secondary);
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     text-anchor: middle;
 }
 
@@ -219,7 +219,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     align-items: center;
     gap: 7px;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .dash-mix-name { font-weight: 600; }
@@ -261,7 +261,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-card-head .dash-more {
     flex: 0 0 auto;
     color: var(--ptg-btn-primary);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     text-decoration: none;
     white-space: nowrap;
@@ -343,7 +343,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-flow-name {
     color: var(--text-primary);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     text-decoration: none;
 }
@@ -391,7 +391,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dashboard-ref .ak-status {
     flex: 0 0 auto;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 650;
     white-space: nowrap;
 }
@@ -404,7 +404,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 .dash-flow-state .ak-status {
     min-height: 19px !important;
     padding: 0 7px !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     line-height: 1.5 !important;
 }
@@ -447,12 +447,12 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
     gap: 4px;
     min-block-size: 110px;
     padding: 14px 10px;
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .dash-insight .ak-empty i {
     margin-bottom: 2px;
-    font-size: 21px;
+    font-size: 22px;
 }
 
 /* ===== responsive ===== */

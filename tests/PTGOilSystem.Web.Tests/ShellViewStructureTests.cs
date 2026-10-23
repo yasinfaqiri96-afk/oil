@@ -219,8 +219,8 @@ public class ShellViewStructureTests
         // The page-level fake search was removed; the two real controls remain line icons.
         Assert.DoesNotContain("ptg-hsearch-trigger", layout);
         Assert.DoesNotContain("data-global-search", layout);
-        Assert.Contains("bi bi-translate ptg-hflag-ico", layout);
-        Assert.Contains("bi bi-person ptg-havatar-ico", layout);
+        Assert.Contains("mashal-ic ptg-hflag-ico", layout);
+        Assert.Contains("mashal-ic ptg-havatar-ico", layout);
         Assert.DoesNotContain("ptgUkFlag", layout);
 
         // The header trigger itself carries no image — the drawer keeps its own avatar.
@@ -255,7 +255,7 @@ public class ShellViewStructureTests
             "Modal tabs must use the same final skin.");
 
         // Chortke tab tokens. These are the contract every rail renders against.
-        Assert.Contains("--ptg-tabs-font-size: 16px", tabsCss);
+        Assert.Contains("--ptg-tabs-font-size: 18px", tabsCss);
         Assert.Contains("--ptg-tabs-text-color: #333333", tabsCss);
         Assert.Contains("--ptg-tabs-active-color: var(--primary-main)", tabsCss);
         Assert.Contains("--ptg-tabs-border-color: #E0E0E0", tabsCss);
@@ -511,6 +511,27 @@ public class ShellViewStructureTests
         {
             Assert.Contains($"{module}:", tables);
         }
+    }
+
+    [Fact]
+    public void Index_Lists_Load_The_Reference_List_Grid_Without_Touching_Server_State()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var project = ReadRepoFile("src/PTGOilSystem.Web/PTGOilSystem.Web.csproj");
+        var grid = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/list-grid.js");
+        var tables = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js");
+
+        Assert.Contains("~/js/list-grid.js", layout);
+        Assert.Contains("<PtgCoreJs Include=\"wwwroot/js/list-grid.js\" />", project);
+        Assert.True(project.IndexOf("wwwroot/js/list-grid.js", StringComparison.Ordinal)
+            > project.IndexOf("wwwroot/js/tables.js", StringComparison.Ordinal));
+        // Only Index lists; detail tables and modals keep their own layout.
+        Assert.Contains("document.body.classList.contains(\"action-index\")", grid);
+        Assert.Contains("[data-ak-detail-v2='true'], [data-list-grid='off'], .modal", grid);
+        // Filtering hides rendered rows only; it never submits or rewrites the query.
+        Assert.DoesNotContain("submit", grid);
+        Assert.DoesNotContain("location.href", grid);
+        Assert.Contains("table.ptgClientPagerRefresh = function ()", tables);
     }
 
     [Fact]

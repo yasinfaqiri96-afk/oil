@@ -12,7 +12,7 @@
  * ============================================================= */
 
 :root {
-    --ptg-tabs-font-size: 16px;
+    --ptg-tabs-font-size: 18px;
     --ptg-tabs-text-color: #333333;
     --ptg-tabs-active-color: var(--primary-main);
     --ptg-tabs-border-color: #E0E0E0;
@@ -290,7 +290,7 @@
     border-radius: var(--radius-card);
     background: var(--ptg-surface-soft);
     color: #6B6B76;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
     line-height: 1;
     white-space: nowrap;
@@ -384,7 +384,7 @@
     border-radius: 50%;
     background: var(--ptg-field-bg);
     color: #64748b;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1;
 }
@@ -423,7 +423,7 @@
 
 @media (max-width: 767.98px) {
     :root {
-        --ptg-tabs-font-size: 12px;
+        --ptg-tabs-font-size: 14px;
         --ptg-tabs-item-gap: 8px;
         --ptg-tabs-item-height: 22px;
         --ptg-tabs-rail-height: 44px;

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +14,7 @@ using PTGOilSystem.Web.Models.LossEvents;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Notifications;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Time;
@@ -126,6 +127,7 @@ public partial class SalesController : Controller
         decimal UnallocatedToPurchaseContractMt);
 
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
 
     [ActivatorUtilitiesConstructor]
     public SalesController(
@@ -145,7 +147,8 @@ public partial class SalesController : Controller
         ITransportQuantityService? quantities = null,
         IInventoryMovementWriter? movements = null,
         ITransportSourceAllocationService? sourceAllocations = null,
-        ILoadingReceiptCancellationService? loadingReceiptCancellation = null)
+        ILoadingReceiptCancellationService? loadingReceiptCancellation = null,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
         _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
@@ -166,6 +169,7 @@ public partial class SalesController : Controller
         _loadingReceiptCancellation = loadingReceiptCancellation ?? new LoadingReceiptCancellationService(
             db, audit, Microsoft.Extensions.Logging.Abstractions.NullLogger<LoadingReceiptCancellationService>.Instance,
             stock: _stock, salesAccounting: _salesAccounting, movements: _movements);
+        _whatsAppReceipts = whatsAppReceipts;
         // از DI می‌آید تا آداپترهای حسابداری وصل باشند؛ ساخت دستی آن‌ها را null می‌گذارد.
         _receiptService = receiptService
             ?? new InventoryTransportReceiptService(
@@ -1568,6 +1572,18 @@ public partial class SalesController : Controller
             if (transaction is not null)
             {
                 await transaction.CommitAsync();
+            }
+
+            if (_whatsAppReceipts is not null)
+            {
+                try
+                {
+                    await _whatsAppReceipts.QueueSaleReceiptAsync(sale, CancellationToken.None);
+                }
+                catch (Exception notificationError)
+                {
+                    _logger.LogWarning(notificationError, "Sale {SaleId} saved but WhatsApp queueing failed.", sale.Id);
+                }
             }
 
             TempData["ok"] = sale.IsSalePricePending

@@ -138,13 +138,13 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-ico {
 
 body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-name {
     max-width: 7.5rem;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: inherit;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-caret {
-    font-size: 11px;
+    font-size: 13px;
     color: inherit;
     opacity: .7;
 }
@@ -156,7 +156,7 @@ body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-lock {
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-lock {
-    font-size: 12px;
+    font-size: 14px;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-topbar .ptg-hfyear-status {

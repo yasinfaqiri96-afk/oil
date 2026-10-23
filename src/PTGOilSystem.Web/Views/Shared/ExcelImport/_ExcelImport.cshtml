@@ -1,11 +1,11 @@
 @model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
-@* Collapsible وقتی روشن است که کامپوننت داخل یک فرم ثبت قرار می‌گیرد: فقط یک دکمهٔ سبز
+@* Collapsible وقتی روشن است که کامپوننت داخل یک فرم ثبت قرار می‌گیرد: فقط یک دکمهٔ اصلی
    دیده می‌شود و پنل کامل با کلیک باز می‌شود. صفحات اختصاصی import همان حالت باز را دارند. *@
 @if (Model.Collapsible)
 {
     var modalId = $"{Model.InputId}Modal";
     var modalLabelId = $"{modalId}Label";
-    <button type="button" class="btn btn-success excel-import-toggle__button"
+    <button type="button" class="btn btn-primary excel-import-toggle__button"
             data-bs-toggle="modal" data-bs-target="#@modalId"
             aria-controls="@modalId">
             <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>

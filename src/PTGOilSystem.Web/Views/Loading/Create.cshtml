@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Mvc.Rendering
+@using Microsoft.AspNetCore.Mvc.Rendering
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.Loading
 @using PTGOilSystem.Web.Models.ExcelImport
@@ -91,7 +91,7 @@
     var createPostUrl = Url.Action("Create", "Loading");
     var importPostUrl = Url.Action("ImportWorkbook", "Loading");
     var importSampleUrl = Url.Action("DownloadSample", "LoadingExcelImport") ?? "/Loading/ExcelImport/sample";
-    // همان کامپوننت مشترک بقیهٔ صفحات: دکمهٔ سبز + مودال. حالت external یعنی خودِ این صفحه
+    // همان کامپوننت مشترک بقیهٔ صفحات: دکمهٔ اصلی + مودال. حالت external یعنی خودِ این صفحه
     // فایل را می‌فرستد و سطرها را به جدول اضافه می‌کند؛ هیچ Job سمت سرور ساخته نمی‌شود.
     var loadingImportOptions = new ExcelImportComponentOptions
     {

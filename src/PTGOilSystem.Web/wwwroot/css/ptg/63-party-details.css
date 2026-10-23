@@ -45,7 +45,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page > .ak-pag
     /* هم‌اندازهٔ دکمهٔ ثانویهٔ فرم مرجع «ثبت دریافت / پرداخت»: 36px / 14px. */
     min-height: 36px;
     padding: 6px 12px;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.25;
     white-space: nowrap;
 }
@@ -93,7 +93,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-secti
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-section-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 650;
 }
 
@@ -110,7 +110,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-row dt {
-    font-size: 12px;
+    font-size: 14px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-row dd {
@@ -120,7 +120,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-list-
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-table > thead > tr > th {
     height: 38px;
     padding: 8px 10px;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-detail-table > tbody > tr > td {
@@ -236,7 +236,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 .ak-party-switch-option {
     padding: 3px 10px;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.6;
     color: var(--ptg-muted);
@@ -267,13 +267,13 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
     align-items: baseline;
     gap: 6px;
     margin: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.55;
     color: var(--ptg-text);
 }
 
-.ak-party-meaning .bi { font-size: 14px; }
+.ak-party-meaning .bi { font-size: 16px; }
 .ak-party-meaning.is-danger { color: var(--ptg-danger-text); }
 .ak-party-meaning.is-success { color: var(--ptg-success-text); }
 .ak-party-meaning.is-neutral { color: var(--ptg-muted); }
@@ -310,7 +310,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 
 .ak-party-settled-caption {
     margin: 0;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -345,7 +345,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 }
 
 .ak-party-meta-cell dt {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
     color: var(--ptg-muted);
@@ -357,7 +357,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 /* One line per value; the full text stays available in the native tooltip. */
 .ak-party-meta-cell dd {
     margin: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.55;
     color: var(--ptg-text);
@@ -376,7 +376,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 
 .ak-party-meta-unit {
     margin-inline-start: 3px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -405,7 +405,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
 
 .ak-party-subhead {
     margin: 0;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--ptg-muted);
 }
@@ -414,13 +414,13 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-party
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--ptg-primary);
 }
 
 .ak-party-identity-more i {
-    font-size: 11px;
+    font-size: 13px;
     transition: transform 190ms ease-out;
 }
 
@@ -488,7 +488,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-trans
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-group-name {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 650;
     color: var(--ptg-text);
 }
@@ -508,14 +508,14 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-trans
     align-items: baseline;
     justify-content: space-between;
     gap: 14px;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
 
 /* A quiet rate reads as reference data, never as one of the money columns. */
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-transfer-rate {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -529,7 +529,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-secti
     margin-block-start: 12px;
     padding-block-start: 10px;
     border-block-start: 1px solid var(--divider);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* Contract row → payment lines disclosure. Matches .ak-row-menu-btn, the
@@ -556,7 +556,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-t
 }
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-toggle .bi {
-    font-size: 12px;
+    font-size: 14px;
     transition: transform var(--ptg-motion-fast) ease-out;
 }
 
@@ -566,7 +566,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-t
 
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-count {
     margin-inline-start: 6px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -576,7 +576,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-pay-c
 body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-subrow-sub {
     display: block;
     margin-block-start: 1px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -604,7 +604,7 @@ body.boltz-shell.app-shell-authenticated.action-details .ak-party-page .ak-subro
     gap: 8px;
     align-items: baseline;
     margin: 8px 0 0;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ptg-text-muted);
 }
 

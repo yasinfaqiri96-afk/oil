@@ -28,7 +28,7 @@ body.ptg-modal-document .ptg-client-pager {
     border-top: 1px solid var(--ptg-list-line);
     background: var(--ptg-field-bg);
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -37,7 +37,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-info,
 body.ptg-modal-document .ptg-client-pager-info {
     margin-inline-end: auto;
     color: var(--ptg-list-soft);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
@@ -64,7 +64,7 @@ body.ptg-modal-document .ptg-client-pager-button {
     border-radius: var(--radius-btn);
     background: var(--ptg-field-bg);
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1;
     box-shadow: none;
@@ -109,13 +109,13 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
         height: auto !important;
         padding: .42rem 0 !important;
         border-bottom: 1px solid var(--ptg-list-line) !important;
-        font-size: 12px !important;
+        font-size: 14px !important;
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(td, th)::before,
     body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(td, th)::before {
         color: var(--ptg-list-muted) !important;
-        font-size: 12px !important;
+        font-size: 14px !important;
         font-weight: 700 !important;
     }
 
@@ -203,7 +203,7 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > :is(.card, details) > .card-header {
     min-height: 44px !important;
     padding: .5rem .75rem !important;
-    font-size: 14px !important;
+    font-size: 16px !important;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > .card > .card-body {
@@ -411,9 +411,9 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status
 body.ptg-modal-document .ak-list-card .ak-status {
     min-height: 22px;
     padding: 3px 9px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
-    line-height: 16px;
+    line-height: 19px;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-active,
@@ -470,7 +470,7 @@ body.ptg-modal-document .ak-list-card .ak-list-footer {
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-result-count,
 body.ptg-modal-document .ak-list-card .ak-list-result-count {
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -509,7 +509,7 @@ body.ptg-modal-document .ak-list-card .pagination .page-link {
     border-radius: 8px;
     background: transparent;
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     box-shadow: none;
 }
@@ -546,7 +546,7 @@ body.ptg-modal-document .ak-list-loading-state {
     border-radius: inherit;
     background: rgba(255, 255, 255, .88);
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     backdrop-filter: blur(1px);
 }

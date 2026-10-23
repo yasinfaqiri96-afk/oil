@@ -171,7 +171,7 @@
    that must stay on one line re-assert it right below, at the same weight. */
 .ak-table > tbody > tr > td {
     font-size: var(--font-table-cell);
-    line-height: 21px;
+    line-height: 24px;
     color: var(--ptg-text);
     /* ارتفاع ردیف 45px مطابق چرتکه: 12 + 21 + 12 = 45. */
     padding: 12px 10px;
@@ -239,7 +239,7 @@
 .ak-table .ak-cell-note {
     margin-top: 2px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
 }
 
@@ -371,7 +371,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 
 .ptg-person-avatar > .bi,
 .ptg-list-row-avatar > .bi {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 
@@ -391,9 +391,9 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 .ptg-person-name {
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
-    line-height: 20px;
+    line-height: 23px;
     text-decoration: none;
 }
 
@@ -416,9 +416,9 @@ a.ptg-person-name:focus-visible {
     border-radius: var(--radius-pill);
     background: var(--primary-lighter);
     color: var(--primary-main);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
-    line-height: 16px;
+    line-height: 19px;
     white-space: nowrap;
 }
 
@@ -448,8 +448,8 @@ a.ptg-person-name:focus-visible {
 .ak-status {
     display: inline-flex;
     align-items: center;
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 14px;
+    line-height: 19px;
     font-weight: 500;
     padding: 4px 10px;
     border-radius: var(--ptg-radius-badge);
@@ -577,13 +577,13 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row > span.ak-field > strong {
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
 }
 
 .ak-list-row > span.ak-field > small {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .ak-list-row > span.ak-num {
@@ -594,7 +594,7 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row dt {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 
@@ -749,7 +749,7 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-row-action > .bi {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 
@@ -813,9 +813,9 @@ a.ak-list-row:focus-visible {
 .ak-selection-count {
     margin-inline-end: 22px;
     color: #5C586C;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
-    line-height: 18px;
+    line-height: 21px;
     white-space: nowrap;
 }
 
@@ -834,7 +834,7 @@ a.ak-list-row:focus-visible {
     background: transparent;
     color: #5C586C;
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
     cursor: pointer;
 }
@@ -902,7 +902,7 @@ a.ak-list-row:focus-visible {
 
 .ak-page-size-label {
     color: var(--ptg-list-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -918,7 +918,7 @@ body.ptg-modal-document .ak-page-size-select {
     height: var(--ak-control-compact-height);
     min-height: var(--ak-control-compact-height);
     padding-block: 0;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -935,7 +935,7 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-empty i {
-    font-size: 16px;
+    font-size: 18px;
     color: var(--ptg-light);
 }
 
@@ -973,7 +973,7 @@ body.ptg-modal-document .ak-page-size-select {
     }
 
     .ak-page-title {
-        font-size: 16px;
+        font-size: 18px;
     }
 
     .ak-list-row {
@@ -1015,14 +1015,14 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-summary-hero dt {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
     color: var(--ptg-muted);
 }
 
 .ak-summary-hero dd {
     margin: 0;
-    font-size: 26px;
+    font-size: 27px;
     font-weight: 600;
     line-height: 1.25;
     color: var(--primary-main);
@@ -1030,7 +1030,7 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-summary-hero__unit {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -1062,14 +1062,14 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-summary > article.ak-field > span {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
 
 .ak-summary > article.ak-field > strong {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     line-height: 1.45;
     color: var(--ptg-text);
@@ -1095,7 +1095,7 @@ body.ptg-modal-document .ak-page-size-select {
 
 /* ارقام ردیف مجموع باید از ارقام بدنه جدول درشت‌تر و متمایز باشند. */
 .ak-table-total-value {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--ptg-btn-primary);
     background: var(--ptg-surface-subtle, #f7f8fa);
@@ -1109,7 +1109,7 @@ body.ptg-modal-document .ak-page-size-select {
 .ak-advanced-summary {
     padding-block: 14px;
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     cursor: pointer;
 }
@@ -1133,7 +1133,7 @@ body.ptg-modal-document .ak-page-size-select {
 
 .ak-section-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.3;
     font-weight: 500;
     color: var(--ptg-text);
@@ -1141,7 +1141,7 @@ body.ptg-modal-document .ak-page-size-select {
 
 .ak-section-desc {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -1218,7 +1218,7 @@ body.ptg-modal-document .ak-page-size-select {
     padding: 12px 14px;
     border-inline-start: 3px solid var(--primary-main);
     background: var(--ptg-surface-subtle, #f7f8fa);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -1253,13 +1253,13 @@ body.ptg-modal-document .ak-page-size-select {
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--ptg-radius-sm, 6px);
     background: var(--ptg-surface-subtle, #f7f8fa);
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ptg-muted);
     width: fit-content;
 }
 
 .ak-stock-chip strong {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--ptg-text);
 }
 
@@ -1297,14 +1297,14 @@ body.ptg-modal-document .ak-page-size-select {
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     cursor: pointer;
     transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
 }
 
 .ak-choice i {
-    font-size: 16px;
+    font-size: 18px;
     color: var(--ptg-muted);
 }
 
@@ -1375,7 +1375,7 @@ label.ak-toggle-field {
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.4;
     transition: border-color 150ms ease, box-shadow 150ms ease;
 }
@@ -1491,7 +1491,7 @@ select.ak-input {
     gap: 12px;
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 
@@ -1505,7 +1505,7 @@ select.ak-input {
     border-radius: var(--ptg-radius-lg);
     background: var(--sf-row-icon-bg);
     color: var(--sf-row-icon-fg);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 
@@ -1515,7 +1515,7 @@ select.ak-input {
     direction: ltr;
     unicode-bidi: isolate;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     font-variant-numeric: tabular-nums lining-nums;
 }
@@ -1598,7 +1598,7 @@ select.ak-input {
 }
 
 .ak-field-error {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.4;
     color: var(--ptg-danger-text);
 }
@@ -1620,7 +1620,7 @@ select.ak-input {
 }
 
 .ak-toggle-field .form-check-label {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     color: var(--ptg-text);
     cursor: pointer;
@@ -1651,7 +1651,7 @@ select.ak-input {
 }
 
 .ak-offline-setup .ak-label {
-    font-size: 12.5px;
+    font-size: 14.5px;
 }
 
 .ak-offline-setup-actions {
@@ -1661,7 +1661,7 @@ select.ak-input {
 
 .ak-offline-setup-hint {
     flex-basis: 100%;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ptg-muted);
 }
 
@@ -1688,8 +1688,8 @@ select.ak-input {
     min-height: 36px;
     border: 0;
     font: inherit;
-    font-size: 14px;
-    line-height: 24px;
+    font-size: 16px;
+    line-height: 27px;
     text-decoration: none;
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
@@ -1739,8 +1739,8 @@ select.ak-input {
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font: inherit;
-    font-size: 14px;
-    line-height: 24px;
+    font-size: 16px;
+    line-height: 27px;
     white-space: nowrap;
     text-decoration: none;
     cursor: pointer;
@@ -1790,7 +1790,7 @@ select.ak-input {
     border-radius: var(--radius-base);
     background: var(--ptg-surface);
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     text-align: center;
     cursor: pointer;
     transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -1825,7 +1825,7 @@ select.ak-input {
     min-height: 36px;
     margin-inline-end: auto;
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 16px;
     text-decoration: none;
 }
 
@@ -1851,7 +1851,7 @@ select.ak-input {
     padding: 8px 0;
     border-bottom: 1px solid var(--divider);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
 }
 
@@ -1970,7 +1970,7 @@ select.ak-input {
 
 .ak-modal-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.3;
     font-weight: 600;
     color: var(--ptg-text);
@@ -1978,7 +1978,7 @@ select.ak-input {
 
 .ak-modal-subtitle {
     margin: 4px 0 0;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -2091,8 +2091,8 @@ select.ak-input {
     border-radius: var(--radius-base);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 16px;
+    line-height: 23px;
     outline: 0;
     transition: border-color 150ms ease, box-shadow 150ms ease;
 }
@@ -2145,7 +2145,7 @@ select.ak-input {
     border-radius: var(--ak-selection-chip-radius);
     background: var(--ak-selection-chip-bg);
     color: var(--ak-selection-chip-text);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -2167,7 +2167,7 @@ select.ak-input {
     border-radius: 3px;
     background: transparent;
     color: var(--ak-selection-chip-remove);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
     cursor: pointer;
 }
@@ -2270,7 +2270,7 @@ select.ak-input {
     border-radius: var(--radius-pill);
     background: var(--ptg-surface);
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 
@@ -2287,24 +2287,24 @@ select.ak-input {
 }
 
 .ak-entity-title {
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 16px;
+    line-height: 23px;
     font-weight: 500;
 }
 
 .ak-entity-meta {
     margin-top: 1px;
     color: var(--ptg-muted);
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 14px;
+    line-height: 19px;
 }
 
 .ak-entity-empty {
     display: none;
     padding: 18px 12px;
     color: var(--ptg-muted);
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 14px;
+    line-height: 19px;
     text-align: center;
 }
 
@@ -2322,7 +2322,7 @@ select.ak-input {
     border-top: 1px solid var(--ptg-border);
     background: var(--ptg-surface);
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     text-align: start;
     cursor: pointer;
@@ -2383,7 +2383,7 @@ select.ak-input {
     padding: 7px 9px;
     border-radius: var(--radius-base);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
 }
 
@@ -2457,7 +2457,7 @@ select.ak-input {
 }
 
 .loading-date-long {
-    font-size: 22px;
+    font-size: 23px;
     line-height: 32px;
     font-weight: 500;
     text-align: center;
@@ -2494,7 +2494,7 @@ select.ak-input {
 
 .loading-date-week {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .loading-date-days {
@@ -2560,7 +2560,7 @@ select.ak-input {
     border-radius: 8px 0 0 8px;
     background: var(--ptg-surface-soft);
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     white-space: nowrap;
 }
 
@@ -2632,14 +2632,14 @@ select.ak-input {
 }
 
 .ak-summary-list dt {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ptg-muted);
     font-weight: 400;
 }
 
 .ak-summary-list dd {
     margin: 0;
-    font-size: 20px;
+    font-size: 21px;
     font-weight: 500;
     line-height: 1.2;
 }
@@ -2671,13 +2671,13 @@ select.ak-input {
 }
 
 .ak-hub-tile-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     color: var(--ptg-text);
 }
 
 .ak-hub-tile-desc {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--ptg-muted);
     line-height: 1.6;
 }
@@ -2690,7 +2690,7 @@ select.ak-input {
 .ak-table tr.ak-subrow > td {
     background: var(--ptg-surface-soft);
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ak-table tr.ak-row-muted > td {
@@ -2815,7 +2815,7 @@ select.ak-input {
     background: var(--ak-control-bg);
     color: var(--ak-control-text);
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     text-align: start;
     cursor: pointer;
     transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -3007,7 +3007,7 @@ select.ak-input {
     border: 0;
     background: transparent;
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     color: var(--ak-control-text);
     cursor: pointer;
@@ -3021,7 +3021,7 @@ select.ak-input {
 
 .ak-date-week span {
     text-align: center;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--ak-date-weekday);
 }
 
@@ -3041,7 +3041,7 @@ select.ak-input {
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
     transition: background-color 110ms ease, color 110ms ease;
 }
@@ -3072,7 +3072,7 @@ select.ak-input {
     background: transparent;
     color: var(--ak-date-day-text);
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
     transition: background-color 110ms ease, color 110ms ease;
 }
@@ -3181,7 +3181,7 @@ select.ak-input {
     margin-bottom: 12px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--divider);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ak-group-wizard-summary .ak-list-row {
@@ -3313,13 +3313,13 @@ select.ak-input {
     margin: 0 0 16px;
     padding: 6px 10px;
     border-radius: var(--ptg-radius-md);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.35;
 }
 
 .loading-import-workbook .loading-pricing-notice > i {
     flex: none;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .loading-import-workbook .loading-pricing-notice > strong {
@@ -3414,7 +3414,7 @@ select.ak-input {
     height: 36px;
     padding: 0 8px;
     border-radius: var(--ptg-radius-sm);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .loading-import-workbook .ak-table td [data-loading-logistics-pair] {
@@ -3545,7 +3545,7 @@ select.ak-input {
     gap: 16px;
     /* counts stay at the start; actions and filters travel together at the end */
     margin-inline-end: auto;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--ptg-muted);
 }
 
@@ -3577,7 +3577,7 @@ select.ak-input {
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--radius-base);
     background: #F7F8FA;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--ptg-text);
 }
 
@@ -3607,7 +3607,7 @@ select.ak-input {
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .loading-import-workbook .lic-search {
@@ -3629,7 +3629,7 @@ select.ak-input {
     justify-content: center;
     gap: 14px;
     margin-top: 14px;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--ptg-muted);
 }
 
@@ -3644,7 +3644,7 @@ select.ak-input {
     border-radius: var(--radius-base);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     cursor: pointer;
 }
 
@@ -3682,7 +3682,7 @@ select.ak-input {
 
 .loading-import-workbook .loading-operation-status span:not(.spinner-border) {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 /* ---- Sticky action footer. ---- */
@@ -3699,7 +3699,7 @@ select.ak-input {
 
 .loading-import-workbook .lic-footer-count {
     margin-inline-end: auto;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--ptg-muted);
 }
 
@@ -3758,7 +3758,7 @@ select.ak-input {
     height: 38px;
     padding: 0 10px;
     border-radius: var(--radius-base);
-    font-size: 14px;
+    font-size: 16px;
     min-width: 118px;
 }
 
@@ -3818,7 +3818,7 @@ select.ak-input {
     top: 0;
     z-index: 1;
     background: var(--ptg-surface-subtle, #FAFAFC);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -3871,13 +3871,13 @@ select.ak-input {
     border-radius: var(--radius-btn);
     background: var(--ptg-surface);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     cursor: pointer;
 }
 
 .ak-segmented-option span .bi {
-    font-size: 20px;
+    font-size: 21px;
 }
 
 .ak-segmented-option input:checked + span {
@@ -3968,20 +3968,20 @@ select.ak-input {
     border-radius: var(--ptg-radius-sm);
     background: var(--ptg-surface-subtle, #f7f8fa);
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: 18px;
     transition: background-color 150ms ease, color 150ms ease;
 }
 
 .ak-alloc-method-body > strong {
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.3;
 }
 
 .ak-alloc-method-body > small {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.4;
 }
 
@@ -4045,7 +4045,7 @@ select.ak-input {
 
 .ak-manual-import-status {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .ak-manual-import-status.is-error {
@@ -4087,7 +4087,7 @@ select.ak-input {
 .ak-navigation-group-label {
     display: block;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
 }
 
@@ -4095,5 +4095,123 @@ select.ak-input {
     .ak-navigation-group,
     .ak-navigation-group[data-navigation-group="overview"] {
         flex: 1 1 100%;
+    }
+}
+
+/* Party-to-party settlement only: keep the main Mashal typography intact while
+   matching the reference's paired parties and larger rounded controls. */
+.party-settlement-form {
+    --party-settlement-line: var(--divider);
+    --party-settlement-surface: var(--background-paper);
+    display: grid;
+    gap: 14px;
+}
+.party-settlement-intro {
+    padding: 10px 12px;
+    border: 1px solid var(--party-settlement-line);
+    border-radius: 8px;
+    background: var(--background-neutral);
+}
+.party-settlement-intro .ak-section-head {
+    margin: 0;
+}
+.party-settlement-parties {
+    align-items: stretch;
+}
+.party-settlement-party {
+    height: 100%;
+    padding: 12px;
+    border: 1px solid var(--party-settlement-line);
+    border-radius: 10px;
+    background: var(--party-settlement-surface);
+}
+.party-settlement-party-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-block-end: 10px;
+    padding-block-end: 9px;
+    border-block-end: 1px solid var(--party-settlement-line);
+}
+.party-settlement-party-head h3,
+.party-settlement-details-title {
+    margin: 0;
+    color: var(--ptg-text);
+    font-size: 1em;
+    font-weight: 600;
+}
+.party-settlement-role {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 72px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.party-settlement-role--sender {
+    background: var(--error-main);
+}
+.party-settlement-role--recipient {
+    background: var(--success-main);
+}
+.party-settlement-party .ak-field {
+    margin: 0;
+}
+.party-settlement-party .ak-input,
+.party-settlement-party .ak-entity-input,
+.party-settlement-details .ak-input {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+}
+.party-settlement-party .ak-entity-chevron {
+    top: calc(50% - 7px);
+}
+.party-settlement-details textarea.ak-input {
+    height: auto;
+    min-height: 96px;
+}
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .party-settlement-form :is(.ak-input, .form-control, .form-select, .ak-combobox-input, .ak-entity-input, .ak-date-field) {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+}
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .party-settlement-form textarea.ak-input {
+    height: auto;
+    min-height: 96px;
+}
+.party-settlement-label-icon {
+    margin-inline-end: 5px;
+    color: var(--text-secondary);
+}
+.party-settlement-balance {
+    display: block;
+    min-height: 20px;
+    margin-block-start: 5px;
+    font-variant-numeric: tabular-nums;
+}
+.party-settlement-details {
+    padding: 12px;
+    border: 1px solid var(--party-settlement-line);
+    border-radius: 10px;
+    background: var(--party-settlement-surface);
+}
+.party-settlement-details-title {
+    margin-block-end: 10px;
+    padding-block-end: 9px;
+    border-block-end: 1px solid var(--party-settlement-line);
+}
+@media (max-width: 767.98px) {
+    .party-settlement-intro {
+        padding: 8px 10px;
+    }
+    .party-settlement-party,
+    .party-settlement-details {
+        padding: 10px;
     }
 }

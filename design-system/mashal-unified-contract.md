@@ -8,7 +8,7 @@
 - R05 و R06: پوستهٔ آبی داشبورد و modal انتخاب ابزار.
 - R07: پوستهٔ آبی برای دریافت مرتبط با فاکتور و کارت شخص/بانک همان جریان.
 - فایل‌های مرجع در `.work/design-reference/pack/Mashal-UI-Reference-Pack/ui-references/` نگهداری شده‌اند و asset تولیدی نیستند.
-- منبع component kit، شاخهٔ `design/mashal-reference-components` در مخزن مرجع است؛ فایل‌های runtime انتخاب‌شده در `src/PTGOilSystem.Web/wwwroot/mashal-kit/` قرار دارند و روی `#ptg-main-content` با `data-mr-theme` و `data-mr-adapt` فعال می‌شوند.
+- منبع component kit، شاخهٔ `design/mashal-reference-components` در مخزن مرجع است. kit به‌صورت runtime جداگانه بارگذاری نمی‌شود (token و adapter موازی حذف شد)؛ مقادیر اندازه‌گیری‌شدهٔ آن فقط در `78-mashal-reference.css` روی primitiveهای موجود `ak-*` اعمال شده‌اند.
 
 ## قرارداد مشترک همهٔ صفحات
 
@@ -20,20 +20,16 @@
 - رنگ وضعیت فقط برای state واقعی استفاده می‌شود؛ دکمهٔ اصلی یک accent مشخص دارد.
 - در 375، 768، 1024 و 1440 پیکسل نباید صفحهٔ اصلی horizontal overflow داشته باشد.
 
-## Variantها
+## پوسته
 
-### `mashal-light`
+یک پوستهٔ واحد `mashal-light` (R01–R04) برای همهٔ صفحات، از جمله داشبورد و دریافت ذیل فاکتور. پوستهٔ آبی R05–R07 حذف شد؛ از آن تصاویر فقط کامپوننت‌های محتوایی (کارت‌های ابزارک، مودال انتخاب ابزار، کارت شخص/بانک و آواتارها) با رنگ اصلی `#2D60C9` استفاده می‌شوند.
 
-برای تنظیمات، صفحات عملیاتی و تراکنش عادی: canvas روشن، surface سفید، sidebar روشن، کنترل‌های فشرده و primary action آبی روشن (`#2D60C9`).
-
-### `mashal-legacy`
-
-فقط برای داشبورد و دریافت مرتبط با فاکتور: topbar/sidebar آبی (`#007DB2`)، active navigation تیره‌تر، کارت‌های سفید و metricهای dashboard با چگالی R05/R07.
-
-این دو variant نباید با هم ترکیب شوند؛ primitiveها مشترک‌اند و فقط token/layout variant تغییر می‌کند.
+- آیکن‌ها: Iconsax Linear (همان خانوادهٔ منوهای مرجع) در `_NavIconSprite.cshtml`.
+- آواتار: R01 اپراتور (`images/mashal-profile-avatar.png`)، R05 placeholder خاکستری برای ردیف اشخاص، R07 آواتار خطی (`images/mashal-receipt-avatar.png`).
+- کارت‌های آمار تصویر تزئینی ندارند.
 
 ## وضعیت فعلی و مسیر اصلاح
 
-- `78-mashal-reference.css` آخرین لایهٔ runtime است و باید تنها محل overrideهای مرجع باشد.
+- `78-mashal-reference.css` آخرین لایهٔ runtime است و باید تنها محل overrideهای مرجع باشد؛ قواعد `!important` قدیمی که هدر/منو را قفل می‌کردند (site.css، 13-compat، 45-akaunting) حذف شدند.
 - bundleهای Production باید پس از هر تغییر CSS با `PtgBuildBundles=true` بازسازی شوند.
 - صفحات جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کنند.

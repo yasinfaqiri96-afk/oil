@@ -254,3 +254,8 @@ graphify-out/
 
 # JS bundle generated at build time (BuildCssBundles target in the web csproj).
 /src/PTGOilSystem.Web/wwwroot/js/ptg-core.bundle.js
+
+# Local worktrees, temporary references and skill archives.
+/.manus/
+/.work/
+/.claude/skills/*.zip

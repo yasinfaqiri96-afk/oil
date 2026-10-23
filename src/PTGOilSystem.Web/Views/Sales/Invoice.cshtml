@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Models.Sales.SalesInvoicePrintViewModel
+@model PTGOilSystem.Web.Models.Sales.SalesInvoicePrintViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
     Layout = null;
@@ -14,6 +14,7 @@
     // امضا و مهر فقط وقتی روی هم می‌نشینند که قالب هر دو را جدا داشته باشد؛ اگر
     // یکی از آن‌ها نباشد، همان یکی وسط ناحیهٔ امضا می‌نشیند.
     var markLayout = hasSellerSignature && hasSellerStamp ? "is-layered" : "is-single";
+    var whatsappText = $"Sales receipt\nInvoice: {Model.InvoiceNumber}\nDate: {Model.InvoiceDateDisplay}\nCustomer: {Model.BuyerCompanyName}\nQuantity: {Model.FormattedQuantityMt}\nTotal: {Model.TotalPriceFigure} {Model.Currency}";
 }
 <!doctype html>
 @* سند صادراتی است: بدنه لاتین/LTR می‌ماند و مقادیر دری با dir="auto" خودشان
@@ -37,6 +38,8 @@
     <div class="invoice-actions">
         <a asp-action="Details" asp-route-id="@Model.SalesTransactionId">Back to Sale</a>
         <button type="button" data-invoice-print>Print / PDF</button>
+        <partial name="~/Views/Shared/Partials/_WhatsAppReceiptAction.cshtml"
+                 model="@( (Model.BuyerPhoneNumber, whatsappText, "Send receipt on WhatsApp") )" />
     </div>
 
     <main class="invoice-shell">

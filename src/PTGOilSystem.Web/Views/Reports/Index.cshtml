@@ -80,8 +80,10 @@
 
     @foreach (var tab in tabs)
     {
+        var gridModifier = tab.Cards.Count == 1 ? "rephub-grid--single"
+            : tab.Cards.Count == 2 ? "rephub-grid--compact" : string.Empty;
         <div id="@tab.Id" class="rephub-panel" role="tabpanel" aria-label="@tab.Label" hidden="@(tab == tabs[0] ? null : "hidden")">
-            <div class="rephub-grid">
+            <div class="rephub-grid @gridModifier">
                 @foreach (var item in tab.Cards)
                 {
                     var controller = string.IsNullOrEmpty(item.Controller) ? "Reports" : item.Controller;
@@ -98,6 +100,7 @@
                             <img src="@optimizedAvatar" alt="" aria-hidden="true" width="128" height="128" loading="eager" decoding="async" />
                         </span>
                         <span class="rephub-card-title">@title</span>
+                        <span class="rephub-card-description">@description</span>
                     </a>
                 }
             </div>

@@ -77,7 +77,7 @@
     border: 0;
     background: transparent;
     color: var(--ak-detail-muted);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.7;
 }
 
@@ -116,14 +116,14 @@
 
 :where(.ak-detail-page) :where(.ak-detail-summary) :where(.ak-label, dt, .summary-tile-label) {
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.55;
 }
 
 :where(.ak-detail-page) :where(.ak-detail-summary) :where(.ak-num, dd, strong, .summary-tile-value) {
     color: var(--ak-detail-text);
-    font-size: 20px;
+    font-size: 21px;
     font-weight: 790;
     line-height: 1.4;
 }
@@ -172,7 +172,7 @@
 :where(.ak-detail-page) :where(.ak-detail-section-header) > :where(h2, .h2) {
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.55;
 }
@@ -205,7 +205,7 @@
     padding: 11px 12px;
     background: var(--ak-detail-soft);
     color: var(--ak-detail-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 730;
     vertical-align: middle;
 }
@@ -274,11 +274,11 @@
     }
 
     :where(.ak-detail-page) :where(.ak-detail-summary) :where(.ak-num, dd, strong, .summary-tile-value) {
-        font-size: 16px;
+        font-size: 18px;
     }
 
     .action-details .ak-detail-page :where(.ak-detail-title) {
-        font-size: 22px;
+        font-size: 23px;
     }
 }
 
@@ -358,7 +358,7 @@
     border-radius: 50%;
     background: var(--ak-detail-surface);
     color: var(--ak-detail-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 :where(.ak-detail-page) :where(.ak-timeline-item.is-current) :where(.ak-timeline-dot) {
@@ -384,7 +384,7 @@
 
 :where(.ak-detail-page) :where(.ak-timeline-title) {
     color: var(--ak-detail-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 650;
     line-height: 1.6;
 }
@@ -396,7 +396,7 @@
 :where(.ak-detail-page) :where(.ak-timeline-date) {
     flex: 0 0 auto;
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
@@ -404,7 +404,7 @@
 :where(.ak-detail-page) :where(.ak-timeline-meta) {
     margin: 3px 0 0;
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.65;
 }
 
@@ -446,12 +446,12 @@
 
 :where(.ak-detail-page) :where(.ak-related-link > i, .ak-related-type) {
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 :where(.ak-detail-page) :where(.ak-related-label) {
     overflow: hidden;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 650;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -459,7 +459,7 @@
 
 :where(.ak-detail-page) :where(.ak-related-value) {
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
@@ -482,7 +482,7 @@
     border: 1px solid var(--ak-detail-divider);
     border-radius: var(--ptg-radius-input);
     background: var(--ak-detail-surface);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1;
 }
 
@@ -760,7 +760,7 @@ body.boltz-shell:is(
 ).action-details .boltz-content .loading-details-simple-page :where(.loading-detail-record-card) > header h2 {
     margin: 0;
     color: var(--op-detail-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 780;
     line-height: 1.45;
     overflow-wrap: anywhere;
@@ -849,7 +849,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page .loading-detail-record-row span {
     color: var(--op-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 body.boltz-shell:is(
@@ -862,7 +862,7 @@ body.boltz-shell:is(
     .controller-sales
 ).action-details .boltz-content .loading-details-simple-page .loading-detail-record-row strong {
     color: var(--op-detail-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
 }
 
@@ -891,7 +891,7 @@ body.boltz-shell:is(
 [data-contract-journey-page] .ak-stat-card__value { font-size: clamp(20px, 1.6vw, 25px); }
 [data-contract-journey-page] .ak-stat-card__value--compact { font-size: clamp(17px, 1.35vw, 21px); }
 [data-contract-journey-page] .ak-stat-card__value--dense { font-size: clamp(14px, 1.1vw, 17px); }
-[data-contract-journey-page] .ak-stat-card__value--ultra { font-size: clamp(11px, 0.9vw, 13.5px); }
+[data-contract-journey-page] .ak-stat-card__value--ultra { font-size: clamp(13px, 0.9vw, 15.5px); }
 
 /* Each tab publishes its own stat row into the facts host, which sits above the
    tab rail: the numbers head the page and the rail introduces the lists below. */
@@ -975,7 +975,7 @@ body.boltz-shell:is(
 /* Summary tab — larger, brand-coloured figures in the key/value stat lists.
    Values that already carry a success/danger tone keep their colour. */
 [data-contract-journey-page] .ak-summary-page .ak-list-row dd.ak-num {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
 }
 [data-contract-journey-page] .ak-summary-page .ak-list-row dd.ak-num:not(.text-success):not(.text-danger) {
@@ -1029,14 +1029,14 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     gap: 10px;
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 21px;
+    font-size: 22px;
     font-weight: 800;
     line-height: 1.4;
 }
 
 .ak-journey-head .ak-section-title > .bi {
     color: var(--primary-main);
-    font-size: 22px;
+    font-size: 23px;
 }
 
 /* ---- the path ---- */
@@ -1095,7 +1095,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     border-radius: 50%;
     background: rgba(var(--info-rgb), .07);
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
@@ -1134,7 +1134,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-step .ak-cycle-title {
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 800;
     line-height: 1.4;
 }
@@ -1151,13 +1151,13 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     border-radius: 999px;
     background: rgba(var(--info-rgb), .05);
     color: var(--primary-main);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.6;
 }
 
 .ak-journey-badge > .bi {
-    font-size: 12px;
+    font-size: 14px;
     opacity: .8;
 }
 
@@ -1187,7 +1187,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     min-width: 0;
     /* Calm slate-navy: high contrast, yet distinct from the neutral figure. */
     color: color-mix(in srgb, var(--primary-main) 30%, var(--ak-detail-text));
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 500;
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -1200,7 +1200,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     direction: ltr;
     unicode-bidi: isolate;
     color: var(--ak-detail-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     line-height: 1.5;
     font-variant-numeric: tabular-nums lining-nums;
@@ -1314,7 +1314,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 .ak-journey-partner .ak-cycle-title {
-    font-size: 19px;
+    font-size: 21px;
 }
 
 .ak-journey-partner .ak-journey-step-head {
@@ -1322,7 +1322,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 .ak-journey-partner .ak-cycle-value {
-    font-size: 16px;
+    font-size: 18px;
 }
 
 .ak-journey-partner-tile {
@@ -1354,7 +1354,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     background: var(--ak-detail-surface);
     box-shadow: var(--shadow-dropdown);
     color: var(--primary-main);
-    font-size: 20px;
+    font-size: 21px;
 }
 
 .ak-journey-partner-share {
@@ -1366,7 +1366,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     border-radius: 12px;
     background: var(--ak-detail-surface);
     color: var(--primary-dark);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.6;
@@ -1513,16 +1513,16 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-step .ak-cycle-title {
-        font-size: 16px;
+        font-size: 18px;
     }
 
     .ak-journey-step .ak-cycle-label {
-        font-size: 14px;
+        font-size: 16px;
     }
 
     .ak-journey-step .ak-cycle-value,
     .ak-journey-partner .ak-cycle-value {
-        font-size: 15px;
+        font-size: 17px;
     }
 
     .ak-journey-partner-tile {
@@ -1571,15 +1571,15 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
         }
 
         .ak-journey-step .ak-cycle-title {
-            font-size: 16px;
+            font-size: 18px;
         }
 
         .ak-journey-step .ak-cycle-label {
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .ak-journey-step .ak-cycle-value {
-            font-size: 15px;
+            font-size: 17px;
         }
 
         .ak-journey-partner {
@@ -1630,7 +1630,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
     .ak-journey-step .ak-cycle-value,
     .ak-journey-partner .ak-cycle-value {
-        font-size: 15px;
+        font-size: 17px;
     }
 
     .ak-journey-partner {
@@ -1652,7 +1652,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     .ak-journey-partner-icon {
         width: 34px;
         height: 34px;
-        font-size: 16px;
+        font-size: 18px;
     }
 
     /* One column, so every link is the same dashed rule pointing down. */
@@ -1732,7 +1732,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 .ak-journey-step:not(.ak-journey-partner) .ak-cycle-title {
-    font-size: 17px;
+    font-size: 19px;
 }
 
 .ak-journey-step .ak-cycle-stats {
@@ -1765,7 +1765,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-step .ak-cycle-stats .ak-cycle-label {
     flex: none;
     color: var(--ak-detail-muted);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     line-height: 1.4;
 }
@@ -1774,7 +1774,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     flex: none;
     max-width: 100%;
     margin-inline-start: 0;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
     line-height: 1.35;
     text-align: start;
@@ -1788,13 +1788,13 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
 .ak-journey-step .ak-cycle-stats .ak-cycle-quantity > span {
     color: var(--ak-detail-muted);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
 }
 
 @media (min-width: 768px) and (max-width: 1279.98px) {
     .ak-journey-step .ak-cycle-stats .ak-cycle-value {
-        font-size: 16px;
+        font-size: 18px;
     }
 }
 
@@ -1850,7 +1850,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     border: 1px solid transparent;
     border-radius: 8px;
     box-shadow: none !important;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1;
     font-variant-numeric: tabular-nums lining-nums;
@@ -1914,7 +1914,7 @@ body.boltz-shell.app-shell-authenticated [data-storage-tank-details] .storage-ta
 }
 
 .operational-asset-details-page .ak-summary-card .ak-info-value {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -1981,7 +1981,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     gap: 6px;
     align-items: center;
     margin: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -1989,7 +1989,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     flex: 1 1 100%;
     margin: 0;
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .operational-asset-details-page .oa-block-head + .ak-table-wrap {
@@ -2005,7 +2005,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     display: block;
     margin-block-start: 2px;
     color: var(--ak-detail-muted);
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.5;
 }
 
@@ -2015,7 +2015,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
     padding-inline-start: 10px;
     border-inline-start: 2px solid var(--ptg-danger-text);
     color: var(--ak-detail-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -2054,7 +2054,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
 
 .operational-asset-details-page .oa-action-modal .modal-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 750;
 }
 

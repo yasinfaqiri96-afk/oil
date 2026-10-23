@@ -37,9 +37,12 @@
             const field = form.querySelector('[name="' + name + '"]')?.closest('.ak-field');
             if (field) { field.classList.add('mashal-receipt-' + name.toLowerCase()); grid.append(field); }
         }
-        const avatar = document.createElement('i');
-        avatar.className = 'bi bi-person mashal-receipt-person';
-        avatar.setAttribute('aria-hidden', 'true');
+        const avatar = document.createElement('img');
+        avatar.className = 'mashal-receipt-person';
+        avatar.src = '/images/mashal-receipt-avatar.png';
+        avatar.alt = '';
+        avatar.width = 78;
+        avatar.height = 113;
         const card = document.createElement('div');
         card.className = 'mashal-receipt-card';
         party.insertBefore(card, grid);

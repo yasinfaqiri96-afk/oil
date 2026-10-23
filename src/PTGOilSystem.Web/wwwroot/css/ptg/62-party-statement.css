@@ -40,7 +40,7 @@
 
 .statement-heading h1 {
     margin: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.35;
 }
@@ -52,7 +52,7 @@
     gap: 3px 10px;
     margin-top: 0;
     color: var(--statement-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.35;
 }
 
@@ -90,7 +90,7 @@
 .statement-party-switch label {
     margin: 0;
     color: var(--statement-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -99,7 +99,7 @@
     min-width: 160px;
     height: 32px;
     padding-block: 0;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .statement-summary {
@@ -116,10 +116,10 @@
 }
 
 .statement-summary-item:first-child { border-inline-start: 0; }
-.statement-summary-item small { display: block; color: var(--statement-muted); font-size: 11px; font-weight: 700; }
+.statement-summary-item small { display: block; color: var(--statement-muted); font-size: 13px; font-weight: 700; }
 /* عدد خلاصه همیشه یک خط و داخل خانهٔ خودش؛ اندازه با عرض خانه کوچک می‌شود (cqi). */
 .statement-summary-item strong { display: inline-block; margin-top: 5px; font-size: clamp(12px, 9cqi, 18px); white-space: nowrap; font-variant-numeric: tabular-nums; direction: ltr; }
-.statement-summary-item span { margin-inline-start: 5px; color: var(--statement-muted); font-size: 11px; font-weight: 700; }
+.statement-summary-item span { margin-inline-start: 5px; color: var(--statement-muted); font-size: 13px; font-weight: 700; }
 .statement-summary-item.is-current { background: color-mix(in srgb, var(--ptg-primary) 5%, transparent); }
 /* بیلانس فعلی عدد تصمیم‌ساز است؛ ستون پهن‌تر و عدد بزرگ‌تر، با همان رنگ‌ها. */
 .statement-summary-item.is-current strong { font-size: clamp(13px, 9cqi, 20px); font-weight: 800; }
@@ -133,7 +133,7 @@
     padding: 8px 18px;
     border-top: 1px solid var(--statement-line);
     color: var(--statement-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .statement-view-tabs {
@@ -147,7 +147,7 @@
     padding: 12px 0 10px;
     border-bottom: 2px solid transparent;
     color: var(--statement-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     text-decoration: none;
 }
@@ -156,10 +156,10 @@
 .statement-view-tab.is-active { color: var(--ptg-primary); border-bottom-color: currentColor; }
 
 .statement-table-wrap { overflow-x: auto; }
-.statement-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 14px; }
+.statement-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 16px; }
 .statement-table th,
 .statement-table td { padding: 12px 10px; border-bottom: 1px solid var(--statement-line); vertical-align: middle; }
-.statement-table thead th { position: sticky; top: 0; z-index: 1; background: var(--ptg-bg); color: var(--statement-muted); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.statement-table thead th { position: sticky; top: 0; z-index: 1; background: var(--ptg-bg); color: var(--statement-muted); font-size: 13px; font-weight: 800; white-space: nowrap; }
 .statement-table tbody tr:hover { background: color-mix(in srgb, var(--ptg-primary) 3%, transparent); }
 .statement-table tbody tr.is-opening-row { background: var(--ptg-bg); font-weight: 700; }
 .statement-table tfoot th { background: var(--ptg-bg); border-top: 1px solid var(--statement-line); border-bottom: 0; }
@@ -176,8 +176,8 @@
 .statement-description { line-height: 1.65; white-space: normal; overflow-wrap: anywhere; }
 /* شرح سه‌لایه: عنوان معامله، جزئیات قطعی (مقدار × نرخ، موتر)، مرجع سند (کم‌رنگ). */
 .statement-row-title { display: block; font-weight: 600; }
-.statement-row-detail { display: block; margin-top: 1px; font-size: 12.5px; }
-.statement-row-document { display: block; margin-top: 1px; color: var(--statement-muted); font-size: 11px; }
+.statement-row-detail { display: block; margin-top: 1px; font-size: 14.5px; }
+.statement-row-document { display: block; margin-top: 1px; color: var(--statement-muted); font-size: 13px; }
 .statement-row-document a { color: inherit; text-decoration: none; }
 .statement-row-document a:hover { color: var(--ptg-primary); text-decoration: underline; }
 /* خانه‌های عدد/تاریخ direction: ltr دارند و end/start آن‌ها برعکسِ سرستونِ RTL می‌افتد؛
@@ -200,7 +200,7 @@
     margin: 0;
     padding: 10px 22px;
     color: var(--statement-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .statement-note a { color: var(--ptg-primary); text-decoration: none; font-weight: 700; }
@@ -213,7 +213,7 @@
     gap: 12px;
     padding: 12px 22px;
     color: var(--statement-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .statement-pagination div { display: flex; gap: 6px; }
@@ -223,17 +223,17 @@
 
 .statement-table-contracts .statement-contract-title { display: block; }
 .statement-contract-sub,
-.statement-ref-inline { display: block; margin-top: 3px; color: var(--statement-muted); font-size: 11px; }
-.statement-details-toggle { border: 0; background: transparent; color: var(--ptg-primary); font-size: 12px; font-weight: 700; }
+.statement-ref-inline { display: block; margin-top: 3px; color: var(--statement-muted); font-size: 13px; }
+.statement-details-toggle { border: 0; background: transparent; color: var(--ptg-primary); font-size: 14px; font-weight: 700; }
 .statement-details-row > td { padding: 0; background: var(--ptg-bg); }
 .statement-details-slot { padding: 14px 18px; }
 .statement-details-loading { padding: 20px; text-align: center; color: var(--statement-muted); }
 .statement-details-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border: 1px solid var(--statement-line); border-radius: 8px; }
 .statement-details-facts div { padding: 10px 12px; border-inline-start: 1px solid var(--statement-line); }
-.statement-details-facts span { display: block; color: var(--statement-muted); font-size: 11px; }
-.statement-details-facts strong { font-size: 12px; }
+.statement-details-facts span { display: block; color: var(--statement-muted); font-size: 13px; }
+.statement-details-facts strong { font-size: 14px; }
 .statement-details-block { margin-top: 14px; }
-.statement-details-block h3 { margin: 0 0 8px; font-size: 14px; }
+.statement-details-block h3 { margin: 0 0 8px; font-size: 16px; }
 .statement-table-compact { min-width: 640px; background: var(--ptg-surface); }
 
 .statement-print-footer { display: none; }

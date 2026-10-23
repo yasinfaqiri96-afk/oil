@@ -80,11 +80,11 @@ body.boltz-shell.app-shell-authenticated .ptg-main {
 /* Header is full-width chrome fused with the page: no card, no border, no
    radius, no fill. The scroll-blur treatment lives in 03-layout.css. */
 body.boltz-shell.app-shell-authenticated .ptg-topbar {
-    min-height: 3rem !important;
-    padding: .35rem 1.25rem !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: var(--mashal-topbar-bg, transparent) !important;
+    min-height: 3rem;
+    padding: .35rem 1.25rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 /* اندازه و ظاهر کنترل‌های هدر در 74-header-controls.css یکسان‌سازی شده است. */
@@ -106,7 +106,7 @@ body.boltz-shell.app-shell-authenticated .ptg-hflag-wrap {
 
 @media (max-width: 767.98px) {
     body.boltz-shell.app-shell-authenticated .ptg-topbar {
-        padding: .24rem .75rem !important;
+        padding: .24rem .75rem;
         border-radius: 0 !important;
     }
 }
@@ -161,7 +161,7 @@ body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .b
     min-height: 2.55rem;
     padding: .45rem 1.45rem !important;
     border-radius: var(--radius-btn);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 800;
     line-height: 1.1;
     letter-spacing: .01em;
@@ -199,7 +199,7 @@ body.boltz-shell .loading-expense-form .validation-summary-valid {
 }
 body.boltz-shell .loading-expense-editor .form-label {
     margin-bottom: 0;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 800;
     color: var(--ptg-text);
 }
@@ -211,7 +211,7 @@ body.boltz-shell .loading-expense-editor.is-modal {
     gap: .78rem;
 }
 body.boltz-shell .loading-expense-editor.is-modal .form-section-title {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 850;
 }
 
@@ -232,7 +232,7 @@ body.boltz-shell [data-loading-expense-editor] .ak-form-grid {
     align-items: end;
 }
 body.boltz-shell [data-loading-expense-editor] .ak-form-grid > span {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--ptg-text);
 }
@@ -254,13 +254,13 @@ body.boltz-shell [data-loading-expense-remote-modal] .ak-modal-body {
 .boltz-shell .section-title-row h2 {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
 }
 .boltz-shell .section-title-row p {
     margin: 0;
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.8;
 }
 @media (max-width: 767.98px) {
@@ -278,10 +278,10 @@ body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznam
     gap: .15rem;
 }
 body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznamcha .boltz-content .summary-tile .summary-tile-label {
-    font-size: 12px;
+    font-size: 14px;
 }
 body.boltz-shell.app-shell-authenticated.controller-reconciliation.action-roznamcha .boltz-content .summary-tile .summary-tile-value {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.15;
 }
 body.boltz-shell.app-shell-authenticated.controller-payments .boltz-content .sarraf-alloc-fields[hidden],
@@ -328,7 +328,7 @@ body.boltz-shell.controller-shipmentpnl.action-details .shipment-shortage-kpis .
     justify-content: center;
     border-radius: 8px;
     background: var(--ptg-surface-tint);
-    font-size: 16px;
+    font-size: 18px;
 }
 
 /* =====================================================================

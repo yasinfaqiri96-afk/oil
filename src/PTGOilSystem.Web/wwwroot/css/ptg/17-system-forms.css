@@ -75,7 +75,7 @@ body.ptg-modal-document:is(.action-create, .action-edit) .page-header {
 
 body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-title,
 body.ptg-modal-document:is(.action-create, .action-edit) .page-title {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.35;
 }
 
@@ -144,7 +144,7 @@ body.boltz-shell:is(.controller-dispatch, .controller-sales, .controller-expense
     padding: 0 0 .5rem;
     border-bottom: 1px solid var(--ptg-border);
     color: #1f344f;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 800;
     text-align: right;
 }
@@ -160,7 +160,7 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .bo
 
 body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .boltz-content .page-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.25;
 }
 
@@ -205,7 +205,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border-radius: 0;
     background: var(--fara-form-section);
     color: #4a4a4a;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     line-height: 1.45;
     text-align: center;
@@ -225,7 +225,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border-bottom: 0;
     background: var(--fara-form-table-head);
     color: #687181;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
     text-align: center;
@@ -238,7 +238,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border-radius: 0;
     background: #fbfbfb;
     color: #666;
-    font-size: 12px;
+    font-size: 14px;
     text-align: center;
 }
 
@@ -268,7 +268,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border-bottom: 0;
     background: var(--fara-form-table-head);
     color: var(--ptg-text-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.25;
     text-align: center;
@@ -280,7 +280,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border: 0;
     background: var(--ptg-field-bg);
     color: #596273;
-    font-size: 12px;
+    font-size: 14px;
     vertical-align: middle;
 }
 
@@ -296,7 +296,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     min-height: 2.15rem;
     padding: .34rem .9rem;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     box-shadow: none;
 }

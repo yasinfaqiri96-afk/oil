@@ -13,6 +13,9 @@
     else if (Model.SarrafId.HasValue) { counterpartyType = "صراف"; counterpartyName = Model.SarrafName ?? "-"; }
     else if (Model.DriverId.HasValue) { counterpartyType = "راننده"; counterpartyName = Model.DriverName ?? "-"; }
     else if (Model.EmployeeId.HasValue) { counterpartyType = "کارمند"; counterpartyName = Model.EmployeeName ?? "-"; }
+    else if (Model.PaidByPartnerId.HasValue) { counterpartyType = "شریک"; counterpartyName = Model.PaidByPartnerName ?? "-"; }
+
+    var whatsappText = $"رسید ثبت تراکنش\nطرف حساب: {counterpartyName}\nنوع: {Model.PaymentKindName}\nمبلغ: {Model.Amount:N2} {Model.Currency}\nتاریخ: {Model.PaymentDate:yyyy/MM/dd}\nشماره سند: {Model.Reference ?? Model.Id.ToString()}";
 
     var fxDisplay = Model.AppliedFxRateToUsd.HasValue && Model.AppliedFxRateToUsd.Value > 0m
         ? (Model.Currency != "USD"
@@ -102,6 +105,9 @@
              model="@(($"سند مالی #{Model.Id}", false,
                        "سند چاپی", "bi-receipt-cutoff", voucherUrl, (string?)null,
                        "بازگشت", "bi-arrow-right", (string?)backUrl))" />
+
+    <partial name="~/Views/Shared/Partials/_WhatsAppReceiptAction.cshtml"
+             model="@( (Model.CounterpartyPhone, whatsappText, "ارسال رسید در واتساپ") )" />
 
     @if (hasAllocationTab)
     {

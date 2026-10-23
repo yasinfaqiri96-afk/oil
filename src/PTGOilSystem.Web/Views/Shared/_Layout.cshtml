@@ -112,8 +112,6 @@
         }
     }
 
-    var mashalLegacy = (currentController == "Home" && currentAction == "Index")
-        || ViewData["MashalLegacyReceipt"] as bool? == true;
     var mashalSettings = (currentController == "Auth" && currentAction == "ChangePassword")
         || currentController == "SystemSettings"
         || (currentController == "Companies" && (currentAction == "Edit" || currentAction == "Create"))
@@ -491,12 +489,6 @@
             @* همان فهرست بالا، با همان ترتیب، در یک باندل. *@
             <link rel="stylesheet" href="~/css/ptg-app.bundle.css" asp-append-version="true" />
         }
-        @if (renderShellChrome)
-        {
-            <link rel="stylesheet" href="~/mashal-kit/tokens.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/mashal-kit/components.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/mashal-kit/adapter.css" asp-append-version="true" />
-        }
         @if (onboardingEnabled)
         {
             @* خارج از باندل تا نصب‌هایی که راهنما را خاموش دارند هیچ بایتی از آن نگیرند. *@
@@ -509,7 +501,7 @@
         <link rel="stylesheet" href="~/css/ptg/60-loader.css" asp-append-version="true" />
     }
 </head>
-<body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass mashal-ui @(mashalLegacy ? "mashal-legacy" : "mashal-light") @(mashalSettings ? "mashal-settings" : null)"
+<body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass mashal-ui mashal-light @(mashalSettings ? "mashal-settings" : null)"
       data-ui-language="@htmlLanguage"
       data-calendar="@(PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri ? "solar" : "gregorian")"
       data-ptg-view="@(uiPickEnabled ? ViewContext.View?.Path : null)"
@@ -554,14 +546,14 @@
                     </a>
 
                     <div class="mashal-sidebar-context">
-                        <a class="mashal-company-link" asp-controller="Companies" asp-action="Index"><i class="bi bi-building" aria-hidden="true"></i>@T("کسب‌وکار مشعل", "Mashal business")</a>
+                        <a class="mashal-company-link" asp-controller="Companies" asp-action="Index"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-company"></use></svg>@T("کسب‌وکار مشعل", "Mashal business")</a>
                         <vc:fiscal-year-switcher></vc:fiscal-year-switcher>
                         @if (CanAccessController("Payments") && PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User))
                         {
-                            <a class="btn mashal-primary-create" asp-controller="Payments" asp-action="Create"><i class="bi bi-plus-circle" aria-hidden="true"></i>@T("ثبت تراکنش", "New transaction")</a>
+                            <a class="btn mashal-primary-create" asp-controller="Payments" asp-action="Create"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-add"></use></svg>@T("ثبت تراکنش", "New transaction")</a>
                         }
                     </div>
-                    <div class="mashal-nav-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-mashal-nav-search aria-label="@T("جستجوی منو", "Search menu")" /></div>
+                    <div class="mashal-nav-search"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-search"></use></svg><input type="search" data-mashal-nav-search aria-label="@T("جستجوی منو", "Search menu")" /></div>
                     <nav class="boltz-sidebar-nav" aria-label="@T("ناوبری اصلی", "Main Navigation")">
                         <ul class="boltz-nav-list ptg-sidebar-nav">
                             @foreach (var node in navTree)
@@ -673,13 +665,13 @@
                                data-onboarding-open
                                title="@T("راهنمای شروع", "Getting started")"
                                aria-label="@T("راهنمای شروع", "Getting started")">
-                                <i class="bi bi-signpost-2" aria-hidden="true"></i>
+                                <svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-guide"></use></svg>
                             </a>
                         }
                         @* Language selector — same ghost line-icon chip as search and account. *@
                         <div class="dropdown boltz-language-menu ptg-hflag-wrap">
                             <button class="ptg-h3d ptg-hflag" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Language">
-                                <i class="bi bi-translate ptg-hflag-ico" aria-hidden="true"></i>
+                                <svg class="mashal-ic ptg-hflag-ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-language"></use></svg>
                                 <span class="visually-hidden" data-current-language-label>@(isEnglishUi ? "EN" : "FA")</span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end boltz-dropdown-menu boltz-language-dropdown">
@@ -702,13 +694,13 @@
 
                         @* Account — opens the account drawer (not a dropdown) *@
                         <button type="button" class="ptg-havatar-ring ptg-havatar-trigger" data-account-open aria-haspopup="dialog" aria-controls="ptgAccountDrawer" aria-expanded="false" aria-label="@T("حساب کاربری", "Account")">
-                            <i class="bi bi-person ptg-havatar-ico" aria-hidden="true"></i>
+                            <svg class="mashal-ic ptg-havatar-ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-profile"></use></svg>
                         </button>
                     </div>
                 </header>
                 }
 
-                <main class="boltz-content ptg-page" id="ptg-main-content" tabindex="-1" data-mr-theme="@(mashalLegacy ? "blue" : "light")" data-mr-adapt="true">
+                <main class="boltz-content ptg-page" id="ptg-main-content" tabindex="-1">
                     @* زمان سرورِ همین صفحه: نسخهٔ پایهٔ ویرایش/لغوِ آفلاین (همراه محتوای main در ناوبری SPA و نسخهٔ ذخیره). *@
                     <span hidden data-ptg-rendered="@DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture)"></span>
                     @await Html.PartialAsync("_ToastNotifications")
@@ -855,6 +847,7 @@
         <script src="~/js/header-ui.js" asp-append-version="true" defer></script>
         <script src="~/js/mashal-reference.js" asp-append-version="true" defer></script>
         <script src="~/js/tables.js" asp-append-version="true" defer></script>
+        <script src="~/js/list-grid.js" asp-append-version="true" defer></script>
         <script src="~/js/ak-search-filter.js" asp-append-version="true" defer></script>
         <script src="~/js/list-toolbar-row.js" asp-append-version="true" defer></script>
         <script src="~/js/tabular-export.js" asp-append-version="true" defer></script>

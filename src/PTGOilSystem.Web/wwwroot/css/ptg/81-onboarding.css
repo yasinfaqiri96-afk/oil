@@ -166,7 +166,7 @@
 .ptg-onb-task > .bi:first-child {
     flex: 0 0 auto;
     color: var(--ptg-btn-primary);
-    font-size: 20px;
+    font-size: 21px;
 }
 
 .ptg-onb-seen {
@@ -260,7 +260,7 @@
 
 .ptg-tour-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
 }
 

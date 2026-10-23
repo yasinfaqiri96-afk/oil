@@ -62,7 +62,7 @@
 .ak-form-page:has(> form.ak-form) > .ak-page-header .ak-page-title,
 .ak-form-page-content > .ak-page-header .ak-page-title {
     color: var(--chk-title);
-    font-size: 22px;
+    font-size: 23px;
     font-weight: 400;
     line-height: 1.6;
 }
@@ -134,7 +134,7 @@ form.ak-form .ak-form-group-title,
 form.ak-form .ak-section-title {
     margin: 0 0 14px;
     color: var(--chk-title);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     line-height: 25px;
 }
@@ -164,7 +164,7 @@ form.ak-form .ak-group-wizard-summary .ak-section-title {
     margin: 0 0 12px;
     padding-block-end: 10px;
     border-block-end: 1px solid var(--divider);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 form.ak-form .ak-group-wizard-summary .ak-list-row {
@@ -200,7 +200,7 @@ form.ak-form .ak-group-wizard-summary .ak-list-row > .ak-list span {
 form.ak-form .ak-section-desc {
     margin: 4px 0 0;
     color: var(--chk-text-secondary);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.75;
 }
 
@@ -293,7 +293,7 @@ form.ak-form .transport-expense-grid-head {
 
 form.ak-form .transport-expense-grid-head > span {
     color: var(--chk-label);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.45;
 }
@@ -321,14 +321,14 @@ form.ak-form .ak-form-grid > label > span:first-child {
     min-height: 20px;
     margin: 0;
     color: var(--chk-label);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
-    line-height: 20px;
+    line-height: 23px;
 }
 
 form.ak-form .ak-label > i {
     color: var(--chk-text-secondary);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 400;
 }
 
@@ -347,7 +347,7 @@ form.ak-form .ak-input {
     background: var(--chk-surface);
     color: var(--chk-text);
     box-shadow: none;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.5;
     transition: border-color 150ms ease;
 }
@@ -391,14 +391,14 @@ form.ak-form .form-text,
 form.ak-form small.text-muted,
 form.ak-form .field-note {
     color: var(--chk-text-secondary);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.75;
 }
 
 form.ak-form .field-validation-error,
 form.ak-form .ak-field-error {
     color: var(--chk-danger);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.75;
 }
 
@@ -415,13 +415,13 @@ form.ak-form .ak-note {
     border-radius: var(--chk-radius-control);
     background: var(--chk-primary-light);
     color: var(--chk-text);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.85;
 }
 
 form.ak-form .ak-note i {
     color: var(--chk-primary);
-    font-size: 16px;
+    font-size: 18px;
 }
 
 form.ak-form .ak-note strong {
@@ -436,7 +436,7 @@ form.ak-form .ak-form-alert {
     border-radius: var(--chk-radius-control);
     background: var(--chk-danger-light);
     color: var(--chk-danger);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.85;
 }
 
@@ -464,13 +464,13 @@ form.ak-form .ak-toggle-field {
     border-radius: var(--chk-radius-control);
     background: var(--chk-surface);
     color: var(--chk-text-secondary);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.6;
 }
 
 form.ak-form .ak-toggle-field .form-check-label {
     color: var(--chk-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
 }
 
@@ -519,7 +519,7 @@ form.ak-form .journal-direction-segmented .ptg-tab-item {
     border-radius: 4px;
     color: var(--chk-text-muted);
     background: transparent;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
     transition: color .15s ease, background-color .15s ease;
 }
@@ -568,7 +568,7 @@ form.ak-form .journal-mode-item {
 
 form.ak-form .journal-mode-label {
     color: var(--chk-label);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -606,7 +606,7 @@ form.ak-form .journal-funding-choices .form-check-label {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
     white-space: nowrap;
     transition: color .15s ease, background-color .15s ease, border-color .15s ease;
@@ -695,7 +695,7 @@ form.ak-form .ak-choice-grid > label {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
     white-space: normal;
     text-align: start;
@@ -732,12 +732,12 @@ form.ak-form .journal-more-toggle {
     color: var(--chk-primary);
     background: transparent;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
 }
 
 form.ak-form .journal-more-toggle i {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 form.ak-form .journal-more-toggle:hover,
@@ -781,13 +781,13 @@ form.ak-form .journal-party-balance .jpb-head {
 form.ak-form .journal-party-balance .jpb-icon,
 form.ak-form .journal-party-balance .jpb-caption {
     color: var(--chk-text-secondary);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 form.ak-form .journal-party-balance .jpb-name {
     overflow: hidden;
     color: var(--chk-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -803,7 +803,7 @@ form.ak-form .journal-party-balance .jpb-amount {
     direction: ltr;
     unicode-bidi: isolate;
     color: var(--chk-title);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
@@ -814,7 +814,7 @@ form.ak-form .journal-party-balance .jpb-label {
     border-radius: 4px;
     background: var(--chk-surface);
     color: var(--chk-text-secondary);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.5;
     white-space: nowrap;
 }
@@ -863,7 +863,7 @@ form.ak-form [data-sarraf-summary] .ak-field > .text-muted {
 
 form.ak-form [data-sarraf-summary] .ak-field > .ak-num {
     color: var(--chk-title);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -907,7 +907,7 @@ form.ak-form .ak-form-live-summary {
     border-radius: var(--chk-radius-control);
     background: var(--chk-surface-soft);
     color: var(--chk-text);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.85;
 }
 
@@ -958,7 +958,7 @@ form.ak-form .ak-footer-actions .ak-save {
     color: var(--ptg-field-bg);
     box-shadow: none;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     text-decoration: none;
 }
@@ -980,7 +980,7 @@ form.ak-form .ak-footer-actions .ak-cancel {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 400;
     text-decoration: none;
 }
@@ -1111,7 +1111,7 @@ form.ak-form .ak-table .ak-entity-input {
     gap: 6px;
     min-height: 24px;
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 15px;
     white-space: nowrap;
 }
 

@@ -18,8 +18,8 @@
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     font-family: "IRANSans", "Vazirmatn", Tahoma, Arial, sans-serif;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 16px;
+    line-height: 23px;
     background: var(--ptg-bg);
     color: var(--ptg-text);
 }
@@ -90,9 +90,9 @@ body.boltz-shell.app-shell-authenticated .boltz-topbar {
 
 body.boltz-shell.app-shell-authenticated .boltz-topbar.is-scrolled,
 body.boltz-shell.app-shell-authenticated .boltz-topbar.is-stuck {
-    background: rgba(252, 252, 252, 0.92) !important;
-    border-bottom: 1px solid var(--divider) !important;
-    box-shadow: none !important;
+    background: rgba(252, 252, 252, 0.92);
+    border-bottom: 1px solid var(--divider);
+    box-shadow: none;
 }
 
 /* ============================================================= *
@@ -160,7 +160,7 @@ body.boltz-shell.app-shell-authenticated .summary-tile {
 }
 
 body.boltz-shell.app-shell-authenticated .summary-tile-label {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 300;
     color: var(--ptg-muted);
 }
@@ -255,7 +255,7 @@ body.ptg-modal-document :is(.form-control, .form-select) {
     border: 1px solid var(--ptg-input-border);
     border-radius: var(--ptg-radius-input);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     padding: 10px 12px;
     box-shadow: none;
     transition: border-color var(--ptg-motion-fast) ease-out, box-shadow var(--ptg-motion-fast) ease-out;
@@ -287,8 +287,8 @@ body.ptg-modal-document :is(.form-control, .form-select).input-validation-error 
 
 body.boltz-shell.app-shell-authenticated :is(.form-label),
 body.ptg-modal-document :is(.form-label) {
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 16px;
+    line-height: 23px;
     font-weight: 500;
     color: var(--ptg-text);
     margin-bottom: 4px;
@@ -379,7 +379,7 @@ body.ptg-modal-document .dropdown-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--ptg-text);
     border-radius: 0;
 }
@@ -393,7 +393,7 @@ body.ptg-modal-document .dropdown-item:is(:hover, :focus, .active) {
 body.boltz-shell.app-shell-authenticated .tooltip .tooltip-inner {
     padding: 4px 8px;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 16px;
     background: var(--background-paper);
     color: var(--ptg-text);
     border: 1px solid var(--divider);
@@ -447,7 +447,7 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
     background: transparent;
     border: 0;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* ============================================================= *
@@ -519,7 +519,7 @@ body.ptg-modal-document table thead tr {
     color: var(--ptg-text);
     background: var(--ptg-surface-tint);
     border: 0;
-    font-size: 14px;
+    font-size: 16px;
     white-space: nowrap;
 }
 html[dir="rtl"] .ak-chip:first-child { border-radius: 0 6px 6px 0; }
@@ -541,7 +541,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     background: transparent;
     border: 0;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 400;
     line-height: 1;
     text-align: center;
@@ -566,7 +566,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     background: transparent;
     border: 0;
     outline: 0;
-    font-size: 14px;
+    font-size: 16px;
 }
 .ak-filter-input::placeholder { color: var(--ptg-muted); opacity: 1; }
 
@@ -583,7 +583,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     /* گردی کنترل‌های سیستم ۶px است (--ak-control-radius). */
     border-radius: var(--ak-control-radius);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 .ak-filter-enter:hover:not(:disabled) { background: var(--ptg-surface-tint); }
@@ -603,7 +603,7 @@ html[dir="rtl"] .ak-chip:last-child { border-radius: 6px 0 0 6px; }
     border: 0;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 84px; }
@@ -642,7 +642,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     cursor: pointer;
     text-align: start;
     white-space: nowrap;
-    font-size: 14px;
+    font-size: 16px;
 }
 .ak-filter-popover .ak-option:hover,
 .ak-filter-popover .ak-option.is-highlighted { background: var(--ptg-surface-tint); }
@@ -661,7 +661,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
 .ak-filter-popover .ak-option-meta {
     margin-inline-start: auto;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 .ak-pop-head {
     display: flex;
@@ -669,7 +669,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     gap: 6px;
     padding: 4px 8px 8px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 .ak-pop-back {
@@ -683,7 +683,7 @@ html[dir="rtl"] .ak-filter-clear { inset-inline-end: auto; inset-inline-start: 8
     border: 0;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
@@ -699,7 +699,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
     flex-direction: column;
     gap: 4px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 .ak-date-panel input[type="date"] {
     height: 34px;
@@ -741,7 +741,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
     border: 1px solid var(--divider);
     border-radius: 6px;
     outline: 0;
-    font-size: 14px;
+    font-size: 16px;
 }
 .ak-text-panel .ak-text-input:focus { border-color: var(--primary-main); }
 .ak-text-apply {
@@ -787,7 +787,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
     border: 1px solid var(--divider);
     border-radius: 6px;
     outline: 0;
-    font-size: 14px;
+    font-size: 16px;
 }
 .ak-multi-search .ak-text-input:focus { border-color: var(--primary-main); }
 .ak-multi-foot {
@@ -818,7 +818,7 @@ html[dir="rtl"] .ak-pop-back { transform: scaleX(-1); }
     border: 1px solid var(--divider);
     border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
 }
 .ak-multi-clear:hover { color: var(--ptg-text); background: var(--ptg-surface-tint); }
 

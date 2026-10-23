@@ -124,12 +124,12 @@
 }
 
 .ak-stat-card__value--dense {
-    font-size: clamp(12px, 1.05vw, 15.5px);
+    font-size: clamp(14px, 1.05vw, 17.5px);
     letter-spacing: -0.04em;
 }
 
 .ak-stat-card__value--ultra {
-    font-size: clamp(9.5px, 0.85vw, 12.5px);
+    font-size: clamp(11.5px, 0.85vw, 14.5px);
     letter-spacing: -0.045em;
 }
 
@@ -143,7 +143,7 @@
     flex: 0 1 auto;
     min-height: 0;
     overflow: hidden;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
     line-height: 1.2;
     color: var(--ak-stat-unit);
@@ -161,7 +161,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: clamp(9px, 0.72vw, 10.5px);
+    font-size: clamp(11px, 0.72vw, 12.5px);
     font-weight: 600;
     line-height: 1;
     direction: ltr;            /* "↑ +8.4%" reads left-to-right */
@@ -283,13 +283,13 @@ body.boltz-shell.app-shell-authenticated .ak-stat-card--danger .ak-stat-card__va
 
     /* کف اندازه‌ها خوانا بماند: زیر ۱۱px عنوان و زیر ۱۰px واحد/روند روی
        نمایشگر کوچک عملاً ناخوانا می‌شد (اندازه‌گیری: ۸.۵px تا ۹.۵px). */
-    .ak-stat-card__title { font-size: clamp(11px, 1.05vw, 12px); }
+    .ak-stat-card__title { font-size: clamp(13px, 1.05vw, 14px); }
     .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
     .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
-    .ak-stat-card__value--dense { font-size: clamp(11px, 1.25vw, 14px); }
-    .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 11px); }
+    .ak-stat-card__value--dense { font-size: clamp(13px, 1.25vw, 16px); }
+    .ak-stat-card__value--ultra { font-size: clamp(13px, 1vw, 13px); }
     .ak-stat-card__unit,
-    .ak-stat-card__trend { font-size: clamp(10px, 0.92vw, 10.5px); }
+    .ak-stat-card__trend { font-size: clamp(12px, 0.92vw, 12.5px); }
     .ak-stat-card__trend { gap: 4px; }
     .ak-stat-card__trend-arrow { width: 13px; height: 13px; padding: 2px; }
 }

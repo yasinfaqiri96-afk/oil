@@ -72,7 +72,7 @@
 .ak-detail-page .ak-info-label {
     margin: 0;
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
 }
@@ -85,7 +85,7 @@
     min-width: 0;
     margin: 0;
     color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.6;
     overflow-wrap: anywhere;
@@ -107,7 +107,7 @@
 
 .ak-detail-page .ak-info-unit {
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -160,7 +160,7 @@
     gap: 12px;
     padding: 12px var(--ak-detail-card-padding);
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.6;
     cursor: pointer;
@@ -198,7 +198,7 @@
     padding: 1px 8px;
     border-radius: var(--ptg-radius-badge);
     background: var(--ak-detail-soft, var(--ptg-surface-soft));
-    font-size: 12px;
+    font-size: 14px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -215,7 +215,7 @@
     margin: 0;
     padding: 10px 0;
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.7;
 }
 
@@ -413,12 +413,12 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     border-inline-start: 3px solid var(--ptg-warning);
     background: var(--ak-detail-soft, var(--ptg-surface-soft));
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .ak-operations-detail .ak-operations-tab-fact strong {
     color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 14px;
+    font-size: 16px;
     font-variant-numeric: tabular-nums;
 }
 
@@ -553,7 +553,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .transport-chain-quantity small,
 .transport-chain-parent {
     color: var(--ptg-text-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .transport-chain-quantity {
@@ -626,7 +626,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-identity-copy .ak-detail-subtitle {
     margin: 0;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .ak-linear-detail .ak-detail-identity-copy .ak-detail-title {
@@ -692,12 +692,12 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 .ak-linear-detail .ak-detail-vehicle strong {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
 }
 
 .ak-linear-detail .ak-detail-vehicle span {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* Metric count drives the column count, so 2 or 3 KPIs fill the strip evenly
@@ -769,7 +769,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin-block-end: 3px;
     min-width: 0;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -829,7 +829,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-metric dd span {
     flex: 0 0 auto;
     color: var(--ptg-muted);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -844,7 +844,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     /* Same type steps the shared card takes here, so a narrow card shortens the
        figure instead of dropping half of it behind an ellipsis. */
     .ak-linear-detail .ak-detail-metric dt {
-        font-size: clamp(9.5px, 1.05vw, 12px);
+        font-size: clamp(11.5px, 1.05vw, 14px);
     }
 
     .ak-linear-detail .ak-detail-metric dd {
@@ -852,7 +852,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     }
 
     .ak-linear-detail .ak-detail-metric dd span {
-        font-size: clamp(8.5px, 0.92vw, 10.5px);
+        font-size: clamp(10.5px, 0.92vw, 12.5px);
     }
 }
 
@@ -881,12 +881,12 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 /* Facts read as a dense reference block under the cards, not as tall rows. */
 .ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-label {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.4;
 }
 
 .ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.45;
 }
 
@@ -911,7 +911,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin: 0;
     padding: 6px 4px 8px;
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -955,13 +955,13 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-activity-label strong,
 .ak-linear-detail .ak-detail-activity-value {
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ak-linear-detail .ak-detail-activity-value small,
 .ak-linear-detail .ak-detail-activity-status {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* Unit never touches the figure. */
@@ -996,7 +996,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin-inline-start: auto;
     border-radius: 50%;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     text-decoration: none;
 }
 
@@ -1134,7 +1134,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 22px;
     padding-block: 0;
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 /* Related records are chips, not a run-on sentence of links: each one is a
@@ -1154,7 +1154,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     border-radius: 8px;
     background: var(--background-paper);
     color: var(--ptg-text);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     text-decoration: none;
 }
@@ -1182,14 +1182,14 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail :is(.ak-detail-activity, .ak-detail-history, .ak-detail-related) > h2 {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
 }
 
 .ak-linear-detail .ak-detail-zone-note {
     margin: 3px 0 10px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.6;
 }
@@ -1212,7 +1212,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding-block: 5px;
     border-block-start: 1px solid var(--ak-linear-border);
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ak-linear-detail .ak-detail-history-item:first-child {
@@ -1223,7 +1223,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     flex: 0 0 auto;
     min-inline-size: 88px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
 }
 
 /* The title does not stretch: date, title and figure stay adjacent instead of
@@ -1258,7 +1258,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     gap: 6px;
     cursor: pointer;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     list-style: none;
 }
@@ -1437,15 +1437,15 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 650;
     line-height: 1.35;
 }
 
 .ak-operations-clean-page > .ak-detail-header .ak-detail-status {
     padding: 3px 8px;
-    font-size: 11px;
-    line-height: 15px;
+    font-size: 13px;
+    line-height: 18px;
 }
 
 .ak-operations-clean-page > .ak-detail-header .ak-detail-actions {
@@ -1457,7 +1457,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     min-height: 36px;
     padding: 6px 12px;
     border-radius: var(--ptg-radius-md);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 /* Loading keeps secondary actions in one clearly visible blue overflow menu. */
@@ -1477,12 +1477,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ak-operations-clean-page .ak-stat-card__title {
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
 .ak-operations-clean-page .ak-stat-card__value {
-    font-size: 22px;
+    font-size: 23px;
     font-weight: 700;
     line-height: 1.25;
 }
@@ -1511,7 +1511,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ak-operations-clean-page .ak-summary-card .ak-info-label {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     letter-spacing: .01em;
 }
@@ -1519,7 +1519,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value {
     justify-content: flex-end;
     text-align: end;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -1533,7 +1533,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value:is(.is-info, .is-success, .is-warning, .is-danger) {
     padding: 2px 9px;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.7;
 }
 
@@ -1590,7 +1590,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-detail .ak-detail-overview-content > .ak-info-grid .ak-info-label {
     flex: 0 1 auto;
     min-width: 0;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.6;
     overflow-wrap: anywhere;
 }
@@ -1604,7 +1604,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin-inline-start: auto;
     justify-content: flex-end;
     text-align: end;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.6;
 }
 
@@ -1807,20 +1807,20 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-strip-cell dt {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 
 .ptg-record-detail .ptg-td-strip-cell dd {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     line-height: 1.4;
 }
 
 .ptg-record-detail .ptg-td-strip-cell dd.is-code {
-    font-size: 16px;
+    font-size: 18px;
     letter-spacing: .2px;
 }
 
@@ -1838,10 +1838,10 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     min-block-size: 36px;
 }
 
-/* --- two equal cards per row on desktop, one column under 992px --- */
+/* --- cards auto-fit to available width; one column under 992px --- */
 .ptg-record-detail .ptg-td-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
     gap: 16px;
 }
 
@@ -1861,13 +1861,13 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     gap: 8px;
     margin: 0 0 6px;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
 }
 
 .ptg-record-detail .ptg-td-card-head i {
     color: var(--ptg-primary);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
 }
 
@@ -1901,12 +1901,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-card-visual figcaption strong {
     color: var(--ptg-text);
-    font-size: 15px;
+    font-size: 17px;
 }
 
 .ptg-record-detail .ptg-td-card-visual figcaption span {
     color: var(--ptg-muted);
-    font-size: 13px;
+    font-size: 15px;
 }
 
 /* --- label / value rows, divider between rows only --- */
@@ -1930,7 +1930,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-row dt {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
 }
 
@@ -1938,7 +1938,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin: 0;
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     text-align: start;
 }
@@ -1967,12 +1967,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-route-node span {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ptg-record-detail .ptg-td-route-node strong {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
 }
 
@@ -2023,7 +2023,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     border-radius: 50%;
     background: var(--background-neutral);
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -2036,7 +2036,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-step-label {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     text-align: center;
 }
@@ -2073,24 +2073,24 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-meta-cell i {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ptg-record-detail .ptg-td-meta-cell span {
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ptg-record-detail .ptg-td-meta-cell strong {
     color: var(--ptg-text);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
 }
 
 .ptg-record-detail .ptg-td-route-text {
     margin: 12px 0 0;
     color: var(--ptg-muted);
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.7;
 }
 
@@ -2179,7 +2179,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-flow-label {
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.45;
 }
@@ -2187,7 +2187,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-flow-node dd {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.35;
 }
@@ -2215,7 +2215,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-flow-node dd small {
     margin-inline-start: 3px;
     color: var(--ptg-muted);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
 }
 
@@ -2251,7 +2251,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-strip-cell dd small {
     margin-inline-start: 3px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
 }
 
@@ -2280,7 +2280,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     gap: 8px;
     padding-block: 14px;
     color: var(--ptg-primary);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
     list-style: none;
@@ -2291,7 +2291,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ptg-record-detail .ptg-td-more > summary i {
-    font-size: 14px;
+    font-size: 16px;
     transition: transform 190ms ease-out;
 }
 
@@ -2336,14 +2336,14 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ptg-record-detail .ptg-td-journey-head > h2 {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
 }
 
 .ptg-record-detail .ptg-td-journey-head > p {
     margin: 4px 0 0;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -2498,7 +2498,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin: 0;
     padding-block-end: 12px;
     border-block-end: 1px solid var(--ptg-td-border);
-    font-size: 15px;
+    font-size: 17px;
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-card-head i {
@@ -2509,7 +2509,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     block-size: 28px;
     border-radius: 8px;
     background: var(--ptg-primary-soft);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 /* --- fact board: label over value, two tiles per line, no row dividers --- */
@@ -2536,12 +2536,12 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row dt {
-    font-size: 12.5px;
+    font-size: 14.5px;
     line-height: 1.5;
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-row dd {
-    font-size: 15px;
+    font-size: 17px;
     line-height: 1.5;
     overflow-wrap: anywhere;
 }
@@ -2565,11 +2565,11 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route-node span {
-    font-size: 12.5px;
+    font-size: 14.5px;
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route-node strong {
-    font-size: 15px;
+    font-size: 17px;
 }
 
 .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-route + .ptg-td-rows {
@@ -2611,11 +2611,11 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     }
 
     .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-label {
-        font-size: 13px;
+        font-size: 15px;
     }
 
     .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-node dd {
-        font-size: 18px;
+        font-size: 20px;
     }
 }
 

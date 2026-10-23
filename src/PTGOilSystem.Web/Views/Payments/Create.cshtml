@@ -11,7 +11,6 @@
     int? formRouteId = isEdit ? Model.Id : null;
     ViewData["Title"] = isEdit ? "ویرایش دریافت / پرداخت" : "ثبت دریافت / پرداخت";
     ViewData["HideSectionTabs"] = true;
-    ViewData["MashalLegacyReceipt"] = Model.SalesTransactionId.HasValue;
     var currencies = ViewBag.Currencies as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
     var cashAccounts = (ViewBag.CashAccountCatalog as IEnumerable<dynamic>)?.ToList() ?? new List<dynamic>();
     var contractCatalog = (ViewBag.ContractCatalog as IEnumerable<PaymentContractLookupItemViewModel>)?.ToList() ?? new List<PaymentContractLookupItemViewModel>();

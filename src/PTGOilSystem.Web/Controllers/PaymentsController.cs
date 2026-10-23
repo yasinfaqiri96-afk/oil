@@ -22,6 +22,7 @@ using PTGOilSystem.Web.Services.Exceptions;
 using PTGOilSystem.Web.Services.Exports;
 using PTGOilSystem.Web.Services.Ledger;
 using PTGOilSystem.Web.Services.PartyStatements;
+using PTGOilSystem.Web.Services.Notifications;
 using ServiceProviderEntity = PTGOilSystem.Web.Models.Entities.ServiceProvider;
 using PTGOilSystem.Web.Services.Time;
 
@@ -42,6 +43,7 @@ public class PaymentsController : Controller
     private readonly IFormTokenGuard _formTokens;
     // PTG-P1-03 — تنها مسیرِ ساختنِ سطر دفتر کل.
     private readonly ILedgerPostingService _ledger;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
     // PTG-P1-04 — قاعدهٔ «هر مصرف دقیقاً یک هویت تسویه دارد». بی‌حالت است.
     private readonly Services.Expenses.IExpenseSettlementValidator _settlementValidator
         = new Services.Expenses.ExpenseSettlementValidator();
@@ -79,7 +81,8 @@ public class PaymentsController : Controller
         IPartyStatementReadService? partyStatements = null,
         IPaymentCorrectionService? paymentCorrection = null,
         IAfghanistanBusinessClock? businessClock = null,
-        ILedgerPostingService? ledgerPosting = null)
+        ILedgerPostingService? ledgerPosting = null,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -100,6 +103,7 @@ public class PaymentsController : Controller
         _expenseAccounting = expenseAccounting;
         _partyStatements = partyStatements ?? PartyStatementReadService.CreateDefault(db);
         _ledger = ledgerPosting ?? new LedgerPostingService(db);
+        _whatsAppReceipts = whatsAppReceipts;
     }
 
     public PaymentsController(
@@ -325,6 +329,13 @@ public class PaymentsController : Controller
                 DriverName = p.Driver != null ? p.Driver.FullName : null,
                 p.EmployeeId,
                 EmployeeName = p.Employee != null ? p.Employee.FullName : null,
+                CounterpartyPhone = p.Customer != null ? p.Customer.Phone
+                    : p.Supplier != null ? p.Supplier.Phone
+                    : p.ServiceProvider != null ? p.ServiceProvider.Phone
+                    : p.Sarraf != null ? p.Sarraf.PhoneNumber
+                    : p.Driver != null ? p.Driver.Phone
+                    : p.Employee != null ? p.Employee.Phone
+                    : p.PaidByPartner != null ? p.PaidByPartner.Phone : null,
                 p.ContractId,
                 ContractName = p.Contract != null ? p.Contract.ContractName : null,
                 ContractNumber = p.Contract != null ? p.Contract.ContractNumber : null,
@@ -473,6 +484,7 @@ public class PaymentsController : Controller
             DriverName = payment.DriverName,
             EmployeeId = payment.EmployeeId,
             EmployeeName = payment.EmployeeName,
+            CounterpartyPhone = payment.CounterpartyPhone,
             ContractId = payment.ContractId,
             ContractNumber = ContractUiText.FormatDisplayLabel(payment.ContractName, payment.ContractNumber),
             ShipmentId = payment.ShipmentId,
@@ -870,6 +882,20 @@ public class PaymentsController : Controller
             {
                 await transaction.CommitAsync();
             }
+
+            // پیام‌رسان هرگز داخل تراکنش مالی اجرا نمی‌شود؛ خطای آن نباید ثبت مالی را برگرداند.
+            if (_whatsAppReceipts is not null)
+            {
+                try
+                {
+                    await _whatsAppReceipts.QueuePaymentReceiptAsync(payment, CancellationToken.None);
+                }
+                catch (Exception notificationError)
+                {
+                    _logger.LogWarning(notificationError, "Payment {PaymentId} saved but WhatsApp queueing failed.", payment.Id);
+                }
+            }
+
         }
         catch (DbUpdateException dup) when (_formTokens.IsDuplicate(dup))
         {

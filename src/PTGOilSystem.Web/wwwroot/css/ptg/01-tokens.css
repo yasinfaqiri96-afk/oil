@@ -118,34 +118,34 @@
     --ptg-motion-fast: 140ms;
 
     /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
-    --font-page-title: 24px;    --line-page-title: 1.5; --weight-page-title: 500;
-    --font-section-title: 16px; --line-section-title: 1.5; --weight-section-title: 600;
-    --font-card-title: 15px;    --line-card-title: 1.5; --weight-card-title: 600;
-    --font-body: 14px;          --line-body: 1.6; --weight-body: 400;
+    --font-page-title: 25px;    --line-page-title: 1.5; --weight-page-title: 500;
+    --font-section-title: 18px; --line-section-title: 1.5; --weight-section-title: 600;
+    --font-card-title: 17px;    --line-card-title: 1.5; --weight-card-title: 600;
+    --font-body: 16px;          --line-body: 1.6; --weight-body: 400;
     /* لیبل فرم: چرتکه 14px/20px با وزن عادی — لیبل بولد ریز صفحه را شلوغ نشان می‌دهد. */
-    --font-label: 14px;         --line-label: 1.43; --weight-label: 400;
+    --font-label: 16px;         --line-label: 1.43; --weight-label: 400;
     /* هدر جدول: چرتکه 14px/700 با رنگ کم‌کنتراست تا داده جلوتر بنشیند. */
-    --font-table-head: 14px;    --line-table-head: 1.5; --weight-table-head: 700;
-    --font-table-cell: 14px;    --line-table-cell: 1.5; --weight-table-cell: 400;
+    --font-table-head: 16px;    --line-table-head: 1.5; --weight-table-head: 700;
+    --font-table-cell: 16px;    --line-table-cell: 1.5; --weight-table-cell: 400;
     /* چرتکه مقیاس تایپ را عمداً کم‌تنوع نگه می‌دارد: 24 / 16 / 14 (+11 ریزنوشته).
        اعداد هم‌اندازه متن بدنه‌اند و خوانایی از tabular-nums می‌آید، نه از ریز کردن. */
-    --font-number: 14px;        --line-number: 1.5; --weight-number: 500;
-    --font-kpi: 24px;           --line-kpi: 1.25; --weight-kpi: 600;
-    --font-caption: 12px;       --line-caption: 1.5; --weight-caption: 500;
-    --font-button: 14px;        --line-button: 1.43; --weight-button: 500;
-    --font-status: 12px;        --line-status: 1; --weight-status: 600;
+    --font-number: 16px;        --line-number: 1.5; --weight-number: 500;
+    --font-kpi: 25px;           --line-kpi: 1.25; --weight-kpi: 600;
+    --font-caption: 14px;       --line-caption: 1.5; --weight-caption: 500;
+    --font-button: 16px;        --line-button: 1.43; --weight-button: 500;
+    --font-status: 14px;        --line-status: 1; --weight-status: 600;
 
     /* Legacy aliases remain stable while resolving to the shared scale. */
     --font-h1: var(--font-page-title); --lh-h1: 33px; --fw-h1: var(--weight-page-title);
-    --font-h2: 18px; --lh-h2: 26px; --fw-h2: 600;
-    --font-h3: 16px; --lh-h3: 24px; --fw-h3: 600;
+    --font-h2: 20px; --lh-h2: 26px; --fw-h2: 600;
+    --font-h3: 18px; --lh-h3: 27px; --fw-h3: 600;
     --font-h4: var(--font-card-title); --lh-h4: 25px; --fw-h4: var(--weight-card-title);
-    --font-h5: 15px; --lh-h5: 22px; --fw-h5: 600;
-    --font-h6: var(--font-label); --lh-h6: 21px; --fw-h6: var(--weight-label);
+    --font-h5: 17px; --lh-h5: 25px; --fw-h5: 600;
+    --font-h6: var(--font-label); --lh-h6: 24px; --fw-h6: var(--weight-label);
     --font-body1: var(--font-body); --lh-body1: 25px;
-    --font-body2: var(--font-label); --lh-body2: 21px;
-    --lh-caption: 20px;
-    --lh-button: 20px; --fw-button: var(--weight-button);
+    --font-body2: var(--font-label); --lh-body2: 24px;
+    --lh-caption: 23px;
+    --lh-button: 23px; --fw-button: var(--weight-button);
 
     /* ---- Legacy app-* aliases (retargeted to Akaunting) ---- */
     --app-bg: var(--background-default);
@@ -307,9 +307,9 @@
     --chk-danger: #CB0B0B;
     --chk-danger-light: #FFEAF0;
 
-    --chk-control-h: 40px;
-    --chk-compact-h: 34px;
-    --chk-button-h: 46px;
+    --chk-control-h: 44px;
+    --chk-compact-h: 38px;
+    --chk-button-h: 48px;
     --chk-radius-control: 6px;
     --chk-radius-surface: 8px;
 
@@ -347,7 +347,7 @@
     --ak-date-motion-duration: 140ms;
 
     /* Segmented boolean */
-    --ak-segment-height: 32px;
+    --ak-segment-height: 36px;
     --ak-segment-radius: 6px;
     --ak-segment-padding-inline: 11px;
     --ak-segment-off-bg: #F7F7F7;
@@ -361,7 +361,7 @@
     --ak-selection-chip-bg: var(--primary-main);
     --ak-selection-chip-text: #FFFFFF;
     --ak-selection-chip-remove: rgba(255, 255, 255, 0.74);
-    --ak-selection-chip-height: 27px;
+    --ak-selection-chip-height: 30px;
     --ak-selection-chip-radius: 4px;
     --ak-selection-chip-padding-inline: 10px;
     --ak-selection-chip-muted-bg: #F2F5FC;

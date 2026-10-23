@@ -86,14 +86,14 @@
 }
 
 .ptg-toast__title {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     line-height: 1.3;
     color: var(--ptg-field-bg);
 }
 
 .ptg-toast__message {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.5;
     color: rgba(255, 255, 255, .92);
     word-break: break-word;
@@ -106,7 +106,7 @@
     color: rgba(255, 255, 255, .8);
     cursor: pointer;
     padding: .2rem;
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1;
     border-radius: 8px;
     transition-property: color, background;
@@ -216,14 +216,14 @@
 }
 
 .ptg-confirm__title {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     margin: 0 0 .35rem;
     color: var(--ptg-text);
 }
 
 .ptg-confirm__message {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.6;
     color: var(--ptg-muted);
     margin: 0 0 1.1rem;
@@ -240,7 +240,7 @@
     border: 0;
     border-radius: var(--ptg-radius-button);
     padding: .55rem .9rem;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
     transition-property: filter, background;

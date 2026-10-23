@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services.Time;
 
@@ -463,6 +463,7 @@ public sealed class PaymentDetailsViewModel
     public string? DriverName { get; init; }
     public int? EmployeeId { get; init; }
     public string? EmployeeName { get; init; }
+    public string? CounterpartyPhone { get; init; }
     public int? ContractId { get; init; }
     public string? ContractNumber { get; init; }
     public int? ShipmentId { get; init; }

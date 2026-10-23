@@ -243,38 +243,38 @@
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__title {
-        font-size: clamp(10.5px, 0.85vw, 12.5px);
+        font-size: clamp(12.5px, 0.85vw, 14.5px);
         font-weight: 600;
         line-height: 1.2;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
     body.boltz-shell.app-shell-authenticated .ak-stat-card__trend {
-        font-size: clamp(9px, 0.72vw, 10.5px);
+        font-size: clamp(11px, 0.72vw, 12.5px);
         font-weight: 500;
         line-height: 1.2;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(14px, 1.25vw, 19px); letter-spacing: -0.035em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(12px, 1.05vw, 15.5px); letter-spacing: -0.04em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 0.85vw, 12.5px); letter-spacing: -0.045em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(14px, 1.05vw, 17.5px); letter-spacing: -0.04em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(13px, 0.85vw, 14.5px); letter-spacing: -0.045em; }
 
     /* Tablets keep four cards on one row and phones show two, so the card box is
        a fraction of a narrow page. The type steps down with it — mirrors the
        compact tier in 52-stat-card.css, restated here for the load-order reason
        above. */
     @media (max-width: 1399.98px) {
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__title { font-size: clamp(11px, 1.05vw, 12px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__title { font-size: clamp(13px, 1.05vw, 14px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(11px, 1.25vw, 14px); }
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 11px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(13px, 1.25vw, 16px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(13px, 1vw, 13px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__trend { font-size: clamp(10px, 0.92vw, 10.5px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__trend { font-size: clamp(12px, 0.92vw, 12.5px); }
     }
 
     body.boltz-shell.app-shell-authenticated :where(.summary-tile-value, .finance-status-strip dd) {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: var(--weight-number);
         font-variant-numeric: tabular-nums lining-nums;
     }

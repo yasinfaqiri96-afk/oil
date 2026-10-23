@@ -29,7 +29,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.serv
     border-bottom: 1px solid var(--party-panel-line);
     background: var(--ptg-surface-tint);
     color: var(--ptg-text-muted);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 780;
     white-space: nowrap;
 }
@@ -38,7 +38,7 @@ body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.serv
     padding: .78rem .75rem;
     border-top: 1px solid var(--party-panel-line);
     vertical-align: middle;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 

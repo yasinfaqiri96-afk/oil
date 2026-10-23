@@ -662,6 +662,15 @@
         insertPagerAfterTable(table, pager);
         table.dataset.clientPagerReady = "true";
 
+        // list-grid.js filters/sorts rows in place; page again over what remains.
+        table.ptgClientPagerRefresh = function () {
+            rows = getPageableRows(table).filter(function (row) {
+                return row.dataset.listGridHidden !== "true" && !row.classList.contains("ak-filter-empty");
+            });
+            currentPage = 1;
+            renderClientPager();
+        };
+
         function renderClientPager() {
             var pageCount = Math.ceil(rows.length / pageSize);
             var start = (currentPage - 1) * pageSize;

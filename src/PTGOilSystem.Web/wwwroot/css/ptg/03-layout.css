@@ -256,7 +256,7 @@ body.ptg-account-open .ptg-account-drawer {
     border-radius: 8px;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: 18px;
     cursor: pointer;
     z-index: 2;
     transition: background-color var(--layout-transition), color var(--layout-transition);
@@ -312,7 +312,7 @@ body.ptg-account-open .ptg-account-drawer {
     width: 100%;
     margin-top: .85rem;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.3;
 }
@@ -322,7 +322,7 @@ body.ptg-account-open .ptg-account-drawer {
 .ptg-account-email {
     margin-top: .25rem;
     color: var(--text-secondary);
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .ptg-account-links {
@@ -339,7 +339,7 @@ body.ptg-account-open .ptg-account-drawer {
     padding: .65rem .75rem;
     border-radius: 8px;
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     text-decoration: none;
     transition: background-color var(--layout-transition), color var(--layout-transition);
@@ -388,7 +388,7 @@ body.ptg-account-open .ptg-account-drawer {
     border-radius: 8px;
     background: rgba(var(--error-rgb), .08);
     color: var(--ptg-danger);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     cursor: pointer;
     transition: background-color var(--layout-transition);

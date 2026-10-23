@@ -198,6 +198,7 @@
       <PtgCoreJs Include="wwwroot/js/header-ui.js" />
       <PtgCoreJs Include="wwwroot/js/mashal-reference.js" />
       <PtgCoreJs Include="wwwroot/js/tables.js" />
+      <PtgCoreJs Include="wwwroot/js/list-grid.js" />
       <PtgCoreJs Include="wwwroot/js/ak-search-filter.js" />
       <PtgCoreJs Include="wwwroot/js/list-toolbar-row.js" />
       <PtgCoreJs Include="wwwroot/js/tabular-export.js" />
