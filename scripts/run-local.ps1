@@ -266,6 +266,15 @@ Write-Host "Project: $projectPath"
 Push-Location $repoRoot
 try {
     # restore فقط وقتی lock موجود نیست؛ بعد از آن --no-restore راه‌اندازی را سریع می‌کند
+    # بعضی نشست‌های محلی Manus متغیرهای استاندارد Windows را ندارند و NuGet
+    # در آن حالت هنگام ساخت ConfigurationDefaults با path1 خالی متوقف می‌شود.
+    if ([string]::IsNullOrWhiteSpace($env:ProgramData)) { $env:ProgramData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData) }
+    if ([string]::IsNullOrWhiteSpace($env:ProgramFiles)) { $env:ProgramFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles) }
+    if ([string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) { ${env:ProgramFiles(x86)} = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86) }
+    if ([string]::IsNullOrWhiteSpace($env:CommonProgramFiles)) { $env:CommonProgramFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonProgramFiles) }
+    if ([string]::IsNullOrWhiteSpace(${env:CommonProgramFiles(x86)})) { ${env:CommonProgramFiles(x86)} = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonProgramFilesX86) }
+    $nugetPackagesPath = Join-Path $repoRoot '.work\nuget-packages'
+    New-Item -ItemType Directory -Force -Path $nugetPackagesPath | Out-Null
     $projectDirectories = @($projectDirectory,
         (Join-Path (Split-Path $projectDirectory -Parent) 'PTGOilSystem.Persistence'),
         (Join-Path (Split-Path $projectDirectory -Parent) 'PTGOilSystem.Migrations'))
@@ -274,7 +283,15 @@ try {
     })
     if ($missingAssets.Count -gt 0) {
         Write-Host "First run: restoring NuGet packages once..."
-        & dotnet restore $projectPath
+        $nugetConfigDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData)
+        $nugetConfigPath = Join-Path $nugetConfigDirectory 'NuGet\NuGet.Config'
+        $restoreArguments = @()
+        if (Test-Path -LiteralPath $nugetConfigPath) {
+            $restoreArguments += @('--configfile', $nugetConfigPath)
+            $restoreArguments += "-p:RestoreRootConfigDirectory=$([System.IO.Path]::GetDirectoryName($nugetConfigPath))"
+        }
+        $restoreArguments += "-p:RestorePackagesPath=$nugetPackagesPath"
+        & dotnet restore $projectPath @restoreArguments
     }
 
     if ($ApplyMigrations) {
