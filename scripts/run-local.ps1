@@ -327,7 +327,7 @@ try {
     else {
         if (Test-LocalBuildRequired -ProjectDirectory $projectDirectory -OutputDllPath $outputDllPath) {
             Write-Host "Application sources changed; running one safe incremental build..."
-            & dotnet build $projectPath --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false -p:DebugType=none -p:DebugSymbols=false -m:1
+            & dotnet build $projectPath --no-restore -p:UseAppHost=false -p:UseSharedCompilation=false -p:DebugType=none -p:DebugSymbols=false -p:PtgBuildBundles=true -m:1
             if ($LASTEXITCODE -ne 0) {
                 throw "Web project build failed with exit code $LASTEXITCODE."
             }
