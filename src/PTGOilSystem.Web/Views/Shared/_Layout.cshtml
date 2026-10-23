@@ -491,6 +491,12 @@
             @* همان فهرست بالا، با همان ترتیب، در یک باندل. *@
             <link rel="stylesheet" href="~/css/ptg-app.bundle.css" asp-append-version="true" />
         }
+        @if (renderShellChrome)
+        {
+            <link rel="stylesheet" href="~/mashal-kit/tokens.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/mashal-kit/components.css" asp-append-version="true" />
+            <link rel="stylesheet" href="~/mashal-kit/adapter.css" asp-append-version="true" />
+        }
         @if (onboardingEnabled)
         {
             @* خارج از باندل تا نصب‌هایی که راهنما را خاموش دارند هیچ بایتی از آن نگیرند. *@
@@ -702,7 +708,7 @@
                 </header>
                 }
 
-                <main class="boltz-content ptg-page" id="ptg-main-content" tabindex="-1">
+                <main class="boltz-content ptg-page" id="ptg-main-content" tabindex="-1" data-mr-theme="@(mashalLegacy ? "blue" : "light")" data-mr-adapt="true">
                     @* زمان سرورِ همین صفحه: نسخهٔ پایهٔ ویرایش/لغوِ آفلاین (همراه محتوای main در ناوبری SPA و نسخهٔ ذخیره). *@
                     <span hidden data-ptg-rendered="@DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture)"></span>
                     @await Html.PartialAsync("_ToastNotifications")

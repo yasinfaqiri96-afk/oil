@@ -8,6 +8,7 @@
 - R05 و R06: پوستهٔ آبی داشبورد و modal انتخاب ابزار.
 - R07: پوستهٔ آبی برای دریافت مرتبط با فاکتور و کارت شخص/بانک همان جریان.
 - فایل‌های مرجع در `.work/design-reference/pack/Mashal-UI-Reference-Pack/ui-references/` نگهداری شده‌اند و asset تولیدی نیستند.
+- منبع component kit، شاخهٔ `design/mashal-reference-components` در مخزن مرجع است؛ فایل‌های runtime انتخاب‌شده در `src/PTGOilSystem.Web/wwwroot/mashal-kit/` قرار دارند و روی `#ptg-main-content` با `data-mr-theme` و `data-mr-adapt` فعال می‌شوند.
 
 ## قرارداد مشترک همهٔ صفحات
 
