@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import math
 import re
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
@@ -189,9 +189,15 @@ def render_avatar(source: Image.Image, size: int) -> Image.Image:
     return avatar
 
 
-def save_avatar(image: Image.Image, path: Path, size: int) -> None:
+def encode_avatar(image: Image.Image, size: int) -> bytes:
+    output = BytesIO()
+    render_avatar(image, size).save(output, "WEBP", quality=82, method=4, exact=True)
+    return output.getvalue()
+
+
+def save_avatar(data: bytes, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    render_avatar(image, size).save(path, "WEBP", quality=82, method=6, exact=True)
+    path.write_bytes(data)
 
 
 def main() -> None:
@@ -207,15 +213,18 @@ def main() -> None:
         raise RuntimeError(f"Avatar mapping mismatch. Missing={missing}; extra={extra}")
 
     rendered: dict[str, Image.Image] = {}
+    encoded: dict[tuple[str, int], bytes] = {}
     for relative_path, tile_name in sorted(MAPPING.items()):
         source = rendered.setdefault(tile_name, tile_crop(atlases, tile_name))
-        save_avatar(source, TARGET_DIR / f"{relative_path}.webp", 256)
+        data = encoded.setdefault((tile_name, 256), encode_avatar(source, 256))
+        save_avatar(data, TARGET_DIR / f"{relative_path}.webp")
 
     report_assets = list((TARGET_DIR / "report-hub").rglob("*.webp"))
     for path in report_assets:
         relative_path = path.relative_to(TARGET_DIR / "report-hub").with_suffix("").as_posix()
         tile_name = MAPPING[relative_path]
-        save_avatar(rendered[tile_name], path, 160)
+        data = encoded.setdefault((tile_name, 160), encode_avatar(rendered[tile_name], 160))
+        save_avatar(data, path)
 
     total_bytes = sum(path.stat().st_size for path in TARGET_DIR.rglob("*.webp"))
     print(f"Generated {len(base_assets)} card avatars and {len(report_assets)} hub avatars ({total_bytes / 1024 / 1024:.2f} MiB).")
