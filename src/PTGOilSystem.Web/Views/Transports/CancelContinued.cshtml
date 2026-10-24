@@ -6,7 +6,7 @@
     var cancellableCount = Model.Rows.Count(r => r.BlockReason is null);
 }
 
-<main class="ak-form-page" dir="rtl" data-transport-cancel-page>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transport-cancel-page>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("لغو گروهی انتقال‌ها", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
 

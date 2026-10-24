@@ -1,4 +1,4 @@
-﻿@{
+@{
     var title = ViewData["Title"] as string ?? "PTG Oil System";
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
@@ -26,10 +26,10 @@
     // مودال با اسکین متفاوتی نسبت به صفحهٔ کامل رندر می‌شوند.
     var financeWorkspaceControllers = new[]
     {
-        "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation", "CustomerToCustomerPayments",
+        "Payments", "SarrafSettlements", "ThreeWaySettlement", "ContractBalanceTransfers", "Reconciliation", "CustomerToCustomerPayments", "PartySettlements",
         "ChartOfAccounts", "CashAccounts", "AccountStatements", "Ledger", "Sarrafs",
         "FiscalYears", "AccountingReadiness", "ClosingChecklist", "TrialClose", "FinalClose", "ReopenFiscalYear",
-        "Finance", "Reports"
+        "Finance", "Reports", "OperationalPeriodLocks", "PlattsRates"
     };
     var isFinanceWorkspace = financeWorkspaceControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
     var financeFormControllers = new[] { "AccountStatements", "Contracts", "Inventory", "LoadingReceipts", "Expenses", "LossEvents", "Sales", "Dispatch", "Payments" };
@@ -98,6 +98,8 @@
        پنل‌های داخل مودال تخت می‌مانند چون خود دیالوگ ارتفاع را حمل می‌کند. *@
     <link rel="stylesheet" href="~/css/ptg/72-surfaces.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ptg/73-detail-system.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/76-form-system.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ptg/78-mashal-reference.css" asp-append-version="true" />
     @if (User.Identity?.IsAuthenticated == true)
     {
         @* مشعل آفلاین: فورم‌های مودال و ثبت سریع هم بدون سرور در دستگاه ذخیره می‌شوند (offline/js/form-bridge.js). *@
@@ -117,11 +119,11 @@
    قواعد مشترک (فرم، جدول، کارت، تایپوگرافی، سطح) داخل مودال اجرا نمی‌شد و
    محتوا نامنظم می‌شد؛ چرومِ پوسته (سایدبار/تاپ‌بار/PageFrame) در این سند
    وجود ندارد، پس آن قواعد بی‌اثر می‌مانند. *@
-<body class="app-body boltz-shell app-shell-authenticated @(isEnglishUi ?"boltz-ltr" : "boltz-rtl") @(isFinanceWorkspace ? "is-finance-workspace" : null) ptg-modal-document @routeBodyClass"
+<body class="app-body boltz-shell app-shell-authenticated mashal-ui mashal-light @(isEnglishUi ?"boltz-ltr" : "boltz-rtl") @(isFinanceWorkspace ? "is-finance-workspace" : null) ptg-modal-document @routeBodyClass"
       data-ui-language="@htmlLanguage"
       data-calendar="@(PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri ? "solar" : "gregorian")">
     @await Html.PartialAsync("_FlashAlerts")
-    <main class="ak-form-page ptg-modal-body-shell">
+    <main class="ak-form-page ptg-modal-body-shell" id="ptg-main-content">
         <span hidden data-ptg-rendered="@DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture)"></span>
         @RenderBody()
     </main>
@@ -129,6 +131,8 @@
     <script src="~/vendor/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true" defer></script>
     <script src="~/js/core.js" asp-append-version="true" defer></script>
     <script src="~/js/tables.js" asp-append-version="true" defer></script>
+    <script src="~/js/mashal-reference.js" asp-append-version="true" defer></script>
+    <script src="~/js/ak-search-filter.js" asp-append-version="true" defer></script>
     <script src="~/js/system-list-digits.js" asp-append-version="true" defer></script>
     <script src="~/js/ptg-tabs.js" asp-append-version="true" defer></script>
     <script src="~/js/ak-entity-combobox.js" asp-append-version="true" defer></script>

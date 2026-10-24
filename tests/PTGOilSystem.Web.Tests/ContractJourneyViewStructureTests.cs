@@ -1633,7 +1633,8 @@ public class ContractJourneyViewStructureTests
         Assert.Contains("Model.Allocations.Where(item => item.TruckDispatchId.HasValue || item.SalesTransactionId.HasValue)", view);
         Assert.Contains(".ak-linear-detail .ak-detail-overview", detailCss);
         Assert.DoesNotContain("[data-loading-receipt-details] .ak-operations-more-group", detailCss);
-        Assert.Contains("dir=\"rtl\"", view);
+        Assert.Contains("dir=\"@(UiText.IsEn(Context) ? \"ltr\" : \"rtl\")\"", view);
+        Assert.DoesNotContain("dir=\"rtl\"", view);
         Assert.DoesNotContain("var allocationItems", view);
         Assert.DoesNotContain("T(\"ردیف‌های رسید\", \"Receipt lines\")", view);
         Assert.DoesNotContain("loading-details-simple-page", view);

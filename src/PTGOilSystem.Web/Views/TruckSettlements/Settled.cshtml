@@ -6,7 +6,7 @@
 }
 
 @* فهرست فقط‌خواندنیِ حمل‌ها/ارسال‌هایی که کرایه‌شان تسویه شده. هیچ فرم ثبتی ندارد. *@
-<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="rtl">
+<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <header class="ak-page-header">
         <div class="ak-page-heading">
             <h1 class="ak-page-title">@UiText.T(Context, "تسویه‌های ثبت‌شده", "Recorded settlements")</h1>

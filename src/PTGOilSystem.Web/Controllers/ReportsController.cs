@@ -163,9 +163,9 @@ public partial class ReportsController : Controller
         [
             new()
             {
-                TitleFa = "وضعیت شرکت",
-                TitleEn = "Company status",
-                Icon = "bi-speedometer2",
+                TitleFa = "پول، طلبات و بدهی‌ها",
+                TitleEn = "Money, Receivables & Payables",
+                Icon = "bi-wallet2",
                 Cards =
                 [
                     new()
@@ -191,16 +191,7 @@ public partial class ReportsController : Controller
                         DescriptionFa = "از عقد قرارداد تا بارگیری، حمل، فروش و تصفیه.",
                         DescriptionEn = "From contract to loading, transport, sale and settlement.",
                         Icon = "bi-signpost-split", ToneClass = "tone-lavender"
-                    }
-                ]
-            },
-            new()
-            {
-                TitleFa = "پول، طلبات و بدهی‌ها",
-                TitleEn = "Money, Receivables & Payables",
-                Icon = "bi-wallet2",
-                Cards =
-                [
+                    },
                     new()
                     {
                         Action = nameof(PartyAging),

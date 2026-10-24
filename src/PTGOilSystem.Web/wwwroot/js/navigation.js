@@ -40,8 +40,8 @@
                     } catch (_) {}
                 } else {
                     document.body.classList.toggle("is-shell-nav-open");
-                    syncSidebarToggleState();
                 }
+                syncSidebarToggleState();
             });
         });
 
@@ -68,8 +68,8 @@
 
                 if (persistentSidebarMedia.matches && !expandedSidebarMedia.matches) {
                     document.body.classList.add("is-shell-nav-open");
-                    syncSidebarToggleState();
                 }
+                syncSidebarToggleState();
 
                 var group = button.closest("[data-nav-group]");
                 if (!group) return;
@@ -113,6 +113,7 @@
         closeShellNavigation();
         if (!expandedSidebarMedia.matches) {
             document.body.classList.remove("is-sidebar-collapsed");
+            syncSidebarToggleState();
             return;
         }
 
@@ -124,12 +125,20 @@
         } catch (_) {
             document.body.classList.remove("is-sidebar-collapsed");
         }
+        syncSidebarToggleState();
     }
 
     function syncSidebarToggleState() {
-        var isOpen = document.body.classList.contains("is-shell-nav-open");
+        var isOpen = expandedSidebarMedia.matches
+            ? !document.body.classList.contains("is-sidebar-collapsed")
+            : document.body.classList.contains("is-shell-nav-open");
         document.querySelectorAll("[data-shell-toggle='true']").forEach(function (button) {
             button.setAttribute("aria-expanded", String(isOpen));
+            var label = isOpen ? button.dataset.labelClose : button.dataset.labelOpen;
+            if (label) {
+                button.setAttribute("aria-label", label);
+                button.setAttribute("title", label);
+            }
         });
     }
 

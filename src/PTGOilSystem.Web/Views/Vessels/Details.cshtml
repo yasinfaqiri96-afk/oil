@@ -39,7 +39,7 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-detail-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
                        T("ویرایش", "Edit"), "bi-pencil", (string?)Url.Action("Edit", new { id = Model.Id }), (string?)null,

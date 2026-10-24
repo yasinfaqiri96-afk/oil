@@ -1,10 +1,10 @@
-﻿@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegIndexViewModel
+@model PTGOilSystem.Web.Models.InventoryTransport.InventoryTransportLegIndexViewModel
 @using PTGOilSystem.Web.Models.Entities
 @{
     ViewData["Title"] = UiText.T(Context, "حمل‌ها", "Transports");
 }
 
-<main class="ak-form-page ak-list-page" data-operations-list dir="rtl">
+<main class="ak-form-page ak-list-page" data-operations-list dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "حمل‌ها", "Transports"), true,
                        UiText.T(Context, "+ ثبت حمل", "+ New transport"), "bi-plus-lg", Url.Action("Create", "Transports"),

@@ -21,15 +21,15 @@ body.ptg-modal-document :where(.btn) {
     gap: .5rem;
     min-height: 2.25rem;
     padding: .4rem .95rem;
-    border: 1px solid var(--_bd) !important;
-    border-radius: var(--ptg-radius-button) !important;
-    background: var(--_bg) !important;
-    color: var(--_fg) !important;
+    border: 1px solid var(--_bd);
+    border-radius: var(--ptg-radius-button);
+    background: var(--_bg);
+    color: var(--_fg);
     font-size: 16px;
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: 0;
-    box-shadow: 0 6px 14px -8px var(--_sh) !important;
+    box-shadow: 0 6px 14px -8px var(--_sh);
     transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .12s ease;
 }
 
@@ -41,7 +41,7 @@ body.boltz-shell.app-shell-authenticated :where(.btn).disabled,
 body.ptg-modal-document :where(.btn):disabled,
 body.ptg-modal-document :where(.btn).disabled {
     opacity: .5;
-    box-shadow: none !important;
+    box-shadow: none;
     cursor: not-allowed;
     transform: none;
 }

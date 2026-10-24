@@ -164,6 +164,12 @@
     }
 
     // ---- Confirm dialog ----
+    // danger: حذف/غیرفعال‌سازی (پیش‌فرض)؛ primary: تأیید عملیات عادی با data-ptg-confirm-tone="primary".
+    var CONFIRM_ICONS = {
+        danger: "bi-exclamation-triangle-fill",
+        primary: "bi-info-circle-fill"
+    };
+
     function getDialog() {
         return document.querySelector("[data-ptg-confirm-dialog]");
     }
@@ -191,9 +197,17 @@
         var titleEl = dialog.querySelector("[data-ptg-confirm-title]");
         var textEl = dialog.querySelector("[data-ptg-confirm-text]");
         var okBtn = dialog.querySelector("[data-ptg-confirm-ok]");
+        var iconEl = dialog.querySelector(".ptg-confirm__icon i");
+        var tone = CONFIRM_ICONS[opts.tone] ? opts.tone : "danger";
+        dialog.setAttribute("data-tone", tone);
+        if (iconEl) { iconEl.className = "bi " + CONFIRM_ICONS[tone]; }
         if (titleEl && opts.title) { titleEl.textContent = opts.title; }
         if (textEl && opts.message) { textEl.textContent = opts.message; }
-        if (okBtn && opts.confirmLabel) { okBtn.textContent = opts.confirmLabel; }
+        if (okBtn) {
+            // برچسب پیش‌فرض یک‌بار نگه داشته می‌شود تا برچسب سفارشی تأیید قبلی به تأیید بعدی نچسبد.
+            if (!okBtn.hasAttribute("data-default-label")) { okBtn.setAttribute("data-default-label", okBtn.textContent); }
+            okBtn.textContent = opts.confirmLabel || okBtn.getAttribute("data-default-label");
+        }
 
         dialog.hidden = false;
         dialog.setAttribute("aria-hidden", "false");
@@ -233,7 +247,8 @@
         return {
             title: el.getAttribute("data-ptg-confirm-title") || "تأیید عملیات",
             message: el.getAttribute("data-ptg-confirm-message") || "آیا از انجام این عملیات مطمئن هستید؟",
-            confirmLabel: el.getAttribute("data-ptg-confirm-ok-label") || null
+            confirmLabel: el.getAttribute("data-ptg-confirm-ok-label") || null,
+            tone: el.getAttribute("data-ptg-confirm-tone") || null
         };
     }
 

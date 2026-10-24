@@ -19,7 +19,7 @@
     string DecimalInput(decimal value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
 }
 
-<div class="page-stack ak-form-page" dir="rtl">
+<div class="page-stack ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <form asp-action="CreateForShipment"
           method="post"
           class="ak-form"

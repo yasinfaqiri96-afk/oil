@@ -7,7 +7,7 @@
         ?? "/Contracts";
 }
 
-<main class="ak-form-page" dir="rtl">
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"متمم جدید برای قرارداد {contract?.ContractNumber}", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به قرارداد", "bi-arrow-right", (string?)backUrl))" />
 

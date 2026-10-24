@@ -1671,6 +1671,42 @@ select.ak-input {
     }
 }
 
+/* Offline activation offer inside the floating notice card — short text, then inline PIN fields and actions. */
+.ak-offline-offer-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ak-offline-offer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.ak-offline-offer-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ptg-text);
+}
+
+.ak-offline-offer-desc {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--ptg-muted);
+}
+
+.ak-offline-offer .ak-offline-setup {
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+}
+
+.ak-offline-offer .ak-offline-setup > .ak-field {
+    flex: 1 1 110px;
+}
+
 /* Footer actions — Save (primary) + Cancel (neutral), divider on top. */
 .ak-footer-actions {
     display: flex;

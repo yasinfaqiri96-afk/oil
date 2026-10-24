@@ -681,7 +681,11 @@
                 if (row.hidden) collapseBreakdownRowOf(table, row);
             });
 
-            pagerInfo.textContent = "نمایش " + String(start + 1) + "-" + String(end) + " از " + String(rows.length);
+            var firstShown = rows.length ? start + 1 : 0;
+            var englishPager = (document.documentElement.lang || "fa").toLowerCase().indexOf("en") === 0;
+            pagerInfo.textContent = englishPager
+                ? String(firstShown) + "-" + String(end) + " of " + String(rows.length)
+                : "نمایش " + String(firstShown) + "-" + String(end) + " از " + String(rows.length);
             previousButton.disabled = currentPage <= 1;
             nextButton.disabled = currentPage >= pageCount;
             renderPageButtons(pageCount);

@@ -26,7 +26,7 @@
     };
 }
 
-<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="rtl">
+<div class="ak-form-page ak-list-page ak-operations-detail ak-operations-clean-page ak-operations-settlement" data-ak-operations-detail="true" data-operations-list dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     @* هدر مثل بقیهٔ تب‌های عملیات؛ دکمهٔ ثبت با form="tsForm" بیرون از فرم می‌ماند اما همان فرم را submit می‌کند. *@
     <header class="ak-page-header">
         <div class="ak-page-heading">

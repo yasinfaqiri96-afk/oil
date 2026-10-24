@@ -23,6 +23,7 @@
 
     var isEn = (document.documentElement.getAttribute("lang") || "fa").toLowerCase().indexOf("en") === 0;
     function T(fa, en) { return isEn ? en : fa; }
+    var popoverSerial = 0;
 
     function esc(s) {
         return String(s == null ? "" : s)
@@ -47,6 +48,18 @@
         var clearBtn = root.querySelector("[data-ak-filter-clear]");
         var popover = root.querySelector("[data-ak-filter-popover]");
         if (!input || !stateHost) return;
+        var restoringFocus = false;
+        if (popover) {
+            if (!popover.id) {
+                do { popover.id = "ak-filter-popover-" + (++popoverSerial); }
+                while (document.getElementById(popover.id) !== popover);
+            }
+            // This multi-step region contains buttons and form controls, not options.
+            popover.setAttribute("role", "region");
+            if (!popover.getAttribute("aria-label")) popover.setAttribute("aria-label", T("انتخاب فیلتر", "Choose a filter"));
+            input.setAttribute("aria-controls", popover.id);
+            input.setAttribute("aria-expanded", "false");
+        }
 
         // ---- Filter config (group B only) ----
         var fields = [];
@@ -141,7 +154,7 @@
             }));
         }
 
-        function closePopover() {
+        function closePopover(restoreFocus) {
             if (!popover) return;
             // A date panel inside the popover portals its calendar to the body-level
             // overlay; close it first so clearing the popover cannot orphan it.
@@ -150,8 +163,14 @@
             });
             popover.hidden = true;
             popover.innerHTML = "";
+            input.setAttribute("aria-expanded", "false");
             nav.state = "field";
             nav.field = null;
+            if (restoreFocus) {
+                restoringFocus = true;
+                input.focus({ preventScroll: true });
+                restoringFocus = false;
+            }
         }
 
         // ---- Popover rendering ----
@@ -171,6 +190,7 @@
                     '<button type="submit" class="ak-option ak-option-search-btn" data-ak-search-text>' +
                     T("جستجو برای «", "Search for “") + esc(q) + T("»", "”") + "</button>";
                 popover.hidden = false;
+                input.setAttribute("aria-expanded", "true");
                 return;
             }
 
@@ -186,6 +206,7 @@
             }
             popover.innerHTML = html;
             popover.hidden = !html;
+            input.setAttribute("aria-expanded", html ? "true" : "false");
         }
 
         function renderFields(q) {
@@ -355,11 +376,15 @@
             else if (f.type === "text") nav.state = "text";
             else nav.state = "value";
             renderPopover();
+            var nextControl = popover && (popover.querySelector("[data-ak-text-input], [data-ak-value-search]")
+                || popover.querySelector("input:not([type='hidden']), button"));
+            if (nextControl) nextControl.focus();
         }
 
         // ---- Events ----
         input.addEventListener("focus", function () {
             root.classList.add("is-focused");
+            if (restoringFocus) return;
             if (hasFilters) openFieldList();
             else renderPopover();
         });
@@ -370,7 +395,13 @@
             renderPopover();
         });
         input.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") closePopover();
+            if (e.key === "Escape") { e.preventDefault(); closePopover(true); }
+            if (e.key === "ArrowDown" && popover) {
+                e.preventDefault();
+                if (popover.hidden) openFieldList();
+                var first = popover.querySelector("button:not(:disabled), input:not([type='hidden'])");
+                if (first) first.focus();
+            }
             if (clientMode && e.key === "Enter") {
                 e.preventDefault();
                 applyChanges();
@@ -388,7 +419,21 @@
                 });
             });
             popover.addEventListener("keydown", function (e) {
-                if (e.key === "Escape") { closePopover(); return; }
+                if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closePopover(true);
+                    return;
+                }
+                if ((e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.matches("button")) {
+                    var buttons = Array.from(popover.querySelectorAll("button:not(:disabled)"))
+                        .filter(function (button) { return !button.closest("[hidden]"); });
+                    var index = buttons.indexOf(e.target);
+                    if (index >= 0 && buttons.length) {
+                        e.preventDefault();
+                        buttons[(index + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length].focus();
+                    }
+                }
                 if (e.key === "Enter" && nav.field && nav.field.multiple &&
                     e.target.closest("[data-ak-value-search], [data-ak-multi-list]")) {
                     e.preventDefault();

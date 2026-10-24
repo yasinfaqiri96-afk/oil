@@ -29,7 +29,7 @@
         => value.HasValue ? $"{value.Value:N4} {unit}".Trim() : "—";
 }
 
-<div class="ak-detail-page" dir="rtl">
+<div class="ak-detail-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(($"آزمایش کیفیت — {Model.ProductName}", false,
                        canManage ? "ویرایش" : (string?)null,

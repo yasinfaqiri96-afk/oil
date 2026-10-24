@@ -373,9 +373,10 @@ function pinHtml(profile, buttonLabel, extraActions = '') {
     </div>`;
 }
 
-function paint(host, tone, parts) {
+function paint(host, tone, parts, offer = false) {
   host.classList.remove(...TONES);
-  host.classList.add(`alert-${tone}`);
+  if (tone) host.classList.add(`alert-${tone}`);
+  host.classList.toggle('ak-offline-offer', offer);
   host.innerHTML = parts.map((part) => `<div class="mb-1">${part}</div>`).join('');
   host.hidden = parts.length === 0;
 }
@@ -408,6 +409,7 @@ async function renderNotice(profile) {
   if (!host || isTypingPin(host)) return;
   const parts = [];
   let tone = 'info';
+  let offer = false;
   if (state.pageMessage) {
     parts.push(state.pageMessage.html);
     tone = state.pageMessage.tone;
@@ -436,15 +438,16 @@ async function renderNotice(profile) {
     parts.push(pinHtml(profile, state.pendingAction ? 'ذخیره در دستگاه' : state.pendingNav ? 'بازکردن' : 'تأیید رمز'));
   } else if (!state.session && !hasSession() && monitor.reachable && !formPanels && offerSetup()) {
     if (!profile) {
-      parts.push('<strong>کار بدون سرور در این دستگاه فعال نیست.</strong> با یک رمز محلی، همین سیستم صدیقی (داشبورد، منو، صفحات و '
-        + 'فورم‌های مجاز شما) هنگام قطع سرور هم باز می‌شود و ثبت‌های مجاز پس از اتصال خودکار فرستاده می‌شوند.');
+      // پیشنهاد فعال‌سازی: نوار آرام و فشرده با رنگ خنثی؛ فقط پیام خطا/موفقیت رنگ معنایی می‌گیرد.
       parts.push(activationHtml());
+      offer = true;
+      if (!state.pageMessage) tone = '';
     } else if (!profile.pageKeys) {
       parts.push('برای آماده‌کردن صفحات سیستم صدیقی در این دستگاه برای زمان قطع سرور، یک‌بار رمز محلی را وارد کنید.');
       parts.push(pinHtml(profile, 'تأیید رمز', laterHtml()));
     }
   }
-  paint(host, tone, parts);
+  paint(host, tone, parts, offer);
 }
 
 /**
@@ -469,19 +472,24 @@ function laterHtml() {
 
 function activationHtml() {
   const id = ++pinSeq;
-  return `<div class="ak-offline-setup">
-      <div class="ak-field">
-        <label class="ak-label" for="ptg-offline-new-${id}">رمز محلی</label>
-        <input class="ak-input" id="ptg-offline-new-${id}" type="password" autocomplete="new-password" placeholder="حداقل ۶ حرف یا رقم" data-offline-new-pin />
+  return `<div class="ak-offline-offer-body">
+      <div class="ak-offline-offer-text">
+        <strong class="ak-offline-offer-title">کار بدون اینترنت</strong>
+        <span class="ak-offline-offer-desc">یک رمز بگذارید تا وقتی اینترنت قطع شد هم بتوانید کار کنید.</span>
       </div>
-      <div class="ak-field">
-        <label class="ak-label" for="ptg-offline-new2-${id}">تکرار رمز محلی</label>
-        <input class="ak-input" id="ptg-offline-new2-${id}" type="password" autocomplete="new-password" data-offline-new-pin />
+      <div class="ak-offline-setup">
+        <div class="ak-field">
+          <label class="visually-hidden" for="ptg-offline-new-${id}">رمز محلی</label>
+          <input class="ak-input" id="ptg-offline-new-${id}" type="password" autocomplete="new-password" placeholder="رمز (حداقل ۶)" data-offline-new-pin />
+        </div>
+        <div class="ak-field">
+          <label class="visually-hidden" for="ptg-offline-new2-${id}">تکرار رمز محلی</label>
+          <input class="ak-input" id="ptg-offline-new2-${id}" type="password" autocomplete="new-password" placeholder="تکرار رمز" data-offline-new-pin />
+        </div>
+        <div class="ak-offline-setup-actions">
+          <button type="button" class="ak-save" data-offline-activate>فعال‌سازی</button>${laterHtml()}
+        </div>
       </div>
-      <div class="ak-offline-setup-actions">
-        <button type="button" class="ak-save" data-offline-activate>فعال‌سازی</button>${laterHtml()}
-      </div>
-      <div class="ak-offline-setup-hint">رمز فقط روی همین دستگاه نگه‌داری می‌شود.</div>
     </div>`;
 }
 

@@ -13,15 +13,15 @@
     /* ---- Akaunting canonical palette (extracted from presets.js 3.1.21) ---- */
     --primary-lighter: #E8F1FF;   /* Lilac 900 — sidebar icon rail */
     --primary-light: #7779A2;     /* Profit series / soft purple */
-    --primary-main: #1062D0;      /* Navy 500 — nav, tabs, focus, links; the
+    --primary-main: #2d60c9;      /* Shared interaction and primary action; the
                                      same deep navy the sidebar panel carries,
                                      so accents and shell read as one colour */
-    --primary-dark: #0D52AF;      /* Navy 700 — hover */
+    --primary-dark: #2453b4;      /* Shared hover */
     --primary-contrast: #FFFFFF;
-    --primary-main-rgb: 16, 98, 208;
+    --primary-main-rgb: 45, 96, 201;
 
-    --text-primary: #3D3D3D;      /* Black 500 — text, titles, numbers */
-    --text-secondary: #6F6F6F;    /* Readable muted text on the near-white canvas */
+    --text-primary: #343a40;      /* Text, titles, numbers */
+    --text-secondary: #5f6670;    /* Readable supporting text */
     --text-disabled: #AEAEAE;
 
     --background-default: #F5F6FA; /* Body */
@@ -40,6 +40,22 @@
     --success-rgb: 36, 175, 34;
     --info-main: #1062D0;
     --info-rgb: 16, 98, 208;
+
+    /* Shared Mashal aliases: content, full pages and embedded forms. */
+    --mashal-primary: var(--primary-main);
+    --mashal-primary-hover: var(--primary-dark);
+    --mashal-text: var(--text-primary);
+    --mashal-ink: var(--text-secondary);
+    --mashal-muted: var(--text-secondary);
+    --mashal-line: #e9ecef;
+    --mashal-field-line: #dee2e6;
+    --mashal-canvas: var(--background-default);
+    --mashal-soft: #f6f7f9;
+    --mashal-head: #eef1fa;
+    --mashal-danger: var(--error-main);
+    --mashal-success: var(--success-main);
+    --mashal-radius: 6px;
+    --mashal-field-h: 38px;
 
     /* ---- Dashboard & Data Visualization Tokens ---- */
     --ptg-chart-positive: #22C55E;
@@ -118,21 +134,21 @@
     --ptg-motion-fast: 140ms;
 
     /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
-    --font-page-title: 25px;    --line-page-title: 1.5; --weight-page-title: 500;
-    --font-section-title: 18px; --line-section-title: 1.5; --weight-section-title: 600;
+    --font-page-title: 20px;    --line-page-title: 1.5; --weight-page-title: 500;
+    --font-section-title: 16px; --line-section-title: 1.5; --weight-section-title: 500;
     --font-card-title: 17px;    --line-card-title: 1.5; --weight-card-title: 600;
-    --font-body: 16px;          --line-body: 1.6; --weight-body: 400;
+    --font-body: 15px;          --line-body: 1.6; --weight-body: 400;
     /* لیبل فرم: چرتکه 14px/20px با وزن عادی — لیبل بولد ریز صفحه را شلوغ نشان می‌دهد. */
-    --font-label: 16px;         --line-label: 1.43; --weight-label: 400;
+    --font-label: 14px;         --line-label: 1.6; --weight-label: 500;
     /* هدر جدول: چرتکه 14px/700 با رنگ کم‌کنتراست تا داده جلوتر بنشیند. */
-    --font-table-head: 16px;    --line-table-head: 1.5; --weight-table-head: 700;
-    --font-table-cell: 16px;    --line-table-cell: 1.5; --weight-table-cell: 400;
+    --font-table-head: 14px;    --line-table-head: 1.5; --weight-table-head: 500;
+    --font-table-cell: 14px;    --line-table-cell: 1.5; --weight-table-cell: 400;
     /* چرتکه مقیاس تایپ را عمداً کم‌تنوع نگه می‌دارد: 24 / 16 / 14 (+11 ریزنوشته).
        اعداد هم‌اندازه متن بدنه‌اند و خوانایی از tabular-nums می‌آید، نه از ریز کردن. */
-    --font-number: 16px;        --line-number: 1.5; --weight-number: 500;
+    --font-number: 14px;        --line-number: 1.5; --weight-number: 400;
     --font-kpi: 25px;           --line-kpi: 1.25; --weight-kpi: 600;
-    --font-caption: 14px;       --line-caption: 1.5; --weight-caption: 500;
-    --font-button: 16px;        --line-button: 1.43; --weight-button: 500;
+    --font-caption: 13px;       --line-caption: 1.5; --weight-caption: 400;
+    --font-button: 14px;        --line-button: 1.43; --weight-button: 500;
     --font-status: 14px;        --line-status: 1; --weight-status: 600;
 
     /* Legacy aliases remain stable while resolving to the shared scale. */
@@ -191,10 +207,10 @@
     --ptg-primary-soft: rgba(16, 98, 208, 0.08);
     --ptg-primary-tint: #E8F1FF;    /* Purple 100 */
     --ptg-primary-contrast: var(--primary-contrast);
-    /* Action buttons — Akaunting olive green. */
-    --ptg-btn-primary: #1062D0;
-    --ptg-btn-primary-dark: #0D52AF;
-    --ptg-btn-primary-rgb: 16, 98, 208;
+    /* Primary actions and interaction share one palette. */
+    --ptg-btn-primary: var(--primary-main);
+    --ptg-btn-primary-dark: var(--primary-dark);
+    --ptg-btn-primary-rgb: var(--primary-main-rgb);
     --ptg-btn-primary-tint: #E8F1FF;
 
     /* دکمهٔ ثانویه/خنثی (Akaunting «Connect Your Bank»): خاکستری نرم، بدون بوردر. */
@@ -208,10 +224,10 @@
     --ptg-danger-text: #B00A0A;
     --ptg-warning: var(--warning-main);
     --ptg-warning-soft: #FDF1E3;
-    --ptg-warning-text: #A66300;
+    --ptg-warning-text: #8A5200;
     --ptg-success: var(--success-main);
     --ptg-success-soft: #E7F5E9;
-    --ptg-success-text: #1E8F1D;
+    --ptg-success-text: #23713B;
     --ptg-info-soft: #E8F1FF;
     --ptg-info-text: #0D52AF;
     --ptg-viewed-soft: #EEEEF3;
@@ -283,8 +299,8 @@
                 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                 "Helvetica Neue", Arial, sans-serif;
 
-    --chk-primary: #1062D0;
-    --chk-primary-hover: #0D52AF;
+    --chk-primary: var(--primary-main);
+    --chk-primary-hover: var(--primary-dark);
     --chk-primary-light: #E8F1FF;
 
     --chk-surface: #FFFFFF;

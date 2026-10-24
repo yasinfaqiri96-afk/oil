@@ -28,7 +28,8 @@
        هستند تا Preview، Print و PDF دقیقاً یک فونت را embed کنند. *@
     <link rel="stylesheet" href="~/vendor/fonts/poppins/poppins.css" />
     <link rel="stylesheet" href="~/vendor/fonts/vazirmatn/vazirmatn.css" />
-    <link rel="stylesheet" href="~/vendor/fonts/iransans/iransans.css" />
+    <link rel="stylesheet" href="~/vendor/fonts/iransans/iransans.css" />
+
     <link rel="stylesheet" href="~/css/sales-invoice-print.css" asp-append-version="true" />
 </head>
 <body>
@@ -142,7 +143,7 @@
 
                 <section class="invoice-note">
                     <div class="note-label">Note:</div>
-                    <div class="note-text" dir="rtl" lang="fa">@Model.PersianNote</div>
+                    <div class="note-text" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" lang="fa">@Model.PersianNote</div>
                     @if (!string.IsNullOrWhiteSpace(Model.EnglishNote))
                     {
                         <div class="note-text" dir="ltr">@Model.EnglishNote</div>

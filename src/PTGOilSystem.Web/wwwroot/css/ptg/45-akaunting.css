@@ -202,44 +202,44 @@ body.ptg-modal-document .btn {
    button — with or without Bootstrap's .btn-primary on it. */
 body.boltz-shell.app-shell-authenticated :is(.ak-primary-action, .ak-secondary-action.is-primary),
 body.ptg-modal-document :is(.ak-primary-action, .ak-secondary-action.is-primary) {
-    background-color: var(--ptg-btn-primary) !important;
-    border-color: var(--ptg-btn-primary) !important;
-    color: var(--ptg-field-bg) !important;
+    background-color: var(--ptg-btn-primary);
+    border-color: var(--ptg-btn-primary);
+    color: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated :is(.ak-primary-action, .ak-secondary-action.is-primary):is(:hover, :focus, :active),
 body.ptg-modal-document :is(.ak-primary-action, .ak-secondary-action.is-primary):is(:hover, :focus, :active) {
-    background-color: var(--ptg-btn-primary-dark) !important;
-    border-color: var(--ptg-btn-primary-dark) !important;
-    color: var(--ptg-field-bg) !important;
+    background-color: var(--ptg-btn-primary-dark);
+    border-color: var(--ptg-btn-primary-dark);
+    color: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated :is(.btn-secondary, .btn-info),
 body.ptg-modal-document :is(.btn-secondary, .btn-info) {
-    background-color: var(--ptg-surface) !important;
-    border-color: var(--ptg-field-border) !important;
-    color: var(--ptg-text) !important;
+    background-color: var(--ptg-surface);
+    border-color: var(--ptg-field-border);
+    color: var(--ptg-text);
 }
 
 body.boltz-shell.app-shell-authenticated :is(.btn-secondary, .btn-info):is(:hover, :focus, :active),
 body.ptg-modal-document :is(.btn-secondary, .btn-info):is(:hover, :focus, :active) {
-    background-color: var(--ptg-surface-soft) !important;
-    border-color: var(--ptg-field-border-hover) !important;
-    color: var(--ptg-text) !important;
+    background-color: var(--ptg-surface-soft);
+    border-color: var(--ptg-field-border-hover);
+    color: var(--ptg-text);
 }
 
 body.boltz-shell.app-shell-authenticated .btn-danger,
 body.ptg-modal-document .btn-danger {
-    background-color: var(--ptg-danger) !important;
-    border-color: var(--ptg-danger) !important;
-    color: var(--ptg-field-bg) !important;
+    background-color: var(--ptg-danger);
+    border-color: var(--ptg-danger);
+    color: var(--ptg-field-bg);
 }
 
 body.boltz-shell.app-shell-authenticated .btn-outline-danger,
 body.ptg-modal-document .btn-outline-danger {
-    background-color: var(--ptg-danger-soft) !important;
-    border-color: var(--ptg-danger-soft) !important;
-    color: var(--ptg-danger-text) !important;
+    background-color: var(--ptg-danger-soft);
+    border-color: var(--ptg-danger-soft);
+    color: var(--ptg-danger-text);
 }
 
 /* ============================================================= *

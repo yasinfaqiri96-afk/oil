@@ -7,7 +7,7 @@
     const string L = "…";
 }
 
-<div class="ak-form-page" dir="rtl" data-reconciliation-summary-url="@Url.Action("Summary", "Reconciliation")">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-reconciliation-summary-url="@Url.Action("Summary", "Reconciliation")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context,"کنترل مغایرت‌ها","Reconciliation"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

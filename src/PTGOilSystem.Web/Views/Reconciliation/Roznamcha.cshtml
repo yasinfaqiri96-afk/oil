@@ -3,7 +3,7 @@
     ViewData["Title"] = "مغایرت رزنامچه";
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("مغایرت رزنامچه", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

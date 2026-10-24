@@ -3,7 +3,7 @@
     ViewData["Title"] = "پول‌های معلق";
 }
 
-<div class="ak-list-page" dir="rtl">
+<div class="ak-list-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("پول‌های معلق", false,
                        "تسویه سه‌طرفه (پیش‌نمایش)", "bi-arrow-left-right", Url.Action("Index", "ThreeWaySettlement"), (string?)null,

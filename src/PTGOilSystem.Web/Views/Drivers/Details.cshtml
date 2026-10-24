@@ -96,7 +96,7 @@
     string Money(decimal? value) => value is { } v && v != 0m ? v.ToString("N2") : "—";
 }
 
-<div class="ak-form-page ak-party-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-party-page ak-detail-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.FullName, false,
                        T("صورت‌حساب رسمی", "Official statement"), "bi-file-earmark-text", (string?)statementUrl, (string?)null,

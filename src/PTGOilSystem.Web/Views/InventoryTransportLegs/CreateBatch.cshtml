@@ -37,7 +37,7 @@
     }));
 }
 
-<div class="ak-form-page ak-group-operation-page" dir="rtl" data-transfer-mode="batch">
+<div class="ak-form-page ak-group-operation-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transfer-mode="batch">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("انتقال از موجودی", "Inventory Transfer"), false,
                        isShipmentSelection

@@ -58,6 +58,21 @@ public sealed class InventorySalesReportTests
     }
 
     [Fact]
+    public void Hub_Merges_Company_Reports_Into_Money_Without_Duplicate_Destinations()
+    {
+        var result = Assert.IsType<ViewResult>(new ReportsController(null!).Index());
+        var model = Assert.IsType<ReportHubViewModel>(result.Model);
+        Assert.Equal(3, model.Groups.Count);
+        Assert.DoesNotContain(model.Groups, g => g.TitleEn == "Company status");
+        var money = Assert.Single(model.Groups.Where(g => g.TitleEn == "Money, Receivables & Payables"));
+        Assert.Equal("پول، طلبات و بدهی‌ها", money.TitleFa);
+        foreach (var action in new[] { "CompanyBalance", "ContractPnl", "PartyAging", "CashFlow", "Customers", "Suppliers", "Contracts", "FxDifference", "ExpenseReport" })
+        {
+            Assert.Single(money.Cards.Where(c => c.Action == action));
+        }
+    }
+
+    [Fact]
     public void Hub_Uses_One_Inventory_Report_While_Other_Reports_Remain()
     {
         var result = Assert.IsType<ViewResult>(new ReportsController(null!).Index());

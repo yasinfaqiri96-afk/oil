@@ -10,7 +10,7 @@
     var today = (DateTime)ViewBag.Today;
 }
 
-<div class="ak-form-page ak-detail-page" dir="rtl">
+<div class="ak-form-page ak-detail-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((T("قفل دوره مالی", "Financial period lock"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

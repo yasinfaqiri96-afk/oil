@@ -2,22 +2,44 @@
 @{
     var controller = ViewContext.RouteData.Values["controller"]?.ToString();
     var action = ViewContext.RouteData.Values["action"]?.ToString();
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    bool CanOpen(string target)
+    {
+        if (target == "Auth") { return true; }
+        if (!PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, target, Modules)) { return false; }
+        return target switch
+        {
+            "Backups" => PTGOilSystem.Web.Security.RoleAccessRules.CanManageBackups(User),
+            "Users" or "SystemSettings" or "AuditLogs" or "OfflineSync" => PTGOilSystem.Web.Security.RoleAccessRules.CanManageUsers(User),
+            _ => true
+        };
+    }
+    bool IsActive(string target, string targetAction) => target switch
+    {
+        "Auth" => controller == target && action == targetAction,
+        "ChartOfAccounts" => controller == target && action == targetAction,
+        "Users" => controller is "Users" or "Roles",
+        "Backups" => controller is "Backups" or "BackupRestore",
+        "Currencies" => controller is "Currencies" or "DailyFxRates",
+        _ => controller == target
+    };
     var groups = new[] {
-        (Label: "عمومی", Items: new[] { ("Auth", "ChangePassword", "حساب کاربری", "nav-user"), ("Companies", "Index", "کسب‌وکار", "nav-briefcase"), ("Users", "Index", "مدیریت کاربران", "nav-users") }),
-        (Label: "مالی", Items: new[] { ("ChartOfAccounts", "Mapping", "حسابداری", "nav-chart"), ("FiscalYears", "Index", "سال مالی", "nav-calendar"), ("Currencies", "Index", "ارزها و نرخ تبدیل", "nav-dollar"), ("CashAccounts", "Index", "صندوق و بانک", "nav-finance") }),
-        (Label: "سیستم", Items: new[] { ("SystemSettings", "Index", "تقویم و تنظیمات", "nav-settings"), ("Backups", "Index", "نسخه پشتیبان", "nav-cloud"), ("AuditLogs", "Index", "رویدادهای سیستم", "nav-clock") })
+        (Label: T("عمومی", "General"), Items: new[] { ("Auth", "ChangePassword", T("حساب کاربری", "Account"), "nav-user"), ("Companies", "Index", T("کسب‌وکار", "Business"), "nav-briefcase"), ("Users", "Index", T("مدیریت کاربران", "Users"), "nav-users") }),
+        (Label: T("مالی", "Finance"), Items: new[] { ("ChartOfAccounts", "Mapping", T("حسابداری", "Accounting"), "nav-chart"), ("FiscalYears", "Index", T("سال مالی", "Fiscal year"), "nav-calendar"), ("Currencies", "Index", T("ارزها و نرخ تبدیل", "Currencies & rates"), "nav-dollar"), ("CashAccounts", "Index", T("صندوق و بانک", "Cash & bank"), "nav-finance") }),
+        (Label: T("سیستم", "System"), Items: new[] { ("SystemSettings", "Index", T("تنظیمات سیستم", "System settings"), "nav-settings"), ("OfflineSync", "Index", T("عملیات آفلاین", "Offline operations"), "nav-settings"), ("Backups", "Index", T("بکاپ‌گیری", "Backups"), "nav-cloud"), ("AuditLogs", "Index", T("رویدادهای سیستم", "Audit log"), "nav-clock") })
     };
 }
-<aside class="mashal-settings-nav" aria-label="تنظیمات">
-    <label class="mashal-settings-search"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-search"></use></svg><input type="search" placeholder="جستجو در تنظیمات…" aria-label="جستجو در تنظیمات" data-mashal-settings-search /></label>
+<aside class="mashal-settings-nav" aria-label="@T("تنظیمات", "Settings")">
+    <label class="mashal-settings-search"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-search"></use></svg><input type="search" placeholder="@T("جستجو در تنظیمات…", "Search settings…")" aria-label="@T("جستجو در تنظیمات", "Search settings")" data-mashal-settings-search /></label>
     @foreach (var group in groups)
     {
+        var visibleItems = group.Items.Where(item => CanOpen(item.Item1)).ToArray();
+        if (visibleItems.Length == 0) { continue; }
         <div class="mashal-settings-group">
             <h2>@group.Label</h2>
-            @foreach (var item in group.Items)
+            @foreach (var item in visibleItems)
             {
-                if (item.Item1 != "Auth" && !PTGOilSystem.Web.Security.RoleAccessRules.CanAccessController(User, item.Item1, Modules)) { continue; }
-                var active = controller == item.Item1 && (action == item.Item2 || controller == "Companies");
+                var active = IsActive(item.Item1, item.Item2);
                 <a asp-controller="@item.Item1" asp-action="@item.Item2" aria-current="@(active ? "page" : null)" class="mashal-settings-link @(active ? "is-active" : null)"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#@item.Item4"></use></svg><span>@item.Item3</span></a>
             }
         </div>

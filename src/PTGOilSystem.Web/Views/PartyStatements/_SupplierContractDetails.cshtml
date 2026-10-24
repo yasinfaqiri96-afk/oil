@@ -24,7 +24,7 @@
     });
 }
 
-<div class="statement-details" dir="rtl">
+<div class="statement-details" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <section class="statement-details-facts">
         @if (!string.IsNullOrWhiteSpace(Model.ProductName))
         {

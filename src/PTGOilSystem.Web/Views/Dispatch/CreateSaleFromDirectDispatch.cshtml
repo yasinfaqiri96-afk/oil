@@ -21,7 +21,8 @@
     </div>
 
     <form asp-action="CreateSaleFromDirectDispatch" method="post" class="ak-form">
-        <div class="ak-section-head">Sale Information</div>
+        @Html.AntiForgeryToken()
+        <div class="ak-section-head">@UiText.T(Context, "اطلاعات فروش", "Sale Information")</div>
         <div class="ak-section-body">
             <div asp-validation-summary="All" class="text-danger mb-3"></div>
             <input type="hidden" asp-for="TruckDispatchId" />
@@ -29,9 +30,9 @@
 
             <div class="summary-strip mb-3 ak-summary">
                 <div class="summary-tile"><div class="summary-tile-label">ارسال با موتر</div><div class="summary-tile-value">#@Model.TruckDispatchId</div></div>
-                <div class="summary-tile"><div class="summary-tile-label">Contract</div><div class="summary-tile-value">@Model.ContractNumber</div></div>
-                <div class="summary-tile"><div class="summary-tile-label">Product</div><div class="summary-tile-value">@Model.ProductName</div></div>
-                <div class="summary-tile"><div class="summary-tile-label">Truck</div><div class="summary-tile-value">@Model.TruckPlateNumber</div></div>
+                <div class="summary-tile"><div class="summary-tile-label">@UiText.T(Context, "قرارداد", "Contract")</div><div class="summary-tile-value">@Model.ContractNumber</div></div>
+                <div class="summary-tile"><div class="summary-tile-label">@UiText.T(Context, "محصول", "Product")</div><div class="summary-tile-value">@Model.ProductName</div></div>
+                <div class="summary-tile"><div class="summary-tile-label">@UiText.T(Context, "موتر", "Truck")</div><div class="summary-tile-value">@Model.TruckPlateNumber</div></div>
                 <div class="summary-tile"><div class="summary-tile-label">مقدار بارگیری MT</div><div class="summary-tile-value">@NumberDisplay.Quantity(Model.DispatchLoadedQuantityMt)</div></div>
                 @if (Model.DispatchDischargedQuantityMt.HasValue)
                 {
@@ -129,7 +130,7 @@
         </div>
         <div class="ak-footer-actions d-flex gap-2 justify-content-end">
             <a asp-action="Details" asp-route-id="@Model.TruckDispatchId" class="btn btn-light ak-secondary-action">@UiText.T(Context,"لغو","Cancel")</a>
-            <button type="submit" class="btn btn-success ak-primary-action">Create Sale</button>
+            <button type="submit" class="btn btn-success ak-primary-action">@UiText.T(Context, "ثبت فروش", "Create Sale")</button>
         </div>
     </form>
 </div>

@@ -1,4 +1,4 @@
-﻿@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.InventoryTransport
 @model TransportStartFromReceiptViewModel
 @{
@@ -6,7 +6,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<main class="ak-form-page" dir="rtl" data-transport-vehicle-form>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transport-vehicle-form>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("ثبت حمل از رسید مستقیم", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", Url.Action("Create")))" />
     <form asp-action="FromReceipt" method="post" class="ak-form" data-submit-lock>

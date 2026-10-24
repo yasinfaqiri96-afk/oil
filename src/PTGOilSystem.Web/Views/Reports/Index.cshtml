@@ -91,16 +91,13 @@
                     var avatar = avatarMap.TryGetValue(key, out var mapped) ? mapped : fallbackAvatar;
                     var optimizedAvatar = avatar.Replace("/images/stat-cards/", "/images/stat-cards/report-hub/", StringComparison.Ordinal);
                     var title = UiText.T(Context, item.TitleFa, item.TitleEn);
-                    var description = UiText.T(Context, item.DescriptionFa, item.DescriptionEn);
                     <a class="rephub-card"
                        asp-controller="@controller"
-                       asp-action="@item.Action"
-                       title="@description">
+                       asp-action="@item.Action">
                         <span class="rephub-card-art">
                             <img src="@optimizedAvatar" alt="" aria-hidden="true" width="128" height="128" loading="eager" decoding="async" />
                         </span>
                         <span class="rephub-card-title">@title</span>
-                        <span class="rephub-card-description">@description</span>
                     </a>
                 }
             </div>

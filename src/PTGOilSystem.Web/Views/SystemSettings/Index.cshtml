@@ -1,12 +1,12 @@
 @model SystemSettingsPageViewModel
 @{
-    ViewData["Title"] = UiText.T(Context, "تنظیمات سیستم", "System settings");
+    ViewData["Title"] = UiText.T(Context, "تقویم", "Calendar");
 }
 
 <div class="ak-form-page">
     <div class="ak-form-page-content">
         <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
-                 model="@((UiText.T(Context, "تنظیمات سیستم", "System settings"), false,
+                 model="@((UiText.T(Context, "تقویم", "Calendar"), false,
                            (string?)null, (string?)null, (string?)null, (string?)null,
                            (string?)null, (string?)null, (string?)null))" />
 
@@ -14,8 +14,6 @@
         <form asp-action="Save" method="post" class="ak-form" data-no-spa="true">
             @Html.AntiForgeryToken()
             <section class="ak-form-section">
-                <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                         model="@((UiText.T(Context, "تقویم", "Calendar"), (string?)UiText.T(Context, "تقویمِ نمایش و ورودِ تاریخ در همهٔ صفحه‌ها، گزارش‌ها و خروجی‌ها. تاریخ‌های ثبت‌شده در دیتابیس تغییر نمی‌کنند.", "Calendar used to display and enter dates across pages, reports and exports. Stored dates are never changed.")))" />
                 <div class="ak-form-grid">
                     <div class="ak-field">
                         <label asp-for="Settings.CalendarType" class="ak-label"></label>
@@ -25,19 +23,25 @@
                                 <option value="@option.Value" selected="@(Model.Settings.CalendarType == option.Value ? "selected" : null)">@option.Label</option>
                             }
                         </select>
-                    </div>
-                    <div class="ak-field">
-                        <span class="ak-label">@UiText.T(Context, "امروز به میلادی", "Today (Gregorian)")</span>
-                        <bdi class="ak-num" dir="ltr">@Model.TodayGregorian</bdi>
-                    </div>
-                    <div class="ak-field">
-                        <span class="ak-label">@UiText.T(Context, "امروز به هجری شمسی افغانستان", "Today (Afghan Solar Hijri)")</span>
-                        <bdi class="ak-num">@Model.TodaySolar</bdi>
+                        <span asp-validation-for="Settings.CalendarType" class="ak-field-error"></span>
                     </div>
                 </div>
+                <details class="ak-advanced mt-3">
+                    <summary class="ak-advanced-summary">@UiText.T(Context, "تاریخ امروز", "Today's date")</summary>
+                    <div class="ak-advanced-body ak-form-grid">
+                        <div class="ak-field">
+                            <span class="ak-label">@UiText.T(Context, "امروز به میلادی", "Today (Gregorian)")</span>
+                            <bdi class="ak-num" dir="ltr">@Model.TodayGregorian</bdi>
+                        </div>
+                        <div class="ak-field">
+                            <span class="ak-label">@UiText.T(Context, "امروز به هجری شمسی افغانستان", "Today (Afghan Solar Hijri)")</span>
+                            <bdi class="ak-num">@Model.TodaySolar</bdi>
+                        </div>
+                    </div>
+                </details>
             </section>
             <partial name="~/Views/Shared/Components/Ak/_AkFooterActions.cshtml"
-                     model="@((UiText.T(Context, "ذخیرهٔ تنظیمات", "Save settings"), Url.Action("Index") ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />
+                     model="@((UiText.T(Context, "ذخیره", "Save"), Url.Action("Index") ?? "#", UiText.T(Context, "انصراف", "Cancel")))" />
         </form>
     </div>
 </div>

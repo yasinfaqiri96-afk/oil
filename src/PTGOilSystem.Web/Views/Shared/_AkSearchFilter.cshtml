@@ -1,4 +1,4 @@
-﻿@*
+@*
     Shared Search/Filter component — single owner (groups A & B).
     Free-text search is a native GET submit; structured filters are rendered as
     hidden inputs with the EXACT existing query-string param names, so the produced
@@ -121,7 +121,8 @@
         <button class="ak-filter-clear" type="button" data-ak-filter-clear
                 hidden aria-label="@clearLabel">&times;</button>
 
-        <div class="ak-filter-popover" data-ak-filter-popover role="listbox" hidden></div>
+        <div class="ak-filter-popover" data-ak-filter-popover role="region"
+             aria-label="@UiText.T(Context, "انتخاب فیلتر", "Choose a filter")" hidden></div>
 
         @if (filters.Any())
         {

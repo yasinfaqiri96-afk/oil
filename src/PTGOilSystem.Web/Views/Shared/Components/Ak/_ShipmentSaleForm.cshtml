@@ -21,7 +21,7 @@
     var mt = UiText.T(Context, "تن", "MT");
 }
 
-<div class="ak-form-page" data-shipment-sale-form dir="rtl">
+<div class="ak-form-page" data-shipment-sale-form dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     @* ۱. عنوان و توضیح صفحه — همان هدر مشترک بقیهٔ فرم‌ها *@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "ثبت فروش از جریان حمل محموله / کشتی", "Register Sale from Shipment in Transit"), false,

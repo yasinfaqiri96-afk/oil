@@ -1,4 +1,4 @@
-﻿@using PTGOilSystem.Web.Models.Entities
+@using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.ExcelImport
 @using PTGOilSystem.Web.Models.InventoryTransport
 @model TransportContinueViewModel
@@ -28,7 +28,7 @@
     };
 }
 
-<main class="ak-form-page" dir="rtl" data-transport-vehicle-form>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transport-vehicle-form>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("انتقال به وسیله دیگر", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
     <form asp-action="Continue" method="post" class="ak-form" data-submit-lock>

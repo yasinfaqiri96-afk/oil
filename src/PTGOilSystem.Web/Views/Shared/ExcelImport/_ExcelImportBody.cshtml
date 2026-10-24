@@ -1,5 +1,5 @@
 @model PTGOilSystem.Web.Models.ExcelImport.ExcelImportComponentOptions
-<section class="excel-import @(Model.Compact ? "excel-import--compact" : null)" dir="rtl"
+<section class="excel-import @(Model.Compact ? "excel-import--compact" : null)" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")"
          data-excel-import
          data-mode="@Model.Mode"
          data-start-url="@Model.StartUrl"

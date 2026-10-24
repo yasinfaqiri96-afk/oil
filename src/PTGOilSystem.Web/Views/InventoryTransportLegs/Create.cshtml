@@ -95,7 +95,7 @@
         || !string.IsNullOrWhiteSpace(Model.Notes);
 }
 
-<div class="page-stack ak-form-page" dir="rtl" data-transfer-mode="single">
+<div class="page-stack ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transfer-mode="single">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "انتقال از موجودی", "Inventory Transfer"), false, (string?)null, (string?)null, (string?)null, (string?)null, UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", (string?)cancelUrl))" />
     <form asp-action="Create" method="post" class="ak-form" data-inventory-transport-leg-form>

@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Html
+@using Microsoft.AspNetCore.Html
 @using PTGOilSystem.Web.Models.Entities
 @using PTGOilSystem.Web.Models.TruckSettlements
 @using PTGOilSystem.Web.Models.InventoryTransport
@@ -539,7 +539,7 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail ptg-transport-detail" dir="rtl"
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail ptg-record-detail ptg-transport-detail" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")"
      data-transport-details data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {

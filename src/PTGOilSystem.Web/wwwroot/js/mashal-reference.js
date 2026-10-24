@@ -1,6 +1,8 @@
 /* Presentation only: no amount, FX, stock or posting calculations. */
 (function () {
     'use strict';
+    const isEn = (document.documentElement.lang || 'fa').toLowerCase().startsWith('en');
+    function T(fa, en) { return isEn ? en : fa; }
     const widgetIds = ['activities', 'tanks', 'alerts', 'summary', 'analytics', 'shipments'];
     let selected = widgetIds.slice();
     let pending = widgetIds.slice();
@@ -50,7 +52,7 @@
         const options = document.createElement('details');
         options.className = 'mashal-receipt-options';
         const summary = document.createElement('summary');
-        summary.textContent = 'نوع عملیات و روش دریافت / پرداخت';
+        summary.textContent = T('نوع عملیات و روش دریافت / پرداخت', 'Operation and payment method');
         options.append(summary);
         for (const selector of ['.journal-direction-segmented', '.journal-mode-bar']) {
             const control = form.querySelector(selector);
@@ -61,7 +63,7 @@
             const partyOptions = document.createElement('details');
             partyOptions.className = 'mashal-receipt-party-options';
             const label = document.createElement('summary');
-            label.textContent = 'نوع طرف حساب';
+            label.textContent = T('نوع طرف حساب', 'Counterparty type');
             partyOptions.append(label, partyType);
             grid.append(partyOptions);
         }
@@ -111,7 +113,7 @@
         }
         if (event.target.closest('[data-mashal-save]')) {
             const status = document.querySelector('[data-mashal-save-status]');
-            if (status) status.textContent = save() ? 'چیدمان داشبورد ذخیره شد.' : 'ذخیره چیدمان در مرورگر ممکن نیست.';
+            if (status) status.textContent = save() ? T('چیدمان داشبورد ذخیره شد.', 'Dashboard layout saved.') : T('ذخیره چیدمان در مرورگر ممکن نیست.', 'The layout could not be saved in this browser.');
         }
     });
     document.addEventListener('input', function (event) {

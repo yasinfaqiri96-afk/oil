@@ -81,11 +81,11 @@
                         <td class="ak-col-num ak-num">
                             @AkUnit.Money(r.TransferOriginalAmount, r.OriginalCurrencyCode)
                             @* سلول عددی LTR است؛ متن کمکی فارسی جهت خودش را لازم دارد. *@
-                            <div class="ak-cell-note" dir="rtl">ارزش تاریخی @NumberDisplay.Money(r.HistoricalAmountUsd, "USD")</div>
+                            <div class="ak-cell-note" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">ارزش تاریخی @NumberDisplay.Money(r.HistoricalAmountUsd, "USD")</div>
                         </td>
                         <td class="ak-col-num ak-num">
                             @AkUnit.Money(r.TransferValueUsd, "USD")
-                            <div class="ak-cell-note" dir="rtl">نرخ روز <bdi>۱ USD = @NumberDisplay.FxRate(r.TransferPerUsdRate) @r.OriginalCurrencyCode</bdi></div>
+                            <div class="ak-cell-note" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">نرخ روز <bdi>۱ USD = @NumberDisplay.FxRate(r.TransferPerUsdRate) @r.OriginalCurrencyCode</bdi></div>
                         </td>
                         <td class="ak-col-num ak-num">@AkUnit.Money(r.TransferContractCurrencyAmount, r.ContractCurrencyCode)</td>
                         <td class="ak-col-num ak-num">
@@ -94,7 +94,7 @@
                                 <span class="@(r.ExchangeDifferenceUsd < 0 ? "ak-number--negative" : "ak-number--positive")">
                                     @AkUnit.Money(Math.Abs(r.ExchangeDifferenceUsd), "USD")
                                 </span>
-                                <div class="ak-cell-note" dir="rtl">@r.ExchangeDifferenceName</div>
+                                <div class="ak-cell-note" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">@r.ExchangeDifferenceName</div>
                             }
                             else
                             {

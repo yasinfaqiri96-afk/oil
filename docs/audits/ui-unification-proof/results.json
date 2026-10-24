@@ -1,0 +1,107 @@
+{
+  "scope": "Isolated component fixtures using current repository CSS and JavaScript; not authenticated production pages",
+  "results": [
+    {
+      "case": "desktop computed cascade",
+      "primary": "rgb(45, 96, 201)",
+      "save": "rgb(45, 96, 201)",
+      "header": "14px",
+      "headerWeight": "500",
+      "number": "14px",
+      "control": "38px",
+      "radius": "3px",
+      "title": "20px",
+      "alerts": [
+        "rgb(231, 245, 233)",
+        "rgb(253, 241, 227)",
+        "rgb(232, 241, 255)"
+      ],
+      "overflow": false
+    },
+    {
+      "case": "embedded content parity",
+      "primary": "rgb(45, 96, 201)",
+      "save": "rgb(45, 96, 201)",
+      "header": "14px",
+      "headerWeight": "500",
+      "number": "14px",
+      "control": "38px",
+      "radius": "3px",
+      "title": "20px",
+      "alerts": [
+        "rgb(231, 245, 233)",
+        "rgb(253, 241, 227)",
+        "rgb(232, 241, 255)"
+      ],
+      "overflow": false
+    },
+    {
+      "case": "mobile type and overflow",
+      "font": "16px"
+    },
+    {
+      "case": "transfer select, mirrors, clear, reset, SPA remount",
+      "pass": true
+    },
+    {
+      "case": "filter keyboard focus, expansion and Escape",
+      "pass": true
+    },
+    {
+      "case": "local filter mobile visibility, zero pager and clear",
+      "pass": true
+    },
+    {
+      "case": "responsive widths 360, 768, 1024, 1440",
+      "pass": true
+    },
+    {
+      "case": "English content direction",
+      "pass": true
+    },
+    {
+      "case": "print hides form actions and releases table scroll",
+      "pass": true
+    },
+    {
+      "case": "semantic text contrast",
+      "contrast": [
+        {
+          "selector": ".alert-success",
+          "ratio": 5.329467860226843
+        },
+        {
+          "selector": ".alert-warning",
+          "ratio": 5.739146750467495
+        },
+        {
+          "selector": ".alert-info",
+          "ratio": 6.4920483514394665
+        },
+        {
+          "selector": "#primary",
+          "ratio": 5.788097195195413
+        },
+        {
+          "selector": "#save",
+          "ratio": 5.788097195195413
+        }
+      ]
+    },
+    {
+      "case": "last-row dropdown escapes scroll clipping",
+      "bounds": {
+        "x": 67,
+        "y": 650,
+        "right": 387,
+        "bottom": 752,
+        "painted": true
+      }
+    },
+    {
+      "case": "touch static row actions visible with 44px targets",
+      "pass": true
+    }
+  ],
+  "pageErrors": []
+}

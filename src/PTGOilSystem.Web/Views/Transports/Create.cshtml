@@ -5,7 +5,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<main class="ak-form-page" dir="rtl" data-transport-start>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transport-start>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("ثبت حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت به حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))" />
 

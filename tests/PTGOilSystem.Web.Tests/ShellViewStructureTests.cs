@@ -100,7 +100,27 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Sidebar_Groups_Users_And_Backups_Under_Settings()
+    public void Sidebar_Keeps_Logo_And_Account_Actions_Outside_The_Scrolling_Menu()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var sidebar = layout.Split("id=\"boltzSidebar\"")[1].Split("</aside>")[0];
+        var header = sidebar.Split("<header class=\"mashal-sidebar-header\">")[1].Split("</header>")[0];
+        Assert.Contains("boltz-brand-logo", header);
+        Assert.Contains("<vc:fiscal-year-switcher>", header);
+        Assert.DoesNotContain("mashal-primary-create", sidebar);
+        Assert.DoesNotContain("mashal-company-link", sidebar);
+        Assert.DoesNotContain("data-mashal-nav-search", sidebar);
+        Assert.Contains("</nav>\n                </div>\n\n                    <footer class=\"boltz-sidebar-foot\">", sidebar.Replace("\r\n", "\n"));
+        var footer = sidebar.Split("<footer class=\"boltz-sidebar-foot\">")[1].Split("</footer>")[0];
+        Assert.Contains("asp-action=\"ChangePassword\"", footer);
+        Assert.Contains("asp-action=\"Logout\" method=\"post\"", footer);
+        Assert.Contains("@Html.AntiForgeryToken()", footer);
+        Assert.Contains("data-label-open=", layout);
+        Assert.Contains("data-label-close=", layout);
+    }
+
+    [Fact]
+    public void Sidebar_Opens_Settings_Directly_Without_Submenus()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
@@ -109,20 +129,46 @@ public class ShellViewStructureTests
         Assert.Contains("if (canManageBackups)", layout);
         Assert.Contains("settingsItems.Add((\"Backups\", \"Index\", T(\"بکاپ‌گیری\", \"Backups\"), \"nav-settings\"))", layout);
         Assert.Contains("T(\"تنظیمات\", \"Settings\")", layout);
-        Assert.Contains("children: settingsItems.ToArray()", layout);
+        Assert.Contains(".Where(item => CanAccessController(item.Controller))", layout);
+        Assert.Contains(".OrderByDescending(item => item.Controller == \"SystemSettings\")", layout);
+        Assert.Contains("settingsTarget.Controller,", layout);
+        Assert.DoesNotContain("children: settingsItems.ToArray()", layout);
         Assert.DoesNotContain("navSource.Add(NavNode(\"Users\"", layout);
         Assert.DoesNotContain("navSource.Add(NavNode(\"Backups\"", layout);
     }
 
     [Fact]
-    public void Sidebar_Uses_Mashal_Brand_And_Settings_Starts_Collapsed()
+    public void Sidebar_Uses_Mashal_Brand_And_Settings_Has_No_Collapse_Exception()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
         Assert.Contains("~/images/لوکو شمعل فارسی رنک ابی.webp", layout);
         Assert.Contains("alt=\"مشعل\"", layout);
         Assert.DoesNotContain("~/images/mashal-sidebar-white.webp", layout);
-        Assert.Contains("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);
+        Assert.DoesNotContain("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);
+    }
+
+    [Fact]
+    public void Settings_Destinations_Stay_In_The_Shared_Frame_And_Keep_Permission_Gates()
+    {
+        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
+        var navigation = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_MashalSettingsNav.cshtml");
+        var frameCondition = layout.Split("var mashalSettings =")[1].Split("var routeBodyClass")[0];
+
+        foreach (var controller in new[] { "Auth", "Companies", "Users", "Roles", "ChartOfAccounts", "FiscalYears", "CashAccounts", "SystemSettings", "OfflineSync", "Backups", "BackupRestore", "AuditLogs" })
+        {
+            Assert.Contains($"\"{controller}\"", frameCondition);
+        }
+        Assert.DoesNotContain("\"Currencies\"", frameCondition);
+        Assert.DoesNotContain("\"DailyFxRates\"", frameCondition);
+        Assert.Contains("(\"OfflineSync\", \"Index\", T(\"عملیات آفلاین\", \"Offline operations\")", navigation);
+        Assert.Contains("RoleAccessRules.CanAccessController(User, target, Modules)", navigation);
+        Assert.Contains("RoleAccessRules.CanManageBackups(User)", navigation);
+        Assert.Contains("RoleAccessRules.CanManageUsers(User)", navigation);
+        Assert.Contains("group.Items.Where(item => CanOpen(item.Item1))", navigation);
+        Assert.Contains("controller is \"Backups\" or \"BackupRestore\"", navigation);
+        Assert.Contains("controller is \"Users\" or \"Roles\"", navigation);
+        Assert.Contains("aria-current=\"@(active ? \"page\" : null)\"", navigation);
     }
 
     [Fact]
@@ -839,7 +885,8 @@ public class ShellViewStructureTests
         Assert.Contains("Model.Groups", reports);
         Assert.DoesNotContain("managementReportKeys", reports);
         Assert.DoesNotContain("financePartyReportKeys", reports);
-        Assert.Contains("وضعیت شرکت", reportsController);
+        Assert.DoesNotContain("TitleFa = \"وضعیت شرکت\"", reportsController);
+        Assert.Contains("TitleFa = \"پول، طلبات و بدهی‌ها\"", reportsController);
         Assert.Contains("کنترول و اسناد", reportsController);
 
         Assert.Contains("UPDATE \"Currencies\"", migration);

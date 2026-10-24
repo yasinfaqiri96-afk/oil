@@ -1,6 +1,7 @@
 # UI DESIGN SYSTEM — `ak-*`
 
-> Design System فعال پروژه.
+> قرارداد فعال رابط پروژه؛ مقادیر اجرایی از `01-tokens.css` و ترکیب نهایی از `78-mashal-reference.css` می‌آیند.
+> صفحهٔ کامل و سند مودال از همان primitives استفاده می‌کنند. استثناهای چاپ، chrome و ترکیب workflow مجازند؛ کنترل موازی مجاز نیست.
 > **قاعدهٔ اول:** برای صفحهٔ جدید هیچ CSS صفحه‌ای، skin، variant یا `!important` جدید نساز. از کامپوننت‌های زیر استفاده کن.
 
 ## توکن‌ها
@@ -9,21 +10,21 @@
 
 | نقش | مقدار |
 |---|---|
-| پس‌زمینهٔ بدنه | `#FCFCFC` (flat) |
-| متن | `#424242` |
-| بنفش ناوبری/تعاملی | `#55588B` / hover `#404268` |
-| سبز اکشن | `#6EA152` / hover `#53793E` |
-| ریل سایدبار | `#DCE2F9` (۵۶px) |
-| پنل سایدبار | `#F2F4FC` (۲۲۴px) |
-| موفق | `#F1F6EE` / `#63914A` |
-| خطا | `#FAE6E6` / `#B80000` |
-| هشدار | `#FEF5E7` / `#B87708` |
-| اطلاع | `#E6F1F6` / `#006395` |
+| پس‌زمینهٔ بدنه | `#F5F6FA` |
+| متن | `#343a40` |
+| آبی ناوبری/تعاملی | `#2d60c9` / hover `#2453b4` |
+| اکشن اصلی مشترک | `var(--primary-main)` / hover `var(--primary-dark)` |
+| سایدبار فشرده | همان آبی سرمه‌ای پنل (۸۸px) |
+| پنل سایدبار | `#1A467D` (۲۴۰px در پوستهٔ فعال)؛ متن `#DCE6F4` و آیکن `#D2E7FF` |
+| موفق | `#E7F5E9` / `#23713B` |
+| خطا | `#FFEAF0` / `#B00A0A` |
+| هشدار | `#FDF1E3` / `#8A5200` |
+| اطلاع | `#E8F1FF` / `#0D52AF` |
 | چارت | ورودی `#8BB475` · خروجی `#FB7185` · سود `#7779A2` |
 
-تایپوگرافی: Vazirmatn، RTL کامل، اعداد مالی LTR + tabular.
-عنوان صفحه ۳۶px/۳۰۰ · عنوان سکشن ۱۶px/۵۰۰ · هدر جدول ۱۲px · سلول ۱۴px.
-کانتینر: lg ۱۰۰۰ / 2xl ۱۱۴۵. شعاع ۶/۸/۱۲. موشن ۱۴۰–۱۹۰ms. Shadow فقط Dropdown/Tooltip/Modal.
+تایپوگرافی: IRANSans با fallback از Vazirmatn، RTL کامل، اعداد مالی LTR + tabular.
+عنوان صفحه ۲۰px/۵۰۰ · عنوان سکشن ۱۶px/۵۰۰ · هدر و سلول جدول ۱۴px. کنترل موبایل ۱۶px برای جلوگیری از zoom خودکار.
+کانتینر از `--layout-content-max` و breakpointهای پوسته می‌آید. شعاع کنترل ۳، دکمه ۴ و پنل ۶ پیکسل است. موشن ۱۴۰–۱۹۰ms. Shadow فقط Dropdown/Tooltip/Modal.
 سبک: flat — بدون Card تزئینی، بدون Shadow تزئینی، بدون گرادیان تزئینی.
 
 ## کامپوننت‌های مشترک Razor
@@ -32,10 +33,10 @@
 
 | کامپوننت | کاربرد |
 |---|---|
-| `_AkPageHeader` | هدر صفحه: عنوان + اکشن اصلی سبز + منوی سه‌نقطه |
+| `_AkPageHeader` | هدر صفحه: عنوان + اکشن اصلی آبی + منوی سه‌نقطه |
 | `_AkSectionHead` | عنوان سکشن + توضیح + divider |
 | `_AkSearchFilter` | **تنها** Search/Filter پروژه (بخش زیر) — مسیر: `Views/Shared/_AkSearchFilter.cshtml` |
-| `_AkFooterActions` | فوتر فرم: Cancel خنثی + Save سبز |
+| `_AkFooterActions` | فوتر فرم: Cancel خنثی + Save آبی |
 
 کامپوننت‌های مشترک دیگر که همچنان زنده‌اند: `_DetailsTabs` (ریل `ptg-tabs-rail` + `details-tabs.js`)، `_PagedListFooter`، `_ToggleActiveButton`، `_PartyStatementTable`، `_SupplierStatementLedger`، `_ReferenceMetricCard`.
 
@@ -82,12 +83,12 @@ TagHelper: `AkEntityComboboxTagHelper` (+ `wwwroot/js/ak-entity-combobox.js`) �
 - **RTL کامل** (منطق `inset-inline-*`).
 - **SPA lifecycle**: init روی `ptg:page-ready` تکرارپذیر است و listener تکراری ثبت نمی‌کند.
 - **visibility فقط با صفت `hidden`** کنترل می‌شود (popover و دکمهٔ clear).
-- **هیچ فیلتر client-side وجود ندارد**: نه `row.hidden`، نه مخفی‌کردن ردیف در مرورگر. فیلترکردن فقط سمت سرور است.
+- **فیلتر اصلی و قابل‌اشتراک server-side است.** `list-grid.js` فقط برای جدول کاملِ بدون pagination سرور، فیلتر نمایش محلی دارد. این فیلتر scope مستقل، وضعیت آشکار و Clear دارد؛ در موبایل نیز قابل‌دسترسی است. خروجی بر اساس فیلترهای اصلی صفحه تهیه می‌شود، نه محدودیت نمایشی محلی.
 
 ### وضعیت مهاجرت (۲۰۲۶-۰۷-۱۴)
 
 - **۴۳ صفحه** `[data-ak-filter]` دارند؛ تمام Search/Filterهای واقعی به همین مالک مشترک مهاجرت کرده‌اند.
-- **مصرف‌کنندهٔ legacy Search/Filter = صفر.**
+- Search/Filter اصلی مالک مشترک دارد؛ فیلتر ستونی نمایش در `list-grid.js` قرارداد جدا و صریح دارد و جای آن را نمی‌گیرد.
 - `wwwroot/js/ak-filter.js` **حذف شد** و reference آن از `_Layout.cshtml` **حذف شد**.
 - CSS legacy (`.ak-fbar*`، `.ak-token*`، `.ak-fpop*`، `.ak-filterbar`، `.ak-search`، `.ak-search-input`، `.ak-filter-pop`، `.ak-filter-toggle`، `.ak-filter-field`، `.ak-filter-apply`) از `50-ak-components.css` **حذف شد**.
 
@@ -118,17 +119,51 @@ TagHelper: `AkEntityComboboxTagHelper` (+ `wwwroot/js/ak-entity-combobox.js`) �
 
 ## ترتیب بارگذاری CSS در `_Layout`
 
+فهرست زیر ترتیب referenceهای توسعه است؛ production از bundle با همان ترتیب استفاده می‌کند. فایل‌های شرطی فقط در context مربوط بارگذاری می‌شوند.
+
 ```text
-_utilities → _variables → boltz-shell
-→ ptg/01-tokens → 02-base → 03-layout → 04-sidebar → 05-components
-→ 06-forms → 07-tables → 08-modals → 09-pages → 10-responsive
-→ 11-details → 12-dashboard → 13-compat → 14-master-details
-→ 15-system-lists → 16-system-tabs → 17-system-forms → 18-toasts
-→ 40-motion → 41-compact → 45-akaunting → 50-ak-components
-→ site.css
+01-tokens.css
+→ 02-base.css
+→ 03-layout.css
+→ 04-sidebar.css
+→ 05-components.css
+→ 06-forms.css
+→ 07-tables.css
+→ 08-modals.css
+→ 09-pages.css
+→ 10-responsive.css
+→ 11-details.css
+→ 12-dashboard.css
+→ 13-compat.css
+→ 14-master-details.css
+→ 15-system-lists.css
+→ 17-system-forms.css
+→ 18-toasts.css
+→ 40-motion.css
+→ 63-party-details.css
+→ 16-system-tabs.css
+→ 41-compact.css
+→ 45-akaunting.css
+→ 50-ak-components.css
+→ 65-excel-import.css
+→ 52-stat-card.css
+→ 61-finance-workspace.css
+→ 67-journal-table.css
+→ 70-page-frame.css
+→ 71-typography.css
+→ 72-surfaces.css
+→ 73-detail-system.css
+→ 74-header-controls.css
+→ 76-form-system.css
+→ 66-backups.css
+→ 80-assistant.css
+→ 78-mashal-reference.css
+→ 81-onboarding.css
+→ 60-loader.css
 ```
 
-۲۶ فایل، ~۴۰۸ KB خام در هر page-load. فایل CSS جدید اضافه نکنید؛ اگر قاعدهٔ ساختاری تازه لازم شد، به `50-ak-components.css` اضافه کنید.
+مودال chrome مستقل دارد، اما `76-form-system` و `78-mashal-reference` و scope محتوای مشترک را نیز بارگذاری می‌کند.
+CSS صفحه باید `data-ptg-page-asset` داشته باشد؛ فایل و initializer مشترک یک فرم در Create و Edit یکسان استفاده شوند.
 
 ## قواعد عملی (زخم‌خورده)
 

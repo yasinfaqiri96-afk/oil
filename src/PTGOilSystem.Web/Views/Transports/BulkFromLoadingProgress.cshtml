@@ -5,7 +5,7 @@
     ViewData["HideSectionTabs"] = true;
     var completedCount = ViewData["CompletedCount"] as int? ?? Model.Count;
 }
-<main class="ak-form-page" dir="rtl">
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model='(("نتیجهٔ تبدیل گروهی", false, (string?)null, (string?)null, (string?)null, (string?)null, "فهرست حمل‌ها", "bi-arrow-right", Url.Action("Index", "InventoryTransportLegs")))' />
     <section class="ak-form-section">

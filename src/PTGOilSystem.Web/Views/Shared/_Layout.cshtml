@@ -113,8 +113,8 @@
     }
 
     var mashalSettings = (currentController == "Auth" && currentAction == "ChangePassword")
-        || currentController == "SystemSettings"
-        || (currentController == "Companies" && (currentAction == "Edit" || currentAction == "Create"))
+        || new[] { "SystemSettings", "Users", "Roles", "OfflineSync", "Backups", "BackupRestore", "AuditLogs", "Companies", "FiscalYears", "CashAccounts" }
+            .Contains(currentController, StringComparer.OrdinalIgnoreCase)
         || (currentController == "ChartOfAccounts" && currentAction == "Mapping");
     var routeBodyClass = $"controller-{currentController.ToLowerInvariant()} action-{currentAction.ToLowerInvariant()}{genericActionClass}";
 
@@ -279,13 +279,20 @@
     }
     if (settingsItems.Count > 0)
     {
-        navSource.Add(NavNode(
-            "SystemSettings",
-            "Index",
-            T("تنظیمات", "Settings"),
-            "nav-settings",
-            active: userManagementControllers.Concat(backupManagementControllers).Append("SystemSettings").Append("OfflineSync").ToArray(),
-            children: settingsItems.ToArray()));
+        var settingsTarget = settingsItems
+            .Where(item => CanAccessController(item.Controller))
+            .OrderByDescending(item => item.Controller == "SystemSettings")
+            .FirstOrDefault();
+        if (settingsTarget.Controller is not null)
+        {
+            navSource.Add(NavNode(
+                settingsTarget.Controller,
+                settingsTarget.Action,
+                T("تنظیمات", "Settings"),
+                "nav-settings",
+                active: userManagementControllers.Concat(backupManagementControllers)
+                    .Concat(new[] { "SystemSettings", "OfflineSync", "Auth", "Companies", "FiscalYears", "Currencies", "DailyFxRates", "CashAccounts", "ChartOfAccounts" }).ToArray()));
+        }
     }
 
     // Access filtering: keep visible children; keep node if it (or any child) is reachable.
@@ -297,7 +304,10 @@
         .ToList();
 
     bool NavNodeIsActive(string[] active)
-        => active.Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
+        => active.Contains("SystemSettings", StringComparer.OrdinalIgnoreCase)
+            ? mashalSettings
+            : (!mashalSettings || settingsItems.Count == 0)
+                && active.Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
 
     bool NavChildIsActive(
         (string Controller, string Action, string Label, string Icon) child,
@@ -536,9 +546,13 @@
             <aside class="boltz-sidebar ptg-sidebar" id="boltzSidebar">
                 <partial name="_NavIconSprite" />
 
-                @* ===== Shared 280px desktop / 88px laptop panel ===== *@
+                @* هدر و فوتر ثابت‌اند؛ فقط فهرست منو اسکرول می‌شود. *@
                 <div class="sidebar-panel ak-navpanel">
-                <div class="boltz-sidebar-scroll">
+                    <header class="mashal-sidebar-header">
+                        <button type="button" class="mashal-sidebar-close" data-shell-close="true"
+                                aria-label="@T("بستن منوی کناری", "Close Sidebar")" title="@T("بستن منوی کناری", "Close Sidebar")">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
                             <img class="boltz-brand-logo" src="~/images/لوکو شمعل فارسی رنک ابی.webp" asp-append-version="true" alt="مشعل" width="1226" height="354" decoding="async" />
@@ -546,14 +560,10 @@
                     </a>
 
                     <div class="mashal-sidebar-context">
-                        <a class="mashal-company-link" asp-controller="Companies" asp-action="Index"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-company"></use></svg>@T("کسب‌وکار مشعل", "Mashal business")</a>
                         <vc:fiscal-year-switcher></vc:fiscal-year-switcher>
-                        @if (CanAccessController("Payments") && PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User))
-                        {
-                            <a class="btn mashal-primary-create" asp-controller="Payments" asp-action="Create"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-add"></use></svg>@T("ثبت تراکنش", "New transaction")</a>
-                        }
                     </div>
-                    <div class="mashal-nav-search"><svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-search"></use></svg><input type="search" data-mashal-nav-search aria-label="@T("جستجوی منو", "Search menu")" /></div>
+                    </header>
+                <div class="boltz-sidebar-scroll">
                     <nav class="boltz-sidebar-nav" aria-label="@T("ناوبری اصلی", "Main Navigation")">
                         <ul class="boltz-nav-list ptg-sidebar-nav">
                             @foreach (var node in navTree)
@@ -564,8 +574,7 @@
                                 {
                                     var childControllersUnique = node.Children.Select(c => c.Controller).Distinct(StringComparer.OrdinalIgnoreCase).Count() == node.Children.Length;
                                     var anyChildActive = node.Children.Any(child => NavChildIsActive(child, childControllersUnique));
-                                    var groupOpen = (nodeActive || anyChildActive)
-                                        && !string.Equals(node.Controller, "SystemSettings", StringComparison.OrdinalIgnoreCase);
+                                    var groupOpen = nodeActive || anyChildActive;
                                     <li class="boltz-nav-item ptg-has-sub @(groupOpen ? "is-open" : null)" data-nav-group data-nav-item="@node.Controller">
                                         <button type="button"
                                                 class="boltz-nav-link boltz-nav-group-toggle ptg-sidebar-link @(groupOpen ? "is-active" : null)"
@@ -612,9 +621,11 @@
                             }
                         </ul>
                     </nav>
+                </div>
 
-                    <div class="boltz-sidebar-foot">
-                        <a class="boltz-sidebar-foot-link" asp-controller="Auth" asp-action="ChangePassword">
+                    <footer class="boltz-sidebar-foot">
+                        <a class="boltz-sidebar-foot-link" asp-controller="Auth" asp-action="ChangePassword"
+                           title="@T("تغییر رمز عبور", "Change Password")">
                             <i class="ptg-nav-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-key"></use></svg></i>
                             <span>@T("تغییر رمز عبور", "Change Password")</span>
                         </a>
@@ -622,13 +633,13 @@
                         <form asp-controller="Auth" asp-action="Logout" method="post"
                               data-no-spa="true" data-no-submit-guard>
                             @Html.AntiForgeryToken()
-                            <button type="submit" class="boltz-sidebar-foot-link boltz-sidebar-foot-link-danger">
+                            <button type="submit" class="boltz-sidebar-foot-link boltz-sidebar-foot-link-danger"
+                                    title="@T("خروج", "Logout")">
                                 <i class="ptg-nav-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-logout"></use></svg></i>
                                 <span>@T("خروج", "Logout")</span>
                             </button>
                         </form>
-                    </div>
-                </div>
+                    </footer>
                 </div>
             </aside>
             }
@@ -641,6 +652,8 @@
                         <button type="button"
                                 class="boltz-topbar-toggle"
                                 data-shell-toggle="true"
+                                data-label-open="@T("باز کردن منوی کناری", "Open Sidebar")"
+                                data-label-close="@T("بستن منوی کناری", "Close Sidebar")"
                                 aria-controls="boltzSidebar"
                                 aria-expanded="false"
                                 aria-label="@T("باز کردن منوی کناری", "Open Sidebar")">

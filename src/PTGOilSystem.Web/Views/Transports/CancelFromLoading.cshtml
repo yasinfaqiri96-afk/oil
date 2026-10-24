@@ -12,7 +12,7 @@
     var currentUrl = Context.Request.Path + Context.Request.QueryString;
 }
 
-<main class="ak-form-page" dir="rtl" data-loading-cancel-page>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-loading-cancel-page>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("تبدیل‌های بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
 

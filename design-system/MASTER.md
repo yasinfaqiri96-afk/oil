@@ -50,24 +50,29 @@
 
 ## 4. Design Tokens
 
+قرارداد یکپارچهٔ ۲۰۲۶-۱۰-۲۴: primary action و interaction یک palette دارند؛ `--ptg-btn-primary` alias از `--primary-main` است. فونت صفحه ۲۰، سکشن ۱۶، متن ۱۵ و جدول/عدد ۱۴ پیکسل است؛ ورودی موبایل حداقل ۱۶ پیکسل می‌ماند. در صفحه و مودال همین نقش‌ها استفاده می‌شوند. فایل `82-customer-transfer.css` فقط ترکیب صفحه را تعیین می‌کند، نه primitive کنترل.
+
+فیلتر اصلی با `_AkSearchFilter` و query string اداره می‌شود. فیلتر ستون در grid فقط محدودیت نمایشی محلی روی جدول کامل است؛ state و Clear آشکار دارد و خروجی از فیلتر اصلی پیروی می‌کند.
+
+
 ### 4.1 رنگ‌ها
 
 | نقش | توکن runtime | مقدار فعلی | کاربرد |
 |---|---|---:|---|
-| Navigation / interaction | `--primary-main` | `#173F73` | لینک، تب، focus، shell |
-| Navigation hover | `--primary-dark` | `#123258` | hover/focus تعاملی |
-| Primary action | `--ptg-btn-primary` | `#1877F2` | Save/Create/عمل اصلی |
-| Primary action hover | `--ptg-btn-primary-dark` | `#0B5ED7` | hover/active |
-| Canvas | `--background-default` | `#FCFCFC` | پس‌زمینه اصلی |
+| Navigation / interaction | `--primary-main` | `#2d60c9` | لینک، تب، focus، shell |
+| Navigation hover | `--primary-dark` | `#2453b4` | hover/focus تعاملی |
+| Primary action | `--ptg-btn-primary` | `#2d60c9` | Save/Create/عمل اصلی |
+| Primary action hover | `--ptg-btn-primary-dark` | `#2453b4` | hover/active |
+| Canvas | `--background-default` | `#F5F6FA` | پس‌زمینه اصلی |
 | Paper | `--background-paper` | `#FFFFFF` | modal، dropdown، سطح سفید |
-| Neutral surface | `--background-neutral` | `#F5F7FA` | hover و ردیف نرم |
-| Text | `--text-primary` | `#424242` | عنوان، متن، عدد |
-| Muted text | `--text-secondary` | `#666B75` | توضیح و metadata |
-| Divider | `--divider` | `#E5E7EB` | جداکننده و جدول |
-| Success | `--success-main` | `#6EA152` | فقط موفقیت واقعی |
-| Warning | `--warning-main` | `#F59E0B` | نیازمند توجه |
-| Error | `--error-main` | `#CC0000` | خطا/عمل مخرب |
-| Info | `--info-main` | `#006EA6` | اطلاع خنثی |
+| Neutral surface | `--background-neutral` | `#F2F5FC` | hover و ردیف نرم |
+| Text | `--text-primary` | `#343a40` | عنوان، متن، عدد |
+| Muted text | `--text-secondary` | `#5f6670` | توضیح و metadata |
+| Divider | `--divider` | `#E7E7E7` | جداکننده و جدول |
+| Success | `--success-main` | `#24AF22` | فقط موفقیت واقعی |
+| Warning | `--warning-main` | `#D68000` | نیازمند توجه |
+| Error | `--error-main` | `#CB0B0B` | خطا/عمل مخرب |
+| Info | `--info-main` | `#1062D0` | اطلاع خنثی |
 
 `#206BC4` و `#00A76F` در حال حاضر توکن canonical runtime نیستند. آن‌ها را مستقیم یا صفحه‌ای وارد نکن؛ هر تغییر پالت باید ابتدا در `01-tokens.css` و با درخواست مستقل انجام شود.
 
@@ -152,10 +157,10 @@ Border ضخیم، radius بزرگ، glow، shadow سنگین و elevation تود
 
 | نقش | مقدار |
 |---|---:|
-| Sidebar expanded | `224px` |
+| Sidebar expanded | `240px` |
 | Sidebar rail | `88px` |
 | Mobile navigation | `304px` |
-| Header desktop/mobile | `56px / 52px` |
+| Header desktop/mobile | `48px` |
 | Content max | `1280px` (progressive up to `1560px` on wide monitors) |
 | Form max | `860px` |
 | Wide form max | `1080px` |

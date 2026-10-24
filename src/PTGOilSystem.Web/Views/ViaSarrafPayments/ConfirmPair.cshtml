@@ -7,7 +7,7 @@
         : Url.Action("Details", "Ledger", new { id = Model.PaymentLedgerEntryId }) ?? "/Ledger";
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("تأیید جفت تراکنش پرداخت صرافی", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

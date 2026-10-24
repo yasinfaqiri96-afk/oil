@@ -6,7 +6,7 @@
     var currencies = ViewBag.Currencies as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("ثبت Opening / Manual Adjustment", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

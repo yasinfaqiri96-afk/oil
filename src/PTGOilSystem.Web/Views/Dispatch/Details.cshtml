@@ -181,7 +181,7 @@
         .ToArray();
 }
 
-<div class="page-stack ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-dispatch-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
+<div class="page-stack ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-dispatch-details data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs>
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = $"{T("حمل با موتر", "Truck dispatch")} · {Model.TruckPlateNumber}",

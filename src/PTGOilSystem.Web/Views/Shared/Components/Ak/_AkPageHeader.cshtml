@@ -31,10 +31,11 @@
 *@
 @model (string Title, bool Star, string? ActionLabel, string? ActionIcon, string? ActionHref, string? ActionModalTarget, string? SecondaryLabel, string? SecondaryIcon, string? SecondaryHref)
 @{
-    var isDetailPage = string.Equals(
+    var identity = ViewData["AkHeaderIdentity"] as PTGOilSystem.Web.Models.Shared.AkDetailHeroModel;
+    var isDetailPage = ViewData["AkHeaderIsDetail"] as bool? ?? (identity != null || string.Equals(
         ViewContext.RouteData.Values["action"]?.ToString(),
         "Details",
-        StringComparison.OrdinalIgnoreCase);
+        StringComparison.OrdinalIgnoreCase));
     var icon = string.IsNullOrWhiteSpace(Model.ActionIcon) ? "bi-plus-lg" : Model.ActionIcon;
     var primaryCandidate = !string.IsNullOrWhiteSpace(Model.ActionLabel)
         && (!string.IsNullOrWhiteSpace(Model.ActionModalTarget) || !string.IsNullOrWhiteSpace(Model.ActionHref));
@@ -46,7 +47,6 @@
     var hasSecondary = !string.IsNullOrWhiteSpace(Model.SecondaryLabel) && !string.IsNullOrWhiteSpace(Model.SecondaryHref);
     var secIcon = string.IsNullOrWhiteSpace(Model.SecondaryIcon) ? "bi-arrow-right" : Model.SecondaryIcon;
 
-    var identity = ViewData["AkHeaderIdentity"] as PTGOilSystem.Web.Models.Shared.AkDetailHeroModel;
     var identityItems = (identity?.Items ?? Array.Empty<PTGOilSystem.Web.Models.Shared.AkInfoItem>())
         .Where(item => item.HasValue)
         .Take(5)

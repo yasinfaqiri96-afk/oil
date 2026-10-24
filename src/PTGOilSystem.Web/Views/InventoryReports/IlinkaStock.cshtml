@@ -7,7 +7,7 @@
     var distinctTerminals = Model.Rows.Select(r => r.TerminalCode).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct().Count();
 }
 
-<div class="ak-list-page" dir="rtl">
+<div class="ak-list-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "گزارش بازسازی موجودی ILINKA", "ILINKA Stock Reconstruction"), false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

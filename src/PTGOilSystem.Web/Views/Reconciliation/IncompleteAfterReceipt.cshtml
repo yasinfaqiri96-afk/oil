@@ -28,7 +28,7 @@
     };
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("بارهای در مسیر / ناتمام بعد از رسید بارگیری", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

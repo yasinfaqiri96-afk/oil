@@ -7,5 +7,12 @@
     ViewData["EditFormPartialPath"] = "/Views/CustomerToCustomerPayments/_CreateForm.cshtml";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/ptg/82-customer-transfer.css" asp-append-version="true" data-ptg-page-asset="customer-transfer-style" />
+}
+
 <partial name="~/Views/Shared/_EditPageShell.cshtml" model="Model" />
-@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script src="~/js/customer-transfer.js" asp-append-version="true" defer data-ptg-page-asset="customer-transfer-script"></script>
+}

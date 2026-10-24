@@ -1,6 +1,7 @@
 @model PTGOilSystem.Web.Models.Sales.PreSaleDetailsViewModel
 @using PTGOilSystem.Web.Models.Sales
 @{
+    ViewData["AkHeaderIsDetail"] = true;
     string T(string fa, string en) => UiText.T(Context, fa, en);
 
     ViewData["Title"] = $"فروش مرحله‌ای {Model.OrderNumber}";
@@ -132,7 +133,7 @@
     };
 }
 
-<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true">
+<div class="ak-form-page ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-ak-detail-v2="true" data-ak-operations-detail="true">
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = $"{T("فروش مرحله‌ای", "Staged sale")} {Model.OrderNumber}",

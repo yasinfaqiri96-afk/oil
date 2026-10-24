@@ -62,18 +62,18 @@
 
     <div class="mashal-dashboard-toolbar">
         <h1>@T("داشبورد", "Dashboard")</h1>
-        <div><button type="button" class="mashal-dashboard-save" data-mashal-save><i class="bi bi-bookmark-fill" aria-hidden="true"></i> @T("ذخیره", "Save")</button><button type="button" class="mashal-widget-add" data-bs-toggle="modal" data-bs-target="#mashalWidgetPicker" aria-label="افزودن ابزار"><i class="bi bi-plus-lg" aria-hidden="true"></i></button><span class="visually-hidden" data-mashal-save-status role="status"></span></div>
+        <div><button type="button" class="mashal-dashboard-save" data-mashal-save><i class="bi bi-bookmark-fill" aria-hidden="true"></i> @T("ذخیره", "Save")</button><button type="button" class="mashal-widget-add" data-bs-toggle="modal" data-bs-target="#mashalWidgetPicker" aria-label="@T("افزودن ابزار", "Add widgets")"><i class="bi bi-plus-lg" aria-hidden="true"></i></button><span class="visually-hidden" data-mashal-save-status role="status"></span></div>
     </div>
     <div class="modal fade mashal-widget-picker" id="mashalWidgetPicker" tabindex="-1" aria-labelledby="mashalWidgetTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-            <div class="mashal-widget-picker-head"><h2 id="mashalWidgetTitle">افزودن ابزار</h2><label>انتخاب همه <input type="checkbox" data-mashal-widgets-all /></label></div>
+            <div class="mashal-widget-picker-head"><h2 id="mashalWidgetTitle">@T("افزودن ابزار", "Add widgets")</h2><label>@T("انتخاب همه", "Select all") <input type="checkbox" data-mashal-widgets-all /></label></div>
             <div class="mashal-widget-options">
-            @foreach (var widget in new[] { ("activities", "آخرین فعالیت‌ها", "file-earmark-text-fill"), ("tanks", "موجودی مخازن", "database-fill"), ("alerts", "هشدارهای عملیات", "exclamation-square-fill"), ("summary", "خلاصه امروز", "bar-chart-fill"), ("analytics", "تحلیل درآمد و فروش", "pie-chart-fill"), ("shipments", "محموله‌های در جریان", "box-seam-fill") })
+            @foreach (var widget in new[] { ("activities", T("آخرین فعالیت‌ها", "Recent activities"), "file-earmark-text-fill"), ("tanks", T("موجودی مخازن", "Tank stock"), "database-fill"), ("alerts", T("هشدارهای عملیات", "Operational alerts"), "exclamation-square-fill"), ("summary", T("خلاصه امروز", "Today’s summary"), "bar-chart-fill"), ("analytics", T("تحلیل درآمد و فروش", "Revenue and sales"), "pie-chart-fill"), ("shipments", T("محموله‌های در جریان", "Active shipments"), "box-seam-fill") })
             {
                 <label class="mashal-widget-option"><input type="checkbox" value="@widget.Item1" data-mashal-widget-choice /><i class="bi bi-@widget.Item3" aria-hidden="true"></i><span>@widget.Item2</span></label>
             }
             </div>
-            <div class="mashal-widget-picker-actions"><button type="button" data-mashal-widgets-apply disabled>تأیید</button><button type="button" data-bs-dismiss="modal">لغو</button></div>
+            <div class="mashal-widget-picker-actions"><button type="button" data-mashal-widgets-apply disabled>@T("تأیید", "Apply")</button><button type="button" data-bs-dismiss="modal">@T("لغو", "Cancel")</button></div>
         </div></div>
     </div>
 
@@ -168,7 +168,7 @@
             {
                 <div class="mashal-document-row"><div><span class="mashal-document-badge"><i class="bi @item.DirectionIcon" aria-hidden="true"></i></span><span class="mashal-document-status">@item.Status</span></div><div><span class="mashal-document-amount"><bdi>@item.Amount</bdi></span><span>@item.Name</span><small>@item.TimeText</small></div></div>
             }
-            @if (Model.RecentActivities.Count == 0) { <p class="mashal-widget-empty">فعالیتی ثبت نشده است.</p> }
+            @if (Model.RecentActivities.Count == 0) { <p class="mashal-widget-empty">@T("فعالیتی ثبت نشده است.", "No activities yet.")</p> }
             </div>
         </article>
         <article class="mashal-widget mashal-tanks" data-mashal-widget="tanks">
@@ -178,7 +178,7 @@
             {
                 <a asp-controller="StorageTanks" asp-action="Details" asp-route-id="@tank.TankId" class="mashal-tank-row"><span>@tank.TankName</span><bdi>@StatCardFormatter.Number(tank.StockMt, 2) MT</bdi></a>
             }
-            @if (Model.TankCapacities.Count == 0) { <p class="mashal-widget-empty">مخزنی ثبت نشده است.</p> }
+            @if (Model.TankCapacities.Count == 0) { <p class="mashal-widget-empty">@T("مخزنی ثبت نشده است.", "No tanks yet.")</p> }
             </div>
         </article>
         <article class="mashal-widget mashal-alerts" data-mashal-widget="alerts">
@@ -188,7 +188,7 @@
             {
                 <div class="mashal-alert-row"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div><strong>@alert.Title</strong><small>@alert.Message</small></div></div>
             }
-            @if (Model.LowStockAlerts.Count + Model.ContractsEndingSoonAlerts.Count + Model.ShipmentsWithoutSalesAlerts.Count + Model.ShipmentsWithoutExpensesAlerts.Count == 0) { <p class="mashal-widget-empty">هشداری وجود ندارد.</p> }
+            @if (Model.LowStockAlerts.Count + Model.ContractsEndingSoonAlerts.Count + Model.ShipmentsWithoutSalesAlerts.Count + Model.ShipmentsWithoutExpensesAlerts.Count == 0) { <p class="mashal-widget-empty">@T("هشداری وجود ندارد.", "No alerts.")</p> }
             </div>
         </article>
     </section>

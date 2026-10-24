@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel
+@model PTGOilSystem.Web.Models.ServiceProviders.ServiceProviderProfileViewModel
 @using PTGOilSystem.Web.Models.Shared
 @{
     ViewData["Title"] = Model.Name;
@@ -107,7 +107,7 @@
 }
 
 
-<div class="ak-form-page ak-party-page service-provider-details-page ak-detail-page" dir="rtl" data-ak-detail-v2="true">
+<div class="ak-form-page ak-party-page service-provider-details-page ak-detail-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-ak-detail-v2="true">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((Model.Name, false,
                        UiText.T(Context, "ثبت پرداخت", "Record payment"), "bi-cash-coin", spPaymentUrl, (string?)null,

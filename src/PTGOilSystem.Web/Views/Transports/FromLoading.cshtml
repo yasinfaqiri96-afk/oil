@@ -6,7 +6,7 @@
     ViewData["HideSectionTabs"] = true;
 }
 
-<main class="ak-form-page" dir="rtl" data-transport-vehicle-form>
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-transport-vehicle-form>
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("تبدیل بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", Url.Action("Details", "Loading", new { id = Model.LoadingRegisterId })))" />
     <form asp-action="FromLoading" method="post" class="ak-form" data-submit-lock data-no-spa>

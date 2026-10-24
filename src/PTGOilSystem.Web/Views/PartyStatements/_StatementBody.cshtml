@@ -1,4 +1,4 @@
-﻿@*
+@*
     بدنهٔ صورت‌حساب رسمی — همان چیزی که صفحهٔ مستقل PartyStatements/Document نشان می‌دهد.
     تب «صورت‌حساب» پروفایل طرف‌حساب هم همین partial را سمت سرور رندر می‌کند (ViewComponent
     PartyStatement)، پس دیگر صفحه دوباره با fetch گرفته و صورت‌حساب دوباره محاسبه نمی‌شود.
@@ -204,7 +204,7 @@
 }
 
 <article class="statement-document @(c.UseLandscape ? "is-landscape" : "is-portrait")"
-         dir="rtl" data-statement-auto-print="@(Model.IsPrintMode ? "true" : null)">
+         dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-statement-auto-print="@(Model.IsPrintMode ? "true" : null)">
     <header class="statement-screen-header no-print">
         <div class="statement-screen-search">
             <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="statementFilter" />

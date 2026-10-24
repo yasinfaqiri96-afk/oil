@@ -7,7 +7,7 @@
     var expenseTypeNames = ViewBag.ExpenseTypeNames as IEnumerable<string> ?? Array.Empty<string>();
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="Components/Ak/_AkPageHeader"
              model='((ViewData["Title"]?.ToString() ?? "Wagon Rent", false, (string?)null, (string?)null, (string?)null, (string?)null, UiText.T(Context, "بازگشت", "Back"), "bi-arrow-right", cancelUrl))' />
 

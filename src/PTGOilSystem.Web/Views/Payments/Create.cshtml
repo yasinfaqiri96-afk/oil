@@ -44,7 +44,7 @@
         || !string.IsNullOrWhiteSpace(Model.Description);
 }
 
-<div class="ak-form-page roznamcha-entry-page @(Model.SalesTransactionId.HasValue ? "mashal-invoice-receipt" : "mashal-transaction")" dir="rtl">
+<div class="ak-form-page roznamcha-entry-page @(Model.SalesTransactionId.HasValue ? "mashal-invoice-receipt" : "mashal-transaction")" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((ViewData["Title"] as string ?? "روزنامچه", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

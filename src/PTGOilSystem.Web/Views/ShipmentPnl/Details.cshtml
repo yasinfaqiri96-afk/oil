@@ -1,4 +1,4 @@
-﻿@using PTGOilSystem.Web.Models.ShipmentPnl
+@using PTGOilSystem.Web.Models.ShipmentPnl
 @using PTGOilSystem.Web.Models.Shared
 @using PTGOilSystem.Web.Services
 @model PTGOilSystem.Web.Models.ShipmentPnl.ShipmentPnlDetailsViewModel
@@ -149,7 +149,7 @@
     };
 }
 
-<div class="ak-form-page sf-detail ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="rtl" data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs data-shipment-details-page>
+<div class="ak-form-page sf-detail ak-detail-page ak-operations-detail ak-operations-clean-page ak-linear-detail" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" data-ak-detail-v2="true" data-ak-operations-detail="true" data-instant-tabs data-shipment-details-page>
     @{ ViewData["AkHeaderIdentity"] = new AkDetailHeroModel
        {
            Title = shipmentTitle,

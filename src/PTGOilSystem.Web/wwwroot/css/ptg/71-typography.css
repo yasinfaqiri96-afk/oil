@@ -130,9 +130,9 @@
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table > thead > tr > th,
     body.ptg-modal-document .ptg-modal-body-shell table > thead > tr > th {
         padding: 11px 14px;
-        color: var(--text-primary) !important;
-        font-size: var(--font-table-head) !important;
-        font-weight: var(--weight-table-head) !important;
+        color: var(--text-primary);
+        font-size: var(--font-table-head);
+        font-weight: var(--weight-table-head);
         line-height: var(--line-table-head);
         vertical-align: middle;
         white-space: nowrap;
@@ -169,7 +169,7 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx),
     body.ptg-modal-document .ptg-modal-body-shell table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx) {
-        font-size: var(--font-number) !important;
+        font-size: var(--font-number);
         font-weight: var(--weight-number) !important;
     }
 

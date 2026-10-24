@@ -3,7 +3,7 @@
     ViewData["Title"] = "راهنمای دریافت، پرداخت و تسویه";
 }
 
-<div class="ak-form-page finance-workspace-page" dir="rtl">
+<div class="ak-form-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("راهنمای دریافت، پرداخت و تسویه", false,
                        "ثبت دریافت/پرداخت", "bi-plus-lg", Url.Action("Create"), (string?)null,

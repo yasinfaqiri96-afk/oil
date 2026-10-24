@@ -82,6 +82,23 @@
 
         var emptyRow = null;
         var sortState = { index: -1, dir: 0 };
+        var filterState = document.createElement("div");
+        filterState.className = "ak-detail-toolbar ak-local-filter-state";
+        filterState.hidden = true;
+        var filterSummary = document.createElement("span");
+        filterSummary.className = "ak-note";
+        filterSummary.setAttribute("role", "status");
+        var clearFilters = document.createElement("button");
+        clearFilters.type = "button";
+        clearFilters.className = "btn btn-light ak-secondary-action";
+        clearFilters.textContent = T("پاک کردن فیلتر نمایش", "Clear display filters");
+        clearFilters.addEventListener("click", function () {
+            filters.forEach(function (filter) { filter.input.value = ""; });
+            applyFilters();
+            if (filters.length) filters[0].input.focus();
+        });
+        filterState.append(filterSummary, clearFilters);
+        if (filters.length) (table.closest(".ak-table-wrap") || table).before(filterState);
         dataRows().forEach(function (row, order) { row.dataset.listGridOrder = String(order); });
         number();
 
@@ -104,6 +121,10 @@
                 else { row.dataset.listGridHidden = "true"; collapseBreakdown(row); }
             });
             toggleEmpty(active.length > 0 && shown === 0);
+            filterState.hidden = active.length === 0;
+            filterSummary.textContent = T("فیلتر نمایش: ", "Display filters: ") +
+                active.map(function (filter) { return label(headRow.cells[filter.index]) + ": " + filter.value; }).join(" · ") +
+                T(" — خروجی با فیلترهای اصلی صفحه تهیه می‌شود.", " — Exports use the page's main filters.");
             refreshPager();
             number();
         }

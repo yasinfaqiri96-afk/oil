@@ -11,7 +11,7 @@
     var paymentFxText = paymentFx.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }
 
-<div class="ak-form-page" dir="rtl">
+<div class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("مصرف پیش‌پرداخت برای قرارداد", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,

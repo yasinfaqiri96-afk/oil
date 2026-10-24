@@ -29,7 +29,7 @@
     }
 }
 
-<article class="cbr-sheet" dir="rtl" lang="fa" aria-label="@Txt.Title">
+<article class="cbr-sheet" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")" lang="fa" aria-label="@Txt.Title">
     <p class="cbr-scope">
         @Txt.Period(Model.ReportFromDate, Model.ReportToDate)
         <span aria-hidden="true">·</span>

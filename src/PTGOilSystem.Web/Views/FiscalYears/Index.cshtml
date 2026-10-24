@@ -20,8 +20,7 @@
     <section class="finance-fiscal-summary" aria-labelledby="fiscal-current-title">
         <header class="finance-section-header">
             <div>
-                <h2 id="fiscal-current-title">سال مالی جاری</h2>
-                <p>بازه، وضعیت و دوره‌های سال جاری را از یک‌جا مدیریت کنید.</p>
+                <h2 id="fiscal-current-title">سال جاری</h2>
             </div>
         </header>
 
@@ -49,26 +48,25 @@
                       data-ptg-confirm="true" data-ptg-confirm-title="ایجاد اولین سال مالی"
                       data-ptg-confirm-message="اولین سال مالی با وضعیت «باز» و به‌عنوان سال جاری ساخته شود؟">
                     @Html.AntiForgeryToken()
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label" for="initial-name">نام سال مالی</label>
+                    <div class="ak-form-grid">
+                        <div class="ak-field">
+                            <label class="ak-label" for="initial-name">نام سال مالی</label>
                             <input class="ak-input" id="initial-name" name="name" value="FY-@defaultYearLabel" required maxlength="100" />
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label" for="initial-start">تاریخ شروع</label>
+                        <div class="ak-field">
+                            <label class="ak-label" for="initial-start">تاریخ شروع</label>
                             <input class="ak-input" id="initial-start" name="startDate" type="date" value="@defaultStart.ToString("yyyy-MM-dd")" required />
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label" for="initial-end">تاریخ پایان</label>
+                        <div class="ak-field">
+                            <label class="ak-label" for="initial-end">تاریخ پایان</label>
                             <input class="ak-input" id="initial-end" name="endDate" type="date" value="@defaultEnd.ToString("yyyy-MM-dd")" required />
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label" for="initial-count">تعداد دوره</label>
+                        <div class="ak-field">
+                            <label class="ak-label" for="initial-count">تعداد دوره‌های سال</label>
                             <input class="ak-input" id="initial-count" name="periodCount" type="number" min="1" max="53" value="12" required />
                         </div>
                     </div>
-                    <p class="ak-hint">دوره‌ها به‌صورت ماهانه و پیوسته تولید می‌شوند و باید کل بازهٔ سال را دقیقاً بپوشانند.</p>
-                    <button type="submit" class="btn btn-primary">ایجاد اولین سال مالی</button>
+                    <button type="submit" class="btn btn-primary mt-3">ایجاد سال مالی</button>
                 </form>
             }
         }
@@ -76,79 +74,88 @@
         {
             <dl class="finance-fiscal-facts">
                 <div><dt>سال مالی</dt><dd>@year.Name</dd></div>
-                <div><dt>بازه</dt><dd>@DateDisplay.Date(year.StartDate) — @DateDisplay.Date(year.EndDate)</dd></div>
+                <div><dt>از تاریخ — تا تاریخ</dt><dd>@DateDisplay.Date(year.StartDate) — @DateDisplay.Date(year.EndDate)</dd></div>
                 <div><dt>وضعیت</dt><dd><span class="ak-status @FiscalStatusDisplay.YearCss(year.Status)">@FiscalStatusDisplay.YearLabel(year.Status)</span></dd></div>
-                <div><dt>دوره جاری</dt><dd>@(year.CurrentPeriod?.Name ?? "-")</dd></div>
-                <div><dt>تعداد دوره‌ها</dt><dd class="ak-num">@year.PeriodCount</dd></div>
             </dl>
 
-            <div class="ak-table-wrap">
-                <table class="ak-table" aria-label="دوره‌های سال مالی">
-                    <thead>
-                        <tr>
-                            <th>شماره</th>
-                            <th class="ak-col-grow">دوره</th>
-                            <th>شروع</th>
-                            <th>پایان</th>
-                            <th>وضعیت</th>
-                            <th class="ak-col-actions">قفل / بازکردن</th>
-                            <th class="ak-col-actions">فعالیت‌ها</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var period in year.Periods)
-                        {
-                            var actions = Model.CurrentYearPeriodLockActions.TryGetValue(period.PeriodId, out var list)
-                                ? list
-                                : System.Array.Empty<FiscalPeriodLockAction>();
-                            <tr>
-                                <td>@period.PeriodNumber</td>
-                                <td class="ak-col-grow">@period.Name</td>
-                                <td>@DateDisplay.Date(period.StartDate)</td>
-                                <td>@DateDisplay.Date(period.EndDate)</td>
-                                <td><span class="ak-status @FiscalStatusDisplay.PeriodCss(period.Status)">@FiscalStatusDisplay.PeriodLabel(period.Status)</span></td>
-                                <td class="ak-col-actions">
-                                    @if (actions.Count == 0)
-                                    {
-                                        <span class="ak-hint">-</span>
-                                    }
-                                    else
-                                    {
-                                        foreach (var action in actions)
-                                        {
-                                            <form asp-action="ChangePeriodLock" method="post" class="d-inline"
-                                                  data-ptg-confirm="true" data-ptg-confirm-title="تغییر قفل دوره"
-                                                  data-ptg-confirm-message="@action.ConfirmMessage">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="id" value="@year.FiscalYearId" />
-                                                <input type="hidden" name="fiscalPeriodId" value="@period.PeriodId" />
-                                                <input type="hidden" name="status" value="@action.TargetStatus" />
-                                                <button type="submit" class="btn btn-light btn-sm">@action.Label</button>
-                                            </form>
-                                        }
-                                    }
-                                </td>
-                                <td class="ak-col-actions">
-                                    <a class="btn btn-light btn-sm" asp-controller="PeriodActivity" asp-action="Index" asp-route-periodId="@period.PeriodId">مشاهده فعالیت‌ها</a>
-                                </td>
-                            </tr>
-                        }
-                        @if (year.Periods.Count == 0)
-                        {
-                            <tr><td colspan="7"><div class="ak-empty">دوره‌ای ثبت نشده است</div></td></tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <details class="ak-advanced mt-3">
+                <summary class="ak-advanced-summary">دوره‌های سال مالی (@year.PeriodCount)</summary>
+                <div class="ak-advanced-body">
+                    <p class="ak-hint">دوره جاری: @(year.CurrentPeriod?.Name ?? "-")</p>
+                    <div class="ak-table-wrap">
+                        <table class="ak-table" aria-label="دوره‌های سال مالی">
+                            <thead>
+                                <tr>
+                                    <th>شماره</th>
+                                    <th class="ak-col-grow">دوره</th>
+                                    <th>شروع</th>
+                                    <th>پایان</th>
+                                    <th>وضعیت</th>
+                                    <th class="ak-col-actions">قفل / بازکردن</th>
+                                    <th class="ak-col-actions">فعالیت‌ها</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var period in year.Periods)
+                                {
+                                    var actions = Model.CurrentYearPeriodLockActions.TryGetValue(period.PeriodId, out var list)
+                                        ? list
+                                        : System.Array.Empty<FiscalPeriodLockAction>();
+                                    <tr>
+                                        <td>@period.PeriodNumber</td>
+                                        <td class="ak-col-grow">@period.Name</td>
+                                        <td>@DateDisplay.Date(period.StartDate)</td>
+                                        <td>@DateDisplay.Date(period.EndDate)</td>
+                                        <td><span class="ak-status @FiscalStatusDisplay.PeriodCss(period.Status)">@FiscalStatusDisplay.PeriodLabel(period.Status)</span></td>
+                                        <td class="ak-col-actions">
+                                            @if (actions.Count == 0)
+                                            {
+                                                <span class="ak-hint">-</span>
+                                            }
+                                            else
+                                            {
+                                                foreach (var action in actions)
+                                                {
+                                                    <form asp-action="ChangePeriodLock" method="post" class="d-inline"
+                                                          data-ptg-confirm="true" data-ptg-confirm-title="تغییر قفل دوره"
+                                                          data-ptg-confirm-message="@action.ConfirmMessage">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="id" value="@year.FiscalYearId" />
+                                                        <input type="hidden" name="fiscalPeriodId" value="@period.PeriodId" />
+                                                        <input type="hidden" name="status" value="@action.TargetStatus" />
+                                                        <button type="submit" class="btn btn-light btn-sm">@action.Label</button>
+                                                    </form>
+                                                }
+                                            }
+                                        </td>
+                                        <td class="ak-col-actions">
+                                            <a class="btn btn-light btn-sm" asp-controller="PeriodActivity" asp-action="Index" asp-route-periodId="@period.PeriodId">مشاهده فعالیت‌ها</a>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (year.Periods.Count == 0)
+                                {
+                                    <tr><td colspan="7"><div class="ak-empty">دوره‌ای ثبت نشده است</div></td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
 
             @if (Model.OtherYears.Count > 0)
             {
-                <nav class="finance-year-links" aria-label="سال‌های مالی قبلی">
-                    @foreach (var other in Model.OtherYears)
-                    {
-                        <a asp-action="Details" asp-route-id="@other.FiscalYearId">@other.Name <span>@FiscalStatusDisplay.YearLabel(other.Status)</span></a>
-                    }
-                </nav>
+                <details class="ak-advanced mt-3">
+                    <summary class="ak-advanced-summary">سال‌های دیگر (@Model.OtherYears.Count)</summary>
+                    <div class="ak-advanced-body">
+                        <nav class="finance-year-links" aria-label="سال‌های مالی قبلی">
+                            @foreach (var other in Model.OtherYears)
+                            {
+                                <a asp-action="Details" asp-route-id="@other.FiscalYearId">@other.Name <span>@FiscalStatusDisplay.YearLabel(other.Status)</span></a>
+                            }
+                        </nav>
+                    </div>
+                </details>
             }
         }
     </section>
@@ -175,9 +182,9 @@
     @* بستنِ سال (پیشرفته): چک‌لیست، بستن آزمایشی/نهایی و بازگشایی — فقط مدیر و فقط با Accounting.Enabled. *@
     @if (showAdvancedClose)
     {
-        <details class="finance-advanced-close">
-            <summary>بستن سال (پیشرفته) — فقط مدیر</summary>
-            <nav class="finance-advanced-links" aria-label="عملیات پیشرفته بستن سال">
+        <details class="finance-advanced-close ak-advanced mt-3">
+            <summary class="ak-advanced-summary">بستن و بازگشایی سال</summary>
+            <nav class="finance-advanced-links ak-advanced-body" aria-label="عملیات پیشرفته بستن سال">
                 <a asp-controller="AccountingReadiness" asp-action="Index">بررسی آمادگی</a>
                 <a asp-controller="ClosingChecklist" asp-action="Index" asp-route-fiscalYearId="@year!.FiscalYearId">چک‌لیست بستن</a>
                 <a asp-controller="TrialClose" asp-action="Index" asp-route-fiscalYearId="@year.FiscalYearId">بستن آزمایشی</a>

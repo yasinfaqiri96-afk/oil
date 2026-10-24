@@ -19,7 +19,7 @@
         "Payment to the supplier (direct or through a sarraf)");
 }
 <div class="ak-table-wrap supplier-statement-ledger-wrap">
-    <table class="ak-table align-middle mb-0 supplier-statement-ledger" dir="rtl">
+    <table class="ak-table align-middle mb-0 supplier-statement-ledger" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
         <thead>
             <tr>
                 <th>تاریخ</th>

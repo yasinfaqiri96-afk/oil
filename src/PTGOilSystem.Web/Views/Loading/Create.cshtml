@@ -426,7 +426,7 @@
    است که LoadingWorkbookParser می‌شناسد. *@
 <div class="modal fade" id="loadingImportGuideModal" tabindex="-1" aria-labelledby="loadingImportGuideModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content" dir="rtl">
+        <div class="modal-content" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
             <div class="modal-header">
                 <h2 class="modal-title" id="loadingImportGuideModalLabel">راهنمای فایل اکسل بارگیری</h2>
                 <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="بستن"></button>

@@ -55,7 +55,7 @@
     };
 }
 
-<main class="ak-form-page" dir="rtl">
+<main class="ak-form-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@(("تبدیل گروهی بارگیری به حمل", false, (string?)null, (string?)null, (string?)null, (string?)null, "بازگشت", "bi-arrow-right", backUrl))" />
     <form asp-action="BulkFromLoading" method="post" class="ak-form" data-submit-lock data-no-spa>
