@@ -733,10 +733,9 @@ body.is-finance-workspace .akrep-copy small {
 }
 
 /* =====================================================================
-   Reports hub — avatar card grid  (.rephub-*)
-   Scoped to the reports hub page only. The Akaunting row list above
-   (.akrep-*) stays untouched because Views/Finance/Index.cshtml uses it.
-   Two in-page tabs, each holding one flat six-column grid of soft cards.
+   Shared Reports/Finance avatar card grid  (.rephub-*)
+   Reports and Finance share the same card sizing and responsive grid.
+   Legacy Akaunting rows (.akrep-*) remain available to other finance pages.
    ===================================================================== */
 body.is-finance-workspace .rephub-page {
     --rephub-cols: 6;

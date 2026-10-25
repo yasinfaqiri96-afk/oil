@@ -19,7 +19,6 @@
             {
                 new { Controller = "Payments", Action = "Index", TitleFa = "روزنامچه (رسید و پرداخت)", TitleEn = "Journal (Receipts & Payments)", DescriptionFa = "ثبت پولی که گرفته‌اید و پولی که داده‌اید.", DescriptionEn = "Record money received and money paid.", Icon = "bi-journal-text" },
                 new { Controller = "CashAccounts", Action = "Index", TitleFa = "صندوق و بانک", TitleEn = "Cash & Bank", DescriptionFa = "حساب‌های نقده و بانکی شرکت با مانده هرکدام.", DescriptionEn = "Company cash and bank accounts with each balance.", Icon = "bi-cash-coin" },
-                new { Controller = "Reconciliation", Action = "SuspenseMoney", TitleFa = "پول‌های معلق", TitleEn = "Suspense Money", DescriptionFa = "پول‌هایی که هنوز به طرف حساب وصل نشده‌اند.", DescriptionEn = "Money not yet linked to a party.", Icon = "bi-hourglass-split" }
             }
         },
         new
@@ -30,8 +29,6 @@
             {
                 new { Controller = "ThreeWaySettlement", Action = "Index", TitleFa = "تسویه سه‌طرفه", TitleEn = "Three-way Settlement", DescriptionFa = "تصفیه بین مشتری، صراف و تأمین‌کننده در یک سند.", DescriptionEn = "Settle customer, sarraf and supplier in one document.", Icon = "bi-arrow-left-right" },
                 new { Controller = "PartySettlements", Action = "Index", TitleFa = "تسویه بین طرف‌حساب‌ها", TitleEn = "Party-to-Party Settlement", DescriptionFa = "بدهکار شرکت مستقیماً به طلبکار شرکت می‌پردازد؛ بدون صندوق و بانک.", DescriptionEn = "A debtor pays a creditor of the company directly; no cash or bank.", Icon = "bi-arrow-left-right" },
-                new { Controller = "PartySettlements", Action = "Report", TitleFa = "گزارش تسویه بین طرف‌حساب‌ها", TitleEn = "Party Settlement Report", DescriptionFa = "چه کسی به چه کسی، چه مبلغی و چه زمانی؛ جمع به تفکیک ارز.", DescriptionEn = "Who paid whom, how much and when; totals per currency.", Icon = "bi-clipboard-data" },
-                new { Controller = "CustomerToCustomerPayments", Action = "Index", TitleFa = "پرداخت بین مشتریان", TitleEn = "Customer-to-Customer Payments", DescriptionFa = "پولی که مشتریان مستقیماً به یکدیگر داده‌اند؛ فقط ثبت، بدون اثر روی حساب شرکت.", DescriptionEn = "Money customers paid each other directly; record only, no effect on company accounts.", Icon = "bi-people-fill" },
                 new { Controller = "Sarrafs", Action = "Index", TitleFa = "صراف‌ها", TitleEn = "Sarrafs", DescriptionFa = "مانده و حواله‌های هر صراف.", DescriptionEn = "Balance and transfers of each sarraf.", Icon = "bi-currency-exchange" },
                 new { Controller = "Customers", Action = "Index", TitleFa = "صورت‌حساب مشتریان", TitleEn = "Customer Statements", DescriptionFa = "مانده و گردش هر مشتری.", DescriptionEn = "Balance and activity of each customer.", Icon = "bi-people" },
                 new { Controller = "Suppliers", Action = "Index", TitleFa = "صورت‌حساب تأمین‌کنندگان", TitleEn = "Supplier Statements", DescriptionFa = "مانده و گردش هر تأمین‌کننده.", DescriptionEn = "Balance and activity of each supplier.", Icon = "bi-briefcase" }
@@ -46,17 +43,6 @@
                 new { Controller = "Ledger", Action = "Index", TitleFa = "دفتر حساب‌ها", TitleEn = "Ledger", DescriptionFa = "تمام حرکت‌های ثبت‌شدهٔ هر حساب.", DescriptionEn = "Every recorded movement of each account.", Icon = "bi-bank" }
             }
         },
-        new
-        {
-            TitleFa = "تنظیمات و پایان دوره",
-            TitleEn = "Setup & Period End",
-            Items = new[]
-            {
-                new { Controller = "ChartOfAccounts", Action = "Index", TitleFa = "سرفصل حساب‌ها", TitleEn = "Chart of Accounts", DescriptionFa = "ساختار سرفصل‌های حساب‌داری.", DescriptionEn = "Accounting chart-of-accounts structure.", Icon = "bi-diagram-3" },
-                new { Controller = "ChartOfAccounts", Action = "Mapping", TitleFa = "تنظیمات حسابداری", TitleEn = "Accounting Settings", DescriptionFa = "تعیین سرفصل‌های مورد استفاده در ثبت‌های خودکار حسابداری.", DescriptionEn = "Choose the accounts used by automatic accounting entries.", Icon = "bi-gear" },
-                new { Controller = "FiscalYears", Action = "Index", TitleFa = "سال مالی و بستن سال", TitleEn = "Fiscal Year & Closing", DescriptionFa = "مدیریت سال مالی و مراحل بستن سال.", DescriptionEn = "Manage the fiscal year and the closing steps.", Icon = "bi-calendar-check" }
-            }
-        }
     };
 
     var visibleGroups = groups
@@ -68,24 +54,40 @@
         })
         .Where(g => g.Items.Length > 0)
         .ToArray();
+
+    var avatarMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Payments|Index"] = "/images/stat-cards/finance-hub/journal.png",
+        ["CashAccounts|Index"] = "/images/stat-cards/finance-hub/cash-bank.png",
+        ["ThreeWaySettlement|Index"] = "/images/stat-cards/finance-hub/settlement.png",
+        ["PartySettlements|Index"] = "/images/stat-cards/finance-hub/settlement.png",
+        ["Sarrafs|Index"] = "/images/stat-cards/finance-hub/cash-bank.png",
+        ["Customers|Index"] = "/images/stat-cards/finance-hub/customer-statements.png",
+        ["Suppliers|Index"] = "/images/stat-cards/finance-hub/supplier-settlements.png",
+        ["Ledger|Index"] = "/images/stat-cards/finance-hub/ledger.png",
+    };
 }
 
-<div class="akrep-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
-    @foreach (var group in visibleGroups)
-    {
-        <section class="akrep-group" aria-label="@UiText.T(Context, group.TitleFa, group.TitleEn)">
-            <h2 class="akrep-group-title">@UiText.T(Context, group.TitleFa, group.TitleEn)</h2>
-            <div class="akrep-grid">
-                @foreach (var item in group.Items)
-                {
-                    <a class="akrep-item" asp-controller="@item.Controller" asp-action="@item.Action">
-                        <span class="akrep-ico" aria-hidden="true"><i class="bi @item.Icon"></i></span>
-                        <span class="akrep-copy">
-                            <strong>@UiText.T(Context, item.TitleFa, item.TitleEn)</strong>
-                        </span>
-                    </a>
-                }
-            </div>
-        </section>
-    }
+@{
+    var financeItems = visibleGroups.SelectMany(group => group.Items).ToArray();
+}
+<div class="akrep-page rephub-page finance-workspace-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+    <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
+             model="@((UiText.T(Context, "مالی", "Finance"), false,
+                       (string?)null, (string?)null, (string?)null, (string?)null,
+                       (string?)null, (string?)null, (string?)null))" />
+
+    <div class="rephub-grid">
+        @foreach (var item in financeItems)
+        {
+            var key = $"{item.Controller}|{item.Action}";
+            var avatar = avatarMap.TryGetValue(key, out var mapped) ? mapped : "/images/stat-cards/finance-hub/ledger.png";
+            <a class="rephub-card" asp-controller="@item.Controller" asp-action="@item.Action">
+                <span class="rephub-card-art">
+                    <img src="@avatar" alt="" aria-hidden="true" width="128" height="128" loading="eager" decoding="async" />
+                </span>
+                <span class="rephub-card-title">@UiText.T(Context, item.TitleFa, item.TitleEn)</span>
+            </a>
+        }
+    </div>
 </div>
