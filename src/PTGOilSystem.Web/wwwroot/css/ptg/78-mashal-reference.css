@@ -61,8 +61,8 @@ body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .ak-navpanel { f
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-header { position: relative; flex: 0 0 auto; min-inline-size: 0; padding: 12px 12px 8px; border-block-end: 1px solid var(--ptg-sidebar-line); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-close { display: none; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .boltz-sidebar-scroll { flex: 1 1 0; min-block-size: 0; max-block-size: none; gap: 0; padding: 8px 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand { min-block-size: 68px; height: 68px; padding: 0; justify-content: center; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-mark { inline-size: min(180px, 100%); block-size: 64px; padding: 6px 10px; justify-content: center; border-radius: var(--mashal-radius); background-color: var(--ptg-sidebar-plate); }
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand { min-block-size: 112px; height: 112px; padding: 0; justify-content: center; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-mark { inline-size: min(180px, 100%); block-size: 108px; padding: 6px 10px; justify-content: center; border-radius: var(--mashal-radius); background-color: var(--ptg-sidebar-plate); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-logo { inline-size: 100%; block-size: 100%; object-fit: contain; object-position: center; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-context { display: grid; gap: 12px; padding: 8px 0 12px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-company-link { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px; color: var(--mashal-text); font-size: 14px; }

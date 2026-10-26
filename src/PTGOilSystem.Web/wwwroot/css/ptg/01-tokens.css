@@ -89,7 +89,7 @@
     --ptg-sidebar-danger: #FF9A9A;    /* logout on dark surface */
     --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
     --ptg-sidebar-monogram-bg: rgba(255, 255, 255, 0.10);
-    --ptg-sidebar-plate: #F4F5FA;     /* soft light plate under the dark logo */
+    --ptg-sidebar-plate: transparent; /* white logo sits directly on the navy panel */
     --ptg-sidebar-plate-border: rgba(42, 45, 69, 0.06); /* faint edge so the plate never floats */
     --ptg-surface-tint: #F2F5FC;      /* soft lilac tint for chips / bulk bar */
     --ptg-table-head-bg: #F2F5FC;     /* list/table header band — soft, low-contrast strip */
@@ -489,7 +489,7 @@ body.ptg-modal-document {
     --ptg-sidebar-active-bg: rgba(91, 148, 227, 0.16);
     --ptg-sidebar-danger: #FF9A9A;
     --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
-    --ptg-sidebar-plate: #1E1E27;
+    --ptg-sidebar-plate: transparent;
     --ptg-sidebar-plate-border: rgba(255, 255, 255, 0.10);
 }
 
