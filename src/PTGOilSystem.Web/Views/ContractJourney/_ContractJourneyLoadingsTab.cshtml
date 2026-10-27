@@ -50,13 +50,20 @@
     string ReturnUrl(string tab)
         => Url.Action("Details", "ContractJourney", new { contractId = Model.ContractId, tab, lockContract = Model.LockContract })
             ?? $"/ContractJourney/Details?contractId={Model.ContractId}&tab={tab}&lockContract={Model.LockContract.ToString().ToLowerInvariant()}";
+
+    // ستون‌های کم‌کاربرد فقط وقتی معنی دارند نشان داده می‌شوند: جنس وقتی بیش از یک جنس هست،
+    // روبل وقتی دست‌کم یک بارگیری تسویهٔ روبلی دارد.
+    var showProduct = Model.Items.Select(i => i.ProductName).Distinct().Count() > 1;
+    var showRub = Model.Items.Any(i => string.Equals(i.SettlementCurrencyCode, "RUB", StringComparison.OrdinalIgnoreCase));
+    var columnCount = 8 +(showProduct ? 1 : 0) + (showRub ? 1 : 0);
 }
 
-<div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
+@* صفحه‌بندی سمت سرور است (با «تعداد سطر»)؛ pager سمت مرورگر tables.js روی همین جدول صفحه‌بندی دوم می‌ساخت. *@
+<div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection" data-disable-client-pagination="true">
     <section class="ak-form-section">
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
-                     model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو در سوابق بارگیری...", "Search loading records..."), "loadingsPage"))" />
+                     model="@(("loadingsQ", (string?)Context.Request.Query["loadingsQ"].ToString(), T("جستجو...", "Search..."), "loadingsPage"))" />
             @if (!contractIsClosed)
             {
                 <div class="ak-list-toolbar-actions no-print">
@@ -74,13 +81,20 @@
                     <tr>
                         <th class="ak-col-grow">@T("نمبر وسیله", "Vehicle No")</th>
                         <th>@T("تاریخ", "Date")</th>
-                        <th>@T("جنس", "Product")</th>
+                        @if (showProduct)
+                        {
+                            <th>@T("جنس", "Product")</th>
+                        }
                         <th>@T("وسیله حمل", "Transport")</th>
-                        <th class="ak-col-num">@T("مقدار بارگیری‌شده", "Loaded Qty")</th>
-                        <th class="ak-col-num">@T("مقدار رسید‌شده", "Received Qty")</th>
-                        <th class="ak-col-num">@T("قیمت فی تن", "Unit Price")</th>
-                        <th class="ak-col-num">@T("ارزش بارگیری", "Loading Value")</th>
-                        <th class="ak-col-actions">@T("عملیات", "Actions")</th>
+                        <th class="ak-col-num">@T("بارگیری (تن)", "Loaded (MT)")</th>
+                        <th class="ak-col-num">@T("رسیده (تن)", "Received (MT)")</th>
+                        <th class="ak-col-num">@T("فی تن (USD)", "Per MT (USD)")</th>
+                        <th class="ak-col-num">@T("ارزش (USD)", "Value (USD)")</th>
+                        @if (showRub)
+                        {
+                            <th class="ak-col-num">@T("معادل روبلی", "RUB equivalent")</th>
+                        }
+                        <th class="ak-col-actions"><span class="visually-hidden">@T("عملیات", "Actions")</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -92,22 +106,26 @@
                             <a asp-controller="Loading" asp-action="Details" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="ak-name">@vehicleNo</a>
                         </td>
                         <td>@item.LoadingDate.ToDisplayDate()</td>
-                        <td>@item.ProductName</td>
+                        @if (showProduct)
+                        {
+                            <td>@item.ProductName</td>
+                        }
                         <td>@item.TransportTypeLabel</td>
                         <td class="ak-col-num ak-num">@item.LoadedQuantityMt.ToString("N3")</td>
                         <td class="ak-col-num ak-num">@item.TotalReceivedQuantityMt.ToString("N3")</td>
                         <td class="ak-col-num ak-num">@(item.LoadingPriceUsd.HasValue ? item.LoadingPriceUsd.Value.ToString("N2") : "-")</td>
-                        <td class="ak-col-num">
-                            <span class="ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") : "-")</span>
-                            <details class="ak-advanced m-0" data-loading-rub-details>
-                                <summary class="ak-advanced-summary">@T("جزئیات روبل", "RUB details")</summary>
-                                <dl class="ak-list">
-                                    <div class="ak-list-row"><dt>@T("هر 1 دالر چند روبل است؟", "RUB per 1 USD")</dt><dd class="ak-num">@RubRateText(item)</dd></div>
-                                    <div class="ak-list-row"><dt>@T("وضعیت نرخ روبل", "RUB rate status")</dt><dd><span class="ak-status @(item.RubRateStatus == PTGOilSystem.Web.Models.Entities.RubSettlementRateStatus.Locked ?"is-active" : "is-inactive")">@RubStatusText(item)</span></dd></div>
-                                    <div class="ak-list-row"><dt>@T("معادل روبلی", "RUB equivalent")</dt><dd class="ak-num">@RubAmountText(item)</dd></div>
-                                </dl>
-                            </details>
-                        </td>
+                        <td class="ak-col-num ak-num">@(item.LoadingValueUsd.HasValue ? item.LoadingValueUsd.Value.ToString("N2") : "-")</td>
+                        @if (showRub)
+                        {
+                            @* نرخ و وضعیت آن یک خط کم‌رنگ زیر مبلغ روبلی؛ دیگر بلوک بازشونده در هر ردیف نیست. *@
+                            <td class="ak-col-num">
+                                <span class="ak-num">@RubAmountText(item)</span>
+                                @if (string.Equals(item.SettlementCurrencyCode, "RUB", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <div class="ak-cell-note"><span class="ak-num">@RubRateText(item)</span> · @RubStatusText(item)</div>
+                                }
+                            </td>
+                        }
                         <td class="ak-col-actions">
                             <div class="dropdown ak-row-menu">
                                 <button type="button" class="ak-row-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")">
@@ -118,6 +136,7 @@
                                     @if (!contractIsClosed)
                                     {
                                         <li><a asp-controller="Loading" asp-action="Edit" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="dropdown-item"><i class="bi bi-pencil-square"></i> @T("ویرایش", "Edit")</a></li>
+                                        <li><a asp-controller="Loading" asp-action="EditPrice" asp-route-id="@item.Id" asp-route-returnUrl="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="dropdown-item"><i class="bi bi-cash-coin"></i> @(item.LoadingPriceUsd.HasValue ? T("اصلاح قیمت", "Edit price") : T("ثبت قیمت", "Enter price"))</a></li>
                                     }
                                 </ul>
                             </div>
@@ -127,7 +146,7 @@
                 @if (!Model.Items.Any())
                 {
                     <tr>
-                        <td colspan="9">
+                        <td colspan="@columnCount">
                             <div class="ak-empty">
                                 <i class="bi bi-truck"></i>
                                 @Model.NoRecordsText

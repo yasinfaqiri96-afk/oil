@@ -27,7 +27,7 @@
 
         <section class="ak-form-section" aria-label="اطلاعات فروش">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(("اطلاعات فروش", (string?)"مشخصات خریدار و سند تعهد فروش را وارد کنید."))" />
+                     model="@(("اطلاعات فروش", (string?)null))" />
             <div class="ak-form-grid">
                 <div class="ak-field">
                     <label asp-for="BuyerKey" class="ak-label">خریدار <span class="ak-req">*</span></label>
@@ -54,25 +54,9 @@
             </div>
         </section>
 
-        @* منبع روی خودِ تعهد ذخیره نمی‌شود؛ فقط در فرم «ثبت تحویل» پیش‌انتخاب می‌شود. *@
-        <section class="ak-form-section" aria-label="منبع موجودی">
+        <section class="ak-form-section" aria-label="کالا و قیمت">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(("منبع موجودی", (string?)"موجودی همین حالا کم نمی‌شود؛ کسر در هر تحویل و از همین منبع انجام می‌گیرد."))" />
-            <div class="ak-form-grid">
-                <div class="ak-field ak-col-full">
-                    <label asp-for="PreferredSourceStorageTankId" class="ak-label">مخزن منبع تحویل‌ها</label>
-                    <select asp-for="PreferredSourceStorageTankId" asp-items="ViewBag.SourceStorageTanks" class="ak-input">
-                        <option value="">بعداً هنگام هر تحویل انتخاب می‌شود</option>
-                    </select>
-                    <div class="form-text">این انتخاب در فرم «ثبت تحویل جدید» به‌عنوان منبع پیش‌فرض باز می‌گردد؛ هر تحویل می‌تواند منبع دیگری داشته باشد.</div>
-                    <span asp-validation-for="PreferredSourceStorageTankId" class="ak-field-error"></span>
-                </div>
-            </div>
-        </section>
-
-        <section class="ak-form-section" aria-label="اقلام فروش">
-            <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(("اقلام فروش", (string?)"این تعهد یک قلم دارد؛ قیمت در همین لحظه قفل می‌شود."))" />
+                     model="@(("کالا و قیمت", (string?)null))" />
             @* واحد همیشه MT است و ارز در سربرگ ستون آمده؛ داخل ردیف تکرار نمی‌شوند. *@
             <div class="ak-table-wrap ak-table-wrap--flush">
                 <table class="ak-table">
@@ -89,14 +73,14 @@
 
         <section class="ak-form-section" aria-live="polite" aria-label="مرور نهایی فروش">
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(("مرور نهایی فروش", (string?)"پیش از ثبت، شرایط فروش را بررسی کنید."))" />
+                     model="@(("مرور نهایی فروش", (string?)null))" />
             <dl class="ak-summary-hero">
                 <div>
-                    <dt>مقدار فروش</dt>
+                    <dt>مقدار کل</dt>
                     <dd class="ak-num"><span data-presale-summary-qty>0.000</span> <span class="ak-summary-hero__unit">MT</span></dd>
                 </div>
                 <div>
-                    <dt>مبلغ کل فاکتور</dt>
+                    <dt>مبلغ کل</dt>
                     <dd class="ak-num"><span data-presale-summary-amount>0.00</span> <span class="ak-summary-hero__unit" data-presale-summary-unit>@displayCurrencyCode</span></dd>
                 </div>
             </dl>
@@ -104,9 +88,17 @@
 
         <details class="ak-advanced"@(!ViewData.ModelState.IsValid ? " open" : "")>
             <summary class="ak-advanced-summary">
-                <span><i class="bi bi-sliders2" aria-hidden="true"></i>گزینه‌های بیشتر</span>
+                <span><i class="bi bi-sliders2" aria-hidden="true"></i>تحویل و پرداخت (اختیاری)</span>
             </summary>
             <div class="ak-form-grid">
+                @* منبع روی خودِ تعهد ذخیره نمی‌شود؛ فقط در فرم «ثبت تحویل» پیش‌انتخاب می‌شود. *@
+                <div class="ak-field ak-col-full">
+                    <label asp-for="PreferredSourceStorageTankId" class="ak-label">مخزن پیش‌فرض تحویل</label>
+                    <select asp-for="PreferredSourceStorageTankId" asp-items="ViewBag.SourceStorageTanks" class="ak-input">
+                        <option value="">هنگام هر تحویل انتخاب می‌شود</option>
+                    </select>
+                    <span asp-validation-for="PreferredSourceStorageTankId" class="ak-field-error"></span>
+                </div>
                 <div class="ak-field">
                     <label asp-for="ExpectedDeliveryFrom" class="ak-label">تحویل از تاریخ</label>
                     <input asp-for="ExpectedDeliveryFrom" type="date" class="ak-input" />

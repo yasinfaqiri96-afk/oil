@@ -531,6 +531,8 @@ public partial class SalesController
         var allocations = await EnsureSufficientTerminalStockAsync(
             input.ProductId, qty, model.SaleDate.Date,
             input.TerminalId, input.StorageTankId, contract.CompanyId, input.SourcePurchaseContractId);
+        if (!owner.PreSaleOrderId.HasValue)
+            await _stock.EnsureQuantityNotReservedByPreSalesAsync(input.ProductId, qty);
 
         var totalInCurrency = decimal.Round(qty * model.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
         var sale = new SalesTransaction

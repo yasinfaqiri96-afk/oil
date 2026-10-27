@@ -218,8 +218,16 @@
             {
                 <a class="btn btn-sm btn-light ak-secondary-action" href="@settlementReportUrl"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> @UiText.T(Context, "تسویه‌ها با طرف‌حساب‌ها", "Party settlements")</a>
             }
-            <a class="btn btn-sm btn-light ak-secondary-action text-success" href="@ExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
-            <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@pdfUrl"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <div class="ak-export-actions" role="group" aria-label="@UiText.T(Context, "دریافت خروجی", "Export")">
+                <a class="ak-export-btn ak-export-btn--excel" href="@ExportUrl("xlsx")" data-export-link
+                   title="@UiText.T(Context, "خروجی Excel", "Excel export")" aria-label="@UiText.T(Context, "خروجی Excel", "Excel export")">
+                    <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("excel")" />
+                </a>
+                <a class="ak-export-btn ak-export-btn--pdf" href="@pdfUrl" data-export-link
+                   title="@UiText.T(Context, "خروجی PDF", "PDF export")" aria-label="@UiText.T(Context, "خروجی PDF", "PDF export")">
+                    <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("pdf")" />
+                </a>
+            </div>
         </div>
     </header>
 

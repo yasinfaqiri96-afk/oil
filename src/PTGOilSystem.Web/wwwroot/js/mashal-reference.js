@@ -3,9 +3,31 @@
     'use strict';
     const isEn = (document.documentElement.lang || 'fa').toLowerCase().startsWith('en');
     function T(fa, en) { return isEn ? en : fa; }
-    const widgetIds = ['activities', 'tanks', 'alerts', 'summary', 'analytics', 'shipments'];
-    let selected = widgetIds.slice();
-    let pending = widgetIds.slice();
+    // The picker is the catalog: the server lists only widgets this user may see.
+    let widgetIds = [];
+    let defaultIds = [];
+    let selected = [];
+    let pending = [];
+    function readCatalog() {
+        const inputs = Array.from(document.querySelectorAll('[data-mashal-widget-choice]'));
+        widgetIds = inputs.map(input => input.value);
+        defaultIds = inputs.filter(input => input.hasAttribute('data-mashal-widget-default')).map(input => input.value);
+    }
+    function loadWidget(el) {
+        const body = el.querySelector('[data-mashal-widget-src]');
+        if (!body || body.dataset.mashalWidgetState) return;
+        body.dataset.mashalWidgetState = 'loading';
+        fetch(body.dataset.mashalWidgetSrc, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (response) { if (!response.ok) throw new Error(String(response.status)); return response.text(); })
+            .then(function (html) { body.innerHTML = html; body.dataset.mashalWidgetState = 'ready'; })
+            .catch(function () {
+                const message = document.createElement('p');
+                message.className = 'mashal-widget-empty';
+                message.textContent = T('بارگذاری این ابزارک ممکن نشد.', 'This widget could not be loaded.');
+                body.replaceChildren(message);
+                delete body.dataset.mashalWidgetState;
+            });
+    }
     function key() {
         const user = document.querySelector('meta[name="ptg-offline"]');
         try { return 'mashal-dashboard-widgets:' + JSON.parse(user?.content || '{}').u; }
@@ -14,6 +36,7 @@
     function applyWidgets() {
         document.querySelectorAll('[data-mashal-widget]').forEach(function (el) {
             el.hidden = !selected.includes(el.dataset.mashalWidget);
+            if (!el.hidden) loadWidget(el);
         });
     }
     function syncChoices() {
@@ -84,10 +107,12 @@
     function init() {
         initReceipt();
         if (!document.querySelector('.dashboard-page')) return;
+        readCatalog();
         try {
             const saved = JSON.parse(localStorage.getItem(key()));
-            selected = Array.isArray(saved) && saved.every(id => widgetIds.includes(id)) ? saved : widgetIds.slice();
-        } catch (_) { selected = widgetIds.slice(); }
+            // A saved widget the user can no longer see is dropped, not a reason to reset the layout.
+            selected = Array.isArray(saved) ? saved.filter(id => widgetIds.includes(id)) : defaultIds.slice();
+        } catch (_) { selected = defaultIds.slice(); }
         pending = selected.slice(); applyWidgets(); syncChoices();
     }
     document.addEventListener('show.bs.modal', function (event) {

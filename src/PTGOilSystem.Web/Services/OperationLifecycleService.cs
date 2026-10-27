@@ -40,8 +40,7 @@ public sealed class OperationLifecycleService(
                 && x.LoadingRegister != null && x.LoadingRegister.ContractId == id
                 && x.LoadingRegister.ImportUniqueKey == $"SIMPLE-PURCHASE-CONTRACT:{id}", ct))
                 await simplePurchase.ReverseAsync(id, reason, actorUserId: actorId, ct: ct);
-            if (await db.LedgerEntries.AnyAsync(x => x.ContractId == id && x.SourceType != "Loading", ct)
-                && !hasSimplePosting)
+            if (!hasSimplePosting && await HasActiveIndependentLedgerAsync(id, ct))
                 throw Rule("قرارداد سند مالی مستقل دارد؛ ابتدا آن سند را از مسیر استاندارد برگردانید.");
             var loadings = await db.LoadingRegisters.Where(x => x.ContractId == id).OrderBy(x => x.Id).ToListAsync(ct);
             foreach (var loading in loadings) await CancelLoadingCoreAsync(loading, reason, actorId, ct);
@@ -140,6 +139,22 @@ public sealed class OperationLifecycleService(
         else throw Rule("نوع رکورد معتبر نیست.");
         await audit.LogAndSaveAsync(kind, id, AuditAction.Delete,
             diff: AuditDiffFormatter.ForUpdate(("IsArchived", false, true)), actorUserId: actorId, ct: ct);
+    }
+
+    // A non-Loading ledger row blocks contract cancellation only while it is still in effect.
+    // A row that is itself a reversal, or that already has its matching reversal (same source,
+    // opposite side, same amount, "-CANCEL" reference), was undone through the standard path —
+    // e.g. a cancelled loading freight expense — and must not block the contract.
+    private Task<bool> HasActiveIndependentLedgerAsync(int contractId, CancellationToken ct)
+    {
+        const string suffix = LedgerReversalWriter.CancelReferenceSuffix;
+        var rows = db.LedgerEntries.Where(x => x.ContractId == contractId && x.SourceType != "Loading");
+        return rows
+            .Where(x => x.Reference == null || !x.Reference.EndsWith(suffix))
+            .AnyAsync(x => !rows.Any(r => r.SourceType == x.SourceType && r.SourceId == x.SourceId
+                && r.Side != x.Side && r.AmountUsd == x.AmountUsd
+                && r.Reference != null && r.Reference.EndsWith(suffix)
+                && (x.Reference == null || r.Reference == x.Reference + suffix)), ct);
     }
 
     private static BusinessRuleException Rule(string message) => new("LifecycleBlocked", message);

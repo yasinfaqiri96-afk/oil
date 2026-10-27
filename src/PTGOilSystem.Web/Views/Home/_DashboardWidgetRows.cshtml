@@ -1,0 +1,18 @@
+@using PTGOilSystem.Web.Models.StatCards
+@model (IReadOnlyList<PTGOilSystem.Web.Models.DashboardWidgetRowViewModel> Rows, string EmptyText)
+
+<div class="mashal-widget-rows">
+@foreach (var row in Model.Rows)
+{
+    var value = $"{StatCardFormatter.Number(row.Value, row.Decimals)} {row.Unit}".Trim();
+    if (row.Controller is not null && row.RouteId.HasValue)
+    {
+        <a asp-controller="@row.Controller" asp-action="@(row.Action ?? "Details")" asp-route-id="@row.RouteId" class="mashal-tank-row mashal-widget-item"><span><strong>@row.Title</strong><small>@row.Subtitle</small></span><bdi>@value</bdi></a>
+    }
+    else
+    {
+        <div class="mashal-tank-row mashal-widget-item"><span><strong>@row.Title</strong><small>@row.Subtitle</small></span><bdi>@value</bdi></div>
+    }
+}
+@if (Model.Rows.Count == 0) { <p class="mashal-widget-empty">@Model.EmptyText</p> }
+</div>

@@ -55,9 +55,13 @@
     <section class="statement-details-block">
         <div class="statement-details-block-head">
             <h3>گردش قرارداد</h3>
-            <div class="statement-details-actions no-print">
-                <a class="btn btn-sm btn-light ak-secondary-action text-success" href="@DetailsExportUrl("xlsx")"><i class="bi bi-file-earmark-excel"></i> Excel</a>
-                <a class="btn btn-sm btn-light ak-secondary-action text-danger" href="@DetailsExportUrl("pdf")"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <div class="statement-details-actions ak-export-actions no-print" role="group" aria-label="دریافت خروجی">
+                <a class="ak-export-btn ak-export-btn--excel" href="@DetailsExportUrl("xlsx")" data-export-link title="خروجی Excel" aria-label="خروجی Excel">
+                    <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("excel")" />
+                </a>
+                <a class="ak-export-btn ak-export-btn--pdf" href="@DetailsExportUrl("pdf")" data-export-link title="خروجی PDF" aria-label="خروجی PDF">
+                    <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("pdf")" />
+                </a>
             </div>
         </div>
         <div class="statement-table-wrap">

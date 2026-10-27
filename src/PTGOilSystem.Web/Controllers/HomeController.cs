@@ -20,6 +20,8 @@ public class HomeController : Controller
     private readonly ILogger<HomeController> _logger;
     private readonly IGoodsInTransitReader? _goodsInTransit;
     private readonly IReceivablesPayablesReader? _receivablesPayables;
+    private readonly IDashboardWidgetReader? _widgets;
+    private const int WidgetRowLimit = 5;
 
     public HomeController(
         IDashboardService dashboard,
@@ -27,7 +29,8 @@ public class HomeController : Controller
         IOnboardingService? onboarding = null,
         IOptions<OnboardingOptions>? onboardingOptions = null,
         IGoodsInTransitReader? goodsInTransit = null,
-        IReceivablesPayablesReader? receivablesPayables = null)
+        IReceivablesPayablesReader? receivablesPayables = null,
+        IDashboardWidgetReader? widgets = null)
     {
         _dashboard = dashboard;
         _logger = logger;
@@ -35,6 +38,7 @@ public class HomeController : Controller
         _onboardingOptions = onboardingOptions?.Value ?? new OnboardingOptions();
         _goodsInTransit = goodsInTransit;
         _receivablesPayables = receivablesPayables;
+        _widgets = widgets;
     }
 
     public async Task<IActionResult> Index(string? guide = null, CancellationToken ct = default)
@@ -107,12 +111,72 @@ public class HomeController : Controller
                 };
                 vm.TotalReceivableUsd = balances.TotalReceivableUsd;
                 vm.TotalPayableUsd = balances.TotalPayableUsd;
+
+                // ابزارک‌های بدهکاران/بستانکاران همان ردیف‌ها را با همان علامتِ «از دید شرکت» نشان می‌دهند.
+                var debtors = balances.Rows.Where(r => r.CompanyClaimUsd > 0m).OrderByDescending(r => r.CompanyClaimUsd).ToList();
+                var creditors = balances.Rows.Where(r => r.CompanyClaimUsd < 0m).OrderBy(r => r.CompanyClaimUsd).ToList();
+                vm.DebtorCount = debtors.Count;
+                vm.CreditorCount = creditors.Count;
+                vm.TopDebtors = debtors.Take(WidgetRowLimit).Select(r => ToWidgetRow(r, r.CompanyClaimUsd)).ToList();
+                vm.TopCreditors = creditors.Take(WidgetRowLimit).Select(r => ToWidgetRow(r, -r.CompanyClaimUsd)).ToList();
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Dashboard report cards unavailable.");
         }
+    }
+
+    private static DashboardWidgetRowViewModel ToWidgetRow(ReceivablePayableRowViewModel row, decimal amountUsd)
+        => new()
+        {
+            Title = row.PartyName,
+            Subtitle = ReportsController.PartyAgingPartyTypeLabel(row.PartyType),
+            Value = amountUsd,
+            Unit = "USD"
+        };
+
+    // ابزارک‌های سنگین‌تر داشبورد فقط وقتی کاربر انتخابشان کرده باشد از اینجا خوانده می‌شوند؛
+    // هر ابزارک همان دسترسی صفحهٔ مرجع خودش را می‌خواهد.
+    [HttpGet]
+    public async Task<IActionResult> DashboardWidget(string? id, CancellationToken ct = default)
+    {
+        if (_widgets is null)
+        {
+            return NotFound();
+        }
+
+        var user = HttpContext?.User;
+        bool Can(string key) => user is not null && RoleAccessRules.CanAccessNavigation(user, key);
+        var model = new DashboardLazyWidgetViewModel { Kind = id ?? "" };
+
+        try
+        {
+            switch (id)
+            {
+                case "profit" when Can(RoleNavigationKeys.Reports):
+                    model.Profit = await _widgets.ReadTodayProfitAsync(ct);
+                    break;
+                case "banking" when Can(RoleNavigationKeys.CashAccounts):
+                    model.Rows = await _widgets.ReadCashAccountsAsync(ct);
+                    break;
+                case "fx" when Can(RoleNavigationKeys.BaseDefinitions):
+                    model.Rows = await _widgets.ReadFxRatesAsync(ct);
+                    break;
+                case "expenses" when Can(RoleNavigationKeys.Operations):
+                    model.Rows = await _widgets.ReadRecentExpensesAsync(ct);
+                    break;
+                default:
+                    return NotFound();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Dashboard widget {Widget} unavailable.", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return PartialView("_DashboardLazyWidget", model);
     }
 
     public IActionResult Privacy() => View();

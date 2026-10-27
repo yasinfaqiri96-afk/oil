@@ -142,7 +142,7 @@ public class ShellViewStructureTests
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
-        Assert.Contains("~/images/لوکو شمعل فارسی رنک ابی.webp", layout);
+        Assert.Contains("~/images/mashal-sidebar-flame-white.webp", layout);
         Assert.Contains("alt=\"مشعل\"", layout);
         Assert.DoesNotContain("~/images/mashal-sidebar-white.webp", layout);
         Assert.DoesNotContain("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);

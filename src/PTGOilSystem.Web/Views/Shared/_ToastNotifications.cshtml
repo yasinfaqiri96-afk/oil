@@ -59,7 +59,7 @@
 <div class="ptg-toast-host" data-ptg-toast-host aria-live="polite" aria-relevant="additions">
     @foreach (var toast in toasts)
     {
-        <div class="ptg-toast ptg-toast--@toast.Type" data-ptg-toast data-ptg-toast-duration="5000" role="@(toast.Type == "error" ? "alert" : "status")">
+        <div class="ptg-toast ptg-toast--@toast.Type" data-ptg-toast data-ptg-toast-duration="3000" role="@(toast.Type == "error" ? "alert" : "status")">
             <span class="ptg-toast__icon" aria-hidden="true"><i class="bi @toast.Icon"></i></span>
             <div class="ptg-toast__body">
                 <strong class="ptg-toast__title">@toast.Title</strong>

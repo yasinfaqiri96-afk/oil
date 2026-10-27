@@ -437,6 +437,34 @@ public class ContractJourneyControllerTests
     }
 
     [Fact]
+    public async Task Details_Summary_Initial_Payload_Excludes_Cancelled_And_Archived_Loadings()
+    {
+        var options = NewDbOptions();
+
+        await using var db = new ApplicationDbContext(options);
+        SeedReferenceData(db);
+        db.Contracts.Add(BuildPurchaseContract(1, "PUR-001", 500m));
+        db.LoadingRegisters.AddRange(
+            new LoadingRegister { Id = 1, ContractId = 1, ProductId = 1, LoadingDate = new DateTime(2026, 5, 1), LoadedQuantityMt = 100m, LoadingPriceUsd = 250m },
+            new LoadingRegister { Id = 2, ContractId = 1, ProductId = 1, LoadingDate = new DateTime(2026, 5, 2), LoadedQuantityMt = 60m, LoadingPriceUsd = 250m, IsCancelled = true },
+            new LoadingRegister { Id = 3, ContractId = 1, ProductId = 1, LoadingDate = new DateTime(2026, 5, 3), LoadedQuantityMt = 40m, LoadingPriceUsd = 250m, IsCancelled = true, IsArchived = true });
+        await db.SaveChangesAsync();
+
+        var controller = new ContractJourneyController(db, new StockService(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+
+        var result = await controller.Details(1, tab: ContractJourneyTabs.Details.Summary);
+
+        var model = Assert.IsType<ContractJourneyDetailsViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.True(model.IsInitialSummaryPayload);
+        Assert.Equal(1, model.SummaryMetrics.LoadingCount);
+        Assert.Equal(100m, model.SummaryMetrics.LoadingQuantityMt);
+        Assert.Equal(100m, model.Kpis.LoadedQuantityMt);
+    }
+
+    [Fact]
     public async Task Details_Purchase_Without_Loading_Recommends_Loading_And_Does_Not_Write_Operational_Records()
     {
         var options = NewDbOptions();

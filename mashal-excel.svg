@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Excel export</title><desc id="desc">Minimal green Excel icon with white folding panel, grid and X, inspired by the provided reference artwork.</desc>
+<defs>
+  <linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#1cb969"/><stop offset=".48" stop-color="#0ca75b"/><stop offset="1" stop-color="#087e43"/>
+  </linearGradient>
+  <linearGradient id="sheet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#f4fbf7"/></linearGradient>
+  <linearGradient id="darkX" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0eaa61"/><stop offset="1" stop-color="#05733c"/></linearGradient>
+  <linearGradient id="shadowGreen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#006237" stop-opacity=".33"/><stop offset="1" stop-color="#00492f" stop-opacity="0"/></linearGradient>
+  <filter id="soft" x="-10%" y="-10%" width="125%" height="125%"><feGaussianBlur stdDeviation="3"/></filter>
+  <clipPath id="clip"><rect x="24" y="24" width="464" height="464" rx="83"/></clipPath>
+</defs>
+<rect x="24" y="24" width="464" height="464" rx="83" fill="url(#back)"/>
+<g clip-path="url(#clip)">
+  <path d="M397 159 530 291 530 450 474 508 367 390Z" fill="url(#shadowGreen)"/>
+  <path d="M115 380 238 503 378 522 294 407Z" fill="url(#shadowGreen)"/>
+</g>
+<!-- white right spreadsheet panel -->
+<path d="M284 149H393C407 149 415 159 415 173V364C415 377 407 385 394 385H284Z" fill="#087947" opacity=".20" filter="url(#soft)"/>
+<path d="M284 149H388C402 149 411 158 411 172V360C411 373 403 382 389 382H284Z" fill="url(#sheet)"/>
+<!-- green cells: white gutters form clean spreadsheet grid -->
+<g fill="#099858">
+  <rect x="284" y="187" width="42" height="36"/>
+  <rect x="336" y="187" width="53" height="36"/>
+  <rect x="284" y="235" width="42" height="32"/>
+  <rect x="336" y="235" width="53" height="32"/>
+  <rect x="284" y="279" width="42" height="32"/>
+  <rect x="336" y="279" width="53" height="32"/>
+  <rect x="284" y="323" width="42" height="32"/>
+  <rect x="336" y="323" width="53" height="32"/>
+</g>
+<!-- foreground angled Excel panel -->
+<path d="M101 160C101 151 107 146 115 144L262 108C273 105 279 109 279 121V397C279 408 272 411 263 409L115 379C105 377 101 371 101 362Z" fill="#005f3d" opacity=".12" transform="translate(4 5)"/>
+<path d="M99 160C99 152 103 147 113 144L259 108C270 105 276 109 276 121V397C276 408 271 411 260 408L113 378C103 376 99 371 99 363Z" fill="url(#sheet)"/>
+<!-- X's bold shaped form, matching the original icon -->
+<path d="M139 211 177 215 194 258 213 210 242 207 212 276 242 335 208 331 192 295 174 327 134 324 168 268Z" fill="url(#darkX)"/>
+</svg>

@@ -230,8 +230,7 @@
     var groupedSection = Model.IsPurchaseContract && !isLossesView
         ? activeTab switch
         {
-            ContractJourneyTabs.Details.Loadings => (Tab: ContractJourneyTabs.Details.Receipts, Title: T("رسید بارگیری", "Loading receipts"), Before: false),
-            ContractJourneyTabs.Details.Receipts => (Tab: ContractJourneyTabs.Details.Loadings, Title: T("سوابق بارگیری", "Loading records"), Before: true),
+            // بارگیری و رسید پشت سر هم نمی‌آیند؛ سوییچ «سوابق بارگیری / رسید بارگیری» بالای تب یکی را نشان می‌دهد.
             ContractJourneyTabs.Details.InventoryTransport => (Tab: ContractJourneyTabs.Details.Dispatch, Title: T("انتقال با موتر", "Truck transfers"), Before: false),
             ContractJourneyTabs.Details.Dispatch => (Tab: ContractJourneyTabs.Details.InventoryTransport, Title: T("حمل بین ترمینال‌ها", "Transport between terminals"), Before: true),
             _ => (Tab: (string?)null, Title: string.Empty, Before: false)
@@ -442,8 +441,16 @@
     string ReturnUrl(string tab) => BuildTabUrl(tab);
 
     const int journeyListPageSize = 8;
-    const int loadingListPageSize = 15;
-    const int receiptListPageSize = 15;
+    // بارگیری و رسید «تعداد سطر» دارند؛ مقدار فقط از همین گزینه‌ها پذیرفته می‌شود.
+    int[] detailPageSizeOptions = { 15, 50, 100, 200, 500 };
+    int ReadPageSize(string key)
+        => Context.Request.Query.TryGetValue(key, out var sizeValues)
+            && int.TryParse(sizeValues.FirstOrDefault(), out var size)
+            && detailPageSizeOptions.Contains(size)
+                ? size
+                : detailPageSizeOptions[0];
+    var loadingListPageSize = ReadPageSize("loadingsPageSize");
+    var receiptListPageSize = ReadPageSize("receiptsPageSize");
 
     int ReadPositivePage(string key)
     {
@@ -480,6 +487,24 @@
             "~/Views/Shared/Partials/_DetailPager.cshtml",
             (currentPage, pageCount, pageKey, (string?)"journey-tab-lists"));
 
+    // پاورقی لیست با «تعداد سطر» + صفحه‌بندی؛ انتخابگر فقط وقتی لیست از کوچک‌ترین اندازه بلندتر است.
+    async Task<Microsoft.AspNetCore.Html.IHtmlContent> DetailPagerWithSize(string pageKey, string sizeKey, int currentPage, int pageCount, int pageSize, int totalCount)
+    {
+        if (totalCount <= detailPageSizeOptions[0])
+        {
+            return await DetailPager(pageKey, currentPage, pageCount);
+        }
+
+        var bar = new Microsoft.AspNetCore.Html.HtmlContentBuilder();
+        bar.AppendHtml("<div class=\"ak-pager-bar\">");
+        bar.AppendHtml(await Html.PartialAsync(
+            "~/Views/Shared/Partials/_DetailPageSize.cshtml",
+            (pageSize, sizeKey, pageKey, (string?)"journey-tab-lists", detailPageSizeOptions)));
+        bar.AppendHtml(await DetailPager(pageKey, currentPage, pageCount));
+        bar.AppendHtml("</div>");
+        return bar;
+    }
+
     var subContractsSearch = ReadListSearch("subContractsQ");
     var filteredSubContractItems = Model.SubContractItems
         .Where(item => MatchesListSearch(subContractsSearch, item.ContractId, item.ContractNumber, item.StatusName, item.QuantityMt, item.LoadedQuantityMt, item.RemainingQuantityMt, item.LoadingsValueUsd))
@@ -504,12 +529,9 @@
     var filteredBulkReceiptCandidates = bulkReceiptCandidates
         .Where(item => MatchesListSearch(pendingReceiptsSearch, item.LoadingRegisterId, item.VehicleNumber, item.LoadingDate.ToDisplayDate(), item.ProductName, item.TransportTypeLabel, item.LoadedQuantityMt, item.LoadingPriceUsd, item.LoadingValueUsd, item.BillOfLadingNumber, item.RwbNo, item.WagonNumber))
         .ToList();
-    var pendingReceiptPageCount = PageCountFor(filteredBulkReceiptCandidates.Count, receiptListPageSize);
-    var pendingReceiptPage = Math.Min(ReadPositivePage("pendingReceiptsPage"), pendingReceiptPageCount);
-    var pagedBulkReceiptCandidates = filteredBulkReceiptCandidates
-        .Skip((pendingReceiptPage - 1) * receiptListPageSize)
-        .Take(receiptListPageSize)
-        .ToList();
+    // بارگیری‌های منتظر رسید صفحه‌بندی ندارند تا «انتخاب همه» در رسید گروهی واقعاً همه را بگیرد؛
+    // جدول خودش در کادر اسکرول‌دار با سرستون ثابت می‌ماند.
+    var pagedBulkReceiptCandidates = filteredBulkReceiptCandidates;
     var receiptsSearch = ReadListSearch("receiptsQ");
     var filteredReceiptItems = Model.ReceiptItems
         .Where(item => MatchesListSearch(receiptsSearch, item.Id, item.LoadingRegisterId, item.ReceiptDate.ToDisplayDate(), item.TerminalName, item.StorageTankCode, item.ReferenceDocument))
@@ -634,7 +656,7 @@
         LockContract = Model.LockContract,
         PageDirection = pageDirection,
         NoRecordsText = T("داده‌ای ثبت نشده است.", "No records yet."),
-        PagerHtml = await DetailPager("loadingsPage", loadingPage, loadingPageCount),
+        PagerHtml = await DetailPagerWithSize("loadingsPage", "loadingsPageSize", loadingPage, loadingPageCount, loadingListPageSize, filteredLoadingItems.Count),
         Pager = new ContractJourneyPagerViewModel
         {
             PageKey = "loadingsPage",
@@ -655,8 +677,7 @@
         PendingLoadingCount = bulkReceiptCandidates.Count,
         ReceiptCount = receiptCount,
         NoRecordsText = T("داده‌ای ثبت نشده است.", "No records yet."),
-        PagerHtml = await DetailPager("receiptsPage", receiptPage, receiptPageCount),
-        PendingPagerHtml = await DetailPager("pendingReceiptsPage", pendingReceiptPage, pendingReceiptPageCount),
+        PagerHtml = await DetailPagerWithSize("receiptsPage", "receiptsPageSize", receiptPage, receiptPageCount, receiptListPageSize, filteredReceiptItems.Count),
         Pager = new ContractJourneyPagerViewModel
         {
             PageKey = "receiptsPage",
@@ -798,10 +819,14 @@
                 <vc:stat-card title="@T("تعداد بارگیری‌ها", "Loadings")" value="@loadingCount.ToString("N0")" unit="@T("بارگیری", "loadings")" avatar="loading-terminal"></vc:stat-card>
                 <vc:stat-card title="@T("مقدار کل بارگیری‌شده", "Total loaded")" value="@NumberDisplay.Quantity(loadingQuantityMt)" unit="@UnitMt()" avatar="loading"></vc:stat-card>
                 <vc:stat-card title="@T("مبلغ کل بارگیری", "Loading value")" value="@loadingValueUsd.ToString("N0")" unit="@UnitUsd()" avatar="purchase-value"></vc:stat-card>
+                @* کارت روبل فقط برای قرارداد روبلی؛ برای بقیه فقط «— ثبت نشده» نشان می‌داد. *@
+                @if (loadingValueRub.HasValue)
+                {
                 <vc:stat-card title="@T("ارزش روبلی بارگیری‌ها", "Loading value (RUB)")"
-                              value="@(loadingValueRub.HasValue ? loadingValueRub.Value.ToString("N0") : "—")"
-                              unit="@(loadingValueRub.HasValue ? (loadingValueRubIsEstimated ? T("روبل (تخمینی)", "RUB (estimated)") : T("روبل", "RUB")) : T("ثبت نشده", "not recorded"))"
+                              value="@loadingValueRub.Value.ToString("N0")"
+                              unit="@(loadingValueRubIsEstimated ? T("روبل (تخمینی)", "RUB (estimated)") : T("روبل", "RUB"))"
                               avatar="purchase-value"></vc:stat-card>
+                }
             </section>
                 break;
 
@@ -917,6 +942,23 @@
                 <a href="@ReturnUrl(ContractJourneyTabs.Details.Summary)" data-contract-journey-tab-link="true" data-no-spa="true" class="ak-name">@T("بازگشت به خلاصه", "Back to summary")</a>
             }
         </header>
+    }
+
+    @if (Model.IsPurchaseContract && activeGroupTab == ContractJourneyTabs.Details.Loadings)
+    {
+        var showsReceipts = activeTab == ContractJourneyTabs.Details.Receipts;
+        <nav class="ak-choice-grid ak-choice-grid--2 ak-choice-grid--compact" aria-label="@T("بارگیری و رسید", "Loading & receipts")">
+            <a href="@ReturnUrl(ContractJourneyTabs.Details.Loadings)" class="ak-choice @(showsReceipts ? null : "is-selected")"
+               aria-current="@(showsReceipts ? null : "page")" data-contract-journey-tab-link="true" data-no-spa="true">
+                <i class="bi bi-truck" aria-hidden="true"></i>
+                <span>@T("سوابق بارگیری", "Loading records")</span>
+            </a>
+            <a href="@ReturnUrl(ContractJourneyTabs.Details.Receipts)" class="ak-choice @(showsReceipts ? "is-selected" : null)"
+               aria-current="@(showsReceipts ? "page" : null)" data-contract-journey-tab-link="true" data-no-spa="true">
+                <i class="bi bi-receipt" aria-hidden="true"></i>
+                <span>@T("رسید بارگیری", "Loading receipts")</span>
+            </a>
+        </nav>
     }
 
     @if (activeTab == ContractJourneyTabs.Details.Summary)
@@ -1057,7 +1099,7 @@
                                     </h3>
                                     <span class="ak-journey-badge"><i class="bi @StepBadgeIcon(step.Number, step.State)" aria-hidden="true"></i>@StepBadgeText(step.State)</span>
                                 </div>
-                                @* دو آمار هر مرحله کنار هم و با عرض کامل کارت، زیر سربرگ آواتار و عنوان. *@
+                                @* دو آمار هر مرحله زیر سربرگ آواتار و عنوان؛ برچسب در ابتدای سطر و رقم در انتهای آن. *@
                                 <div class="ak-cycle-stats">
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@step.FirstLabel</span><span class="ak-cycle-value @(step.Number is 1 or 2 or 3 or 5 ? "ak-cycle-quantity" : null)">@(step.Number is 1 or 2 or 3 or 5 ? LifecycleQuantityMarkup(step.FirstValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.FirstValue))</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@step.SecondLabel</span><span class="ak-cycle-value @(step.Number == 2 ? "ak-cycle-quantity" : null)">@(step.Number == 2 ? LifecycleQuantityMarkup(step.SecondValue) : new Microsoft.AspNetCore.Html.HtmlContentBuilder().Append(step.SecondValue))</span></div>
@@ -1071,21 +1113,21 @@
                     }
                     @foreach (var partner in partnerShareCards)
                     {
-                        @* کارت شریک: متن در ابتدای سطر و کاشی آواتار با درصد سهم در انتهای آن. *@
+                        @* کارت شریک: همان ساختار کارت مرحله — کاشی آواتار، نام شریک با درصد سهم، سپس سه آمار. *@
                         <li class="ak-journey-step ak-journey-partner" data-partner-share="true">
+                            <svg class="ak-cycle-avatar" viewBox="@CycleAvatarViewBox(0)" aria-hidden="true" focusable="false" width="140" height="140">
+                                <use href="#journey-cycle-avatar-artwork" />
+                            </svg>
                             <div class="ak-cycle-body">
                                 <div class="ak-journey-step-head">
                                     <h3 class="ak-cycle-title">@TextOrDash(partner.PartnerName)</h3>
+                                    <span class="ak-journey-badge ak-journey-partner-share"><i class="bi bi-pie-chart-fill" aria-hidden="true"></i>@T("سهم", "Share") <bdi dir="ltr">@NumberDisplay.Number(partner.SharePercent, 2)%</bdi></span>
                                 </div>
+                                <div class="ak-cycle-stats">
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم مقدار", "Share quantity")</span><span class="ak-cycle-value ak-cycle-quantity">@LifecycleQuantityMarkup(FormatLifecycleQuantity(partner.ShareQuantityMt))</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@T("سهم ارزش", "Share value")</span><span class="ak-cycle-value">@FormatHeaderValueUsd(partner.ShareValueUsd)</span></div>
                                 <div class="ak-cycle-row"><span class="ak-cycle-label">@partnerShareProfitLabel</span><span class="ak-cycle-value">@FormatLifecycleUsd(partner.ShareProfitUsd)</span></div>
-                            </div>
-                            <div class="ak-journey-partner-tile">
-                                <svg class="ak-cycle-avatar" viewBox="@CycleAvatarViewBox(0)" aria-hidden="true" focusable="false" width="140" height="140">
-                                    <use href="#journey-cycle-avatar-artwork" />
-                                </svg>
-                                <span class="ak-journey-partner-share"><span class="visually-hidden">@T("سهم", "Share") </span>@NumberDisplay.Number(partner.SharePercent, 2)%</span>
+                                </div>
                             </div>
                         </li>
                     }

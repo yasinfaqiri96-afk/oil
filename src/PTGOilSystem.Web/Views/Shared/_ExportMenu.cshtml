@@ -1,4 +1,4 @@
-﻿@model PTGOilSystem.Web.Services.Exports.ExportMenuModel
+@model PTGOilSystem.Web.Services.Exports.ExportMenuModel
 @using Microsoft.AspNetCore.Routing
 @using PTGOilSystem.Web.Helpers
 @{
@@ -42,28 +42,18 @@
     var pdfUrl = ExportUrl("pdf");
 }
 
-<div class="dropdown ak-export-menu" data-export-menu>
-    <button type="button"
-            class="btn btn-light ak-secondary-action dropdown-toggle"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            title="@UiText.T(Context, "دریافت خروجی", "Export")">
-        <i class="bi bi-download" aria-hidden="true"></i>
-        <span>@UiText.T(Context, "خروجی", "Export")</span>
-    </button>
-    <ul class="dropdown-menu dropdown-menu-end">
-        <li>
-            <a class="dropdown-item" href="@excelUrl" data-export-link>
-                <i class="bi bi-file-earmark-excel" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "خروجی Excel", "Excel export")</span>
-            </a>
-        </li>
-        <li>
-            <a class="dropdown-item" href="@pdfUrl" data-export-link>
-                <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                <span>@UiText.T(Context, "خروجی PDF", "PDF export")</span>
-            </a>
-        </li>
-    </ul>
+@* دو دکمهٔ جدا به‌جای منوی کشویی. کلاس ak-export-menu می‌ماند تا list-toolbar-row.js
+   همین گروه را به نوار بالای لیست ببرد؛ data-export-link حالت «در حال دریافت» را نگه می‌دارد. *@
+<div class="ak-export-menu ak-export-actions no-print" data-export-menu role="group" aria-label="@UiText.T(Context, "دریافت خروجی", "Export")">
+    <a class="ak-export-btn ak-export-btn--excel" href="@excelUrl" data-export-link
+       title="@UiText.T(Context, "خروجی Excel", "Excel export")"
+       aria-label="@UiText.T(Context, "خروجی Excel", "Excel export")">
+        <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("excel")" />
+    </a>
+    <a class="ak-export-btn ak-export-btn--pdf" href="@pdfUrl" data-export-link
+       title="@UiText.T(Context, "خروجی PDF", "PDF export")"
+       aria-label="@UiText.T(Context, "خروجی PDF", "PDF export")">
+        <partial name="~/Views/Shared/Partials/_ExportGlyph.cshtml" model="@("pdf")" />
+    </a>
 </div>
 

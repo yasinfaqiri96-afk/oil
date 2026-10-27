@@ -21,7 +21,8 @@
         && (hasPendingCandidates || !string.IsNullOrWhiteSpace(pendingReceiptsQuery));
 }
 
-<div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection">
+@* صفحه‌بندی سمت سرور است؛ pager سمت مرورگر tables.js صفحه‌بندی دوم می‌ساخت و لیست منتظر رسید را هم می‌شکست. *@
+<div id="journey-tab-lists" class="ak-tab-panel" dir="@Model.PageDirection" data-disable-client-pagination="true">
 
     @* ─── بارگیری‌های منتظر رسید + فرم رسید گروهی ─── *@
     @if (showPendingSection)
@@ -31,11 +32,11 @@
            فرم POST برود، HTML نامعتبر می‌شود و مرورگر آن را حذف می‌کند. *@
         <section class="ak-form-section" data-journey-pending-receipts>
             <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-                     model="@(($"{T("بارگیری‌های منتظر رسید", "Loadings awaiting receipt")} ({Model.PendingLoadingCount:N0})", (string?)T("بارگیری‌هایی که هنوز تمام مقدارشان رسید نشده است؛ رسید هر ردیف جداگانه یا چند ردیف با «ثبت رسید گروهی» ثبت می‌شود.", "Loadings not yet fully received; record each row separately, or several rows with Bulk receipt.")))" />
+                     model="@(($"{T("بارگیری‌های منتظر رسید", "Loadings awaiting receipt")} ({Model.PendingLoadingCount:N0})", (string?)null))" />
 
             <div class="ak-list-toolbar ak-bulk-receipt-toolbar">
                 <partial name="_ContractJourneyListFilter"
-                         model="@(("pendingReceiptsQ", (string?)pendingReceiptsQuery, T("جستجو در بارگیری‌های منتظر رسید...", "Search pending receipt loadings..."), "pendingReceiptsPage"))" />
+                         model="@(("pendingReceiptsQ", (string?)pendingReceiptsQuery, T("جستجو...", "Search..."), "pendingReceiptsPage"))" />
 
                 @if (!hasPendingCandidates)
                 {
@@ -57,7 +58,7 @@
                     <div class="ak-list-toolbar-actions no-print">
                         <button type="button" class="btn btn-light ak-secondary-action" data-bulk-receipt-select-all>
                             <i class="bi bi-check2-square" aria-hidden="true"></i>
-                            <span>@T("انتخاب همه", "Select all")</span>
+                            <span>@T("انتخاب همه", "Select all") (@Model.BulkReceiptCandidates.Count.ToString("N0"))</span>
                         </button>
                         <button type="button" class="btn btn-light ak-secondary-action" data-bulk-receipt-clear>
                             <i class="bi bi-square" aria-hidden="true"></i>
@@ -202,10 +203,6 @@
                 </form>
                 }
             </div>
-            @if (hasPendingCandidates)
-            {
-                @Model.PendingPagerHtml
-            }
         </section>
     }
 
@@ -219,7 +216,7 @@
 
         <div class="ak-list-toolbar">
             <partial name="_ContractJourneyListFilter"
-                     model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو در رسیدهای ثبت‌شده...", "Search registered receipts..."), "receiptsPage"))" />
+                     model="@(("receiptsQ", (string?)Context.Request.Query["receiptsQ"].ToString(), T("جستجو...", "Search..."), "receiptsPage"))" />
         </div>
 
         <div class="ak-table-wrap">

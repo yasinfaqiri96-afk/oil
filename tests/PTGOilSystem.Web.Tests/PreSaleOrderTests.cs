@@ -8,12 +8,14 @@ using PTGOilSystem.Web.Data;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Services;
+using PTGOilSystem.Web.Services.Exceptions;
 using Xunit;
 
 namespace PTGOilSystem.Web.Tests;
 
 // پیش‌فروش = تعهد. این تست‌ها قرارداد رفتاری را قفل می‌کنند:
-// ثبت تعهد هیچ اثر موجودی/مالی ندارد و فقط تحویل واقعی موجودی، درآمد و لجر می‌سازد.
+// ثبت تعهد هیچ اثر موجودی/مالی ندارد و فقط تحویل واقعی موجودی، درآمد و لجر می‌سازد؛
+// ولی ماندهٔ تحویل‌نشده از «موجودی مخزن + بار در مسیر» همان کالا رزرو است.
 public class PreSaleOrderTests
 {
     [Fact]
@@ -66,6 +68,8 @@ public class PreSaleOrderTests
     {
         await using var db = NewDb();
         SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedTankStock(db, contractId: 2, quantityMt: 100m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -80,14 +84,14 @@ public class PreSaleOrderTests
         Assert.Equal(50_000m, order.TotalInCurrency);
         Assert.Equal("PRE-" + order.Id, order.OrderNumber);
 
-        Assert.Empty(db.InventoryMovements);
+        Assert.Single(db.InventoryMovements);   // فقط رسید seed؛ خروجی ساخته نشد
         Assert.Empty(db.LedgerEntries);
         Assert.Empty(db.SalesTransactions);
         Assert.Empty(db.JournalEntries);
     }
 
     [Fact]
-    public async Task PreSaleCreate_Succeeds_When_No_Stock_Exists_Yet()
+    public async Task PreSaleCreate_Is_Rejected_When_Stock_Is_Not_Available()
     {
         await using var db = NewDb();
         SeedReferenceData(db);
@@ -95,9 +99,58 @@ public class PreSaleOrderTests
 
         var controller = BuildController(db);
 
+        Assert.IsType<ViewResult>(await controller.PreSaleCreate(NewOrderModel(quantityMt: 100m)));
+        Assert.Equal(0, await db.PreSaleOrders.CountAsync());
+        Assert.False(controller.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task PreSaleCreate_Counts_Goods_In_Transit_As_Available()
+    {
+        await using var db = NewDb();
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedTankStock(db, contractId: 2, quantityMt: 40m);
+        SeedVesselLeg(db, legId: 10, contractId: 2, quantityMt: 60m);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+
         Assert.IsType<RedirectToActionResult>(await controller.PreSaleCreate(NewOrderModel(quantityMt: 100m)));
+        Assert.IsType<ViewResult>(await controller.PreSaleCreate(NewOrderModel(quantityMt: 1m)));   // کل دارایی رزرو شده
         Assert.Equal(1, await db.PreSaleOrders.CountAsync());
-        Assert.Empty(db.InventoryMovements);
+    }
+
+    [Fact]
+    public async Task Open_PreSale_Reserves_Stock_From_Other_Sales_Until_Delivered()
+    {
+        await using var db = NewDb();
+        SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedTankStock(db, contractId: 2, quantityMt: 100m);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        await controller.PreSaleCreate(NewOrderModel(quantityMt: 80m));
+        var order = await db.PreSaleOrders.SingleAsync();
+        var stock = new StockService(db);
+
+        await stock.EnsureQuantityNotReservedByPreSalesAsync(1, 20m);
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => stock.EnsureQuantityNotReservedByPreSalesAsync(1, 21m));
+        Assert.Equal("STOCK_RESERVED_BY_PRESALE", ex.Code);
+
+        // تحویل خودِ فروش مرحله‌ای با رزرو خودش مسدود نمی‌شود و آزادِ دیگران را تغییر نمی‌دهد.
+        await controller.PreSaleDeliver(NewDeliveryModel(order.Id, quantityMt: 50m));
+        Assert.Equal(1, await db.SalesTransactions.CountAsync());
+        await stock.EnsureQuantityNotReservedByPreSalesAsync(1, 20m);
+        await Assert.ThrowsAsync<BusinessRuleException>(
+            () => stock.EnsureQuantityNotReservedByPreSalesAsync(1, 21m));
+
+        // سفارش لغوشده دیگر رزرو ندارد.
+        order.Status = PreSaleOrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+        await stock.EnsureQuantityNotReservedByPreSalesAsync(1, 50m);
     }
 
     [Fact]
@@ -180,6 +233,7 @@ public class PreSaleOrderTests
         SeedReferenceData(db);
         SeedPurchaseContract(db, 2);
         SeedTankStock(db, contractId: 2, quantityMt: 5m);
+        SeedVesselLeg(db, legId: 10, contractId: 2, quantityMt: 95m);   // فقط تا ثبت سفارش مجاز شود
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -200,6 +254,8 @@ public class PreSaleOrderTests
         db.Products.Add(new Product { Id = 2, Code = "MG", Name = "Mogas" });
         SeedPurchaseContract(db, 2, productId: 2);
         SeedTankStock(db, contractId: 2, quantityMt: 100m, productId: 2);
+        SeedPurchaseContract(db, 3);
+        SeedTankStock(db, contractId: 3, quantityMt: 100m);   // موجودی کالای ۱ برای ثبت سفارش
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -288,6 +344,8 @@ public class PreSaleOrderTests
     {
         await using var db = NewDb();
         SeedReferenceData(db);
+        SeedPurchaseContract(db, 2);
+        SeedTankStock(db, contractId: 2, quantityMt: 100m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -333,6 +391,8 @@ public class PreSaleOrderTests
         await using var db = NewDb();
         SeedReferenceData(db);
         db.Customers.Add(new Customer { Id = 2, Name = "Other" });
+        SeedPurchaseContract(db, 2);
+        SeedTankStock(db, contractId: 2, quantityMt: 100m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -465,6 +525,7 @@ public class PreSaleOrderTests
         SeedReferenceData(db);
         SeedPurchaseContract(db, 2);
         SeedVesselLeg(db, legId: 10, contractId: 2, quantityMt: 15m);
+        SeedTankStock(db, contractId: 2, quantityMt: 85m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -484,6 +545,7 @@ public class PreSaleOrderTests
         SeedReferenceData(db);
         SeedPurchaseContract(db, 2);
         SeedVesselLeg(db, legId: 10, contractId: 2, quantityMt: 50m);
+        SeedTankStock(db, contractId: 2, quantityMt: 50m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);
@@ -540,6 +602,7 @@ public class PreSaleOrderTests
         SeedPurchaseContract(db, 2);
         SeedVesselLeg(db, legId: 20, contractId: 2, quantityMt: 40m,
             transportType: LoadingTransportType.Wagon);
+        SeedTankStock(db, contractId: 2, quantityMt: 60m);
         await db.SaveChangesAsync();
 
         var controller = BuildController(db);

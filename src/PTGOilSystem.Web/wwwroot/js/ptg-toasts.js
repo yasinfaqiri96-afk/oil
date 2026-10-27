@@ -8,7 +8,7 @@
 (function () {
     "use strict";
 
-    var DEFAULT_DURATION = 5000;
+    var DEFAULT_DURATION = 3000;
     var ICONS = {
         success: "bi-check-circle-fill",
         error: "bi-exclamation-octagon-fill",

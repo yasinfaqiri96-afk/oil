@@ -649,7 +649,25 @@ a.ak-list-row:focus-visible {
     max-inline-size: min(20rem, calc(100vw - 24px));
 }
 
+/* The shell's 160px dropdown minimum outranks the rule above, and a table
+   cell's nowrap would put the reason label and field on one line; a menu
+   holding the reason field restores its width and stacks label over field. */
+.ak-row-menu .dropdown-menu:has(form .ak-input) {
+    min-inline-size: min(15rem, calc(100vw - 24px));
+}
+
+.ak-row-menu .dropdown-menu form {
+    white-space: normal;
+}
+
+.ak-row-menu .dropdown-menu form .ak-label {
+    display: block;
+    margin: 4px 0 0;
+    padding-inline: 12px;
+}
+
 .ak-row-menu .dropdown-menu form .ak-input {
+    display: block;
     width: calc(100% - 24px);
     min-width: 0;
     margin: 4px 12px 8px;
@@ -892,6 +910,11 @@ a.ak-list-row:focus-visible {
 .ak-pager-bar > .ak-pager {
     padding-top: 0;
     margin-inline-start: auto;
+}
+
+/* Details lists (_DetailPageSize + _DetailPager) sit directly under the table. */
+.ak-tab-panel .ak-pager-bar {
+    padding-block-start: 14px;
 }
 
 .ak-page-size {
@@ -2621,6 +2644,19 @@ select.ak-input {
     min-width: 0;
 }
 
+/* All awaiting loadings are listed without paging (so "select all" really means
+   all); the list scrolls inside its own box and keeps the header visible. */
+.ak-bulk-receipt-workspace > .ak-table-wrap {
+    max-block-size: min(60vh, 640px);
+    overflow-y: auto;
+}
+
+.ak-bulk-receipt-workspace > .ak-table-wrap > .ak-table > thead > tr > th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+}
+
 [data-bulk-receipt-form]:not(.is-bulk-receipt-open) :is(.ak-col-check, [data-bulk-receipt-select-all], [data-bulk-receipt-clear]) {
     display: none;
 }
@@ -4120,13 +4156,6 @@ select.ak-input {
     flex: 0 1 100px;
 }
 
-.ak-navigation-group-label {
-    display: block;
-    color: var(--text-secondary);
-    font-size: 14px;
-    line-height: 1.5;
-}
-
 @media (max-width: 767.98px) {
     .ak-navigation-group,
     .ak-navigation-group[data-navigation-group="overview"] {
@@ -4249,5 +4278,95 @@ body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .party-sett
     .party-settlement-party,
     .party-settlement-details {
         padding: 10px;
+    }
+}
+
+/* -------------------------------------------------------------------
+   Export actions (_ExportMenu.cshtml) — Excel and PDF as two separate
+   icon buttons instead of a dropdown. Toolbar-icon language: flat
+   single-colour glyph straight on the surface — no chip, outline,
+   shadow or lift; only a faint tint of the icon colour on hover.
+   ------------------------------------------------------------------- */
+.ak-export-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ak-export-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 6px;
+    background: transparent;
+    line-height: 1;
+    text-decoration: none;
+    transition: background-color var(--ptg-motion-fast);
+}
+
+/* Inline line glyph (Partials/_ExportGlyph.cshtml) in the system's Iconsax language; colour comes from the button. */
+.ak-export-ico {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+}
+
+/* The shell paints every link primary (02-base, 45-akaunting), so the tones are owned here.
+   Rest: the system success/error tokens on a thin stroke; hover: a faint tint of the same tone. */
+:is(body.boltz-shell, body.ptg-modal-document) .ak-export-actions > a.ak-export-btn--excel {
+    color: var(--success-main);
+}
+
+:is(body.boltz-shell, body.ptg-modal-document) .ak-export-actions > a.ak-export-btn--pdf {
+    color: var(--error-main);
+}
+
+:is(body.boltz-shell, body.ptg-modal-document) .ak-export-actions > a.ak-export-btn--excel:is(:hover, :focus-visible) {
+    background: rgba(36, 175, 34, 0.09);
+    color: var(--success-main);
+}
+
+:is(body.boltz-shell, body.ptg-modal-document) .ak-export-actions > a.ak-export-btn--pdf:is(:hover, :focus-visible) {
+    background: rgba(203, 11, 11, 0.07);
+    color: var(--error-main);
+}
+
+.ak-export-btn:focus-visible {
+    outline: 2px solid rgba(var(--primary-main-rgb), 0.35);
+    outline-offset: 2px;
+}
+
+/* tabular-export.js marks the link busy while the file is prepared. */
+.ak-export-btn[data-export-busy] {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.ak-export-btn[data-export-busy] .ak-export-ico {
+    animation: ak-export-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes ak-export-pulse {
+    from { opacity: 1; }
+    to { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ak-export-btn,
+    .ak-export-btn[data-export-busy] .ak-export-ico {
+        transition: none;
+        animation: none;
+    }
+}
+
+/* Icon-only chips keep their square size; on phones the toolbar stretches the group
+   (`> * { flex: 1 1 auto }`), so the two icons park at the row end. */
+@media (max-width: 760px) {
+    .ak-export-actions {
+        justify-content: flex-end;
     }
 }

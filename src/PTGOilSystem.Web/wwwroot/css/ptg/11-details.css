@@ -1000,8 +1000,9 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
    One white panel holds the whole lifecycle: seven stage cards on one path
    (row 1 runs 1→3 in the reading direction, the path drops from 3 to 4,
    row 2 runs 4→6 back the other way, then drops from 6 to 7) and, for a
-   partnership contract, the partner share cards beside card 7. Every stage
-   card has the same size, avatar and two figures. */
+   partnership contract, the partner share cards beside card 7.
+   Every card shares one anatomy: a header (art tile, title, status pill and a
+   quiet step number) above a short list of label / figure rows. */
 .ak-detail-page > [data-contract-journey-facts-host]:empty {
     /* The facts host stays in the DOM for the tab script, but an empty one
        must not spend a grid gap between the page header and the tab rail. */
@@ -1011,7 +1012,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 :where(.ak-detail-page) .ak-journey-section,
 .ak-journey-section {
     container-type: inline-size;
-    padding: 22px 20px 20px;
+    padding: 20px;
     border: 0;
     border-radius: 14px;
     background: var(--ak-detail-surface);
@@ -1026,29 +1027,31 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-section .ak-journey-head .ak-section-title {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 800;
     line-height: 1.4;
 }
 
 .ak-journey-head .ak-section-title > .bi {
     color: var(--primary-main);
-    font-size: 23px;
+    font-size: 20px;
 }
 
-/* ---- the path ---- */
+/* ---- the path ----
+   Each row is as tall as its own tallest card, so the taller partner cards
+   never stretch the stage rows above them into empty boxes. */
 .ak-journey-flow {
-    --ak-journey-gap: 48px;
-    --ak-journey-row-gap: 38px;
-    --ak-journey-link: rgba(var(--ptg-primary-rgb), .72);
+    --ak-journey-gap: 36px;
+    --ak-journey-row-gap: 28px;
+    --ak-journey-link: rgba(var(--ptg-primary-rgb), .5);
     --ak-journey-dash: 4px;
     --ak-journey-head: 6px;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: minmax(0, 1fr);
+    grid-auto-rows: auto;
     column-gap: var(--ak-journey-gap);
     row-gap: var(--ak-journey-row-gap);
     margin: 0;
@@ -1065,132 +1068,147 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-step--6 { grid-area: 2 / 1; }
 .ak-journey-step--7 { grid-area: 3 / 1; }
 
-/* Rows share one height (grid-auto-rows: 1fr), so the card only sets a floor
-   and never clips the three-row partner cards. The reference uses very faint
-   state tints with stronger colour reserved for badges and figures. */
+/* ---- card ----
+   Header row: art tile | title + status | step number. The figures span the
+   full width below and sit at the bottom, so they line up across a row even
+   when one title wraps. */
 .ak-journey-step {
     --ak-step-rgb: var(--ptg-primary-rgb);
     position: relative;
-    display: flex;
-    align-items: stretch;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    gap: 14px 12px;
     min-width: 0;
-    min-height: 170px;
     padding: 16px;
-    padding-inline-end: 22px;
     border: 1px solid var(--ak-detail-divider);
     border-radius: 12px;
     background: var(--ak-detail-surface);
 }
 
-.ak-journey-step-num {
-    position: absolute;
-    top: 14px;
-    inset-inline-end: 16px;
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    border: 1px solid rgba(var(--info-rgb), .18);
-    border-radius: 50%;
-    background: rgba(var(--info-rgb), .07);
-    color: var(--primary-main);
-    font-size: 16px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+.ak-journey-step .ak-cycle-body {
+    display: contents;
 }
 
-/* Large 3D art, one size on every stage card, centred on the card height. */
 .ak-cycle-artwork-defs {
     position: absolute;
     pointer-events: none;
 }
 
+/* The 3D art sits on a soft tile, one size on every card. */
 .ak-journey-step .ak-cycle-avatar {
+    grid-column: 1;
+    grid-row: 1;
     display: block;
-    flex: 0 0 140px;
-    align-self: center;
-    width: 140px;
-    height: 140px;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--ak-detail-soft);
     overflow: hidden;
-    background: transparent;
-}
-
-.ak-journey-step .ak-cycle-body {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-width: 0;
 }
 
 .ak-journey-step-head {
+    grid-column: 2;
+    grid-row: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px;
-    padding-inline-end: 38px;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
 }
 
 .ak-journey-step .ak-cycle-title {
     margin: 0;
     color: var(--ak-detail-text);
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 800;
     line-height: 1.4;
 }
 
-/* Status pill: icon + text. Blue is the default (in progress).
-   Kept quiet: thin tinted outline, faint fill, medium weight. */
+/* Linked titles keep the system link colour; hover and focus confirm them. */
+.ak-journey-step .ak-cycle-title > a:hover {
+    color: var(--primary-main);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.ak-journey-step .ak-cycle-title > a:focus-visible {
+    border-radius: 4px;
+    outline: 2px solid var(--primary-main);
+    outline-offset: 2px;
+}
+
+.ak-journey-step-num {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ak-detail-soft);
+    color: var(--ak-detail-muted);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+/* Status pill: icon + text, thin tinted outline and a faint fill.
+   Blue is the default (in progress). */
 .ak-journey-badge {
     display: inline-flex;
     align-items: center;
-    align-self: flex-start;
     gap: 4px;
-    padding: 2px 10px;
+    padding: 1px 8px;
     border: 1px solid rgba(var(--info-rgb), .18);
     border-radius: 999px;
     background: rgba(var(--info-rgb), .05);
     color: var(--primary-main);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     line-height: 1.6;
+    white-space: nowrap;
 }
 
 .ak-journey-badge > .bi {
-    font-size: 14px;
-    opacity: .8;
+    font-size: 12px;
+    opacity: .85;
 }
 
-/* Figures sit at the bottom of every card so they line up across the path:
-   label at the start of the row, figure at the end, hairline between rows. */
+/* ---- figures: label at the start of the row, figure at the end ---- */
+.ak-journey-step .ak-cycle-stats {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: end;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--ak-detail-divider);
+}
+
 .ak-journey-step .ak-cycle-row {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
     gap: 2px 12px;
-    padding: 8px 0;
-    border-top: 1px solid rgba(var(--ak-step-rgb), .10);
+    padding-top: 10px;
 }
 
-.ak-journey-step .ak-cycle-row:first-of-type {
-    margin-top: auto;
+.ak-journey-step .ak-cycle-row + .ak-cycle-row {
+    margin-top: 10px;
+    border-top: 1px dashed var(--ak-detail-divider);
 }
 
-.ak-journey-step .ak-cycle-row:last-of-type {
-    padding-bottom: 0;
-}
-
-/* Keep every caption readable; a long figure may use the next line. */
 .ak-journey-step .ak-cycle-label {
     flex: 1 1 auto;
     min-width: 0;
-    /* Calm slate-navy: high contrast, yet distinct from the neutral figure. */
-    color: color-mix(in srgb, var(--primary-main) 30%, var(--ak-detail-text));
-    font-size: 17px;
+    color: var(--ak-detail-muted);
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
-    overflow-wrap: anywhere;
 }
 
 .ak-journey-step .ak-cycle-value {
@@ -1200,20 +1218,24 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     direction: ltr;
     unicode-bidi: isolate;
     color: var(--ak-detail-text);
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     line-height: 1.5;
     font-variant-numeric: tabular-nums lining-nums;
-    text-align: end;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
 }
 
 .ak-journey-step .ak-cycle-value.ak-cycle-quantity {
     display: inline-flex;
-    flex-wrap: wrap;
+    align-items: baseline;
     gap: 4px;
     direction: inherit;
-    text-align: start;
+}
+
+.ak-journey-step .ak-cycle-quantity > span {
+    color: var(--ak-detail-muted);
+    font-size: 13px;
+    font-weight: 500;
 }
 
 [data-contract-journey-page] .ak-journey-group-section {
@@ -1239,33 +1261,17 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     contain: layout;
 }
 
-/* Stage surfaces stay uniform; badges and figures carry the state colour. */
-.ak-journey-step.is-current {
-    border-color: var(--ak-detail-divider);
-    background: var(--ak-detail-surface);
-}
-
+/* ---- states: surfaces stay uniform; pills and figures carry the colour ---- */
 .ak-journey-step:is(.is-done, .is-gain) {
     --ak-step-rgb: var(--ptg-success-rgb);
-    border-color: var(--ak-detail-divider);
-    background: var(--ak-detail-surface);
-}
-
-.ak-journey-step.is-gain {
-    border-color: var(--ak-detail-divider);
-    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step.is-warn {
     --ak-step-rgb: var(--ptg-warning-rgb);
-    border-color: var(--ak-detail-divider);
-    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step.is-loss {
     --ak-step-rgb: var(--ptg-danger-rgb);
-    border-color: var(--ak-detail-divider);
-    background: var(--ak-detail-surface);
 }
 
 .ak-journey-step:is(.is-done, .is-gain) .ak-journey-badge {
@@ -1306,70 +1312,11 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 }
 
 /* ---- partner share cards ----
-   Text first, transparent artwork at the end of the row with the share percentage
-   pinned to its lower corner. */
-.ak-journey-partner {
-    gap: 24px;
-    padding: 16px 22px 16px 20px;
-}
-
-.ak-journey-partner .ak-cycle-title {
-    font-size: 21px;
-}
-
-.ak-journey-partner .ak-journey-step-head {
-    padding-inline-end: 0;
-}
-
-.ak-journey-partner .ak-cycle-value {
-    font-size: 18px;
-}
-
-.ak-journey-partner-tile {
-    position: relative;
-    display: grid;
-    flex: 0 0 140px;
-    align-self: center;
-    place-items: center;
-    width: 140px;
-    height: 152px;
-    background: transparent;
-}
-
-.ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-    flex: none;
-    width: 140px;
-    height: 140px;
-}
-
-.ak-journey-partner-icon {
-    position: absolute;
-    bottom: -6px;
-    inset-inline-start: -6px;
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--ak-detail-surface);
-    box-shadow: var(--shadow-dropdown);
-    color: var(--primary-main);
-    font-size: 21px;
-}
-
-.ak-journey-partner-share {
-    position: absolute;
-    bottom: 8px;
-    inset-inline-end: 8px;
-    padding: 1px 10px;
-    border: 1px solid rgba(var(--info-rgb), .16);
-    border-radius: 12px;
-    background: var(--ak-detail-surface);
-    color: var(--primary-dark);
-    font-size: 15px;
+   Same anatomy as a stage card: portrait tile, partner name with the share
+   pill, then three figure rows. No step number, so the third column is empty. */
+.ak-journey-partner .ak-journey-partner-share bdi {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    line-height: 1.6;
 }
 
 /* ---- connectors ----
@@ -1417,17 +1364,17 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 /* row one runs forward: head at the far end of the gap */
 .ak-journey-step--1 .ak-journey-arrow,
 .ak-journey-step--2 .ak-journey-arrow {
-    inset-inline-end: calc(-1 * var(--ak-journey-gap));
+    inset-inline-end: calc(-1 * var(--ak-journey-gap) - 1px);
 }
 
 .ak-journey-step--1 .ak-journey-arrow::before,
 .ak-journey-step--2 .ak-journey-arrow::before {
-    inset-inline: 3px calc(var(--ak-journey-head) + 3px);
+    inset-inline: 6px calc(var(--ak-journey-head) + 6px);
 }
 
 .ak-journey-step--1 .ak-journey-arrow::after,
 .ak-journey-step--2 .ak-journey-arrow::after {
-    inset-inline-end: 3px;
+    inset-inline-end: 6px;
     border-block: 4px solid transparent;
     border-inline-start: var(--ak-journey-head) solid var(--ak-journey-link);
 }
@@ -1435,17 +1382,17 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 /* row two runs back the other way */
 .ak-journey-step--4 .ak-journey-arrow,
 .ak-journey-step--5 .ak-journey-arrow {
-    inset-inline-start: calc(-1 * var(--ak-journey-gap));
+    inset-inline-start: calc(-1 * var(--ak-journey-gap) - 1px);
 }
 
 .ak-journey-step--4 .ak-journey-arrow::before,
 .ak-journey-step--5 .ak-journey-arrow::before {
-    inset-inline: calc(var(--ak-journey-head) + 3px) 3px;
+    inset-inline: calc(var(--ak-journey-head) + 6px) 6px;
 }
 
 .ak-journey-step--4 .ak-journey-arrow::after,
 .ak-journey-step--5 .ak-journey-arrow::after {
-    inset-inline-start: 3px;
+    inset-inline-start: 6px;
     border-block: 4px solid transparent;
     border-inline-end: var(--ak-journey-head) solid var(--ak-journey-link);
 }
@@ -1457,7 +1404,7 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-step--6 .ak-journey-arrow {
     top: auto;
     right: auto;
-    bottom: calc(-1 * var(--ak-journey-row-gap));
+    bottom: calc(-1 * var(--ak-journey-row-gap) - 1px);
     left: 50%;
     width: 10px;
     height: var(--ak-journey-row-gap);
@@ -1466,9 +1413,9 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
 .ak-journey-step--3 .ak-journey-arrow::before,
 .ak-journey-step--6 .ak-journey-arrow::before {
-    top: 4px;
+    top: 5px;
     right: auto;
-    bottom: calc(var(--ak-journey-head) + 4px);
+    bottom: calc(var(--ak-journey-head) + 5px);
     left: 50%;
     width: 1.5px;
     height: auto;
@@ -1483,119 +1430,47 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 .ak-journey-step--6 .ak-journey-arrow::after {
     top: auto;
     right: auto;
-    bottom: 4px;
+    bottom: 5px;
     left: 50%;
     border-inline: 4px solid transparent;
     border-top: var(--ak-journey-head) solid var(--ak-journey-link);
     transform: translateX(-50%);
 }
 
-/* ---- laptop: still three columns, narrower cards ----
-   Avatar and figures step down so a full amount such as "$ 1,234,567.89"
-   keeps its line without clipping. */
+/* ---- laptop / small laptop: still three columns, tighter gaps ---- */
 @media (min-width: 768px) and (max-width: 1279.98px) {
     .ak-journey-flow {
-        --ak-journey-gap: 40px;
-        --ak-journey-row-gap: 32px;
-    }
-
-    .ak-journey-step {
-        gap: 12px;
-        min-height: 156px;
-        padding: 14px;
-        padding-inline-end: 16px;
-    }
-
-    .ak-journey-step .ak-cycle-avatar {
-        flex-basis: 112px;
-        width: 112px;
-        height: 112px;
-    }
-
-    .ak-journey-step .ak-cycle-title {
-        font-size: 18px;
-    }
-
-    .ak-journey-step .ak-cycle-label {
-        font-size: 16px;
-    }
-
-    .ak-journey-step .ak-cycle-value,
-    .ak-journey-partner .ak-cycle-value {
-        font-size: 17px;
-    }
-
-    .ak-journey-partner-tile {
-        flex-basis: 112px;
-        width: 112px;
-        height: 124px;
-    }
-
-    .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-        width: 112px;
-        height: 112px;
-    }
-}
-
-/* ---- small laptop / tablet ---- */
-@media (min-width: 768px) and (max-width: 1199.98px) {
-    .ak-journey-flow {
-        --ak-journey-gap: 32px;
+        --ak-journey-gap: 28px;
+        --ak-journey-row-gap: 24px;
     }
 }
 
 /* The available panel width also reflects the open sidebar. On narrow
-   three-column panels, give the figures the card's full width and keep the
-   art above the text rather than shrinking or truncating either of them. */
-@media (min-width: 768px) {
-    @container (max-width: 1000px) {
-        .ak-journey-step {
-            flex-direction: column;
-            gap: 12px;
-            padding: 16px;
-        }
+   three-column panels the art tile and type step down one size so a full
+   amount such as "$ 1,234,567.89" keeps its line beside its label. */
+@container (max-width: 1000px) {
+    .ak-journey-step {
+        grid-template-columns: 44px minmax(0, 1fr) auto;
+        gap: 12px 10px;
+        padding: 14px;
+    }
 
-        .ak-journey-step .ak-cycle-avatar {
-            flex: 0 0 auto;
-            width: 112px;
-            height: 112px;
-        }
+    .ak-journey-step .ak-cycle-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+    }
 
-        .ak-journey-step .ak-cycle-body {
-            width: 100%;
-        }
+    .ak-journey-step .ak-cycle-title {
+        font-size: 16px;
+    }
 
-        .ak-journey-step-head {
-            min-height: 64px;
-            padding-inline-end: 0;
-        }
+    .ak-journey-step .ak-cycle-label {
+        font-size: 13px;
+    }
 
-        .ak-journey-step .ak-cycle-title {
-            font-size: 18px;
-        }
-
-        .ak-journey-step .ak-cycle-label {
-            font-size: 16px;
-        }
-
-        .ak-journey-step .ak-cycle-value {
-            font-size: 17px;
-        }
-
-        .ak-journey-partner {
-            flex-direction: column-reverse;
-        }
-
-        .ak-journey-partner-tile {
-            flex: 0 0 auto;
-            width: 112px;
-            height: 124px;
-        }
-
-        .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-            width: 112px;
-            height: 112px;
-        }
+    .ak-journey-step .ak-cycle-value {
+        font-size: 15px;
     }
 }
 
@@ -1608,58 +1483,18 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
 
     .ak-journey-flow {
         grid-template-columns: minmax(0, 1fr);
-        grid-auto-rows: auto;
         gap: 26px;
     }
 
     .ak-journey-step {
         grid-area: auto;
-        min-height: 0;
-        padding: 14px;
-    }
-
-    .ak-journey-step .ak-cycle-avatar {
-        flex-basis: 88px;
-        width: 88px;
-        height: 88px;
-    }
-
-    .ak-journey-step .ak-cycle-row:first-of-type {
-        margin-top: 10px;
-    }
-
-    .ak-journey-step .ak-cycle-value,
-    .ak-journey-partner .ak-cycle-value {
-        font-size: 17px;
-    }
-
-    .ak-journey-partner {
-        gap: 14px;
-        padding: 14px;
-    }
-
-    .ak-journey-partner-tile {
-        flex-basis: 88px;
-        width: 88px;
-        height: 100px;
-    }
-
-    .ak-journey-partner .ak-journey-partner-tile .ak-cycle-avatar {
-        width: 88px;
-        height: 88px;
-    }
-
-    .ak-journey-partner-icon {
-        width: 34px;
-        height: 34px;
-        font-size: 18px;
     }
 
     /* One column, so every link is the same dashed rule pointing down. */
     .ak-journey-step .ak-journey-arrow {
         top: auto;
         right: auto;
-        bottom: -26px;
+        bottom: -27px;
         left: 50%;
         width: 10px;
         height: 26px;
@@ -1667,9 +1502,9 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     }
 
     .ak-journey-step .ak-journey-arrow::before {
-        top: 4px;
+        top: 5px;
         right: auto;
-        bottom: calc(var(--ak-journey-head) + 4px);
+        bottom: calc(var(--ak-journey-head) + 5px);
         left: 50%;
         width: 1.5px;
         height: auto;
@@ -1683,148 +1518,12 @@ body.boltz-ltr [data-contract-journey-page] :is(.ak-detail-table, .ak-table) > :
     .ak-journey-step .ak-journey-arrow::after {
         top: auto;
         right: auto;
-        bottom: 4px;
+        bottom: 5px;
         left: 50%;
         border: 0;
         border-inline: 4px solid transparent;
         border-top: var(--ak-journey-head) solid var(--ak-journey-link);
         transform: translateX(-50%);
-    }
-}
-
-/* ---- stage card layout ----
-   Compact header (avatar + title + status) above a full-width two-figure strip.
-   The 140px art used to take half of a ~330px card and push long figures such
-   as "$ 1,234,567.89" onto a second line; now the figures own the card width
-   and line up across the path. Scoped to stage cards; partner cards keep their
-   own layout above. Declared after the breakpoint rules so it wins at every
-   width without !important. */
-.ak-journey-step:not(.ak-journey-partner) {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    align-items: center;
-    gap: 14px;
-    min-height: 0;
-    padding: 18px;
-}
-
-.ak-journey-step:not(.ak-journey-partner) .ak-cycle-body {
-    display: contents;
-}
-
-.ak-journey-step:not(.ak-journey-partner) .ak-cycle-avatar {
-    grid-column: 1;
-    grid-row: 1;
-    flex: none;
-    align-self: center;
-    width: 72px;
-    height: 72px;
-}
-
-.ak-journey-step:not(.ak-journey-partner) .ak-journey-step-head {
-    grid-column: 2;
-    grid-row: 1;
-    gap: 6px;
-    min-height: 0;
-    margin: 0;
-    padding-inline-end: 40px;
-}
-
-.ak-journey-step:not(.ak-journey-partner) .ak-cycle-title {
-    font-size: 19px;
-}
-
-.ak-journey-step .ak-cycle-stats {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    align-self: end;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding-top: 14px;
-    border-top: 1px solid rgba(var(--ak-step-rgb), .14);
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-row {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 4px;
-    margin: 0;
-    padding: 0 0 0 0;
-    padding-inline: 0 12px;
-    border: 0;
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-row + .ak-cycle-row {
-    padding-inline: 14px 0;
-    border-inline-start: 1px solid rgba(var(--ak-step-rgb), .14);
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-label {
-    flex: none;
-    color: var(--ak-detail-muted);
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.4;
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-value {
-    flex: none;
-    max-width: 100%;
-    margin-inline-start: 0;
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.35;
-    text-align: start;
-    white-space: nowrap;
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-value.ak-cycle-quantity {
-    flex-wrap: nowrap;
-    align-items: baseline;
-}
-
-.ak-journey-step .ak-cycle-stats .ak-cycle-quantity > span {
-    color: var(--ak-detail-muted);
-    font-size: 15px;
-    font-weight: 500;
-}
-
-@media (min-width: 768px) and (max-width: 1279.98px) {
-    .ak-journey-step .ak-cycle-stats .ak-cycle-value {
-        font-size: 18px;
-    }
-}
-
-/* Narrow three-column panels (open sidebar): half a card is too small for a
-   full amount, so the two figures stack and each keeps one line. */
-@container (max-width: 1000px) {
-    .ak-journey-step .ak-cycle-stats {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 10px;
-    }
-
-    .ak-journey-step .ak-cycle-stats .ak-cycle-row,
-    .ak-journey-step .ak-cycle-stats .ak-cycle-row + .ak-cycle-row {
-        flex-direction: row;
-        align-items: baseline;
-        justify-content: space-between;
-        padding-inline: 0;
-        border-inline-start: 0;
-    }
-}
-
-@media (max-width: 767.98px) {
-    .ak-journey-step:not(.ak-journey-partner) {
-        grid-template-columns: 56px minmax(0, 1fr);
-        padding: 14px;
-    }
-
-    .ak-journey-step:not(.ak-journey-partner) .ak-cycle-avatar {
-        width: 56px;
-        height: 56px;
     }
 }
 

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">PDF export</title><desc id="desc">Red PDF document with folded page corner, white Acrobat PDF symbol, PDF lettering and round download arrow, in the reference style.</desc>
+<defs>
+  <linearGradient id="red" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff2b37"/><stop offset=".55" stop-color="#f21628"/><stop offset="1" stop-color="#e30923"/></linearGradient>
+  <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff7f7"/><stop offset="1" stop-color="#ffd7dc"/></linearGradient>
+  <linearGradient id="foldShadow" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bb061a" stop-opacity=".29"/><stop offset="1" stop-color="#9d061f" stop-opacity="0"/></linearGradient>
+  <filter id="arrowShadow" x="-18%" y="-18%" width="145%" height="145%"><feGaussianBlur stdDeviation="2"/></filter>
+</defs>
+<!-- soft red file document with rounded upper-left and lower corners -->
+<path d="M96 23H303C311 23 320 27 326 33L434 142C439 147 443 156 443 165V408C443 440 420 467 388 467H92C54 467 25 441 25 407V95C25 56 55 23 96 23Z" fill="url(#red)"/>
+<!-- folded-corner shadow extends diagonally as in original -->
+<path d="M305 152 440 290V155L325 32Z" fill="url(#foldShadow)"/>
+<!-- pale paper dog-ear -->
+<path d="M304 23V111C304 135 318 149 342 149H443L325 32C320 27 312 23 304 23Z" fill="url(#fold)"/>
+<path d="M304 23V111C304 135 318 149 342 149H443" fill="none" stroke="#eecbd0" stroke-width="1.4"/>
+<!-- recognizable Acrobat flowing-line glyph: loop, sweeping lower triangle and ribbons -->
+<g fill="none" stroke="#fff" stroke-width="17" stroke-linejoin="round" stroke-linecap="round">
+  <path d="M206 149C193 150 190 167 196 186C204 212 223 240 246 263C258 276 286 293 300 298C313 303 324 302 327 294C332 280 318 272 298 272C268 273 224 286 180 298C137 310 110 322 99 338C89 352 99 360 110 354C130 343 145 317 166 286C184 258 195 231 206 204C218 176 217 151 206 149Z"/>
+</g>
+<!-- add PDF name without changing the PDF symbol or original color scheme -->
+<text x="182" y="419" font-family="Arial, Helvetica, sans-serif" font-size="59" font-weight="800" letter-spacing="2" text-anchor="middle" fill="white">PDF</text>
+<!-- circular download badge, exactly the original bottom-right visual idea -->
+<circle cx="380" cy="380" r="88" fill="#fff" opacity=".3" filter="url(#arrowShadow)"/>
+<circle cx="380" cy="378" r="87" fill="#fff"/>
+<circle cx="380" cy="378" r="72" fill="#f11229"/>
+<path d="M380 347V405M351 379 380 408 409 379" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

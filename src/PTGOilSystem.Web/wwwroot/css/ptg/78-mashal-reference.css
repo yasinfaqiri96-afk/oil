@@ -8,7 +8,7 @@
 
 /* ---- 1. Tokens ------------------------------------------------------ */
 body.boltz-shell.app-shell-authenticated.mashal-ui {
-    --layout-sidebar: 240px;
+    --layout-sidebar: 224px;
     --layout-navpanel: var(--layout-sidebar);
     --layout-header: 48px;
     --layout-shell-gap: 0px;
@@ -16,7 +16,6 @@ body.boltz-shell.app-shell-authenticated.mashal-ui {
     --ptg-page-top: 0px;
     --background-default: var(--mashal-canvas);
     --ptg-bg: var(--mashal-canvas);
-    --ptg-panel-shadow: none;
     /* Sidebar colours inherit the shared navy palette from 01-tokens.css. */
     --ptg-tabs-font-size: 15px;
     --ptg-tabs-text-color: #6c757d;
@@ -32,7 +31,12 @@ body.boltz-shell.app-shell-authenticated.mashal-ui {
     --ptg-tabs-space-above: 0px;
     --ptg-tabs-space-below: 0px;
     --chk-title: var(--mashal-text);
-    --chk-field-border: var(--mashal-field-line);
+    /* Form controls: one shared height so every field, select, combobox and date picker lines up. */
+    --mashal-field-h: 42px;
+    /* Field reference (Inventory/Create «جنس و محل نگهداری»): cool blue-gray hairline, 13px muted label. */
+    --ptg-field-border: #c2d0e3;
+    --ptg-label: #4f4f4f;
+    --chk-field-border: var(--ptg-field-border);
     --chk-field-h: var(--mashal-field-h);
     color: var(--mashal-text);
     background: var(--mashal-canvas);
@@ -50,20 +54,40 @@ body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster { gap: 14
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster :is(.ptg-h3d,.ptg-havatar-ring) { width: 26px; height: 30px; min-width: 26px; min-height: 30px; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: #6f86a3; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster :is(i,.ptg-havatar-ico) { font-size: 19px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui [data-offline-chip] { color: #5cb56a; }
-/* One full-size toggle stays aligned inside the topbar at every width. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle { position: static; display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 10px; border: 1px solid var(--mashal-line); border-radius: var(--mashal-radius); background: var(--background-paper); color: var(--mashal-ink); box-shadow: none; }
+/* Sidebar toggle: quiet round ghost button in the topbar; on desktop it becomes a small
+   floating chevron centred on the sidebar edge (same element, so data-shell-toggle keeps working). */
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle { position: static; display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mashal-ink); box-shadow: none; transition: background-color var(--ptg-motion-fast), color var(--ptg-motion-fast), box-shadow var(--ptg-motion-fast); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:hover,
 body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:focus-visible { background: var(--mashal-soft); color: var(--mashal-primary); }
+@media (min-width: 992px) {
+    /* The topbar carries the edge toggle, so it must stack just above the sticky sidebar (1040);
+       modals (1055), the assistant (1045) and toasts (1090) still sit above it. */
+    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-topbar { z-index: 1041; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle { position: absolute; inset-block-start: 11px; inset-inline-start: -13px; z-index: 1; flex-basis: 26px; width: 26px; height: 26px; min-height: 26px; background: #fff; color: #5b6b80; box-shadow: 0 0 0 1px rgb(16 24 40 / 6%), 0 2px 6px rgb(16 24 40 / 12%); }
+    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:hover,
+    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:focus-visible { background: var(--mashal-primary); color: #fff; box-shadow: 0 0 0 1px var(--mashal-primary), 0 4px 10px rgb(45 96 201 / 28%); }
+    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle .hamburger { display: none; }
+    /* Chevron points toward the sidebar while it is open (collapse), away from it while it is a rail (expand). */
+    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle::before { content: ""; inline-size: 12px; block-size: 12px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3 5 8l5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3 5 8l5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; transition: transform var(--ptg-motion-base); }
+    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl .boltz-topbar-toggle::before { transform: scaleX(-1); }
+    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl.is-sidebar-collapsed .boltz-topbar-toggle::before { transform: none; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-ltr.is-sidebar-collapsed .boltz-topbar-toggle::before { transform: scaleX(-1); }
+}
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl:not(.is-shell-nav-open) .boltz-topbar-toggle::before { transform: none; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-ltr:not(.is-shell-nav-open) .boltz-topbar-toggle::before { transform: scaleX(-1); }
+}
 
 /* ---- 3. Sidebar: shared navy palette ------------------------------- */
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar { box-shadow: -2px 0 10px rgb(29 46 78 / 6%); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .ak-navpanel { flex-direction: column; block-size: 100vh; block-size: 100dvh; min-block-size: 0; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-header { position: relative; flex: 0 0 auto; min-inline-size: 0; padding: 12px 12px 8px; border-block-end: 1px solid var(--ptg-sidebar-line); }
+body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-header { position: relative; flex: 0 0 auto; min-inline-size: 0; padding: 6px 12px 4px; border-block-end: 1px solid var(--ptg-sidebar-line); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-close { display: none; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .boltz-sidebar-scroll { flex: 1 1 0; min-block-size: 0; max-block-size: none; gap: 0; padding: 8px 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand { min-block-size: 112px; height: 112px; padding: 0; justify-content: center; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-mark { inline-size: min(180px, 100%); block-size: 108px; padding: 6px 10px; justify-content: center; border-radius: var(--mashal-radius); background-color: var(--ptg-sidebar-plate); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-logo { inline-size: 100%; block-size: 100%; object-fit: contain; object-position: center; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand { min-block-size: 140px; height: 140px; padding: 0; justify-content: center; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-mark { inline-size: 100%; block-size: 140px; padding: 0; justify-content: center; border-radius: var(--mashal-radius); background-color: var(--ptg-sidebar-plate); }
+/* The artwork carries ~6–10% transparent margin on every side; the scale spends it so the visible mark fills the header. */
+body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-logo { inline-size: 100%; block-size: 100%; object-fit: contain; object-position: center; transform: scale(1.12); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-context { display: grid; gap: 12px; padding: 8px 0 12px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-company-link { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px; color: var(--mashal-text); font-size: 14px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear-wrap { inline-size: 100%; }
@@ -108,6 +132,7 @@ body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-sidebar-foot-link span
 @media (min-width: 992px) {
     body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed :is(.mashal-sidebar-context,.mashal-nav-search) { display: none; }
     body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .mashal-sidebar-header { padding-inline: 4px; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .boltz-brand { min-block-size: 112px; height: 112px; }
     body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .boltz-brand-mark { background-image: url("../../images/mashal-mark.webp"); }
 }
 @media (min-width: 992px) and (max-width: 1199.98px) {
@@ -115,6 +140,7 @@ body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-sidebar-foot-link span
     body.boltz-shell.app-shell-authenticated.mashal-ui.is-shell-nav-open .ptg-sidebar { inline-size: var(--layout-sidebar); }
     body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .mashal-sidebar-context { display: none; }
     body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .mashal-sidebar-header { padding-inline: 4px; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .boltz-brand { min-block-size: 112px; height: 112px; }
     body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .boltz-brand-mark { background-image: url("../../images/mashal-mark.webp"); }
 }
 
@@ -138,78 +164,88 @@ body.mashal-ui #ptg-main-content > .ptg-page-frame { gap: 16px; max-inline-size:
 body.mashal-ui #ptg-main-content .ak-page-header { min-height: 38px; margin: 0 0 16px; padding: 0 2px; }
 body.mashal-ui #ptg-main-content .ak-page-title { color: var(--text-primary); font-size: var(--font-page-title); font-weight: 500; line-height: 1.5; }
 body.mashal-ui #ptg-main-content :is(.ak-page-subtitle,.ak-page-context,.ak-detail-subtitle) { margin: 4px 0 0; color: var(--mashal-muted); font-size: 14px; font-weight: 400; }
-body.mashal-ui #ptg-main-content :is(.ak-section-title,.ak-form-group-title,.fte-section-title) { color: var(--mashal-text); font-size: 16px; font-weight: 500; }
-body.mashal-ui #ptg-main-content .ak-section-desc { color: var(--mashal-muted); font-size: 13px; line-height: 1.8; }
-body.mashal-ui #ptg-main-content .ak-section-head { margin-bottom: 18px; padding: 0; border: 0; }
+body.mashal-ui #ptg-main-content :is(.ak-section-title,.ak-form-group-title,.fte-section-title) { color: #1a1a1a; font-size: 16px; font-weight: 500; }
+body.mashal-ui #ptg-main-content .ak-section-desc { margin: 2px 0 0; color: #6f6f6f; font-size: 12px; line-height: 1.8; }
+body.mashal-ui #ptg-main-content .ak-section-head { --font-caption: 12px; margin-bottom: 11px; padding: 0; border: 0; }
 body.mashal-ui #ptg-main-content .ptg-tabs-rail .ptg-tab-item.is-active { font-weight: 500; }
 
 /* ---- 6. Surfaces ----------------------------------------------------- */
+/* Panels lift off the canvas with --ptg-panel-shadow; the outline stays transparent so the box model does not shift. */
 body.mashal-ui #ptg-main-content :is(.ak-list-card,.ak-detail-section,.ak-hub-tile,.dash-card),
 body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page),
-body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form:not(.ak-list-page) { border: 1px solid var(--mashal-line); border-radius: var(--mashal-radius); background: #fff; box-shadow: none; }
+body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form:not(.ak-list-page) { border: 1px solid transparent; border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
+body.mashal-ui #ptg-main-content :is(.card,.ptg-td-card) { border-color: transparent; box-shadow: var(--ptg-panel-shadow); }
+/* Floating notices keep their tone accent and dialog shadow; only the outline goes. */
+body.mashal-ui .ptg-confirm__panel { border-color: transparent; }
 body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) { padding: 20px 24px; }
 body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) :is(.ak-form,.ak-list-card) { border: 0; border-radius: 0; box-shadow: none; }
 body.mashal-ui #ptg-main-content .ak-form-page-content { padding: 0; border: 0; background: transparent; box-shadow: none; }
 body.mashal-ui #ptg-main-content .ak-form { padding: 0; background: transparent; border: 0; box-shadow: none; }
-body.mashal-ui #ptg-main-content .ak-form-section { margin: 0 0 28px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+body.mashal-ui #ptg-main-content .ak-form-section { margin: 0 0 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+body.mashal-ui #ptg-main-content .ak-form-section + .ak-form-section { padding-top: 24px; border-top: 1px solid #e7e7e7; }
 body.mashal-ui #ptg-main-content :is(.ak-empty,.ak-detail-empty-state) { color: var(--mashal-muted); font-size: 14px; }
-/* Alerts share the toast/confirm language: hairline border, 3px tone accent on the inline-start edge, soft tint. */
-body.mashal-ui #ptg-main-content :is(.alert,.ak-form-alert:not(:empty)) { border: 1px solid var(--mashal-line); border-inline-start: 3px solid var(--ptg-primary); border-radius: var(--ptg-radius-lg); background: #f4f7fd; color: var(--mashal-text); font-size: 14px; box-shadow: none; }
-body.mashal-ui #ptg-main-content :is(.alert-danger,.ak-form-alert.text-danger:not(:empty)) { border-color: var(--mashal-line); border-inline-start-color: var(--ptg-danger); background: #fdf3f4; color: #a3172a; }
+/* Alerts: floating soft card — no outline and no edge stripe; the tone lives in the tint and text colour,
+   a layered shadow lifts the card off the page. */
+body.mashal-ui #ptg-main-content :is(.alert,.ak-form-alert:not(:empty)) { padding: 11px 16px; border: 0; border-radius: 10px; background: #f4f7fd; color: var(--mashal-text); font-size: 13.5px; line-height: 1.7; box-shadow: 0 2px 6px rgb(16 24 40 / 6%), 0 12px 28px rgb(16 24 40 / 10%); }
+body.mashal-ui #ptg-main-content :is(.alert-danger,.ak-form-alert.text-danger:not(:empty)) { background: #fdf3f4; color: #a3172a; }
 body.mashal-ui #ptg-main-content .ak-note { color: var(--mashal-muted); font-size: 13px; }
 
 /* Preserve the meaning of alerts in every module. */
-body.mashal-ui #ptg-main-content .alert.alert-success { border-color: var(--mashal-line); border-inline-start-color: var(--success-main); background: var(--ptg-success-soft); color: var(--ptg-success-text); }
-body.mashal-ui #ptg-main-content .alert.alert-warning { border-color: var(--mashal-line); border-inline-start-color: var(--warning-main); background: var(--ptg-warning-soft); color: var(--ptg-warning-text); }
-body.mashal-ui #ptg-main-content .alert.alert-info { border-color: var(--mashal-line); border-inline-start-color: var(--info-main); background: var(--ptg-info-soft); color: var(--ptg-info-text); }
+body.mashal-ui #ptg-main-content .alert.alert-success { background: var(--ptg-success-soft); color: var(--ptg-success-text); }
+body.mashal-ui #ptg-main-content .alert.alert-warning { background: var(--ptg-warning-soft); color: var(--ptg-warning-text); }
+body.mashal-ui #ptg-main-content .alert.alert-info { background: var(--ptg-info-soft); color: var(--ptg-info-text); }
 
-/* Offline notice (form-bridge.js) — compact floating card: white surface, soft shadow, rounded;
-   the tone shows only as a thin inline-start accent so the card stays calm. Mobile: under the topbar (clear of keyboard and assistant). */
-body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice] { --offline-tone: var(--ptg-border-strong); position: fixed; inset-block-end: 20px; inset-inline: 0; z-index: 1046; inline-size: min(440px, calc(100dvi - 32px)); margin: 0 auto; padding: 12px 14px; border: 1px solid var(--mashal-line); border-inline-start: 3px solid var(--offline-tone); border-radius: var(--ptg-radius-xl); background: var(--ptg-surface); color: var(--mashal-text); font-size: 13.5px; line-height: 1.8; box-shadow: var(--shadow-dialog); }
-body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-info { --offline-tone: var(--ptg-primary); }
-body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-success { --offline-tone: var(--ptg-success); }
-body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-warning { --offline-tone: var(--ptg-warning); }
-body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-danger { --offline-tone: var(--ptg-danger); color: var(--ptg-danger-text); }
+/* Offline notice (form-bridge.js) — compact floating card: no outline or edge stripe, the tone shows as a soft tint,
+   rounded, lifted by the dialog shadow. Mobile: under the topbar (clear of keyboard and assistant). */
+body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice] { --offline-soft: var(--ptg-surface); position: fixed; inset-block-end: 20px; inset-inline: 0; z-index: 1046; inline-size: min(440px, calc(100dvi - 32px)); margin: 0 auto; padding: 12px 16px; border: 0; border-radius: var(--ptg-radius-xl); background: var(--offline-soft); color: var(--mashal-text); font-size: 13.5px; line-height: 1.8; box-shadow: var(--shadow-dialog); }
+body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-info { --offline-soft: var(--ptg-info-soft); }
+body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-success { --offline-soft: var(--ptg-success-soft); }
+body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-warning { --offline-soft: var(--ptg-warning-soft); }
+body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].alert-danger { --offline-soft: var(--ptg-danger-soft); color: var(--ptg-danger-text); }
 @media (prefers-reduced-motion: no-preference) { body.mashal-ui #ptg-main-content > [data-offline-notice] { animation: ptg-rise-in var(--ptg-motion-enter) var(--ptg-motion-ease); } }
 @media (max-width: 575.98px) { body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice] { inset-block: calc(var(--ptg-topbar-height) + 8px) auto; inline-size: calc(100dvi - 24px); } }
 @media print { body.mashal-ui #ptg-main-content > [data-offline-notice] { display: none; } }
+/* Shadows do not print; panels get their hairline back on paper. */
+@media print {
+    body.mashal-ui #ptg-main-content :is(.ak-list-card,.ak-detail-section,.ak-hub-tile,.dash-card,.card,.ptg-td-card),
+    body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page),
+    body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form:not(.ak-list-page) { border-color: var(--mashal-line); box-shadow: none; }
+}
 
 /* ---- 7. Forms (R02/R03 controls) ------------------------------------ */
-body.mashal-ui #ptg-main-content .ak-form-grid { gap: 20px 24px; }
-body.mashal-ui #ptg-main-content :is(.ak-field,.ak-form-grid > label) { gap: 6px; }
-body.mashal-ui #ptg-main-content :is(.ak-label,.form-label) { margin: 0; color: var(--mashal-text); font-size: 14px; font-weight: 500; line-height: 1.6; }
+body.mashal-ui #ptg-main-content .ak-form-grid { gap: 21px 12px; }
+body.mashal-ui #ptg-main-content :is(.ak-field,.ak-form-grid > label) { gap: 5px; }
+body.mashal-ui #ptg-main-content :is(.ak-label,.form-label) { margin: 0; color: var(--ptg-label); font-size: 14px; font-weight: 400; line-height: 1.6; }
 body.mashal-ui #ptg-main-content .ak-req { color: var(--mashal-danger); font-size: 13px; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-combobox-input,.ak-entity-input,.ak-date-field,.ak-filter-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); padding-block: 0; padding-inline: 10px; border: 1px solid var(--mashal-field-line); border-radius: 3px; background-color: #fff; color: var(--mashal-text); box-shadow: none; font-size: 14px; line-height: calc(var(--mashal-field-h) - 2px); }
-body.mashal-ui #ptg-main-content :is(textarea.ak-input,textarea.form-control) { height: auto; min-height: 64px; padding-block: 6px; line-height: 1.8; }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-combobox-input,.ak-entity-input,.ak-date-field,.ak-filter-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); padding-block: 0; padding-inline: 12px; border: 1px solid var(--ptg-field-border); border-radius: 6px; background-color: #fff; color: var(--mashal-text); box-shadow: none; font-size: 14px; line-height: calc(var(--mashal-field-h) - 2px); }
+body.mashal-ui #ptg-main-content :is(textarea.ak-input,textarea.form-control) { height: auto; min-height: 84px; padding-block: 8px; line-height: 1.8; }
 body.mashal-ui #ptg-main-content div.ak-input[aria-readonly] { display: flex; align-items: center; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.ak-filter-input)::placeholder { color: var(--mashal-muted); }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.ak-combobox-input,.ak-entity-input,.ak-filter-input)::placeholder { color: var(--ptg-field-placeholder); opacity: 1; }
 body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-filter-input):focus { border-color: var(--mashal-primary); outline: 0; box-shadow: 0 0 0 2px rgb(var(--primary-main-rgb) / 12%); }
 body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select):disabled { background-color: #f2f3f5; color: #9299a2; cursor: not-allowed; }
 body.mashal-ui #ptg-main-content :is(.ak-input,.form-control)[readonly] { background-color: #f7f8fa; }
 body.mashal-ui #ptg-main-content :is(.input-validation-error,[aria-invalid="true"]) { border-color: #cf3446; }
 body.mashal-ui #ptg-main-content :is(.ak-field-error,.field-validation-error,.validation-summary-errors) { color: #cf3446; font-size: 13px; font-weight: 400; }
 body.mashal-ui #ptg-main-content :is(.ak-help,.form-text) { color: var(--mashal-muted); font-size: 13px; line-height: 1.8; }
-body.mashal-ui #ptg-main-content .ak-entity-chip { border-radius: 2px; background: transparent; color: #656b75; }
-body.mashal-ui #ptg-main-content .ak-entity-chip-x { color: #8a929d; }
 body.mashal-ui #ptg-main-content :is(.form-check:not(.form-switch) > .form-check-input[type="checkbox"],.ak-check) { width: 16px; height: 16px; border: 1.5px solid var(--mashal-primary); border-radius: 3px; }
 /* List checkboxes (reference 5): blue outline square, filled with a white tick when checked. */
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"] { flex: 0 0 auto; margin: 0; background: #fff center / 12px no-repeat; vertical-align: middle; cursor: pointer; -webkit-appearance: none; appearance: none; }
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"]:checked { background-color: var(--mashal-primary); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"]:indeterminate { background-color: var(--mashal-primary); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); }
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
-body.mashal-ui #ptg-main-content .ak-entity-chevron { top: calc(50% - 7px); color: #9aa0a8; }
-/* Native selects share the combobox chevron: thin grey arrow on the reading-end edge (R02/R03). */
-body.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m19.92 8.95-6.52 6.52c-.77.77-2.03.77-2.8 0L4.08 8.95' fill='none' stroke='%239aa0a8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-size: 14px 14px; }
-body.boltz-rtl.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-left: 30px; padding-right: 10px; background-position: left 10px center; }
-body.boltz-ltr.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-right: 30px; padding-left: 10px; background-position: right 10px center; }
+body.mashal-ui #ptg-main-content .ak-entity-chevron { inset-inline-end: 12px; top: calc(50% - 7px); color: var(--ptg-input-border); }
+/* Native selects share the combobox chevron: small light arrow on the reading-end edge, set just below centre. */
+body.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 6 8 10.5 12.5 6' fill='none' stroke='%23cbd5e1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-size: 14px 14px; }
+body.boltz-rtl.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-left: 34px; padding-right: 12px; background-position: left 11px top calc(50% + 6px); }
+body.boltz-ltr.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-right: 34px; padding-left: 12px; background-position: right 11px top calc(50% + 6px); }
 body.mashal-ui #ptg-main-content :is(.form-check:not(.form-switch) > .form-check-input,.ak-check):checked { border-color: var(--mashal-primary); background-color: var(--mashal-primary); }
-body.mashal-ui #ptg-main-content .form-check-label { color: var(--mashal-text); font-size: 14px; }
+body.mashal-ui #ptg-main-content .form-check-label { color: var(--mashal-text); font-size: 15px; }
 /* R03 switch: 36×18 grey pill, green when on. */
 body.boltz-shell.app-shell-authenticated.mashal-ui .form-switch .form-check-input { width: 36px; height: 18px; border: 0; background-color: #dcdfe4; box-shadow: none; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .form-switch .form-check-input:checked,
 body.mashal-ui #ptg-main-content .form-switch .form-check-input:checked { border-color: var(--mashal-success); background-color: var(--mashal-success); }
 body.mashal-ui #ptg-main-content .ak-toggle-field { align-self: end; min-height: var(--mashal-field-h); }
-body.mashal-ui #ptg-main-content .ak-input-unit { border-color: var(--mashal-field-line); border-radius: 3px; }
+body.mashal-ui #ptg-main-content .ak-input-unit { border-color: var(--ptg-field-border); border-radius: 6px; }
 
 /* ---- 8. Buttons ------------------------------------------------------ */
 body.mashal-ui #ptg-main-content :is(.btn,.ak-primary-action,.ak-secondary-action,.ak-save,.ak-cancel) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding-block: 0; padding-inline: 14px; border-radius: 4px; box-shadow: none; font-size: 14px; font-weight: 500; line-height: 1.4; }
@@ -218,6 +254,9 @@ body.mashal-ui #ptg-main-content :is(.btn-primary,.ak-primary-action,.ak-save) {
 body.mashal-ui #ptg-main-content :is(.btn-primary,.ak-primary-action,.ak-save):hover { border-color: var(--mashal-primary-hover); background: var(--mashal-primary-hover); color: #fff; }
 body.mashal-ui #ptg-main-content :is(.btn-light,.btn-secondary,.btn-outline-secondary,.ak-secondary-action,.ak-cancel) { border: 1px solid var(--mashal-field-line); background: #fff; color: #495057; }
 body.mashal-ui #ptg-main-content :is(.btn-light,.btn-secondary,.btn-outline-secondary,.ak-secondary-action,.ak-cancel):hover { border-color: #c9ced5; background: var(--mashal-soft); color: var(--mashal-text); }
+/* Soft secondary: light blue tint for in-form add actions (e.g. «افزودن شریک»). */
+body.mashal-ui #ptg-main-content .ak-secondary-action.is-soft { border-color: transparent; background: var(--ptg-btn-primary-tint); color: var(--mashal-primary); }
+body.mashal-ui #ptg-main-content .ak-secondary-action.is-soft:hover { border-color: transparent; background: #d8e7fe; color: var(--mashal-primary-hover); }
 body.mashal-ui #ptg-main-content .ak-save { min-width: 96px; padding-inline: 20px; }
 body.mashal-ui #ptg-main-content :is(.btn-danger,.ak-danger.btn) { border-color: var(--mashal-danger); background: var(--mashal-danger); color: #fff; }
 body.mashal-ui #ptg-main-content :is(.btn:disabled,.btn.disabled,.ak-save:disabled) { border-color: #d6d9de; background: #e9ecef; color: #9aa0a8; opacity: 1; }
@@ -228,6 +267,9 @@ body.mashal-ui #ptg-main-content .ak-footer-actions::before { display: none; }
 /* ---- 9. Tables, list toolbar and pager (R04 header density) --------- */
 body.mashal-ui #ptg-main-content .ak-list-toolbar { gap: 12px; padding: 12px 16px; border: 0; }
 body.mashal-ui #ptg-main-content .ak-filter-input-wrap { border: 0; }
+/* No resting rule under the list search; the primary underline appears only while it has focus. */
+body.mashal-ui #ptg-main-content .ak-filter { border-bottom-color: transparent; }
+body.mashal-ui #ptg-main-content .ak-filter.is-focused { border-bottom-color: var(--primary-main); }
 body.mashal-ui #ptg-main-content .ak-filter-enter { min-height: 30px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; color: var(--mashal-primary); font-size: 14px; }
 body.mashal-ui #ptg-main-content .ak-table-wrap { border: 0; border-radius: 0; }
 body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) :is(th,td) { padding: 8px 12px; border-color: #eef0f3; color: var(--mashal-text); font-size: 14px; vertical-align: middle; }
@@ -267,21 +309,27 @@ body.mashal-ui #ptg-main-content .ak-filter-empty > td { padding: 28px 12px; col
 /* Reference 7 tabs: plain underline rail on the canvas, active label in primary. */
 body.mashal-ui #ptg-main-content .ptg-tabs-rail { padding-inline: 4px; border: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; background: transparent; }
 
-/* Editable line tables inside forms (salary-document reference): full hairline grid. */
-body.mashal-ui #ptg-main-content form.ak-form .ak-table { border: 1px solid #e6e8ec; border-collapse: collapse; }
+/* Editable line tables inside forms (salary-document reference): inner hairline grid, no outer frame —
+   the wrap is lifted by the panel shadow instead. */
+body.mashal-ui #ptg-main-content form.ak-form .ak-table { border: 0; border-collapse: collapse; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table :is(th,td) { border: 1px solid #e6e8ec; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table tr > :first-child { border-inline-start: 0; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table tr > :last-child { border-inline-end: 0; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table > :first-child > tr:first-child > * { border-block-start: 0; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table > :last-child > tr:last-child > * { border-block-end: 0; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table-wrap { border-radius: var(--mashal-radius); box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table thead th { background: #f7f8fa; color: var(--mashal-muted); font-size: 13px; font-weight: 400; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table :is(tfoot td,.ak-table-total td) { background: #fff; font-weight: 500; }
 body.mashal-ui #ptg-main-content .ak-table :is(.bi-trash,.bi-trash3) { color: #e53935; }
 
 /* ---- 10. Badges, dropdowns, modals ----------------------------------- */
 body.mashal-ui #ptg-main-content :is(.badge,.ak-status,.status-badge) { min-height: 22px; padding: 2px 8px; border-radius: 3px; font-size: 13px; font-weight: 500; line-height: 21px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-menu { padding: 4px; border: 1px solid var(--mashal-line); border-radius: var(--mashal-radius); box-shadow: 0 6px 18px rgb(24 40 70 / 8%); font-size: 14px; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-menu { padding: 4px; border: 1px solid transparent; border-radius: var(--mashal-radius); box-shadow: 0 6px 18px rgb(24 40 70 / 8%); font-size: 14px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item { min-height: 38px; padding: 6px 10px; border-radius: 4px; font-size: 14px; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item:is(:hover,:focus) { background: var(--mashal-soft); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item.active { background: var(--mashal-head); color: var(--mashal-primary); }
-/* R06 dialog language: white, 8px radius, 6px top accent, soft shadow, 40% scrim. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-content { border: 0; border-block-start: 6px solid var(--mashal-primary); border-radius: 8px; background: #fff; box-shadow: 0 4px 14px rgb(0 0 0 / 20%); }
+/* R06 dialog language: white, 8px radius, no outline, soft deep shadow, 40% scrim. */
+body.boltz-shell.app-shell-authenticated.mashal-ui .modal-content { border: 0; border-radius: 8px; background: #fff; box-shadow: 0 4px 12px rgb(16 24 40 / 8%), 0 24px 48px rgb(16 24 40 / 18%); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .modal-header { padding: 16px 24px; border-bottom: 1px solid var(--mashal-line); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .modal-title { color: var(--mashal-text); font-size: 16px; font-weight: 500; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .modal-body { padding: 20px 24px; }
@@ -290,7 +338,7 @@ body.boltz-shell.app-shell-authenticated.mashal-ui .modal-backdrop.show { opacit
 
 /* ---- 11. R01–R03: settings column and settings forms ---------------- */
 body.mashal-settings #ptg-main-content .ptg-page-frame > [data-section-tabs-strip] { display: none; }
-body.mashal-settings #ptg-main-content .mashal-settings-frame { display: grid; grid-template-columns: 265px minmax(0,1fr); min-height: calc(100vh - 96px); border-radius: 0; background: #fff; }
+body.mashal-settings #ptg-main-content .mashal-settings-frame { display: grid; grid-template-columns: 265px minmax(0,1fr); min-height: calc(100vh - 96px); border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-settings #ptg-main-content .mashal-settings-nav { padding: 24px 18px; border-inline-end: 1px solid var(--mashal-line); }
 body.mashal-settings #ptg-main-content .mashal-settings-search { font-size: 13px; }
 body.mashal-settings #ptg-main-content .mashal-settings-group { margin-top: 22px; }
@@ -343,9 +391,8 @@ body.mashal-settings #ptg-main-content .mashal-accounting-section { margin-botto
 body.mashal-settings #ptg-main-content .mashal-mapping-form button { width: auto; min-width: 64px; min-height: 42px; padding-inline: 12px; }
 body.mashal-ui #ptg-main-content .mashal-accounting-grid .ak-status { align-self: start; font-size: 12px; }
 
-/* ---- 12. R04: narrow transaction work area -------------------------- */
-body.mashal-ui #ptg-main-content .roznamcha-entry-page { max-width: 864px; margin-inline: auto; padding: 16px 12px; border: 1px solid var(--mashal-line); border-radius: var(--mashal-radius); background: #fff; box-shadow: none; }
-body.mashal-ui #ptg-main-content .roznamcha-entry-page.mashal-transaction { max-width: 828px; }
+/* ---- 12. R04: transaction work area — same card and form width as every other create form ---- */
+body.mashal-ui #ptg-main-content .roznamcha-entry-page { border: 1px solid transparent; border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .roznamcha-entry-page > .ak-page-header { margin-bottom: 12px; }
 body.mashal-ui #ptg-main-content .roznamcha-entry-page .fte-section { margin: 0; padding-block: 12px; }
 body.mashal-ui #ptg-main-content .roznamcha-entry-page .fte-section-title { margin: 0 0 12px; font-size: 15px; }
@@ -359,7 +406,7 @@ body.mashal-ui #ptg-main-content .journal-primary-grid > .fec-span-4 { grid-colu
 body.mashal-ui #ptg-main-content .journal-primary-grid > .fec-span-5 { grid-column: span 5; }
 body.mashal-ui #ptg-main-content .journal-primary-grid > .ak-form-full { grid-column: 1/-1; }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-bottom: 24px; padding: 16px 14px; border-radius: var(--mashal-radius); background: var(--mashal-soft); }
-body.mashal-ui #ptg-main-content .mashal-payment-destinations > .fte-section { min-height: 230px; margin: 0; padding: 12px; border: 1px solid #edf0f5; border-radius: 4px; background: #fff; }
+body.mashal-ui #ptg-main-content .mashal-payment-destinations > .fte-section { min-height: 230px; margin: 0; padding: 12px; border: 1px solid transparent; border-radius: 4px; background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .mashal-payment-bank { order: 1; }
 body.mashal-ui #ptg-main-content .mashal-payment-party { order: 2; }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations .journal-primary-grid { grid-template-columns: minmax(0,1fr); }
@@ -367,9 +414,7 @@ body.mashal-ui #ptg-main-content .mashal-payment-destinations .journal-primary-g
 body.mashal-ui #ptg-main-content .mashal-payment-destinations h2 { margin: -4px -4px 16px; padding: 6px 8px; background: var(--mashal-soft); font-size: 14px; }
 body.mashal-ui #ptg-main-content .journal-more-toggle { width: 100%; padding: 8px; border: 1px dashed var(--mashal-field-line); border-radius: 3px; color: var(--mashal-primary); font-size: 14px; }
 body.mashal-ui #ptg-main-content .journal-summary { margin: 24px 0 12px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 14px; }
-body.mashal-ui #roznamchaForm :is(.ak-entity-combobox-control,.ak-entity-combobox-input,.ak-date-control,.ak-date-input) { min-height: 38px; height: 38px; border-radius: 3px; font-size: 14px; }
-body.mashal-ui #roznamchaForm .ak-field { gap: 4px; }
-body.mashal-ui #roznamchaForm .ak-label { margin: 0; font-size: 14px; }
+body.mashal-ui #roznamchaForm :is(.ak-entity-combobox-control,.ak-entity-combobox-input,.ak-date-control,.ak-date-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); border-radius: 6px; }
 body.mashal-ui #roznamchaForm :is(.journal-mode-bar,.journal-direction-segmented) { margin-block: 0 12px; }
 body.mashal-ui #roznamchaForm .mashal-payment-destinations { margin-block: 8px 16px; }
 body.mashal-ui #roznamchaForm .journal-action-bar { justify-content: end; }
@@ -386,16 +431,18 @@ body.mashal-ui .mashal-transaction #roznamchaForm .journal-main-fieldset > .fte-
 body.mashal-ui .mashal-transaction #roznamchaForm .journal-main-fieldset > .fte-section > .journal-primary-grid > .ak-form-full { grid-column: 1/-1; }
 
 /* ---- 13. R05: dashboard ---------------------------------------------- */
-body.mashal-ui.controller-home.action-index #ptg-main-content .dashboard-page.dashboard-ref { --dash-card-shadow: none; gap: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+body.mashal-ui.controller-home.action-index #ptg-main-content .dashboard-page.dashboard-ref { --dash-card-shadow: var(--ptg-panel-shadow); gap: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 body.mashal-ui.controller-home.action-index #ptg-main-content .dashboard-page.dashboard-ref > .ak-stat-grid { order: 0; }
-body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar { order: 0; display: flex; align-items: center; justify-content: space-between; height: 56px; margin-bottom: 24px; padding: 0 20px; border: 1px solid var(--mashal-line); border-radius: var(--mashal-radius); background: #fff; }
+body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar { order: 0; display: flex; align-items: center; justify-content: space-between; height: 56px; margin-bottom: 24px; padding: 0 20px; border: 1px solid transparent; border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar h1 { margin: 0; font-size: var(--font-page-title); font-weight: var(--weight-page-title); }
 body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar > div { display: flex; align-items: center; gap: 16px; direction: ltr; }
 body.mashal-ui #ptg-main-content .mashal-dashboard-save { height: 42px; padding: 0 14px; border: 1px solid var(--mashal-primary); border-radius: 4px; background: var(--mashal-primary); color: #fff; font: inherit; font-size: 14px; }
 body.mashal-ui #ptg-main-content .mashal-dashboard-save i { margin-inline-end: 6px; color: #fff; }
 body.mashal-ui #ptg-main-content .mashal-widget-add { padding: 0; border: 0; background: transparent; color: #a530ff; font-size: 24px; }
 body.mashal-ui #ptg-main-content .mashal-dashboard-lists { display: grid; grid-template-columns: minmax(0,457fr) minmax(0,305fr) minmax(0,258fr); gap: 24px; margin-bottom: 24px; padding: 0; }
-body.mashal-ui #ptg-main-content .mashal-widget { min-width: 0; height: 368px; padding: 20px; overflow: auto; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; }
+body.mashal-ui #ptg-main-content .mashal-dashboard-more { grid-template-columns: repeat(3,minmax(0,1fr)); }
+body.mashal-ui #ptg-main-content .mashal-dashboard-more:not(:has(> :not([hidden]))) { display: none; }
+body.mashal-ui #ptg-main-content .mashal-widget { min-width: 0; height: 368px; padding: 20px; overflow: auto; border: 1px solid transparent; border-radius: 8px; background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .mashal-widget > header { display: flex; align-items: center; justify-content: space-between; height: 41px; margin-bottom: 20px; }
 body.mashal-ui #ptg-main-content .mashal-widget h2 { margin: 0; font-size: 15px; font-weight: 500; }
 body.mashal-ui #ptg-main-content .mashal-count { padding: 10px; border-radius: 8px; background: #f5f6fa; color: #46607e; font-size: 13px; }
@@ -408,26 +455,33 @@ body.mashal-ui #ptg-main-content .mashal-document-row small { color: #6c7b8e; fo
 body.mashal-ui #ptg-main-content .mashal-document-badge { padding: 3px 8px; border-radius: 3px; background: var(--mashal-primary); color: #fff; text-align: center; }
 body.mashal-ui #ptg-main-content .mashal-document-status { padding: 3px; border-radius: 3px; background: #fcf4e7; color: #9953e0; font-size: 12px; text-align: center; }
 body.mashal-ui #ptg-main-content .mashal-tank-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 10px 12px; border-radius: 10px; background: #f9f9f9; color: var(--mashal-text); font-size: 14px; }
+body.mashal-ui #ptg-main-content .mashal-widget-item > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+body.mashal-ui #ptg-main-content .mashal-widget-item strong { overflow: hidden; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+body.mashal-ui #ptg-main-content .mashal-widget-item small { color: var(--mashal-muted); font-size: 12px; }
+body.mashal-ui #ptg-main-content .mashal-widget-item > bdi { flex-shrink: 0; }
+body.mashal-ui #ptg-main-content .mashal-widget-more { color: var(--mashal-primary); font-size: 13px; }
+body.mashal-ui #ptg-main-content .mashal-widget-note { margin: 12px 0 0; color: var(--mashal-muted); font-size: 12px; }
 body.mashal-ui #ptg-main-content .mashal-alert-row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; background: #f9f9f9; }
 body.mashal-ui #ptg-main-content .mashal-alert-row > i { color: #a2a2a2; font-size: 32px; }
 body.mashal-ui #ptg-main-content .mashal-alert-row strong { font-size: 14px; font-weight: 400; }
 body.mashal-ui #ptg-main-content .mashal-alert-row small { display: block; margin-top: 6px; color: var(--mashal-muted); font-size: 13px; }
 body.mashal-ui #ptg-main-content .mashal-widget-empty { padding: 64px 0; color: var(--mashal-muted); font-size: 14px; text-align: center; }
 body.mashal-ui.controller-home.action-index #ptg-main-content .dashboard-page > :is(.ak-stat-grid,.dash-analytics,.dash-insights) { width: auto; inline-size: auto; min-inline-size: 0; margin: 0 0 24px; }
-body.mashal-ui.controller-home.action-index #ptg-main-content .dash-card { border: 1px solid #e5e5e5; border-radius: 8px; box-shadow: none; }
+body.mashal-ui.controller-home.action-index #ptg-main-content .dash-card { border: 1px solid transparent; border-radius: 8px; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui.controller-home.action-index #ptg-main-content .dash-card { padding: 20px; }
 body.mashal-ui.controller-home.action-index #ptg-main-content .dash-card h2 { font-size: 15px; font-weight: 500; }
 
 /* ---- 14. R06: widget picker (Bootstrap modal keeps focus trap/Escape) */
 body.mashal-ui .mashal-widget-picker .modal-dialog { width: calc(100% - 32px); max-width: 652px; min-height: calc(100% - 48px); margin: 19px auto 29px; }
-body.mashal-ui .mashal-widget-picker .modal-content { height: 469px; padding: 24px; border: 0; border-top: 6px solid var(--mashal-primary); border-radius: 8px; background: #fff; box-shadow: 0 4px 14px #0003; }
+body.mashal-ui .mashal-widget-picker .modal-content { height: 469px; padding: 24px; border: 0; border-radius: 8px; background: #fff; box-shadow: 0 4px 12px rgb(16 24 40 / 8%), 0 24px 48px rgb(16 24 40 / 18%); }
 body.mashal-ui .mashal-widget-picker-head { display: flex; align-items: center; justify-content: space-between; height: 40px; margin-bottom: 24px; }
 body.mashal-ui .mashal-widget-picker-head h2 { margin: 0; font-size: 16px; font-weight: 400; }
 body.mashal-ui .mashal-widget-picker-head label { display: flex; align-items: center; gap: 7px; font-size: 14px; }
 body.mashal-ui .mashal-widget-picker input { accent-color: var(--mashal-primary); }
-body.mashal-ui .mashal-widget-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+body.mashal-ui .mashal-widget-options { display: grid; flex: 1 1 auto; grid-template-columns: repeat(3,minmax(0,1fr)); grid-auto-rows: max-content; gap: 16px; min-height: 0; margin-bottom: 16px; padding: 2px; overflow-y: auto; }
 body.mashal-ui .mashal-widget-option { position: relative; display: flex; align-items: center; gap: 14px; height: 72px; padding: 12px 16px; border-radius: 9px; background: #e8e8e8; color: #483c55; font-size: 14px; cursor: pointer; }
-body.mashal-ui .mashal-widget-option:has(input:not(:checked)) { background: #f8f8f8; box-shadow: inset 0 0 0 1px #ccc; }
+body.mashal-ui .mashal-widget-option:has(input:not(:checked)) { background: #f8f8f8; box-shadow: inset 0 0 0 1px #ccc; color: #9a9a9a; }
+body.mashal-ui .mashal-widget-option:has(input:not(:checked)) > i { color: #b5b5b5; }
 body.mashal-ui .mashal-widget-option input { position: absolute; inset-inline-end: 7px; bottom: 7px; width: 12px; height: 12px; opacity: 0; }
 body.mashal-ui .mashal-widget-option:focus-within { outline: 2px solid var(--mashal-primary); outline-offset: 2px; }
 body.mashal-ui .mashal-widget-option > i { color: #200e32; font-size: 31px; }
@@ -441,7 +495,7 @@ body.mashal-ui #ptg-main-content .mashal-invoice-receipt { max-width: none; marg
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .ak-input,
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm :is(.ak-entity-input,.ak-date-field) { height: 42px; min-height: 42px; border-color: #655675; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-destinations { grid-template-columns: minmax(0,1fr); gap: 0; margin-block: 48px; padding: 0; background: transparent; }
-body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-destinations > .fte-section { min-height: 210px; padding: 32px; border: 1px solid #008cff; border-radius: 8px; background: #fafafa; }
+body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-destinations > .fte-section { min-height: 210px; padding: 32px; border: 1px solid transparent; border-radius: 8px; background: #fafafa; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-party { order: 0; display: block; margin-bottom: 74px; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-bank { order: 1; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-payment-party > h2,
@@ -462,29 +516,14 @@ body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-card .mash
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-description textarea { height: 42px; min-height: 42px; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-person { align-self: center; justify-self: center; width: 78px; height: 113px; object-fit: contain; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-party-options { grid-column: 1/-1; grid-row: 2; justify-self: end; align-self: center; width: 100px; color: var(--mashal-muted); font-size: 12px; }
-body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-options { margin-bottom: 16px; padding: 12px; border: 1px solid #e5e5e5; border-radius: 4px; font-size: 14px; }
+body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-options { margin-bottom: 16px; padding: 12px; border: 1px solid transparent; border-radius: 4px; box-shadow: var(--ptg-panel-shadow); font-size: 14px; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-options[open] > .journal-direction-segmented { margin-top: 16px; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-totals { display: grid; grid-template-columns: minmax(0,1fr) 476px; gap: 50px; margin-bottom: 64px; }
 body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-totals > :is(.journal-summary,.journal-party-balance) { width: 100%; min-width: 0; min-height: 46px; margin: 0; padding: 8px 12px; font-size: 14px; line-height: 23px; }
-body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-totals > .journal-summary { border: 1px solid #bdbdbd; border-radius: 8px; background: #f3f3f3; }
+body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-totals > .journal-summary { border: 1px solid transparent; border-radius: 8px; background: #f3f3f3; box-shadow: var(--ptg-panel-shadow); }
 @media (min-width: 1200px) {
     body.mashal-ui:has(.mashal-invoice-receipt) #ptg-main-content { padding-inline: 0; }
     body.mashal-ui #ptg-main-content .mashal-invoice-receipt { padding-block-start: 8px; padding-inline: 51px 59px; }
-}
-
-/* R01–R04 support tab: small blue square resting on the sidebar's content edge. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-assistant { inset-block-end: 16px; inset-inline-end: auto; inset-inline-start: calc(var(--layout-sidebar) - 6px); align-items: flex-start; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-assistant-trigger { width: 30px; height: 36px; border-radius: 8px; box-shadow: 0 2px 6px rgb(45 96 201 / 25%); border-color: var(--mashal-primary); background: var(--mashal-primary); color: #fff; }
-body.boltz-shell.app-shell-authenticated.mashal-ui svg.ptg-assistant-trigger-ico { width: 17px; height: 17px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-assistant-trigger i { font-size: 16px; }
-@media (max-width: 991.98px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-assistant { inset-inline-start: 12px; }
-}
-@media (min-width: 992px) and (max-width: 1199.98px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-sidebar-collapsed) .ptg-assistant { inset-inline-start: calc(var(--layout-sidebar) - 6px); }
-}
-@media (min-width: 1200px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .ptg-assistant { inset-inline-start: calc(var(--layout-sidebar-mini) - 6px); }
 }
 
 /* ---- 16. Footer, focus and motion ------------------------------------ */

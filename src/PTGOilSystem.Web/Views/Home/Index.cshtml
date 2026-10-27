@@ -1,7 +1,9 @@
 @using System.Globalization
 @using System.Text.Json
 @using PTGOilSystem.Web.Models.StatCards
+@using PTGOilSystem.Web.Security
 @model PTGOilSystem.Web.Models.DashboardViewModel
+@inject ClientModuleProfile ClientModules
 @{
     ViewData["Title"] = UiText.T(Context, "داشبورد", "Dashboard");
     ViewData["HideSectionTabs"] = true;
@@ -40,6 +42,48 @@
         })
         .ToList();
     var mixJson = JsonSerializer.Serialize(mixSegments.Select(s => new { s.label, s.value, s.color }));
+
+    // فهرست ابزارک‌ها: شش ابزارک اصلی پیش‌فرض روشن‌اند؛ بقیه اختیاری‌اند و فقط برای کاربری دیده
+    // می‌شوند که به صفحهٔ مرجع همان داده دسترسی دارد.
+    bool Can(string navigationKey, string controller) =>
+        RoleAccessRules.CanAccessNavigation(User, navigationKey) && ClientModules.IsControllerEnabled(controller);
+    var widgets = new List<(string Id, string Label, string Icon, bool IsDefault)>
+    {
+        ("activities", T("آخرین فعالیت‌ها", "Recent activities"), "file-earmark-text-fill", true),
+        ("tanks", T("موجودی مخازن", "Tank stock"), "database-fill", true),
+        ("alerts", T("هشدارهای عملیات", "Operational alerts"), "exclamation-square-fill", true),
+        ("summary", T("خلاصه امروز", "Today’s summary"), "bar-chart-fill", true),
+        ("analytics", T("تحلیل درآمد و فروش", "Revenue and sales"), "pie-chart-fill", true),
+        ("shipments", T("محموله‌های در جریان", "Active shipments"), "box-seam-fill", true)
+    };
+    if (Can(RoleNavigationKeys.Reports, "Reports"))
+    {
+        widgets.Add(("debtors", T("بدهکاران", "Debtors"), "arrow-down-circle-fill", false));
+        widgets.Add(("creditors", T("بستانکاران", "Creditors"), "arrow-up-circle-fill", false));
+        widgets.Add(("profit", T("سود و زیان امروز", "Today’s profit and loss"), "calculator-fill", false));
+        widgets.Add(("reports", T("گزارش‌ها", "Reports"), "clipboard-data-fill", false));
+    }
+    if (Can(RoleNavigationKeys.CashAccounts, "CashAccounts"))
+    {
+        widgets.Add(("banking", T("صندوق و بانک", "Cash and bank"), "bank2", false));
+    }
+    if (Can(RoleNavigationKeys.BaseDefinitions, "DailyFxRates"))
+    {
+        widgets.Add(("fx", T("نرخ ارز", "Exchange rates"), "currency-exchange", false));
+    }
+    if (Can(RoleNavigationKeys.Sales, "Sales"))
+    {
+        widgets.Add(("sales", T("فروش‌های اخیر", "Recent sales"), "cart-check-fill", false));
+    }
+    if (Can(RoleNavigationKeys.Operations, "Loading"))
+    {
+        widgets.Add(("loadings", T("بارگیری‌های اخیر", "Recent loadings"), "truck-front-fill", false));
+    }
+    if (Can(RoleNavigationKeys.Operations, "Expenses"))
+    {
+        widgets.Add(("expenses", T("مصارف اخیر", "Recent expenses"), "receipt-cutoff", false));
+    }
+    bool Has(string id) => widgets.Any(w => w.Id == id);
 }
 
 <div class="ak-form-page dashboard-page dashboard-ref">
@@ -68,9 +112,9 @@
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
             <div class="mashal-widget-picker-head"><h2 id="mashalWidgetTitle">@T("افزودن ابزار", "Add widgets")</h2><label>@T("انتخاب همه", "Select all") <input type="checkbox" data-mashal-widgets-all /></label></div>
             <div class="mashal-widget-options">
-            @foreach (var widget in new[] { ("activities", T("آخرین فعالیت‌ها", "Recent activities"), "file-earmark-text-fill"), ("tanks", T("موجودی مخازن", "Tank stock"), "database-fill"), ("alerts", T("هشدارهای عملیات", "Operational alerts"), "exclamation-square-fill"), ("summary", T("خلاصه امروز", "Today’s summary"), "bar-chart-fill"), ("analytics", T("تحلیل درآمد و فروش", "Revenue and sales"), "pie-chart-fill"), ("shipments", T("محموله‌های در جریان", "Active shipments"), "box-seam-fill") })
+            @foreach (var widget in widgets)
             {
-                <label class="mashal-widget-option"><input type="checkbox" value="@widget.Item1" data-mashal-widget-choice /><i class="bi bi-@widget.Item3" aria-hidden="true"></i><span>@widget.Item2</span></label>
+                <label class="mashal-widget-option"><input type="checkbox" value="@widget.Id" data-mashal-widget-choice data-mashal-widget-default="@(widget.IsDefault ? "true" : null)" /><i class="bi bi-@widget.Icon" aria-hidden="true"></i><span>@widget.Label</span></label>
             }
             </div>
             <div class="mashal-widget-picker-actions"><button type="button" data-mashal-widgets-apply disabled>@T("تأیید", "Apply")</button><button type="button" data-bs-dismiss="modal">@T("لغو", "Cancel")</button></div>
@@ -191,5 +235,80 @@
             @if (Model.LowStockAlerts.Count + Model.ContractsEndingSoonAlerts.Count + Model.ShipmentsWithoutSalesAlerts.Count + Model.ShipmentsWithoutExpensesAlerts.Count == 0) { <p class="mashal-widget-empty">@T("هشداری وجود ندارد.", "No alerts.")</p> }
             </div>
         </article>
+    </section>
+
+    @* ===== ابزارک‌های اختیاری؛ تا کاربر انتخاب نکند پنهان‌اند. ابزارک‌های data-mashal-widget-src جدا بارگذاری می‌شوند. ===== *@
+    <section class="mashal-dashboard-lists mashal-dashboard-more" aria-label="@T("ابزارک‌های بیشتر", "More widgets")">
+        @if (Has("debtors"))
+        {
+            <article class="mashal-widget" data-mashal-widget="debtors" hidden>
+                <header><h2>@T("بدهکاران", "Debtors") <span class="mashal-count">@Model.DebtorCount</span></h2><a class="mashal-widget-more" asp-controller="Reports" asp-action="ReceivablesPayables">@T("مشاهده همه", "View all")</a></header>
+                <partial name="_DashboardWidgetRows" model="@(((IReadOnlyList<DashboardWidgetRowViewModel>)Model.TopDebtors, T("بدهکاری وجود ندارد.", "No debtors.")))" />
+            </article>
+            <article class="mashal-widget" data-mashal-widget="creditors" hidden>
+                <header><h2>@T("بستانکاران", "Creditors") <span class="mashal-count">@Model.CreditorCount</span></h2><a class="mashal-widget-more" asp-controller="Reports" asp-action="ReceivablesPayables">@T("مشاهده همه", "View all")</a></header>
+                <partial name="_DashboardWidgetRows" model="@(((IReadOnlyList<DashboardWidgetRowViewModel>)Model.TopCreditors, T("بستانکاری وجود ندارد.", "No creditors.")))" />
+            </article>
+            <article class="mashal-widget" data-mashal-widget="profit" hidden>
+                <header><h2>@T("سود و زیان امروز", "Today’s profit and loss")</h2><a class="mashal-widget-more" asp-controller="Reports" asp-action="CompanyBalance">@T("بیلانس کلی", "Balance sheet")</a></header>
+                <div data-mashal-widget-src="@Url.Action("DashboardWidget", "Home", new { id = "profit" })"><p class="mashal-widget-empty" role="status">@T("در حال بارگذاری…", "Loading…")</p></div>
+            </article>
+            <article class="mashal-widget" data-mashal-widget="reports" hidden>
+                <header><h2>@T("گزارش‌ها", "Reports")</h2><a class="mashal-widget-more" asp-controller="Reports" asp-action="Index">@T("همه گزارش‌ها", "All reports")</a></header>
+                <nav class="mashal-widget-rows" aria-label="@T("گزارش‌ها", "Reports")">
+                @foreach (var report in new[] { ("CompanyBalance", T("بیلانس کلی شرکت", "Company balance sheet"), "bi-journal-check"), ("ContractPnl", T("مفاد قراردادها", "Contract profit"), "bi-graph-up-arrow"), ("ReceivablesPayables", T("طلبات و بدهی‌ها", "Receivables and payables"), "bi-people"), ("CashFlow", T("گردش پول", "Cash movement"), "bi-cash-stack") })
+                {
+                    <a asp-controller="Reports" asp-action="@report.Item1" class="mashal-tank-row mashal-widget-item"><span><strong><i class="bi @report.Item3" aria-hidden="true"></i> @report.Item2</strong></span></a>
+                }
+                </nav>
+            </article>
+        }
+        @if (Has("banking"))
+        {
+            <article class="mashal-widget" data-mashal-widget="banking" hidden>
+                <header><h2>@T("صندوق و بانک", "Cash and bank")</h2><a class="mashal-widget-more" asp-controller="CashAccounts" asp-action="Index">@T("مشاهده همه", "View all")</a></header>
+                <div data-mashal-widget-src="@Url.Action("DashboardWidget", "Home", new { id = "banking" })"><p class="mashal-widget-empty" role="status">@T("در حال بارگذاری…", "Loading…")</p></div>
+            </article>
+        }
+        @if (Has("fx"))
+        {
+            <article class="mashal-widget" data-mashal-widget="fx" hidden>
+                <header><h2>@T("نرخ ارز", "Exchange rates")</h2><a class="mashal-widget-more" asp-controller="DailyFxRates" asp-action="Index">@T("مشاهده همه", "View all")</a></header>
+                <div data-mashal-widget-src="@Url.Action("DashboardWidget", "Home", new { id = "fx" })"><p class="mashal-widget-empty" role="status">@T("در حال بارگذاری…", "Loading…")</p></div>
+            </article>
+        }
+        @if (Has("sales"))
+        {
+            <article class="mashal-widget" data-mashal-widget="sales" hidden>
+                <header><h2>@T("فروش‌های اخیر", "Recent sales")</h2><a class="mashal-widget-more" asp-controller="Sales" asp-action="Index">@T("مشاهده همه", "View all")</a></header>
+                <div class="mashal-widget-rows">
+                @foreach (var row in Model.OutboundOrderPanel.Rows.Take(5))
+                {
+                    <div class="mashal-tank-row mashal-widget-item"><span><strong>@row.Reference</strong><small><bdi>@row.Amount MT</bdi></small></span><bdi>@row.Total</bdi></div>
+                }
+                @if (Model.OutboundOrderPanel.Rows.Count == 0) { <p class="mashal-widget-empty">@T("فروشی ثبت نشده است.", "No sales yet.")</p> }
+                </div>
+            </article>
+        }
+        @if (Has("loadings"))
+        {
+            <article class="mashal-widget" data-mashal-widget="loadings" hidden>
+                <header><h2>@T("بارگیری‌های اخیر", "Recent loadings")</h2><a class="mashal-widget-more" asp-controller="Loading" asp-action="Index">@T("مشاهده همه", "View all")</a></header>
+                <div class="mashal-widget-rows">
+                @foreach (var row in Model.InboundOrderPanel.Rows.Take(5))
+                {
+                    <div class="mashal-tank-row mashal-widget-item"><span><strong>@row.Reference</strong><small><bdi>@row.Amount MT</bdi></small></span><bdi>@row.Total</bdi></div>
+                }
+                @if (Model.InboundOrderPanel.Rows.Count == 0) { <p class="mashal-widget-empty">@T("بارگیری ثبت نشده است.", "No loadings yet.")</p> }
+                </div>
+            </article>
+        }
+        @if (Has("expenses"))
+        {
+            <article class="mashal-widget" data-mashal-widget="expenses" hidden>
+                <header><h2>@T("مصارف اخیر", "Recent expenses")</h2><a class="mashal-widget-more" asp-controller="Expenses" asp-action="Index">@T("مشاهده همه", "View all")</a></header>
+                <div data-mashal-widget-src="@Url.Action("DashboardWidget", "Home", new { id = "expenses" })"><p class="mashal-widget-empty" role="status">@T("در حال بارگذاری…", "Loading…")</p></div>
+            </article>
+        }
     </section>
 </div>

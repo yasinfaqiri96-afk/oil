@@ -81,11 +81,12 @@
                             <td>@(row.ContractNumber ?? "—")</td>
                             <td class="ak-col-num ak-num @(row.SignedQuantityMt < 0 ? "ak-number--negative" : "ak-number--positive")">@NumberDisplay.Quantity(row.SignedQuantityMt)</td>
                             <td class="ak-col-num ak-num fw-semibold">@NumberDisplay.Quantity(row.RunningBalanceMt)</td>
-                            <td class="ak-col-grow">
-                                @(row.ReferenceDocument ?? "—")
+                            @* برچسب کوتاه؛ مرجع کامل و یادداشت در tooltip همین سلول. *@
+                            <td class="ak-col-grow" title="@string.Join(Environment.NewLine, new[] { row.ReferenceDocument, row.Notes }.Where(v => !string.IsNullOrWhiteSpace(v)))">
+                                @MovementReferenceDisplay.Short(row.ReferenceDocument, T)
                                 @if (!string.IsNullOrWhiteSpace(row.Notes))
                                 {
-                                    <div class="ak-cell-note">@row.Notes</div>
+                                    <i class="bi bi-info-circle text-muted" aria-hidden="true"></i>
                                 }
                             </td>
                         </tr>

@@ -1972,6 +1972,7 @@ public partial class SalesController : Controller
                 storageTankId,
                 sale.CompanyId!.Value,
                 sale.SourcePurchaseContractId);
+            await _stock.EnsureQuantityNotReservedByPreSalesAsync(sale.ProductId, newQuantityMt);
             var stockOutMovements = stockAllocations.Select(allocation => new InventoryMovement
             {
                 ProductId = sale.ProductId,
@@ -2563,6 +2564,7 @@ public partial class SalesController : Controller
                         model.SourceStorageTankId.Value,
                         model.CompanyId,
                         model.SourcePurchaseContractId);
+                    await _stock.EnsureQuantityNotReservedByPreSalesAsync(sale.ProductId, sale.QuantityMt);
 
                     // قرارداد منبع و محموله در فرم اختیاری‌اند (کاربرِ فروش نمی‌داند بار از کدام
                     // قرارداد/محموله است). هر دو از همان تخصیصِ موجودی که همین‌جا محاسبه شد و از

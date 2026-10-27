@@ -1563,6 +1563,11 @@ public class SalesControllerTests
         await using var db = new ApplicationDbContext(options);
         SeedReferenceData(db);
         db.Suppliers.Add(new Supplier { Id = 9, Name = "Supplier Buyer", IsActive = true });
+        db.InventoryMovements.Add(new InventoryMovement
+        {
+            ProductId = 1, TerminalId = 1, Direction = MovementDirection.In,
+            MovementDate = new DateTime(2026, 5, 1), QuantityMt = 10m, ReferenceDocument = "GRN-PRE-SUP"
+        });
         await db.SaveChangesAsync();
 
         var result = await BuildController(db).PreSaleCreate(new PreSaleCreateViewModel

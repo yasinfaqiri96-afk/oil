@@ -15,29 +15,29 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .75rem;
-    width: min(400px, calc(100dvi - 2rem));
-    max-width: 400px;
+    gap: .5rem;
+    width: min(340px, calc(100dvi - 2rem));
+    max-width: 340px;
     pointer-events: none;
 }
 
 /* ---------- Toast card ----------
-   Same calm language as the offline notice and confirm dialog: white surface, hairline border,
-   soft shadow; the type shows only as a thin inline-start accent and a tinted icon. */
+   Compact and quiet: white surface, no outline, soft layered shadow; the type shows only
+   as a small tinted icon and the countdown hairline. */
 .ptg-toast {
     --ptg-toast-tone: var(--ptg-primary);
     --ptg-toast-soft: var(--ptg-primary-tint);
     position: relative;
     width: 100%;
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 14px;
+    align-items: center;
+    gap: 10px;
+    padding-block: 9px;
+    padding-inline: 12px 10px;
     background: var(--ptg-surface);
-    border: 1px solid var(--ptg-border);
-    border-inline-start: 3px solid var(--ptg-toast-tone);
-    border-radius: var(--ptg-radius-xl);
-    box-shadow: var(--shadow-dialog);
+    border: 0;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06), 0 10px 24px rgba(16, 24, 40, 0.12);
     color: var(--ptg-text);
     pointer-events: auto;
     overflow: hidden;
@@ -73,12 +73,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     background: var(--ptg-toast-soft);
     color: var(--ptg-toast-tone);
-    font-size: 16px;
+    font-size: 13px;
     line-height: 1;
 }
 
@@ -87,19 +87,19 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
 }
 
 .ptg-toast__title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    line-height: 1.6;
+    line-height: 1.5;
     color: var(--ptg-text);
 }
 
 .ptg-toast__message {
-    font-size: 13.5px;
-    line-height: 1.7;
+    font-size: 12.5px;
+    line-height: 1.6;
     color: var(--ptg-muted);
     word-break: break-word;
 }
@@ -110,10 +110,10 @@
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
-    padding: .2rem;
-    font-size: 14px;
+    padding: .25rem;
+    font-size: 11px;
     line-height: 1;
-    border-radius: 8px;
+    border-radius: 50%;
     transition-property: color, background;
     transition-duration: var(--ptg-motion-fast);
     transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
@@ -138,7 +138,7 @@
 
 .ptg-toast.is-counting .ptg-toast__bar {
     animation: ptg-toast-bar linear forwards;
-    animation-duration: var(--ptg-toast-duration, 5000ms);
+    animation-duration: var(--ptg-toast-duration, 3000ms);
 }
 
 @keyframes ptg-toast-bar {

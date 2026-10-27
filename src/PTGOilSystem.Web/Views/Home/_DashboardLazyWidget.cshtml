@@ -1,0 +1,27 @@
+@model PTGOilSystem.Web.Models.DashboardLazyWidgetViewModel
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var profit = Model.Profit;
+    var rows = profit is null
+        ? (IReadOnlyList<DashboardWidgetRowViewModel>)Model.Rows
+        : new List<DashboardWidgetRowViewModel>
+        {
+            new() { Title = T("فروش", "Sales"), Subtitle = T($"{profit.SaleCount} فروش", $"{profit.SaleCount} sales"), Value = profit.RevenueUsd, Unit = "USD" },
+            new() { Title = T("بهای فروش", "Cost of sales"), Value = profit.CostOfSalesUsd, Unit = "USD" },
+            new() { Title = T("مصارف دوره", "Period expenses"), Value = profit.PeriodExpensesUsd, Unit = "USD" },
+            new() { Title = profit.NetProfitUsd < 0m ? T("زیان خالص", "Net loss") : T("سود خالص", "Net profit"), Value = profit.NetProfitUsd, Unit = "USD" }
+        };
+    var emptyText = Model.Kind switch
+    {
+        "banking" => T("صندوق یا بانکی با حرکت ثبت نشده است.", "No cash or bank account has activity."),
+        "fx" => T("نرخ ارزی ثبت نشده است.", "No exchange rate recorded."),
+        "expenses" => T("مصرفی ثبت نشده است.", "No expenses yet."),
+        _ => T("داده‌ای ثبت نشده است.", "No data yet.")
+    };
+}
+
+<partial name="_DashboardWidgetRows" model="@((rows, emptyText))" />
+@if (profit is { UncostedSaleCount: > 0 })
+{
+    <p class="mashal-widget-note">@T($"{profit.UncostedSaleCount} فروش امروز هنوز بهای تمام‌شده ندارد؛ سود قطعی نیست.", $"{profit.UncostedSaleCount} of today’s sales have no cost yet; profit is not final.")</p>
+}

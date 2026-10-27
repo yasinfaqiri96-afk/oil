@@ -98,6 +98,7 @@ builder.Services.AddScoped<PTGOilSystem.Web.Services.OfflineSync.OfflineApplySco
 
 // ---- Domain services (business rules, system rules #3-#9, #11, #13) --------
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IDashboardWidgetReader, DashboardWidgetReader>();
 builder.Services.Configure<PTGOilSystem.Web.Configuration.ClientProfileOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.ClientProfileOptions.SectionName));
 builder.Services.AddSingleton<ClientModuleProfile>();

@@ -37,8 +37,10 @@
             return;
         }
 
-        var companyShare = section.querySelector('[data-company-share]');
-        var ownerLabel = section.querySelector('[data-company-share-owner]');
+        // «سهم شرکت» ممکن است کنار «نوع مالکیت» و بیرون از بخش شرکا باشد؛ در همان فرم جست‌وجو شود.
+        var shareScope = section.closest('form') || document;
+        var companyShare = shareScope.querySelector('[data-company-share]');
+        var ownerLabel = shareScope.querySelector('[data-company-share-owner]');
         var totalLabel = section.querySelector('[data-share-total]');
         var note = section.querySelector('[data-book-owner-note]');
 

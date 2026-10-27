@@ -65,6 +65,45 @@ public class DashboardViewModel
 
     /// <summary>ترکیب فروش: مقدار فروش هر محصول در همان بازهٔ نمودار روند.</summary>
     public List<DashboardSalesMixItemViewModel> SalesMix { get; set; } = new();
+
+    // ابزارک‌های «بدهکاران» و «بستانکاران»: همان ردیف‌های گزارش «طلبات و بدهی‌ها» که کارت‌های بالا هم می‌خوانند.
+    public List<DashboardWidgetRowViewModel> TopDebtors { get; set; } = new();
+    public int DebtorCount { get; set; }
+    public List<DashboardWidgetRowViewModel> TopCreditors { get; set; } = new();
+    public int CreditorCount { get; set; }
+}
+
+// یک ردیف ابزارک اختیاری داشبورد (بدهکار، صندوق، نرخ ارز، مصرف). مقدار از مرجع رسمی خودش می‌آید.
+public class DashboardWidgetRowViewModel
+{
+    public string Title { get; set; } = "";
+    public string Subtitle { get; set; } = "";
+    public decimal Value { get; set; }
+    public int Decimals { get; set; }
+    public string Unit { get; set; } = "";
+    public string? Controller { get; set; }
+    public string? Action { get; set; }
+    public int? RouteId { get; set; }
+}
+
+// ابزارکی که جدا و فقط پس از انتخاب کاربر بارگذاری می‌شود.
+public class DashboardLazyWidgetViewModel
+{
+    public string Kind { get; set; } = "";
+    public List<DashboardWidgetRowViewModel> Rows { get; set; } = new();
+    public DashboardProfitWidgetViewModel? Profit { get; set; }
+}
+
+// سود و زیان امروز — همان موتور «عملکرد دوره» که مفاد امروزِ موبایل می‌خواند.
+public class DashboardProfitWidgetViewModel
+{
+    public DateTime BusinessDate { get; set; }
+    public decimal RevenueUsd { get; set; }
+    public decimal CostOfSalesUsd { get; set; }
+    public decimal PeriodExpensesUsd { get; set; }
+    public decimal NetProfitUsd { get; set; }
+    public int SaleCount { get; set; }
+    public int UncostedSaleCount { get; set; }
 }
 
 public class DashboardSalesMixItemViewModel

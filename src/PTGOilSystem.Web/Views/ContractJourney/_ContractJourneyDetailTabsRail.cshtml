@@ -4,9 +4,9 @@
 <div class="ak-navigation-groups" role="group" aria-label="@Model.AriaLabel" data-contract-journey-tab-nav="true">
     @foreach (var group in Model.Tabs.GroupBy(tab => tab.GroupKey))
     {
+        @* عنوان گروه دیده نمی‌شود؛ فقط برای screen reader روی nav می‌ماند. *@
         var groupLabel = group.First().GroupLabel;
         <div class="ak-navigation-group" data-navigation-group="@group.Key">
-            <span class="ak-navigation-group-label">@groupLabel</span>
             <nav class="ptg-tabs-rail" aria-label="@groupLabel">
                 @foreach (var tab in group)
                 {

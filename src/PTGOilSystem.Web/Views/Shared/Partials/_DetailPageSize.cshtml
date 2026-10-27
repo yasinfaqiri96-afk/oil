@@ -1,0 +1,32 @@
+@*
+    «تعداد سطر» برای لیست‌های داخل صفحهٔ جزئیات؛ همتای انتخابگر _Pagination.
+    هر لیست کلید جدای خودش را در query-string دارد (SizeKey) و با تغییر اندازه،
+    صفحهٔ همان لیست (PageKey) به ۱ برمی‌گردد.
+    Model: (CurrentSize, SizeKey, PageKey, Anchor, Options) — Anchor without '#'.
+*@
+@model (int CurrentSize, string SizeKey, string PageKey, string? Anchor, int[] Options)
+@{
+    var baseParams = Context.Request.Query
+        .Where(kv => !string.Equals(kv.Key, Model.SizeKey, StringComparison.OrdinalIgnoreCase)
+                     && !string.Equals(kv.Key, Model.PageKey, StringComparison.OrdinalIgnoreCase))
+        .SelectMany(kv => kv.Value.Select(v => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(v ?? "")}"))
+        .ToList();
+
+    string SizeUrl(int size)
+    {
+        var parts = new List<string>(baseParams) { $"{Uri.EscapeDataString(Model.SizeKey)}={size}" };
+        var anchor = string.IsNullOrWhiteSpace(Model.Anchor) ? "" : "#" + Model.Anchor;
+        return "?" + string.Join("&", parts) + anchor;
+    }
+}
+<div class="ak-page-size no-print">
+    <span class="ak-page-size-label">@UiText.T(Context, "تعداد سطر:", "Rows:")</span>
+    <select class="form-select form-select-sm ak-page-size-select"
+            aria-label="@UiText.T(Context, "تعداد سطر در هر صفحه", "Rows per page")"
+            onchange="if(this.value) window.location.href = this.value;">
+        @foreach (var size in Model.Options)
+        {
+            <option value="@SizeUrl(size)" selected="@(size == Model.CurrentSize)">@size</option>
+        }
+    </select>
+</div>

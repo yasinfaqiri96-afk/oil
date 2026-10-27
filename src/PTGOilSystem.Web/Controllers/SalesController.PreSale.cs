@@ -326,6 +326,19 @@ public partial class SalesController
             return View(model);
         }
 
+        // مقدار فروش مرحله‌ای از موجودی قابل فروش رزرو می‌شود؛ پس مثل فروش عادی باید الان موجود باشد.
+        await using var transaction = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync() : null;
+        try
+        {
+            await _stock.EnsureQuantityNotReservedByPreSalesAsync(model.ProductId, model.QuantityMt, isNewPreSale: true);
+        }
+        catch (BusinessRuleException ex)
+        {
+            ModelState.AddModelError(nameof(model.QuantityMt), ex.Message);
+            await PopulatePreSaleLookupsAsync(model);
+            return View(model);
+        }
+
         var totalInCurrency = decimal.Round(model.QuantityMt * model.UnitPriceInCurrency, 4, MidpointRounding.AwayFromZero);
         var order = new PreSaleOrder
         {
@@ -373,7 +386,12 @@ public partial class SalesController
                 ("TotalUsd", order.TotalUsd),
                 ("Status", order.Status)));
 
-        TempData["ok"] = $"فروش مرحله‌ای {order.OrderNumber} ثبت شد. موجودی و درآمد فقط هنگام هر تحویل ثبت می‌شود.";
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
+
+        TempData["ok"] = $"فروش مرحله‌ای {order.OrderNumber} ثبت شد. مقدار آن از موجودی قابل فروش رزرو شد؛ کسر موجودی و درآمد هنگام هر تحویل ثبت می‌شود.";
 
         if (TryGetLocalReturnUrl(model.ReturnUrl, out var localReturnUrl))
         {

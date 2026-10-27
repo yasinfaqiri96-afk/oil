@@ -2611,7 +2611,7 @@ public partial class ContractJourneyController : Controller
             .Include(l => l.Vessel)
             .Include(l => l.Truck)
             .AsNoTracking()
-            .Where(l => l.ContractId == contractId)
+            .Where(l => l.ContractId == contractId && !l.IsArchived && !l.IsCancelled)
             .OrderBy(l => l.LoadingDate)
             .ThenBy(l => l.Id)
             .ToListAsync();
@@ -2822,9 +2822,10 @@ public partial class ContractJourneyController : Controller
     {
         var contractId = contract.Id;
 
+        // Same scope as the full details path: cancelled/archived loadings no longer count.
         var loadingRegisters = await _db.LoadingRegisters
             .AsNoTracking()
-            .Where(l => l.ContractId == contractId)
+            .Where(l => l.ContractId == contractId && !l.IsArchived && !l.IsCancelled)
             .OrderBy(l => l.LoadingDate)
             .ThenBy(l => l.Id)
             .Select(l => new LoadingRegister

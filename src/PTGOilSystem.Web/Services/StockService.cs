@@ -678,4 +678,67 @@ public class StockService : IStockService
                 $"فروش رد شد. موجودی آزاد {scope} برابر {available:N4} MT است و کمتر از مقدار درخواستی ({sale.QuantityMt:N4} MT).");
         }
     }
+
+    // همان قاعدهٔ PreSaleReservationService: فقط Confirmed/PartiallyDelivered رزرو می‌کنند و
+    // مانده هر سفارش جداگانه clamp می‌شود. دامنه: کل موجودی محصول + بار در مسیر (سفارش جواز/مخزن ندارد).
+    public async Task EnsureQuantityNotReservedByPreSalesAsync(
+        int productId,
+        decimal quantityMt,
+        bool isNewPreSale = false,
+        CancellationToken ct = default)
+    {
+        if (quantityMt <= 0m)
+        {
+            return;
+        }
+
+        // ثبت فروش مرحله‌ای و فروش از مخازن مختلفِ همان محصول باید پشت هم اجرا شوند.
+        if (_db.Database.IsRelational()
+            && string.Equals(
+                _db.Database.ProviderName,
+                "Npgsql.EntityFrameworkCore.PostgreSQL",
+                StringComparison.Ordinal))
+        {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(9274, {productId})",
+                ct);
+        }
+
+        var remainingByOrder = await _db.PreSaleOrders
+            .AsNoTracking()
+            .Where(o => o.ProductId == productId
+                && (o.Status == PreSaleOrderStatus.Confirmed
+                    || o.Status == PreSaleOrderStatus.PartiallyDelivered))
+            .Select(o => o.QuantityMt - (_db.SalesTransactions
+                .Where(s => s.PreSaleOrderId == o.Id && !s.IsCancelled)
+                .Sum(s => (decimal?)s.QuantityMt) ?? 0m))
+            .ToListAsync(ct);
+        var reservedMt = remainingByOrder.Where(r => r > 0m).Sum();
+        // فروش عادی بدون رزرو باز: کنترل‌های همیشگی موجودی کافی‌اند.
+        if (!isNewPreSale && reservedMt <= 0m)
+        {
+            return;
+        }
+
+        var physicalMt = await GetFreeQuantityMtAsync(productId, ct: ct);
+        if (quantityMt <= physicalMt - reservedMt)
+        {
+            return;
+        }
+
+        // بار در مسیر (مبدأ، حمل داخلی، موتر بی‌فروش) هم دارایی همین محصول است و فروش مرحله‌ای
+        // می‌تواند از آن تحویل شود — همان قاعدهٔ بیلانس شرکت از GoodsInTransitQuantityReader.
+        var inTransitMt = (await new Reporting.GoodsInTransitQuantityReader(_db)
+                .ReadAsync(Time.AfghanistanBusinessClock.SystemToday, productId: productId, ct: ct))
+            .Where(r => r.Kind != Models.Reports.GoodsInTransitKind.CustomerDelivery || !r.HasActiveSale)
+            .Sum(r => r.RemainingMt);
+        var sellableMt = physicalMt + inTransitMt - reservedMt;
+        if (quantityMt > sellableMt)
+        {
+            throw new BusinessRuleException(
+                "STOCK_RESERVED_BY_PRESALE",
+                $"موجودی قابل فروش کافی نیست. موجودی مخزن {physicalMt:N4} MT، در مسیر {inTransitMt:N4} MT، "
+                + $"رزرو فروش‌های مرحله‌ای باز {reservedMt:N4} MT، قابل فروش {Math.Max(sellableMt, 0m):N4} MT، درخواست {quantityMt:N4} MT.");
+        }
+    }
 }

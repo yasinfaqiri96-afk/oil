@@ -1,0 +1,17 @@
+@model string
+@*
+    آیکون خروجی Excel / PDF به زبان آیکون‌های خطی سیستم (Iconsax: stroke 1.5، گوشهٔ گرد، currentColor).
+    درون‌خطی است تا در هر اندازه و هر صفحه (حتی مودال بدون sprite منو) تیز رندر شود؛ رنگ از CSS دکمه می‌آید.
+*@
+<svg class="ak-export-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <path d="M22 10v5c0 5-2 7-7 7H9c-5 0-7-2-7-7V9c0-5 2-7 7-7h5" />
+    <path d="M22 10h-4c-3 0-4-1-4-4V2l8 8Z" />
+    @if (Model == "pdf")
+    {
+        <path d="M7 13h6M7 17h4" />
+    }
+    else
+    {
+        <path d="M7 12.5h7.5v5.5H7zM7 15.25h7.5M10.75 12.5V18" />
+    }
+</svg>

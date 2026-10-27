@@ -69,34 +69,49 @@
         new() { Title = shipmentResultLabel, Value = MoneyCard(Model.NetResultAbsUsd), Unit = UnitUsd(), Avatar = shipmentResultAvatar, State = shipmentResultIsProfit ? null : "warning" }
     };
 
-    string WarnWhenPositive(decimal value) => value > 0m ? "warning" : null;
+    // «وضعیت»: یک سطر برای هر موضوع. عدد اصلی در ستون مقدار و تفکیکِ همان عدد
+    // (فقط بخش‌های غیرصفر) یک خط کوتاه کنار آن؛ هیچ عددی حذف نشد، فقط پانزده سطرِ
+    // جدا به هفت سطر جمع شد. هر سطر به تبی می‌رود که جزئیات همان موضوع را دارد.
+    string? Breakdown(params (string Label, decimal Value, string Text)[] parts)
+    {
+        var shown = parts.Where(p => p.Value != 0m).Select(p => $"{p.Label} {p.Text}").ToList();
+        return shown.Count == 0 ? null : string.Join("، ", shown);
+    }
+    string? TabUrl(string tab) => Url.Action("Details", "ShipmentPnl", new { id = Model.Id, tab });
 
     var shipmentActivityRows = new List<AkDetailActivityRow>
     {
         // مسیر بار: بار کل = تخلیه‌شده + کسری تخلیه + تخلیه‌نشده.
-        new() { Label = T("تخلیه‌های ثبت‌شده", "Registered discharges"), Value = Model.RegisteredVesselReceiptGroups.Count.ToString("N0"), Unit = T("تخلیه", "discharges"), Icon = "bi-file-earmark-text" },
-        new() { Label = T("بار تخلیه‌نشده", "Not yet discharged"), Value = NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt), Unit = UnitMt(), Icon = "bi-hourglass-split" },
-        new() { Label = T("موجودی در مخزن", "In storage tank"), Value = NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt), Unit = UnitMt(), Icon = "bi-database" },
-        new() { Label = T("باقی‌ماندهٔ نافروخته", "Unsold remainder"), Value = NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt), Unit = UnitMt(), Icon = "bi-box-seam" },
+        new() { Label = T("تخلیه‌ها", "Discharges"), Value = Model.RegisteredVesselReceiptGroups.Count.ToString("N0"), Unit = T("تخلیه", "discharges"), Icon = "bi-box-arrow-in-down",
+                Meta = Breakdown((T("تخلیه‌نشده", "not discharged"), Model.NotYetDischargedQuantityMt, $"{NumberDisplay.Quantity(Model.NotYetDischargedQuantityMt)} {UnitMt()}")),
+                Href = TabUrl("flow") },
+        new() { Label = T("موجودی در مخزن", "In storage tank"), Value = NumberDisplay.Quantity(Model.RemainingInSourceTankQuantityMt), Unit = UnitMt(), Icon = "bi-database",
+                Meta = Breakdown((T("نافروخته", "unsold"), Model.RemainingUnsoldQuantityMt, $"{NumberDisplay.Quantity(Model.RemainingUnsoldQuantityMt)} {UnitMt()}")) },
 
-        // کسری‌ها: سه سطلِ بدون هم‌پوشانی و جمعِ همان سه.
-        new() { Label = T("کسری تخلیه (کشتی → مخزن)", "Discharge shortage"), Value = NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.VesselUnloadingShortageQuantityMt) },
-        new() { Label = T("کسری حمل داخلی", "Internal transport shortage"), Value = NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.InventoryTransportShortageQuantityMt) },
-        new() { Label = T("سایر ضایعات ثبت‌شده", "Other recorded losses"), Value = NumberDisplay.Quantity(Model.DirectLossQuantityMt), Unit = UnitMt(), Icon = "bi-exclamation-diamond", StatusTone = WarnWhenPositive(Model.DirectLossQuantityMt) },
-        new() { Label = T("مجموع کسری و ضایعات", "Total shortage & losses"), Value = NumberDisplay.Quantity(Model.TotalLossAndShortageMt), Unit = UnitMt(), Icon = "bi-clipboard-data", StatusTone = WarnWhenPositive(Model.TotalLossAndShortageMt) },
+        // کسری‌ها: جمع سه سطلِ بدون هم‌پوشانی؛ خودِ سه سطل در تفکیک.
+        new() { Label = T("کسری و ضایعات", "Shortage & losses"), Value = NumberDisplay.Quantity(Model.TotalLossAndShortageMt), Unit = UnitMt(), Icon = "bi-clipboard-minus",
+                Meta = Breakdown(
+                    (T("تخلیه", "discharge"), Model.VesselUnloadingShortageQuantityMt, NumberDisplay.Quantity(Model.VesselUnloadingShortageQuantityMt)),
+                    (T("حمل داخلی", "transport"), Model.InventoryTransportShortageQuantityMt, NumberDisplay.Quantity(Model.InventoryTransportShortageQuantityMt)),
+                    (T("سایر", "other"), Model.DirectLossQuantityMt, NumberDisplay.Quantity(Model.DirectLossQuantityMt))),
+                Href = TabUrl("balance") },
 
-        // مصارف: جمع سه سطرِ تفکیکی دقیقاً برابر «کل مصارف» است.
-        new() { Label = T("کل مصارف (با گمرک)", "Total expenses"), Value = MoneyCard(Model.TotalOperationalExpensesUsd), Unit = UnitUsd(), Icon = "bi-receipt-cutoff" },
-        new() { Label = T("کرایه و حمل", "Freight"), Value = MoneyCard(freightExpenseUsd), Unit = UnitUsd(), Icon = "bi-truck" },
-        new() { Label = T("گمرک", "Customs"), Value = MoneyCard(customsExpenseUsd), Unit = UnitUsd(), Icon = "bi-shield-check" },
-        new() { Label = T("سایر مصارف", "Other expenses"), Value = MoneyCard(otherExpenseUsd), Unit = UnitUsd(), Icon = "bi-three-dots" },
+        // مصارف: جمع سه بخش تفکیک دقیقاً برابر «کل مصارف» است.
+        new() { Label = T("مصارف (با گمرک)", "Expenses"), Value = MoneyCard(Model.TotalOperationalExpensesUsd), Unit = UnitUsd(), Icon = "bi-receipt-cutoff",
+                Meta = Breakdown(
+                    (T("کرایه", "freight"), freightExpenseUsd, MoneyCard(freightExpenseUsd)),
+                    (T("گمرک", "customs"), customsExpenseUsd, MoneyCard(customsExpenseUsd)),
+                    (T("سایر", "other"), otherExpenseUsd, MoneyCard(otherExpenseUsd))),
+                Href = TabUrl("compliance") },
 
         // فروش و نتیجه.
-        new() { Label = T("تعداد فروش", "Sales count"), Value = saleDisplayRows.Count.ToString("N0"), Unit = T("فروش", "sales"), Icon = "bi-cart-check" },
-        new() { Label = T("درآمد فروش", "Sales revenue"), Value = MoneyCard(Model.TotalSalesUsd), Unit = UnitUsd(), Icon = "bi-cash-coin" },
-        new() { Label = T("حاشیهٔ سود", "Profit margin"), Value = shipmentMarginPercent.ToString("0.#"), Unit = "%", Icon = "bi-graph-up" },
+        new() { Label = T("فروش", "Sales"), Value = MoneyCard(Model.TotalSalesUsd), Unit = UnitUsd(), Icon = "bi-cart-check",
+                Meta = Breakdown(
+                    (T("تعداد", "count"), saleDisplayRows.Count, saleDisplayRows.Count.ToString("N0")),
+                    (T("حاشیهٔ سود", "margin"), shipmentMarginPercent, $"{shipmentMarginPercent:0.#}%")),
+                Href = TabUrl("sales") },
         new() { Label = T("ارزش موجودی باقی‌مانده", "Remaining inventory value"), Value = MoneyCard(Model.RemainingInventoryValueUsd), Unit = UnitUsd(), Icon = "bi-box-seam" },
-        new() { Label = T("مانده وصول‌نشده", "Outstanding receivable"), Value = MoneyCard(Model.OutstandingReceivableUsd), Unit = UnitUsd(), Icon = "bi-hourglass-bottom", StatusTone = WarnWhenPositive(Model.OutstandingReceivableUsd) }
+        new() { Label = T("مانده وصول‌نشده", "Outstanding receivable"), Value = MoneyCard(Model.OutstandingReceivableUsd), Unit = UnitUsd(), Icon = "bi-hourglass-bottom" }
     };
 
     var activeShipmentTab = Context.Request.Query["tab"].ToString().Trim().ToLowerInvariant();

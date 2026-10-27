@@ -134,6 +134,34 @@ public sealed class OperationLifecycleTests
         Assert.Single(await db.InventoryMovements.ToListAsync());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Contract_Cancel_Ignores_Reversed_Expense_Ledger_But_Blocks_Active_One(bool expenseReversed)
+    {
+        await using var db = NewDb(); await SeedAsync(db);
+        db.LedgerEntries.Add(new LedgerEntry { Id = 1, ContractId = 1, SourceType = "Expense", SourceId = 1,
+            Side = LedgerSide.Credit, AmountUsd = 1000, SourceAmount = 1000, Currency = "USD",
+            SourceCurrencyCode = "USD", AppliedFxRateToUsd = 1, Reference = "LOAD-1" });
+        if (expenseReversed)
+            db.LedgerEntries.Add(new LedgerEntry { Id = 2, ContractId = 1, SourceType = "Expense", SourceId = 1,
+                Side = LedgerSide.Debit, AmountUsd = 1000, SourceAmount = 1000, Currency = "USD",
+                SourceCurrencyCode = "USD", AppliedFxRateToUsd = 1, Reference = "LOAD-1" + LedgerReversalWriter.CancelReferenceSuffix });
+        await db.SaveChangesAsync();
+
+        if (expenseReversed)
+        {
+            await Service(db).CancelAsync("Contract", 1, "اشتباه", null);
+            Assert.Equal(ContractStatus.Cancelled, (await db.Contracts.SingleAsync()).Status);
+            Assert.Equal(2, await db.LedgerEntries.CountAsync(x => x.SourceType == "Expense"));
+        }
+        else
+        {
+            await Assert.ThrowsAsync<BusinessRuleException>(() => Service(db).CancelAsync("Contract", 1, "اشتباه", null));
+            Assert.Equal(ContractStatus.Active, (await db.Contracts.SingleAsync()).Status);
+        }
+    }
+
     [Fact]
     public async Task Cancelled_Loading_Is_Excluded_From_Purchase_Aggregation()
     {

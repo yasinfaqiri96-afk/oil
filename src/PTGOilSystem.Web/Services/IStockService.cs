@@ -135,6 +135,20 @@ public interface IStockService
         => EnsureMovementDoesNotCauseFutureNegativeStockAsync(movement, ct);
 
     /// <summary>
+    /// فروش مرحله‌ای — ماندهٔ تحویل‌نشدهٔ فروش‌های مرحله‌ای باز از کل موجودی همان محصول رزرو است.
+    /// اگر <paramref name="quantityMt"/> از «موجودی مخزن + بار در مسیر − رزرو باز» بیشتر باشد خطا می‌دهد.
+    /// هم برای ثبت فروش مرحله‌ای جدید و هم برای فروش‌های عادی از مخزن صدا زده می‌شود؛
+    /// تحویل‌های خودِ فروش مرحله‌ای نباید آن را صدا بزنند. داخل Transaction صدا زده شود.
+    /// <paramref name="isNewPreSale"/>: ثبت فروش مرحله‌ای جدید — حتی بدون رزرو باز، موجودی کافی لازم است.
+    /// </summary>
+    Task EnsureQuantityNotReservedByPreSalesAsync(
+        int productId,
+        decimal quantityMt,
+        bool isNewPreSale = false,
+        CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    /// <summary>
     /// <b>Do not use.</b>
     /// <see cref="SalesTransaction.ContractId"/> represents the <i>Sales</i> contract,
     /// not the source <i>Purchase</i> contract that backs the stock. Using it as a

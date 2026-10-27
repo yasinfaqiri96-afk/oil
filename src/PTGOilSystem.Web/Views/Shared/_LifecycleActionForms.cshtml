@@ -20,7 +20,7 @@
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@Model.Id" />
             <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
-            <label class="ak-label px-3" for="cancel-reason-@Model.Controller-@Model.Id">دلیل لغو</label>
+            <label class="ak-label"for="cancel-reason-@Model.Controller-@Model.Id">دلیل لغو</label>
             <input id="cancel-reason-@Model.Controller-@Model.Id" type="text" name="reason" class="ak-input" required maxlength="1000" placeholder="دلیل لغو را بنویسید" />
             <button type="submit" class="dropdown-item ak-danger"><i class="bi bi-x-circle"></i> لغو</button>
         </form>
