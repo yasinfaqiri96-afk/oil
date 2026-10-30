@@ -3,103 +3,143 @@
  */
 
 /* ================================================================
-   BUTTON SYSTEM — "Filled" (reference: Minimals swatches).
-   Single source of truth: clean, soft, compact. 8px radius,
-   700 weight, distinct semantic colours, subtle colour-matched
-   shadow. Geometry is shared by the common button contract.
+   BUTTON SYSTEM — Novatech. The single owner of .btn and of the
+   .ak-primary-action / .ak-secondary-action page actions.
+   One height (40px, --chk-control-h), one radius (8px), 14px/500,
+   flat fills, no shadow. Each variant only sets the private
+   --_bg / --_fg / --_bd / --_bg-h / --_fg-h pairs.
    ================================================================ */
-body.boltz-shell.app-shell-authenticated :where(.btn),
-body.ptg-modal-document :where(.btn) {
-    --_bg: #FFFFFF;                                  /* default = reference "White" */
-    --_fg: var(--text-primary);
-    --_bg-h: #F2F5FC;
-    --_bd: rgba(var(--grey-500-rgb), .32);
-    --_sh: rgba(var(--grey-500-rgb), .30);
+body.boltz-shell.app-shell-authenticated :where(.btn, .ak-primary-action, .ak-secondary-action),
+body.ptg-modal-document :where(.btn, .ak-primary-action, .ak-secondary-action) {
+    --_bg: var(--background-paper);              /* default = neutral outline */
+    --_fg: #334155;
+    --_bd: var(--ptg-field-border);
+    --_bg-h: var(--background-neutral);
+    --_fg-h: var(--primary-main);
+    --_bd-h: var(--ptg-field-border-hover);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: .5rem;
-    min-height: 2.25rem;
-    padding: .4rem .95rem;
+    gap: 8px;
+    min-height: var(--chk-control-h);
+    padding: 0 16px;
     border: 1px solid var(--_bd);
-    border-radius: var(--ptg-radius-button);
+    border-radius: var(--radius-btn);
     background: var(--_bg);
     color: var(--_fg);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.15;
+    font-size: var(--font-button);
+    font-weight: var(--weight-button);
+    line-height: 1.4;
     letter-spacing: 0;
-    box-shadow: 0 6px 14px -8px var(--_sh);
-    transition: background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease, transform .12s ease;
+    text-decoration: none;
+    box-shadow: none;
+    transition: background-color .2s ease, border-color .2s ease, color .2s ease, transform .12s ease;
+}
+
+body.boltz-shell.app-shell-authenticated :where(.btn, .ak-primary-action, .ak-secondary-action):is(:hover, :focus-visible),
+body.ptg-modal-document :where(.btn, .ak-primary-action, .ak-secondary-action):is(:hover, :focus-visible) {
+    border-color: var(--_bd-h);
+    background: var(--_bg-h);
+    color: var(--_fg-h);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.btn):active,
 body.ptg-modal-document :where(.btn):active { transform: translateY(1px); }
 
-body.boltz-shell.app-shell-authenticated :where(.btn):disabled,
-body.boltz-shell.app-shell-authenticated :where(.btn).disabled,
-body.ptg-modal-document :where(.btn):disabled,
-body.ptg-modal-document :where(.btn).disabled {
-    opacity: .5;
-    box-shadow: none;
+body.boltz-shell.app-shell-authenticated :where(.btn, .ak-primary-action, .ak-secondary-action):is(:disabled, .disabled),
+body.ptg-modal-document :where(.btn, .ak-primary-action, .ak-secondary-action):is(:disabled, .disabled) {
+    --_bg: #F1F5F9; --_fg: var(--text-disabled); --_bd: var(--divider);
+    --_bg-h: #F1F5F9; --_fg-h: var(--text-disabled); --_bd-h: var(--divider);
+    opacity: 1;
     cursor: not-allowed;
     transform: none;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.btn-secondary),
-body.ptg-modal-document :where(.btn-secondary) {
-    --_bg: #8E33FF; --_fg: #FFFFFF; --_bg-h: #5119B7;
-    --_bd: transparent; --_sh: rgba(142, 51, 255, .48);
+/* Primary — brand fill, the loudest button of a region. */
+body.boltz-shell.app-shell-authenticated :where(.btn-primary, .ak-primary-action, .ak-secondary-action.is-primary),
+body.ptg-modal-document :where(.btn-primary, .ak-primary-action, .ak-secondary-action.is-primary) {
+    --_bg: var(--primary-main); --_fg: #FFFFFF; --_bd: var(--primary-main);
+    --_bg-h: var(--primary-dark); --_fg-h: #FFFFFF; --_bd-h: var(--primary-dark);
 }
 
-body.boltz-shell.app-shell-authenticated :where(.btn-info),
-body.ptg-modal-document :where(.btn-info) {
-    --_bg: var(--info-main); --_fg: #FFFFFF; --_bg-h: #006C9C;
-    --_bd: transparent; --_sh: rgba(var(--info-rgb), .48);
+/* Secondary / light / info / outline-secondary — the neutral outline. */
+body.boltz-shell.app-shell-authenticated :where(.btn-secondary, .btn-light, .btn-info, .btn-outline-secondary),
+body.ptg-modal-document :where(.btn-secondary, .btn-light, .btn-info, .btn-outline-secondary) {
+    --_bg: var(--background-paper); --_fg: #334155; --_bd: var(--ptg-field-border);
 }
 
+/* Outline primary — brand ink on white, brand tint on hover. */
+body.boltz-shell.app-shell-authenticated :where(.btn-outline-primary),
+body.ptg-modal-document :where(.btn-outline-primary) {
+    --_bg: var(--background-paper); --_fg: var(--primary-main); --_bd: var(--primary-main);
+    --_bg-h: var(--ptg-primary-tint); --_fg-h: var(--primary-dark); --_bd-h: var(--primary-dark);
+}
+
+/* Soft secondary — brand tint for in-form add actions (e.g. «افزودن شریک»). */
+body.boltz-shell.app-shell-authenticated :where(.ak-secondary-action.is-soft),
+body.ptg-modal-document :where(.ak-secondary-action.is-soft) {
+    --_bg: var(--ptg-btn-primary-tint); --_fg: var(--primary-main); --_bd: transparent;
+    --_bg-h: var(--primary-light); --_fg-h: var(--primary-dark); --_bd-h: transparent;
+}
+
+/* Subtle — slate-100 fill, no border (Novatech subtleBtn). */
+body.boltz-shell.app-shell-authenticated :where(.btn-subtle, .btn-link.ak-subtle),
+body.ptg-modal-document :where(.btn-subtle, .btn-link.ak-subtle) {
+    --_bg: var(--ptg-btn-quiet); --_fg: var(--ptg-btn-quiet-text); --_bd: transparent;
+    --_bg-h: var(--ptg-btn-quiet-hover); --_fg-h: var(--text-primary); --_bd-h: transparent;
+}
+
+/* Success — emerald-700 so white text stays AA (5.4:1). */
 body.boltz-shell.app-shell-authenticated :where(.btn-success),
 body.ptg-modal-document :where(.btn-success) {
-    --_bg: var(--success-main); --_fg: #FFFFFF; --_bg-h: #118D57;
-    --_bd: transparent; --_sh: rgba(var(--success-rgb), .48);
+    --_bg: var(--ptg-success-text); --_fg: #FFFFFF; --_bd: var(--ptg-success-text);
+    --_bg-h: #065F46; --_fg-h: #FFFFFF; --_bd-h: #065F46;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.btn-warning),
 body.ptg-modal-document :where(.btn-warning) {
-    --_bg: var(--warning-main); --_fg: var(--text-primary); --_bg-h: #B76E00;
-    --_bd: transparent; --_sh: rgba(var(--warning-rgb), .48);
+    --_bg: var(--ptg-warning-soft); --_fg: var(--ptg-warning-text); --_bd: transparent;
+    --_bg-h: #FDE68A; --_fg-h: var(--ptg-warning-text); --_bd-h: transparent;
 }
-body.boltz-shell.app-shell-authenticated :where(.btn-warning):hover,
-body.boltz-shell.app-shell-authenticated :where(.btn-warning):focus-visible,
-body.ptg-modal-document :where(.btn-warning):hover,
-body.ptg-modal-document :where(.btn-warning):focus-visible { --_fg: #FFFFFF; }
 
 body.boltz-shell.app-shell-authenticated :where(.btn-danger),
 body.ptg-modal-document :where(.btn-danger) {
-    --_bg: var(--error-main); --_fg: #FFFFFF; --_bg-h: #B71D18;
-    --_bd: transparent; --_sh: rgba(var(--error-rgb), .48);
+    --_bg: var(--error-main); --_fg: #FFFFFF; --_bd: var(--error-main);
+    --_bg-h: #B91C1C; --_fg-h: #FFFFFF; --_bd-h: #B91C1C;
 }
 
-body.boltz-shell.app-shell-authenticated :where(.btn-dark, .btn-black),
-body.ptg-modal-document :where(.btn-dark, .btn-black) {
-    --_bg: #000000; --_fg: #FFFFFF; --_bg-h: #3D3D3D;
-    --_bd: transparent; --_sh: rgba(0, 0, 0, .4);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.btn-default),
-body.ptg-modal-document :where(.btn-default) {
-    --_bg: var(--text-primary); --_fg: #FFFFFF; --_bg-h: #454F5B;
-    --_bd: transparent; --_sh: rgba(28, 37, 46, .4);
-}
+/* Outline danger — the Novatech dangerBtn: red-50 fill, red-600 ink. */
 body.boltz-shell.app-shell-authenticated :where(.btn-outline-danger),
-body.ptg-modal-document :where(.btn-outline-danger) { --_fg: var(--error-main); }
+body.ptg-modal-document :where(.btn-outline-danger) {
+    --_bg: #FEF2F2; --_fg: var(--error-main); --_bd: transparent;
+    --_bg-h: var(--ptg-danger-soft); --_fg-h: var(--ptg-danger-text); --_bd-h: transparent;
+}
 
-/* ---- Compact size --------------------------------------------- */
+body.boltz-shell.app-shell-authenticated :where(.btn-dark, .btn-black, .btn-default),
+body.ptg-modal-document :where(.btn-dark, .btn-black, .btn-default) {
+    --_bg: var(--text-primary); --_fg: #FFFFFF; --_bd: var(--text-primary);
+    --_bg-h: #334155; --_fg-h: #FFFFFF; --_bd-h: #334155;
+}
+
+/* Text link button keeps Bootstrap's link look in brand ink. */
+body.boltz-shell.app-shell-authenticated :where(.btn-link),
+body.ptg-modal-document :where(.btn-link) {
+    --_bg: transparent; --_fg: var(--primary-main); --_bd: transparent;
+    --_bg-h: transparent; --_fg-h: var(--primary-dark); --_bd-h: transparent;
+}
+
+/* ---- Compact size (32px) and large size (44px) -------------------- */
 body.boltz-shell.app-shell-authenticated :where(.btn-sm),
 body.ptg-modal-document :where(.btn-sm) {
-    min-height: 1.9rem;
-    padding: .3rem .7rem;
-    font-size: 14px;
+    min-height: var(--chk-compact-h);
+    padding: 0 12px;
+    font-size: 13px;
+}
+
+body.boltz-shell.app-shell-authenticated :where(.btn-lg),
+body.ptg-modal-document :where(.btn-lg) {
+    min-height: var(--chk-button-h);
+    padding: 0 24px;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.card-header),
@@ -109,31 +149,31 @@ body.ptg-modal-document :where(.card-header) {
 }
 
 body.boltz-shell.app-shell-authenticated :where(.badge.bg-primary, .status-badge-info, .status-badge.is-info) {
-    background: var(--ptg-primary-soft) !important;
-    color: var(--ptg-primary-dark) !important;
+    background: var(--ptg-info-soft) !important;
+    color: var(--ptg-info-text) !important;
     border-color: rgba(var(--ptg-primary-rgb), .18) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.badge.bg-success, .status-badge-success, .status-badge.is-success) {
     background: var(--ptg-success-soft) !important;
-    color: var(--ptg-primary-dark) !important;
+    color: var(--ptg-success-text) !important;
     border-color: rgba(var(--ptg-success-rgb), .2) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.badge.bg-warning, .status-badge-warning, .status-badge.is-warning) {
     background: var(--ptg-warning-soft) !important;
-    color: #A66E00 !important;
+    color: var(--ptg-warning-text) !important;
     border-color: rgba(var(--ptg-warning-rgb), .24) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.badge.bg-danger, .status-badge-danger, .status-badge.is-danger) {
     background: var(--ptg-danger-soft) !important;
-    color: var(--ptg-danger) !important;
+    color: var(--ptg-danger-text) !important;
     border-color: rgba(var(--ptg-danger-rgb), .22) !important;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.badge.bg-secondary, .status-badge-neutral, .status-badge.is-muted) {
-    background: #F0F1F6 !important;
-    color: var(--ptg-muted) !important;
-    border-color: #E3E5EE !important;
+    background: var(--ptg-draft-soft) !important;
+    color: var(--ptg-draft-text) !important;
+    border-color: var(--divider) !important;
 }

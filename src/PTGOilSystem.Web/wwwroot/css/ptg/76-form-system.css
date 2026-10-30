@@ -62,9 +62,9 @@
 .ak-form-page:has(> form.ak-form) > .ak-page-header .ak-page-title,
 .ak-form-page-content > .ak-page-header .ak-page-title {
     color: var(--chk-title);
-    font-size: 23px;
-    font-weight: 400;
-    line-height: 1.6;
+    font-size: var(--font-page-title);
+    font-weight: var(--weight-page-title);
+    line-height: var(--line-page-title);
 }
 
 /* One flat surface per form — the system has no nested cards. */
@@ -132,11 +132,11 @@ form.ak-form .ak-section-head {
 form.ak-form .fte-section-title,
 form.ak-form .ak-form-group-title,
 form.ak-form .ak-section-title {
-    margin: 0 0 14px;
+    margin: 0 0 16px;
     color: var(--chk-title);
-    font-size: 18px;
-    font-weight: 600;
-    line-height: 25px;
+    font-size: var(--font-section-title);
+    font-weight: var(--weight-section-title);
+    line-height: var(--line-section-title);
 }
 
 form.ak-form .ak-section-head > .ak-section-title {
@@ -164,7 +164,7 @@ form.ak-form .ak-group-wizard-summary .ak-section-title {
     margin: 0 0 12px;
     padding-block-end: 10px;
     border-block-end: 1px solid var(--divider);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 form.ak-form .ak-group-wizard-summary .ak-list-row {
@@ -321,9 +321,9 @@ form.ak-form .ak-form-grid > label > span:first-child {
     min-height: 20px;
     margin: 0;
     color: var(--chk-label);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 23px;
+    font-size: var(--font-label);
+    font-weight: var(--weight-label);
+    line-height: 22px;
 }
 
 form.ak-form .ak-label > i {
@@ -347,7 +347,7 @@ form.ak-form .ak-input {
     background: var(--chk-surface);
     color: var(--chk-text);
     box-shadow: none;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.5;
     transition: border-color 150ms ease;
 }
@@ -415,7 +415,7 @@ form.ak-form .ak-note {
     border-radius: var(--chk-radius-control);
     background: var(--chk-primary-light);
     color: var(--chk-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.85;
 }
 
@@ -436,7 +436,7 @@ form.ak-form .ak-form-alert {
     border-radius: var(--chk-radius-control);
     background: var(--chk-danger-light);
     color: var(--chk-danger);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.85;
 }
 
@@ -470,7 +470,7 @@ form.ak-form .ak-toggle-field {
 
 form.ak-form .ak-toggle-field .form-check-label {
     color: var(--chk-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
 }
 
@@ -504,7 +504,7 @@ form.ak-form .journal-direction-segmented {
     padding: 4px;
     overflow: visible;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-btn);
     background: var(--chk-rail);
 }
 
@@ -516,10 +516,10 @@ form.ak-form .journal-direction-segmented .ptg-tab-item {
     margin: 0;
     padding: 2px 20px;
     border: 0;
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--chk-text-muted);
     background: transparent;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     transition: color .15s ease, background-color .15s ease;
 }
@@ -568,7 +568,7 @@ form.ak-form .journal-mode-item {
 
 form.ak-form .journal-mode-label {
     color: var(--chk-label);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -606,7 +606,7 @@ form.ak-form .journal-funding-choices .form-check-label {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     white-space: nowrap;
     transition: color .15s ease, background-color .15s ease, border-color .15s ease;
@@ -695,7 +695,7 @@ form.ak-form .ak-choice-grid > label {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     white-space: normal;
     text-align: start;
@@ -732,12 +732,12 @@ form.ak-form .journal-more-toggle {
     color: var(--chk-primary);
     background: transparent;
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
 }
 
 form.ak-form .journal-more-toggle i {
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 form.ak-form .journal-more-toggle:hover,
@@ -787,7 +787,7 @@ form.ak-form .journal-party-balance .jpb-caption {
 form.ak-form .journal-party-balance .jpb-name {
     overflow: hidden;
     color: var(--chk-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -811,7 +811,7 @@ form.ak-form .journal-party-balance .jpb-amount {
 
 form.ak-form .journal-party-balance .jpb-label {
     padding: 3px 10px;
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--chk-surface);
     color: var(--chk-text-secondary);
     font-size: 14px;
@@ -907,7 +907,7 @@ form.ak-form .ak-form-live-summary {
     border-radius: var(--chk-radius-control);
     background: var(--chk-surface-soft);
     color: var(--chk-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.85;
 }
 
@@ -958,7 +958,7 @@ form.ak-form .ak-footer-actions .ak-save {
     color: var(--ptg-field-bg);
     box-shadow: none;
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     text-decoration: none;
 }
@@ -980,7 +980,7 @@ form.ak-form .ak-footer-actions .ak-cancel {
     color: var(--chk-text-secondary);
     background: var(--chk-surface);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     text-decoration: none;
 }
@@ -1111,7 +1111,7 @@ form.ak-form .ak-table .ak-entity-input {
     gap: 6px;
     min-height: 24px;
     color: var(--ptg-muted);
-    font-size: 15px;
+    font-size: var(--font-body);
     white-space: nowrap;
 }
 

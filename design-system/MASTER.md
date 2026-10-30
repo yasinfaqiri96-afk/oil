@@ -50,7 +50,7 @@
 
 ## 4. Design Tokens
 
-قرارداد یکپارچهٔ ۲۰۲۶-۱۰-۲۴: primary action و interaction یک palette دارند؛ `--ptg-btn-primary` alias از `--primary-main` است. فونت صفحه ۲۰، سکشن ۱۶، متن ۱۵ و جدول/عدد ۱۴ پیکسل است؛ ورودی موبایل حداقل ۱۶ پیکسل می‌ماند. در صفحه و مودال همین نقش‌ها استفاده می‌شوند. فایل `82-customer-transfer.css` فقط ترکیب صفحه را تعیین می‌کند، نه primitive کنترل.
+قرارداد زبان بصری نواتیک ۲۰۲۶-۱۰-۳۰ (مرجع: «گزارش دیزاین سیستم نواتیک»، نسخهٔ اصلاح‌شدهٔ بخش ۲۴): یک رنگ برند `#007DB2` برای shell، تعامل و عمل اصلی؛ `--ptg-btn-primary` alias از `--primary-main` است. پایهٔ متن، جدول، کنترل و دکمه ۱۴px؛ عنوان صفحه ۲۰px؛ ورودی موبایل حداقل ۱۶ پیکسل می‌ماند. Sidebar فقط در `04-sidebar.css` و Header فقط در `74-header-controls.css` تعریف می‌شوند. در صفحه و مودال همین نقش‌ها استفاده می‌شوند. فایل `82-customer-transfer.css` فقط ترکیب صفحه را تعیین می‌کند، نه primitive کنترل.
 
 فیلتر اصلی با `_AkSearchFilter` و query string اداره می‌شود. فیلتر ستون در grid فقط محدودیت نمایشی محلی روی جدول کامل است؛ state و Clear آشکار دارد و خروجی از فیلتر اصلی پیروی می‌کند.
 
@@ -59,22 +59,24 @@
 
 | نقش | توکن runtime | مقدار فعلی | کاربرد |
 |---|---|---:|---|
-| Navigation / interaction | `--primary-main` | `#2d60c9` | لینک، تب، focus، shell |
-| Navigation hover | `--primary-dark` | `#2453b4` | hover/focus تعاملی |
-| Primary action | `--ptg-btn-primary` | `#2d60c9` | Save/Create/عمل اصلی |
-| Primary action hover | `--ptg-btn-primary-dark` | `#2453b4` | hover/active |
-| Canvas | `--background-default` | `#F5F6FA` | پس‌زمینه اصلی |
-| Paper | `--background-paper` | `#FFFFFF` | modal، dropdown، سطح سفید |
-| Neutral surface | `--background-neutral` | `#F2F5FC` | hover و ردیف نرم |
-| Text | `--text-primary` | `#343a40` | عنوان، متن، عدد |
-| Muted text | `--text-secondary` | `#5f6670` | توضیح و metadata |
-| Divider | `--divider` | `#E7E7E7` | جداکننده و جدول |
-| Success | `--success-main` | `#24AF22` | فقط موفقیت واقعی |
-| Warning | `--warning-main` | `#D68000` | نیازمند توجه |
-| Error | `--error-main` | `#CB0B0B` | خطا/عمل مخرب |
-| Info | `--info-main` | `#1062D0` | اطلاع خنثی |
+| Brand / navigation / interaction | `--primary-main` | `#007DB2` | Sidebar، لینک، تب، focus |
+| Brand hover / active nav item | `--primary-dark` | `#006088` | hover، آیتم فعال منو |
+| Brand tint | `--primary-lighter` / `--ptg-primary-tint` | `#E6F4FA` | chip، ردیف فعال |
+| Primary action | `--ptg-btn-primary` | `#007DB2` | Save/Create/عمل اصلی (متن سفید 4.6:1) |
+| Canvas | `--background-default` | `#F3F4F8` | پس‌زمینه اصلی |
+| Paper | `--background-paper` | `#FFFFFF` | کارت، modal، dropdown |
+| Neutral surface | `--background-neutral` | `#F8FAFC` | جعبهٔ خلاصه، hover ردیف |
+| Text | `--text-primary` | `#1E293B` | عنوان، متن، عدد |
+| Muted text | `--text-secondary` | `#64748B` | برچسب و metadata (4.76:1) |
+| Divider | `--divider` | `#E2E8F0` | جداکننده و جدول |
+| Success | `--success-main` | `#059669` | فقط موفقیت واقعی |
+| Warning | `--warning-main` | `#D97706` | نیازمند توجه |
+| Error | `--error-main` | `#DC2626` | خطا/عمل مخرب |
+| Info | `--info-main` | `#2563EB` | اطلاع خنثی |
 
-`#206BC4` و `#00A76F` در حال حاضر توکن canonical runtime نیستند. آن‌ها را مستقیم یا صفحه‌ای وارد نکن؛ هر تغییر پالت باید ابتدا در `01-tokens.css` و با درخواست مستقل انجام شود.
+Badge/وضعیت: سطح ۱۰۰ + متن ۷۰۰ (`--ptg-*-soft` / `--ptg-*-text`)؛ سبز `#D1FAE5/#047857`، آبی `#DBEAFE/#1D4ED8`، کهربایی `#FEF3C7/#B45309`، قرمز `#FEE2E2/#B91C1C`، خاکستری `#F1F5F9/#475569`، بنفش `#F3E8FF/#7E22CE`.
+
+`#2d60c9`، `#1062D0`، `#3b82f6`، `#0C2D4E` و `sky-700` دیگر توکن canonical نیستند. آن‌ها را مستقیم یا صفحه‌ای وارد نکن؛ هر تغییر پالت باید ابتدا در `01-tokens.css` و با درخواست مستقل انجام شود.
 
 قواعد رنگ:
 
@@ -88,31 +90,30 @@
 
 خانواده اصلی `IRANSans` است و `Vazirmatn` فقط fallback آن است (ترتیب واقعی stack در `02-base.css`). Poppins فقط بخشی از shell legacy است و نباید برای محتوای جدید انتخاب شود.
 
-مقیاس خوانایی 2026-10-23: فونت‌های زیر 20px ‏+2px، بین 20 تا 28px ‏+1px؛ clampهای KPI بدون تغییر.
-مقادیر زیر runtime فعلی‌اند (۱۴۴۰px، RTL)؛ مرجع همان فرم «ثبت دریافت / پرداخت»:
+IRANSans فقط سه فایل وزن واقعی دارد: 400، 500 (برای 500–600) و 700 (برای 700–800). سلسله‌مراتب با همین سه وزن ساخته می‌شود.
 
-| نقش | اندازه / وزن runtime |
-|---|---|
-| عنوان صفحه (لیست) | `25px / 500` (Mashal: `17px`) |
-| عنوان صفحه (Details) | `clamp(24px…30px) / 720` |
-| عنوان سکشن فرم | `20px / 600` |
-| عنوان کارت / سکشن Details | `18px / 700` |
-| متن بدنه | `16px / 400`, line-height `1.6` (Mashal: `15px`) |
-| Label فرم | `16px / 500` (Mashal: `14px`) |
-| هدر جدول | `16px / 700` |
-| سلول جدول | `16px / 400` |
-| KPI (کارت آماری) | `clamp(13px…22px) / 800`، کف عنوان `13px` و واحد `12px` |
-| Caption / Status | `14px / 500–600` |
-| Button | `16px / 500` |
+| نقش | توکن | اندازه / وزن |
+|---|---|---|
+| عنوان صفحه | `--font-page-title` | `20px / 700` |
+| عنوان سکشن | `--font-section-title` | `18px / 700` |
+| عنوان کارت | `--font-card-title` | `16px / 700` |
+| متن بدنه | `--font-body` | `14px / 400`, line-height `1.7` |
+| Label فرم | `--font-label` | `14px / 500` |
+| هدر جدول | `--font-table-head` | `14px / 700` (slate-600 روی slate-50) |
+| سلول جدول | `--font-table-cell` | `14px / 400` |
+| KPI | `--font-kpi` | `24px / 700` |
+| Caption / Hint | `--font-caption` | `12px / 400` |
+| Status / Badge | `--font-status` | `12px / 500` |
+| Button | `--font-button` | `14px / 500` |
 
 ارتفاع کنترل‌ها (همه از `01-tokens.css`):
 
 | نقش | توکن | مقدار |
 |---|---|---|
-| فیلد فرم | `--ak-control-height` / `--chk-control-h` | `44px` (Mashal: `--mashal-field-h` `38px`) |
-| کنترل فشرده (نوار ابزار، پاورقی لیست، اکشن ردیف) | `--ak-control-compact-height` / `--chk-compact-h` | `38px` |
-| دکمهٔ عملیات هدر و نوار ابزار | — | `36px` |
-| دکمهٔ ثبت فرم (`.ak-save`) | `--chk-button-h` | `48px` |
+| فیلد فرم، select، دکمهٔ عادی | `--ak-control-height` / `--chk-control-h` / `--mashal-field-h` | `40px` |
+| کنترل فشرده (pager، اکشن ردیف، `btn-sm`) | `--ak-control-compact-height` / `--chk-compact-h` | `32px` |
+| دکمه‌های هدر | `--hdr-ctl-size` در `74-header-controls.css` | `32px` |
+| دکمهٔ ثبت فرم (`.ak-save`) و دکمه‌های confirm | `--chk-button-h` | `44px` |
 | لمسی (`pointer: coarse`) | `--ak-control-height` در `10-responsive.css` | `44px` |
 
 قواعد:
@@ -127,10 +128,10 @@
 Scale اصلی 4px است. توکن‌های رایج:
 
 - فاصله ریز: `4px`, `8px`
-- gap معمول: `--ptg-space-gap: 12px`
-- padding کارت/صفحه: `--ptg-space-card: 16px`
+- فاصلهٔ بلوک‌های صفحه: `--ptg-space-gap: 24px`
+- padding کارت/پنل: `--ptg-space-card: 24px` (موبایل `16px`)
 - gap بزرگ: `--ptg-space-gap-lg: 24px`
-- gap فیلد: `--ptg-space-field: 12px`
+- gap فیلد: `--ptg-space-field: 16px`
 - فاصله سکشن فرم: `--ak-form-section-gap: 48px`
 
 ERP باید متراکم اما تنفس‌پذیر باشد:
@@ -142,14 +143,15 @@ ERP باید متراکم اما تنفس‌پذیر باشد:
 
 ### 4.4 Radius، Border و Shadow
 
-- Input / card canonical: `8px`
-- کوچک: `6px`
-- بزرگ کنترل‌شده: `12px`
-- badge: `12px`
+- قاب (header، منو): `6px`
+- کنترل، دکمه، تب، dropdown: `8px`
+- toast، alert، save bar: `12px`
+- کارت، پنل، modal، stat card: `16px`
+- badge و chip: قرص کامل (`999px`)
 - avatar: دایره کامل
 - Border: `1px` و فقط برای ساختار/کنترل
-- پنل‌های محتوایی از `--ptg-panel-shadow` استفاده می‌کنند
-- dropdown/modal از `--shadow-dropdown` و `--shadow-dialog`
+- پنل‌های محتوایی از `--ptg-panel-shadow` استفاده می‌کنند و هرگز با hover جابه‌جا نمی‌شوند؛ فقط stat card کلیک‌پذیر ۲px بالا می‌آید (`--ptg-panel-shadow-hover`)
+- dropdown/modal از `--shadow-dropdown` و `--shadow-dialog`؛ scrim مودال slate ۴۰٪ با blur ۲px
 
 Border ضخیم، radius بزرگ، glow، shadow سنگین و elevation تودرتو ممنوع است.
 
@@ -157,14 +159,14 @@ Border ضخیم، radius بزرگ، glow، shadow سنگین و elevation تود
 
 | نقش | مقدار |
 |---|---:|
-| Sidebar expanded | `240px` |
-| Sidebar rail | `88px` |
-| Mobile navigation | `304px` |
-| Header desktop/mobile | `48px` |
-| Content max | `1280px` (progressive up to `1560px` on wide monitors) |
+| Sidebar expanded | `240px` (`#007DB2`، آیتم `44px`، متن `13.5px`) |
+| Sidebar rail | `64px` (فقط آیکن؛ tooltip از `title`) |
+| Mobile navigation | `240px` drawer |
+| Header desktop/mobile | `48px` سفید با خط `#EAEAEA` |
+| Content max | `1600px` |
 | Form max | `860px` |
 | Wide form max | `1080px` |
-| Gutter desktop/laptop/compact/mobile | `40 / 32 / 24 / 16px` |
+| Gutter xl/lg/sm/mobile | `56 / 48 / 32 / 16px` (≥1280 / ≥1024 / ≥640 / <640) |
 
 Breakpointهای canonical Bootstrap:
 
@@ -207,6 +209,7 @@ Breakpointهای canonical Bootstrap:
 
 - یک primary action واضح در header یا footer
 - secondary action خنثی/outline
+- مالک واحد دکمه‌ها `05-components.css` است: ۴۰px، radius ۸px، ۱۴px/500، بدون سایه؛ هر variant فقط `--_bg/--_fg/--_bd` و نسخهٔ hover را تعیین می‌کند. `btn-sm` ۳۲px و `.ak-save`/`.ak-cancel` (مالک `50-ak-components.css`) ۴۴px. success = emerald-700 تا متن سفید AA بماند؛ `btn-outline-danger` = زمینهٔ red-50 با متن red-600.
 - edit، print، export و destructive ثانویه در kebab یا toolbar
 - عمل مخرب همیشه متن روشن، تأیید و anti-forgery داشته باشد
 
@@ -220,7 +223,9 @@ Breakpointهای canonical Bootstrap:
 ### List و table
 
 - `.ak-list-page`, `.ak-list`, `.ak-table-wrap`, `.ak-table`
-- `_AkSearchFilter` تنها Search/Filter canonical
+- `_AkSearchFilter` تنها Search/Filter canonical؛ ظاهر آن فقط در `45-akaunting.css`: جعبهٔ پرشدهٔ ۴۴px (slate-50، radius ۱۲px) که با focus سفید و دارای حلقهٔ برند می‌شود؛ دکمهٔ «جستجو» برند ۳۲px داخل جعبه
+- جدول: سرستون ۴۸px روی slate-50 با متن slate-600 (۱۴px/700)، ردیف ۴۸px با padding ‏12/16 و hover slate-50؛ pager دکمه‌های subtle ۳۲px و صفحهٔ فعال برند
+- موبایل: ردیف جدول کارت سفید ۱۶px با سایهٔ پنل
 - `_ExportMenu`, `_PagedListFooter` / `.ak-pager`
 - `_PersonCell`, `_Capsule`, `_StatusBadge` و `.ak-row-menu`
 
@@ -238,7 +243,7 @@ Breakpointهای canonical Bootstrap:
 
 ### Details
 
-- `.ak-detail-page` + `data-ak-detail-v2="true"`
+- `.ak-detail-page` + `data-ak-detail-v2="true"`؛ عنوان ۲۴px/700 (موبایل ۲۰px)، padding کارت ۲۴px (موبایل ۱۶px)، فاصلهٔ سکشن‌ها ۲۴px
 - `_AkPageHeader`, `_DetailKpiStrip`, `_DetailSummaryCard`
 - `_DetailsTabs`, `_DetailTimeline`, `_RelatedRecords`
 - `_OperationsDetailMore`, `_DetailPager`, `_DetailEmptyState`
@@ -261,14 +266,17 @@ Breakpointهای canonical Bootstrap:
 ### Modal
 
 - Bootstrap modal با `.ak-modal-content` یا `.ak-page-modal`
+- مالک ظاهر dialog فقط `08-modals.css`: کارت سفید ۱۶px بدون border، padding ۲۴px، عنوان ۱۸px/700، scrim slate ۴۰٪ با blur ۲px
+- پنجرهٔ تأیید (`_ToastNotifications`): کارت وسط‌چین ۳۸۴px، دایرهٔ رنگی ۵۶px، دو دکمهٔ ۴۴px با «انصراف» امن اول
 - عنوان، close، body و footer روشن
 - compact برای فرم کوتاه؛ modal بزرگ فقط برای workflow ضروری
-- nested modal، blur نمایشی و full-screen بی‌دلیل ممنوع
+- nested modal و full-screen بی‌دلیل ممنوع
 - submit، validation و close/redirect موجود حفظ شود
 
 ### Feedback
 
 - `_FlashAlerts`, `_ToastNotifications`, `.ak-empty`, `_DetailEmptyState`
+- Toast: وسط بالا (۳۶px زیر header)، کارت سفید ۱۲px با خط ۳px رنگ وضعیت در لبهٔ شروع و دایرهٔ آیکن ۳۲px
 - loading واقعی با loader/skeleton موجود؛ layout shift ایجاد نشود
 - Empty state کوتاه، علت‌محور و در صورت امکان دارای action واقعی
 - خطا کنار منبع و به زبان قابل اقدام

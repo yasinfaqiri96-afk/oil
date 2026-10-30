@@ -16,11 +16,11 @@ body.is-finance-workspace .cash-account-create-dialog .ak-modal-content {
 body.is-finance-workspace .cash-account-create-dialog .ak-modal-head {
     align-items: center;
     padding: 18px 22px 16px;
-    background: #FBFCFE;
+    background: var(--background-neutral);
 }
 
 body.is-finance-workspace .cash-account-create-dialog .ak-modal-title {
-    color: #1F344F;
+    color: var(--text-primary);
     font-size: 18px;
     font-weight: 750;
 }
@@ -28,7 +28,7 @@ body.is-finance-workspace .cash-account-create-dialog .ak-modal-title {
 body.is-finance-workspace .cash-account-create-dialog .ak-modal-subtitle {
     max-width: 580px;
     margin-top: 5px;
-    color: #6A7B93;
+    color: var(--text-secondary);
     line-height: 1.7;
 }
 
@@ -55,21 +55,21 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-form-section
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-form-section + .cash-account-form-section {
     padding-top: 20px;
-    border-top: 1px solid #E3EAF3;
+    border-top: 1px solid var(--divider);
 }
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-form-section .ak-section-head {
     display: block;
     margin: 0 0 15px;
     padding: 0 0 10px;
-    border-bottom: 1px solid #EEF2F7;
+    border-bottom: 1px solid var(--divider);
 }
 
 /* The dialog's section title is a form section title: 76-form-system.css owns
    its colour, size and weight, so the local restatement was deleted. */
 body.is-finance-workspace .cash-account-create-dialog .ak-section-desc {
     margin-top: 5px;
-    color: #6A7B93;
+    color: var(--text-secondary);
     font-size: 14px;
     line-height: 1.65;
 }
@@ -90,9 +90,9 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field
     gap: 16px;
     min-height: 48px;
     padding: 10px 12px;
-    border: 1px solid #E3EAF3;
+    border: 1px solid var(--divider);
     border-radius: 8px;
-    background: #FAFCFF;
+    background: var(--background-neutral);
 }
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field .form-check {
@@ -110,15 +110,15 @@ body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field
 }
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field .form-check-label {
-    color: #1F344F;
-    font-size: 16px;
+    color: var(--text-primary);
+    font-size: var(--font-body);
     font-weight: 700;
 }
 
 body.is-finance-workspace .cash-account-create-dialog .cash-account-status-field > span,
 body.is-finance-workspace .cash-account-create-dialog .cash-account-field-note {
     margin: 0;
-    color: #6A7B93;
+    color: var(--text-secondary);
     font-size: 14px;
     line-height: 1.6;
 }
@@ -174,7 +174,7 @@ body.is-finance-workspace .finance-page-lead {
     max-inline-size: 74ch;
     margin: -2px 0 20px;
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.9;
 }
 
@@ -302,7 +302,7 @@ body.is-finance-workspace .finance-action-group > a:hover {
 }
 
 body.is-finance-workspace .finance-action-group > a strong {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
 }
 
@@ -329,7 +329,7 @@ body.is-finance-workspace .finance-more-actions {
 body.is-finance-workspace .finance-more-actions summary {
     cursor: pointer;
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: var(--font-card-title);
 }
 
 body.is-finance-workspace .finance-more-actions[open] {
@@ -440,7 +440,7 @@ body.is-finance-workspace .finance-fiscal-facts dt {
 body.is-finance-workspace .finance-fiscal-facts dd {
     margin: 4px 0 0;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
 }
 
@@ -720,7 +720,7 @@ body.is-finance-workspace .akrep-item:focus-visible .akrep-copy strong {
 }
 
 body.is-finance-workspace .akrep-copy small {
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.6;
     color: var(--text-secondary);
 }
@@ -831,7 +831,7 @@ body.is-finance-workspace .rephub-card-title {
     font-size: clamp(14px, 8.8cqi, 16.5px);
     font-weight: 600;
     line-height: 1.4;
-    color: #0B2868;
+    color: var(--text-primary);
     text-align: center;
     white-space: normal;
     overflow: hidden;

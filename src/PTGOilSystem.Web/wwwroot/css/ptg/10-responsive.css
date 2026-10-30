@@ -13,34 +13,6 @@
         overflow-x: clip;
     }
 
-    body.boltz-shell.app-shell-authenticated .ptg-sidebar {
-        bottom: 0;
-    }
-
-    /*
-     * The legacy drawer uses a physical translate direction. Logical inset
-     * properties put the RTL drawer on the left and leave part of it visible.
-     */
-    body.boltz-shell.app-shell-authenticated.boltz-rtl .ptg-sidebar {
-        right: 0;
-        left: auto;
-        transform: translateX(100%);
-    }
-
-    body.boltz-shell.app-shell-authenticated.boltz-ltr .ptg-sidebar {
-        right: auto !important;
-        left: 0 !important;
-        transform: translateX(-100%) !important;
-    }
-
-    body.boltz-shell.app-shell-authenticated.is-shell-nav-open .ptg-sidebar {
-        transform: translateX(0) !important;
-    }
-
-    body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-scroll {
-        height: 100%;
-    }
-
     body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip, .ptg-summary-strip) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }

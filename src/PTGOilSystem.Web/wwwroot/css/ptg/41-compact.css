@@ -1,40 +1,29 @@
 /*
- * PTG global density pass — compacts shared components across every page.
- * Loaded after the component layers so equal-specificity rules win by order.
- * Spacing only: no colors, no typography scale, no structural changes.
+ * PTG global spacing pass — Novatech rhythm for Bootstrap leftovers.
+ * Table cells, modal chrome and the list/detail cards own their padding in
+ * their component layers (71, 08, 15, 73); only Bootstrap .card is set here.
  */
 
-/* ---- Tables: tighter row rhythm ---- */
-body.boltz-shell.app-shell-authenticated :where(.table) thead th,
-body.ptg-modal-document :where(.table) thead th {
-    padding: .45rem .65rem;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.table) tbody :where(td, th),
-body.ptg-modal-document :where(.table) tbody :where(td, th) {
-    padding: .4rem .65rem;
-    line-height: 1.35;
-}
-
-/* ---- Buttons: slimmer padding
- * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated :where(.kpi-card, .card) > :where(.card-body),
 body.ptg-modal-document :where(.kpi-card, .card) > :where(.card-body) {
-    padding: .75rem .85rem;
+    padding: 24px;
 }
 
 body.boltz-shell.app-shell-authenticated :where(.card) > :where(.card-header),
 body.ptg-modal-document :where(.card) > :where(.card-header) {
-    padding-block: .5rem;
+    padding: 16px 24px;
 }
 
-/* ---- Modals: tighter chrome ---- */
-body.boltz-shell.app-shell-authenticated :where(.modal-header, .modal-footer) {
-    padding-block: .55rem;
-}
+@media (max-width: 767.98px) {
+    body.boltz-shell.app-shell-authenticated :where(.kpi-card, .card) > :where(.card-body),
+    body.ptg-modal-document :where(.kpi-card, .card) > :where(.card-body) {
+        padding: 16px;
+    }
 
-body.boltz-shell.app-shell-authenticated :where(.modal-body) {
-    padding-block: .75rem;
+    body.boltz-shell.app-shell-authenticated :where(.card) > :where(.card-header),
+    body.ptg-modal-document :where(.card) > :where(.card-header) {
+        padding: 12px 16px;
+    }
 }
 
 body.boltz-shell.app-shell-authenticated :where(h1, h2, h3, h4, h5, h6):where(.mb-4, .mb-3) {

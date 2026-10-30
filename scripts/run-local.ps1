@@ -201,8 +201,9 @@ function Test-LocalBuildRequired {
         (Join-Path (Split-Path $ProjectDirectory -Parent) 'PTGOilSystem.Migrations'))
     $buildInputs = Get-ChildItem -LiteralPath $sourceDirectories -Recurse -File |
         Where-Object {
-            $isSourceFile = $_.Extension -in @('.cs', '.cshtml', '.csproj', '.props', '.targets')
-            $isGeneratedFile = $_.FullName -match '[\\/](bin|obj)[\\/]'
+            # CSS/JS feed the Production bundles (ptg-*.bundle.*), so a stylesheet edit must rebuild too.
+            $isSourceFile = $_.Extension -in @('.cs', '.cshtml', '.csproj', '.props', '.targets', '.css', '.js')
+            $isGeneratedFile = $_.FullName -match '[\\/](bin|obj|node_modules)[\\/]|\.bundle\.(css|js)$'
             $isSourceFile -and -not $isGeneratedFile
         }
 

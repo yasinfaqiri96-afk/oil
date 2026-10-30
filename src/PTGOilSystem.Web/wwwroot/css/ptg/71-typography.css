@@ -50,8 +50,15 @@
         line-height: var(--line-section-title);
     }
 
-    body.boltz-shell.app-shell-authenticated :where(.card-title, .modal-title, .dash-card h2, .finance-action-group h2),
-    body.ptg-modal-document :where(.card-title, .modal-title) {
+    body.boltz-shell.app-shell-authenticated :where(.modal-title),
+    body.ptg-modal-document :where(.modal-title) {
+        font-size: var(--font-section-title);
+        font-weight: var(--weight-section-title);
+        line-height: var(--line-section-title);
+    }
+
+    body.boltz-shell.app-shell-authenticated :where(.card-title, .dash-card h2, .finance-action-group h2),
+    body.ptg-modal-document :where(.card-title) {
         font-size: var(--font-card-title);
         font-weight: var(--weight-card-title);
         line-height: var(--line-card-title);
@@ -129,8 +136,8 @@
     /* Tables: clear headers, readable rows and aligned figures. */
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table > thead > tr > th,
     body.ptg-modal-document .ptg-modal-body-shell table > thead > tr > th {
-        padding: 11px 14px;
-        color: var(--text-primary);
+        padding: 12px 16px;
+        color: var(--ptg-table-head-ink);
         font-size: var(--font-table-head);
         font-weight: var(--weight-table-head);
         line-height: var(--line-table-head);
@@ -140,8 +147,8 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > :where(td, th),
     body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > :where(td, th) {
-        padding: 12px 14px;
-        color: var(--text-primary);
+        padding: 12px 16px;
+        color: #334155;
         font-size: var(--font-table-cell);
         font-weight: var(--weight-table-cell);
         line-height: var(--line-table-cell);
@@ -279,17 +286,17 @@
         font-variant-numeric: tabular-nums lining-nums;
     }
 
-    /* Shared status capsule: soft surface, strong readable label, no shadow. */
+    /* Shared status capsule (Novatech badge): pill, 12px/500, 100 tint + 700 ink, no shadow. */
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status),
     body.ptg-modal-document .ptg-modal-body-shell :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status) {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 28px !important;
+        min-height: 24px !important;
         block-size: auto;
         padding: 0 12px !important;
         border: 0 !important;
-        border-radius: 8px !important;
+        border-radius: var(--radius-pill) !important;
         background: var(--ptg-draft-soft);
         color: var(--ptg-draft-text);
         font-size: var(--font-status) !important;
@@ -327,13 +334,6 @@
     body.ptg-modal-document .ptg-modal-body-shell :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light) {
         background: var(--ptg-draft-soft) !important;
         color: var(--ptg-draft-text) !important;
-    }
-
-    @media (max-width: 1199.98px) {
-        body.boltz-shell.app-shell-authenticated :where(.ak-page-title, .page-title, .ak-detail-title),
-        body.ptg-modal-document :where(.ak-page-title, .page-title, .ak-detail-title) {
-            font-size: 28px;
-        }
     }
 
     /* Sticky shell chrome must not cover linked headings. */

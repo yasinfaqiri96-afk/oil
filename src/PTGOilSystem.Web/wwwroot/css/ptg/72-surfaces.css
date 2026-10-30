@@ -40,12 +40,18 @@ body.boltz-shell.app-shell-authenticated .excel-import__panel {
     box-shadow: var(--ptg-panel-shadow);
 }
 
-/* The stat card signalled hover with a blue outline, which the transparent
-   border removes. Restate the feedback in the new language: the panel lifts
-   instead of gaining an edge. */
+/* Novatech stat card: lifts 2px with the large shadow and a #DDE3EA edge.
+   Only these small tiles lift — content panels and tables never move. */
 body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {
-    border-color: transparent;
-    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06), 0 14px 32px rgba(16, 24, 40, 0.10);
+    border-color: var(--ptg-panel-border-hover);
+    box-shadow: var(--ptg-panel-shadow-hover);
+    transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {
+        transform: none;
+    }
 }
 
 :root[data-theme="dark"] body.boltz-shell.app-shell-authenticated .ak-stat-card:hover {

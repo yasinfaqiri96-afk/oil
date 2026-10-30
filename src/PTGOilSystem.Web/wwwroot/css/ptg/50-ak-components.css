@@ -91,7 +91,7 @@
     gap: 6px;
 }
 
-.ak-page-actions > .ak-secondary-action,
+/* Page actions are real buttons (05-components.css); only the kebab stays a ghost icon. */
 .ak-page-actions .ak-kebab-toggle {
     border-color: transparent;
     background: transparent;
@@ -99,8 +99,6 @@
     box-shadow: none;
 }
 
-.ak-page-actions > .ak-secondary-action:hover,
-.ak-page-actions > .ak-secondary-action:focus-visible,
 .ak-page-actions .ak-kebab-toggle:hover,
 .ak-page-actions .ak-kebab-toggle:focus-visible {
     background: var(--ptg-primary-soft);
@@ -159,9 +157,9 @@
     color: var(--ptg-table-head-ink);
     background: var(--ptg-table-head-bg);
     text-align: start;
-    /* هدر بلندتر از ردیف داده (چرتکه: 52.5px در برابر 45.5px)، با گاتر افقی 10px. */
-    padding: 15px 10px;
-    border-bottom: 1px solid var(--ptg-table-row-line);
+    /* Novatech: سرستون ۴۸px روی نوار slate-50 با گاتر افقی ۱۶px. */
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--divider);
     white-space: nowrap;
 }
 
@@ -172,9 +170,9 @@
 .ak-table > tbody > tr > td {
     font-size: var(--font-table-cell);
     line-height: 24px;
-    color: var(--ptg-text);
-    /* ارتفاع ردیف 45px مطابق چرتکه: 12 + 21 + 12 = 45. */
-    padding: 12px 10px;
+    color: #334155;
+    /* Novatech: ردیف ۴۸px (12 + 24 + 12) با فاصلهٔ افقی ۱۶px. */
+    padding: 12px 16px;
     border-bottom: 1px solid var(--ptg-table-row-line);
     vertical-align: middle;
     white-space: normal;
@@ -391,7 +389,7 @@ body.boltz-ltr .ak-table > tbody > tr > td.ak-num:not(.ak-col-num) {
 .ptg-person-name {
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     line-height: 23px;
     text-decoration: none;
@@ -577,7 +575,7 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row > span.ak-field > strong {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
 }
 
@@ -594,7 +592,7 @@ a.ak-list-row:focus-visible {
 
 .ak-list-row dt {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
 }
 
@@ -772,12 +770,12 @@ a.ak-list-row:focus-visible {
 }
 
 .ak-row-action:hover {
-    background: rgba(16, 98, 208, 0.07);
+    background: rgba(var(--primary-main-rgb), 0.07);
     color: var(--ptg-primary);
 }
 
 .ak-row-action:focus-visible {
-    outline: 2px solid rgba(16, 98, 208, 0.25);
+    outline: 2px solid rgba(var(--primary-main-rgb), 0.25);
     outline-offset: -2px;
 }
 
@@ -852,7 +850,7 @@ a.ak-list-row:focus-visible {
     background: transparent;
     color: #5C586C;
     font: inherit;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 400;
     cursor: pointer;
 }
@@ -1053,7 +1051,7 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-summary-hero__unit {
-    font-size: 15px;
+    font-size: var(--font-body);
     font-weight: 500;
     color: var(--ptg-muted);
 }
@@ -1132,7 +1130,7 @@ body.ptg-modal-document .ak-page-size-select {
 .ak-advanced-summary {
     padding-block: 14px;
     color: var(--primary-main);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     cursor: pointer;
 }
@@ -1282,7 +1280,7 @@ body.ptg-modal-document .ak-page-size-select {
 }
 
 .ak-stock-chip strong {
-    font-size: 15px;
+    font-size: var(--font-body);
     color: var(--ptg-text);
 }
 
@@ -1320,7 +1318,7 @@ body.ptg-modal-document .ak-page-size-select {
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     cursor: pointer;
     transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
@@ -1514,7 +1512,7 @@ select.ak-input {
     gap: 12px;
     min-width: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
 }
 
@@ -1643,7 +1641,7 @@ select.ak-input {
 }
 
 .ak-toggle-field .form-check-label {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     color: var(--ptg-text);
     cursor: pointer;
@@ -1739,44 +1737,58 @@ select.ak-input {
     border-top: 1px solid var(--divider);
 }
 
+/* Form footer pair (Novatech FormModal): «ذخیره» is the 44px brand action,
+   «انصراف» the matching 44px neutral outline. */
 .ak-save,
 .ak-cancel {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
-    border: 0;
+    gap: 8px;
+    min-height: var(--chk-button-h);
+    padding: 0 24px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-btn);
     font: inherit;
-    font-size: 16px;
-    line-height: 27px;
+    font-size: var(--font-button);
+    font-weight: var(--weight-button);
+    line-height: 1.4;
     text-decoration: none;
     cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
 .ak-save {
-    width: 84px;
-    padding: 6px 12px;
-    border-radius: var(--radius-btn);
-    background: var(--ptg-primary);
-    color: var(--ptg-field-bg);
+    min-width: 112px;
+    border-color: var(--primary-main);
+    background: var(--primary-main);
+    color: #FFFFFF;
 }
 
 .ak-save:hover,
 .ak-save:focus-visible {
-    background: var(--ptg-info-text);
-    color: var(--ptg-field-bg);
+    border-color: var(--primary-dark);
+    background: var(--primary-dark);
+    color: #FFFFFF;
+}
+
+.ak-save:disabled {
+    border-color: var(--divider);
+    background: #F1F5F9;
+    color: var(--text-disabled);
+    cursor: not-allowed;
 }
 
 .ak-cancel {
-    padding: 6px 4px;
-    background: transparent;
-    color: var(--ptg-text);
+    border-color: var(--ptg-field-border);
+    background: var(--background-paper);
+    color: #334155;
 }
 
 .ak-cancel:hover,
 .ak-cancel:focus-visible {
-    background: transparent;
+    border-color: var(--ptg-field-border-hover);
+    background: var(--background-neutral);
     color: var(--primary-main);
 }
 
@@ -1798,7 +1810,7 @@ select.ak-input {
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
     font: inherit;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 27px;
     white-space: nowrap;
     text-decoration: none;
@@ -1849,7 +1861,7 @@ select.ak-input {
     border-radius: var(--radius-base);
     background: var(--ptg-surface);
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     text-align: center;
     cursor: pointer;
     transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -1884,7 +1896,7 @@ select.ak-input {
     min-height: 36px;
     margin-inline-end: auto;
     color: var(--primary-main);
-    font-size: 16px;
+    font-size: var(--font-body);
     text-decoration: none;
 }
 
@@ -1910,7 +1922,7 @@ select.ak-input {
     padding: 8px 0;
     border-bottom: 1px solid var(--divider);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     cursor: pointer;
 }
 
@@ -2037,7 +2049,7 @@ select.ak-input {
 
 .ak-modal-subtitle {
     margin: 4px 0 0;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.5;
     color: var(--ptg-muted);
 }
@@ -2442,7 +2454,7 @@ select.ak-input {
     padding: 7px 9px;
     border-radius: var(--radius-base);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     cursor: pointer;
 }
 
@@ -2762,7 +2774,7 @@ select.ak-input {
 .ak-table tr.ak-subrow > td {
     background: var(--ptg-surface-soft);
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ak-table tr.ak-row-muted > td {
@@ -3253,7 +3265,7 @@ select.ak-input {
     margin-bottom: 12px;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--divider);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ak-group-wizard-summary .ak-list-row {
@@ -3391,7 +3403,7 @@ select.ak-input {
 
 .loading-import-workbook .loading-pricing-notice > i {
     flex: none;
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .loading-import-workbook .loading-pricing-notice > strong {
@@ -3617,7 +3629,7 @@ select.ak-input {
     gap: 16px;
     /* counts stay at the start; actions and filters travel together at the end */
     margin-inline-end: auto;
-    font-size: 16px;
+    font-size: var(--font-body);
     color: var(--ptg-muted);
 }
 
@@ -3649,7 +3661,7 @@ select.ak-input {
     border: 1px solid var(--ptg-field-border);
     border-radius: var(--radius-base);
     background: #F7F8FA;
-    font-size: 16px;
+    font-size: var(--font-body);
     color: var(--ptg-text);
 }
 
@@ -3679,7 +3691,7 @@ select.ak-input {
     border-radius: var(--ptg-radius-md);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .loading-import-workbook .lic-search {
@@ -3701,7 +3713,7 @@ select.ak-input {
     justify-content: center;
     gap: 14px;
     margin-top: 14px;
-    font-size: 16px;
+    font-size: var(--font-body);
     color: var(--ptg-muted);
 }
 
@@ -3716,7 +3728,7 @@ select.ak-input {
     border-radius: var(--radius-base);
     background: var(--ptg-field-bg);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     cursor: pointer;
 }
 
@@ -3754,7 +3766,7 @@ select.ak-input {
 
 .loading-import-workbook .loading-operation-status span:not(.spinner-border) {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 /* ---- Sticky action footer. ---- */
@@ -3771,7 +3783,7 @@ select.ak-input {
 
 .loading-import-workbook .lic-footer-count {
     margin-inline-end: auto;
-    font-size: 16px;
+    font-size: var(--font-body);
     color: var(--ptg-muted);
 }
 
@@ -4046,7 +4058,7 @@ select.ak-input {
 
 .ak-alloc-method-body > strong {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     line-height: 1.3;
 }

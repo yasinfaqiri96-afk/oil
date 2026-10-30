@@ -14,10 +14,10 @@
 
 .ak-detail-page {
     /* Rhythm rules agreed for the detail family. */
-    --ak-detail-section-gap: 16px;
-    --ak-detail-card-padding: 16px;
-    --ak-detail-row-gap: 10px;
-    --ak-detail-col-gap: 20px;
+    --ak-detail-section-gap: 24px;
+    --ak-detail-card-padding: 24px;
+    --ak-detail-row-gap: 12px;
+    --ak-detail-col-gap: 24px;
     --ak-detail-col-min: 190px;
 }
 
@@ -85,7 +85,7 @@
     min-width: 0;
     margin: 0;
     color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     line-height: 1.6;
     overflow-wrap: anywhere;
@@ -160,7 +160,7 @@
     gap: 12px;
     padding: 12px var(--ak-detail-card-padding);
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 16px;
+    font-size: var(--font-card-title);
     font-weight: 600;
     line-height: 1.6;
     cursor: pointer;
@@ -215,7 +215,7 @@
     margin: 0;
     padding: 10px 0;
     color: var(--ak-detail-muted, var(--ptg-muted));
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.7;
 }
 
@@ -224,7 +224,7 @@
    ------------------------------------------------------------------- */
 @media (max-width: 767.98px) {
     .ak-detail-page {
-        --ak-detail-card-padding: 14px;
+        --ak-detail-card-padding: 16px;
         --ak-detail-col-gap: 14px;
         --ak-detail-col-min: 140px;
     }
@@ -304,9 +304,9 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-details .
    surface rather than a Details route.
    =================================================================== */
 .ak-operations-detail {
-    --ak-detail-section-gap: 12px;
-    --ak-detail-card-padding: 13px;
-    --ak-detail-row-gap: 7px;
+    --ak-detail-section-gap: 16px;
+    --ak-detail-card-padding: 16px;
+    --ak-detail-row-gap: 8px;
     --ak-detail-col-gap: 16px;
     --ak-operations-panel-radius: 16px;
     --ak-operations-panel-surface: var(--background-paper);
@@ -418,7 +418,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 
 .ak-operations-detail .ak-operations-tab-fact strong {
     color: var(--ak-detail-text, var(--ptg-text));
-    font-size: 16px;
+    font-size: var(--font-body);
     font-variant-numeric: tabular-nums;
 }
 
@@ -630,7 +630,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 .ak-linear-detail .ak-detail-identity-copy .ak-detail-title {
-    font-size: clamp(18px, 1.7vw, 23px);
+    font-size: clamp(20px, 1.7vw, 24px);
 }
 
 .ak-linear-detail .ak-detail-identity-header .ak-info-grid {
@@ -886,7 +886,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 .ak-linear-detail .ak-detail-overview-content > .ak-info-grid .ak-info-value {
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.45;
 }
 
@@ -911,7 +911,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     margin: 0;
     padding: 6px 4px 8px;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-card-title);
     font-weight: 700;
 }
 
@@ -955,7 +955,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail .ak-detail-activity-label strong,
 .ak-linear-detail .ak-detail-activity-value {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ak-linear-detail .ak-detail-activity-value small,
@@ -1125,16 +1125,12 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     box-shadow: none;
 }
 
-.ak-linear-detail .ak-detail-actionbar .btn {
-    min-block-size: 36px;
-}
-
 .ak-linear-detail .ak-detail-secondary {
     display: grid;
     gap: 22px;
     padding-block: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 /* Related records are chips, not a run-on sentence of links: each one is a
@@ -1182,7 +1178,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 .ak-linear-detail :is(.ak-detail-activity, .ak-detail-history, .ak-detail-related) > h2 {
     margin: 0;
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-card-title);
     font-weight: 700;
 }
 
@@ -1212,7 +1208,7 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
     padding-block: 5px;
     border-block-start: 1px solid var(--ak-linear-border);
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ak-linear-detail .ak-detail-history-item:first-child {
@@ -1437,8 +1433,8 @@ body.boltz-shell.app-shell-authenticated .ak-operations-detail .ak-stat-card {
 }
 
 body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
-    font-size: 18px;
-    font-weight: 650;
+    font-size: var(--font-page-title);
+    font-weight: var(--weight-page-title);
     line-height: 1.35;
 }
 
@@ -1450,14 +1446,6 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ak-operations-clean-page > .ak-detail-header .ak-detail-actions {
     gap: 6px;
-}
-
-.ak-operations-clean-page > .ak-detail-header .ak-detail-actions > .btn,
-.ak-operations-clean-page > .ak-detail-header .ak-detail-actions > .dropdown > .btn {
-    min-height: 36px;
-    padding: 6px 12px;
-    border-radius: var(--ptg-radius-md);
-    font-size: 16px;
 }
 
 /* Loading keeps secondary actions in one clearly visible blue overflow menu. */
@@ -1511,7 +1499,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ak-operations-clean-page .ak-summary-card .ak-info-label {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     letter-spacing: .01em;
 }
@@ -1519,7 +1507,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value {
     justify-content: flex-end;
     text-align: end;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 700;
 }
 
@@ -1533,7 +1521,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 .ak-operations-clean-page .ak-summary-card .ak-info-value:is(.is-info, .is-success, .is-warning, .is-danger) {
     padding: 2px 9px;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.7;
 }
 
@@ -1604,7 +1592,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     margin-inline-start: auto;
     justify-content: flex-end;
     text-align: end;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.6;
 }
 
@@ -1807,7 +1795,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-strip-cell dt {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
 }
 
@@ -1906,7 +1894,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-card-visual figcaption span {
     color: var(--ptg-muted);
-    font-size: 15px;
+    font-size: var(--font-body);
 }
 
 /* --- label / value rows, divider between rows only --- */
@@ -1930,7 +1918,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-row dt {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
 }
 
@@ -1967,7 +1955,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-route-node span {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ptg-record-detail .ptg-td-route-node strong {
@@ -2023,7 +2011,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     border-radius: 50%;
     background: var(--background-neutral);
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
@@ -2036,7 +2024,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-step-label {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     text-align: center;
 }
@@ -2073,24 +2061,24 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 
 .ptg-record-detail .ptg-td-meta-cell i {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ptg-record-detail .ptg-td-meta-cell span {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .ptg-record-detail .ptg-td-meta-cell strong {
     color: var(--ptg-text);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 600;
 }
 
 .ptg-record-detail .ptg-td-route-text {
     margin: 12px 0 0;
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.7;
 }
 
@@ -2280,7 +2268,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     gap: 8px;
     padding-block: 14px;
     color: var(--ptg-primary);
-    font-size: 16px;
+    font-size: var(--font-card-title);
     font-weight: 600;
     cursor: pointer;
     list-style: none;
@@ -2291,7 +2279,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
 }
 
 .ptg-record-detail .ptg-td-more > summary i {
-    font-size: 16px;
+    font-size: var(--font-body);
     transition: transform 190ms ease-out;
 }
 
@@ -2509,7 +2497,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     block-size: 28px;
     border-radius: 8px;
     background: var(--ptg-primary-soft);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 /* --- fact board: label over value, two tiles per line, no row dividers --- */
@@ -2611,7 +2599,7 @@ body .ak-detail-page.ak-operations-clean-page .ak-detail-title {
     }
 
     .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-label {
-        font-size: 15px;
+        font-size: var(--font-body);
     }
 
     .ptg-record-detail:is([data-loading-details], [data-transport-details]) .ptg-td-flow-node dd {

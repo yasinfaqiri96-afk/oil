@@ -15,13 +15,20 @@
 
 /* ============================================================= *
  * 1. Modal chrome — parent document and iframe document alike.
+ *    Novatech dialog: white 16px card, no outline, slate shadow,
+ *    24px gutters, 40% slate scrim with a 2px blur.
  * ============================================================= */
+body.boltz-shell.app-shell-authenticated :where(.modal),
+body.ptg-modal-document :where(.modal) {
+    --bs-backdrop-bg: #0F172A;
+}
+
 body.boltz-shell.app-shell-authenticated :where(.modal-content),
 body.ptg-modal-document :where(.modal-content) {
     overflow: hidden;
-    border: 1px solid var(--ptg-border);
-    border-radius: var(--ptg-radius-card);
-    background: var(--ptg-surface);
+    border: 0;
+    border-radius: var(--radius-card);
+    background: var(--background-paper);
     box-shadow: var(--shadow-dialog);
 }
 
@@ -29,9 +36,9 @@ body.ptg-modal-document :where(.modal-content) {
    owns the inline padding and the surface only, so the two never disagree. */
 body.boltz-shell.app-shell-authenticated :where(.modal-header),
 body.ptg-modal-document :where(.modal-header) {
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--ptg-border);
-    background: var(--ptg-surface);
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--divider);
+    background: var(--background-paper);
 }
 
 /* Type scale comes from 71-typography.css — colour only here. */
@@ -42,15 +49,16 @@ body.ptg-modal-document :where(.modal-title) {
 
 body.boltz-shell.app-shell-authenticated :where(.modal-body),
 body.ptg-modal-document :where(.modal-body) {
-    background: var(--ptg-surface);
+    padding: 24px;
+    background: var(--background-paper);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.modal-footer),
 body.ptg-modal-document :where(.modal-footer) {
-    gap: 8px;
-    padding: 12px 20px;
-    border-top: 1px solid var(--ptg-border);
-    background: var(--ptg-surface);
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--divider);
+    background: var(--background-paper);
 }
 
 body.boltz-shell.app-shell-authenticated :where(.btn-close),
@@ -59,8 +67,13 @@ body.ptg-modal-document :where(.btn-close) {
 }
 
 /* The backdrop only ever exists in the parent document. */
+body.boltz-shell.app-shell-authenticated :where(.modal-backdrop) {
+    --bs-backdrop-bg: #0F172A;
+    backdrop-filter: blur(2px);
+}
+
 body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
-    opacity: .30;
+    opacity: .40;
 }
 
 /* ============================================================= *
@@ -81,9 +94,9 @@ body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
 
 .ptg-field-hint {
     display: block;
-    margin-top: .38rem;
-    color: #788395;
-    font-size: 14px;
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: var(--font-caption);
     line-height: 1.7;
 }
 

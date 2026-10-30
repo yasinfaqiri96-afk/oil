@@ -7,13 +7,13 @@
    ========================================================================== */
 
 .cbr-page {
-    --cbr-navy: #0B1B3A;
-    --cbr-secondary: #526077;
-    --cbr-teal: #008B87;
-    --cbr-head: #F5F7FA;
-    --cbr-border: #D9E0E8;
-    --cbr-hero: #F1FAF9;
-    --cbr-negative: #A53A3A;
+    --cbr-navy: var(--text-primary);
+    --cbr-secondary: var(--text-secondary);
+    --cbr-teal: var(--primary-main);
+    --cbr-head: var(--background-neutral);
+    --cbr-border: var(--divider);
+    --cbr-hero: var(--ptg-primary-tint);
+    --cbr-negative: var(--ptg-danger-text);
     --cbr-row: 44px;
     --cbr-body: 15px;
     --cbr-small: 13px;

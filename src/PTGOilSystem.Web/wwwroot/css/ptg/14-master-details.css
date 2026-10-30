@@ -3,13 +3,13 @@
 /* Truck, wagon
  * (قواعد بی‌اثر داخل این کامنت شکسته حذف شد) */
 body.boltz-shell.app-shell-authenticated.action-details .boltz-content :is(.service-provider-details-page) {
-    --party-panel-border: #dfe7f1;
-    --party-panel-line: #ecf1f6;
-    --party-panel-soft: #f6f8fc;
-    --party-panel-muted: #7B7B7B;
-    --party-panel-text: #3D3D3D;
-    --party-panel-accent: #1554c8;
-    --party-panel-shadow: 0 14px 34px rgba(15, 23, 42, .06);
+    --party-panel-border: var(--divider);
+    --party-panel-line: var(--ptg-table-row-line);
+    --party-panel-soft: var(--background-neutral);
+    --party-panel-muted: var(--text-secondary);
+    --party-panel-text: var(--text-primary);
+    --party-panel-accent: var(--primary-main);
+    --party-panel-shadow: var(--ptg-panel-shadow);
     gap: 1rem;
 }
 

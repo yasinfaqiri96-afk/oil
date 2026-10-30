@@ -1,18 +1,6 @@
 
 
 /*
- * Sidebar primary nav lives in the middle (1fr) track of the sidebar grid.
- * Without an overflow/min-height it cannot shrink, so on short viewports its
- * items bleed downward and overlap the footer (change-password / logout).
- * Let it scroll inside its own track instead.
- */
-body.boltz-shell.app-shell-authenticated:not(.is-sidebar-collapsed) .boltz-sidebar-nav {
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-}
-
-/*
  * حذف‌شده: بلوکِ «Form-field unification» به‌همراه قواعد ds-card / summary-strip / summary-tile.
  * کامنت بازِ همین بلوک از خط ۱۵ تا ۵۸ بسته نشده بود، پس این ~۴۰ خط در هیچ نسخه‌ای اجرا نشده‌اند
  * (در کل تاریخچهٔ git خراب بوده). سلکتور قاعدهٔ اول گم شده و فرضش (2.78rem در 08-modals.css)
@@ -77,40 +65,6 @@ body.boltz-shell.app-shell-authenticated .ptg-main {
     background: transparent;
 }
 
-/* Header is full-width chrome fused with the page: no card, no border, no
-   radius, no fill. The scroll-blur treatment lives in 03-layout.css. */
-body.boltz-shell.app-shell-authenticated .ptg-topbar {
-    min-height: 3rem;
-    padding: .35rem 1.25rem;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-/* اندازه و ظاهر کنترل‌های هدر در 74-header-controls.css یکسان‌سازی شده است. */
-
-body.boltz-shell.app-shell-authenticated .ptg-header-cluster {
-    align-items: center;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-header-cluster > * {
-    align-self: center;
-    margin-block: 0;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-hflag-wrap {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-@media (max-width: 767.98px) {
-    body.boltz-shell.app-shell-authenticated .ptg-topbar {
-        padding: .24rem .75rem;
-        border-radius: 0 !important;
-    }
-}
-
 /* Sarraf settlement tabs are behavior hooks, visually normalized as PTG pills. */
 body.boltz-shell.controller-sarrafsettlements.action-create .sarraf-settlement-section-switch {
     display: flex;
@@ -144,43 +98,6 @@ body.boltz-shell.controller-contracts.action-create .contract-validation-summary
     display: none;
 }
 
-body.boltz-shell.controller-contracts.action-create .contract-one-page-footer {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: .9rem;
-    margin: 0;
-    padding: .8rem 1.35rem;
-    border: 0;
-    border-radius: 0 0 8px 8px;
-    border-top: 1px solid var(--ptg-border);
-    background: var(--ptg-surface-tint);
-}
-
-body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn {
-    min-height: 2.55rem;
-    padding: .45rem 1.45rem !important;
-    border-radius: var(--radius-btn);
-    font-size: 16px;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: .01em;
-    box-shadow: none !important;
-}
-
-body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn-primary {
-    min-width: 10.2rem;
-    border-color: var(--ptg-primary-dark);
-    background: linear-gradient(135deg, var(--ptg-primary), var(--ptg-primary-dark));
-    color: var(--ptg-field-bg);
-}
-
-body.boltz-shell.controller-contracts.action-create .contract-one-page-footer .btn-outline-secondary {
-    border-color: #cdd7e5;
-    background: var(--ptg-field-bg);
-    color: #41506a;
-}
-
 /* ============================================================================
  * Loading expense editor (.lx-*) — استایل این فرم فقط در CSS بایگانی بود و لود
  * نمی‌شد؛ برای همین مودال «ثبت مصرف» در صفحهٔ جزئیات بارگیری (و صفحهٔ EditExpenses)
@@ -211,7 +128,7 @@ body.boltz-shell .loading-expense-editor.is-modal {
     gap: .78rem;
 }
 body.boltz-shell .loading-expense-editor.is-modal .form-section-title {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 850;
 }
 
@@ -260,7 +177,7 @@ body.boltz-shell [data-loading-expense-remote-modal] .ak-modal-body {
 .boltz-shell .section-title-row p {
     margin: 0;
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.8;
 }
 @media (max-width: 767.98px) {

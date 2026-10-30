@@ -1,45 +1,43 @@
 /*
- * PTG design tokens — Akaunting 3.1.21 visual language (Design Audit PTG FA).
- * Single visual source of truth for the authenticated ERP shell.
+ * PTG design tokens — Novatech visual language (گزارش دیزاین سیستم نواتیک،
+ * نسخهٔ اصلاح‌شدهٔ بخش ۲۴). Single visual source of truth for the shell.
  *
- * Canonical Akaunting tokens live in the first block. Every legacy PTG/Boltz/DS
- * variable name is preserved below and re-pointed at the canonical tokens, so
- * existing consumers keep working while the whole app shifts to the flat,
- * near-white Akaunting look: bg #FCFCFC, text #424242, deep navy #173F73 for
- * navigation/interactive, olive green #1877f2 for the primary action.
+ * One brand colour (#007DB2) drives navigation, interaction and the primary
+ * action; slate carries text; emerald / red / amber / blue carry real state only.
+ * Controls 40px · large 44px · compact 32px, radius 8px; cards and dialogs 16px.
+ * Every legacy PTG/Boltz/DS variable name is preserved below and re-pointed at
+ * the canonical tokens, so existing consumers keep working.
  */
 
 :root {
-    /* ---- Akaunting canonical palette (extracted from presets.js 3.1.21) ---- */
-    --primary-lighter: #E8F1FF;   /* Lilac 900 — sidebar icon rail */
-    --primary-light: #7779A2;     /* Profit series / soft purple */
-    --primary-main: #2d60c9;      /* Shared interaction and primary action; the
-                                     same deep navy the sidebar panel carries,
-                                     so accents and shell read as one colour */
-    --primary-dark: #2453b4;      /* Shared hover */
+    /* ---- Novatech canonical palette ---- */
+    --primary-lighter: #E6F4FA;   /* brand 50 — soft chips, active rows */
+    --primary-light: #BFE6F6;     /* brand 100 — switch rail, focus fill */
+    --primary-main: #007DB2;      /* brand: sidebar, links, tabs, primary action (white text 4.6:1) */
+    --primary-dark: #006088;      /* hover / active nav item / pressed */
     --primary-contrast: #FFFFFF;
-    --primary-main-rgb: 45, 96, 201;
+    --primary-main-rgb: 0, 125, 178;
 
-    --text-primary: #343a40;      /* Text, titles, numbers */
-    --text-secondary: #5f6670;    /* Readable supporting text */
-    --text-disabled: #AEAEAE;
+    --text-primary: #1E293B;      /* slate-800 — titles, body, numbers */
+    --text-secondary: #64748B;    /* slate-500 — labels, metadata (4.76:1) */
+    --text-disabled: #94A3B8;     /* slate-400 */
 
-    --background-default: #F5F6FA; /* Body */
-    --background-paper: #FFFFFF;   /* Overlay surfaces (dropdown/modal) */
+    --background-default: #F3F4F8; /* app canvas */
+    --background-paper: #FFFFFF;   /* cards, dropdown, modal */
     --background-paper-rgb: 255, 255, 255;
-    --background-neutral: #F2F5FC; /* Lilac 100 — soft rows / hover */
-    --divider: #E7E7E7;            /* Gray 200 — dividers, table borders */
-    --grey-500-rgb: 158, 158, 158;
+    --background-neutral: #F8FAFC; /* slate-50 — summary boxes, row hover */
+    --divider: #E2E8F0;            /* slate-200 — dividers, table borders */
+    --grey-500-rgb: 100, 116, 139;
 
-    /* ---- Akaunting status colors ---- */
-    --error-main: #CB0B0B;
-    --error-rgb: 203, 11, 11;
-    --warning-main: #D68000;
-    --warning-rgb: 214, 128, 0;
-    --success-main: #24AF22;      /* Green 500 — successful operation */
-    --success-rgb: 36, 175, 34;
-    --info-main: #1062D0;
-    --info-rgb: 16, 98, 208;
+    /* ---- Status colours (text on white stays AA) ---- */
+    --error-main: #DC2626;        /* red-600 */
+    --error-rgb: 220, 38, 38;
+    --warning-main: #D97706;      /* amber-600 */
+    --warning-rgb: 217, 119, 6;
+    --success-main: #059669;      /* emerald-600 */
+    --success-rgb: 5, 150, 105;
+    --info-main: #2563EB;         /* blue-600 */
+    --info-rgb: 37, 99, 235;
 
     /* Shared Mashal aliases: content, full pages and embedded forms. */
     --mashal-primary: var(--primary-main);
@@ -47,20 +45,20 @@
     --mashal-text: var(--text-primary);
     --mashal-ink: var(--text-secondary);
     --mashal-muted: var(--text-secondary);
-    --mashal-line: #e9ecef;
-    --mashal-field-line: #dee2e6;
+    --mashal-line: #E9ECF1;
+    --mashal-field-line: #CBD5E1;
     --mashal-canvas: var(--background-default);
-    --mashal-soft: #f6f7f9;
-    --mashal-head: #eef1fa;
+    --mashal-soft: var(--background-neutral);
+    --mashal-head: #F8FAFC;
     --mashal-danger: var(--error-main);
     --mashal-success: var(--success-main);
-    --mashal-radius: 6px;
-    --mashal-field-h: 38px;
+    --mashal-radius: 16px;
+    --mashal-field-h: 40px;
 
     /* ---- Dashboard & Data Visualization Tokens ---- */
-    --ptg-chart-positive: #22C55E;
-    --ptg-chart-warning: #F5A524;
-    --ptg-chart-negative: #F4511E;
+    --ptg-chart-positive: #10B981;
+    --ptg-chart-warning: #F59E0B;
+    --ptg-chart-negative: #F87171;
 
     /* ---- Accounting Flow Tokens (Phase 3: Neutral Accounting Semantics) ---- */
     --ptg-flow-debit-color: #1D4ED8;
@@ -70,100 +68,100 @@
     --ptg-flow-credit-bg: #ECFDF5;
     --ptg-flow-credit-border: #A7F3D0;
 
-    /* ---- Sidebar / shell — Deep Navy (the same hue --primary-main now carries).
-       Dark navigation + light content: the premium financial-ERP hierarchy.
-       Every sidebar colour is centralised here; 04-sidebar.css only references
-       these tokens (no scattered rgba). WCAG: sidebar ink remains AAA. ---- */
-    --ptg-sidebar-panel: #1A467D;     /* menu panel surface (slightly brighter navy) */
-    --ptg-sidebar-rail: #14355F;      /* outer rail surface (a touch deeper) */
-    --ptg-sidebar-ink: #DCE6F4;       /* nav label text — soft near-white, cool tint */
-    --ptg-sidebar-icon: #D2E7FF;      /* nav icon colour — bright cool azure, clearly off the navy */
+    /* ---- Sidebar / shell — Novatech brand column.
+       The whole sidebar is the brand blue; the active item sits on the darker
+       brand tone. Every sidebar colour is centralised here; 04-sidebar.css only
+       references these tokens. White ink on #007DB2 = 4.6:1 (AA). ---- */
+    --ptg-sidebar-panel: #007DB2;     /* sidebar surface */
+    --ptg-sidebar-rail: #007DB2;      /* collapsed icon rail — same surface */
+    --ptg-sidebar-foot: #006D9C;      /* account band at the bottom */
+    --ptg-sidebar-ink: #FFFFFF;       /* nav label text */
+    --ptg-sidebar-icon: #E6F4FA;      /* nav icon colour */
     --ptg-sidebar-ink-strong: #FFFFFF;/* active label colour */
-    --ptg-sidebar-accent: #F2F8FF;    /* active bar + active/hover icon (near-white azure) */
-    --ptg-sidebar-line: rgba(255, 255, 255, 0.20); /* dividers / submenu connector */
-    --ptg-sidebar-sub-ink: #CCDBEE;   /* submenu label — one step softer than the parent label */
-    --ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10);   /* item hover fill */
-    --ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14);  /* active item fill */
+    --ptg-sidebar-accent: #FFFFFF;    /* active bar + active/hover icon */
+    --ptg-sidebar-line: rgba(255, 255, 255, 0.18); /* dividers / submenu connector */
+    --ptg-sidebar-sub-ink: #F0F9FD;   /* submenu label */
+    --ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.08);   /* item hover fill */
+    --ptg-sidebar-active-bg: #006088;                    /* active item fill */
     --ptg-sidebar-railbtn-hover-bg: rgba(255, 255, 255, 0.12);
     --ptg-sidebar-railbtn-active-bg: rgba(255, 255, 255, 0.18);
-    --ptg-sidebar-danger: #FF9A9A;    /* logout on dark surface */
-    --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
+    --ptg-sidebar-danger: #FFE1E1;    /* logout on the blue surface */
+    --ptg-sidebar-warning: #FDE68A;   /* read-only fiscal year cue */
+    --ptg-sidebar-danger-bg: rgba(255, 255, 255, 0.10);
     --ptg-sidebar-monogram-bg: rgba(255, 255, 255, 0.10);
-    --ptg-sidebar-plate: transparent; /* white logo sits directly on the navy panel */
-    --ptg-sidebar-plate-border: rgba(42, 45, 69, 0.06); /* faint edge so the plate never floats */
-    --ptg-surface-tint: #F2F5FC;      /* soft lilac tint for chips / bulk bar */
-    --ptg-table-head-bg: #F2F5FC;     /* list/table header band — soft, low-contrast strip */
+    --ptg-sidebar-plate: transparent; /* white logo sits directly on the brand panel */
+    --ptg-sidebar-plate-border: rgba(255, 255, 255, 0.10);
+    --ptg-surface-tint: #E6F4FA;      /* brand tint for chips / bulk bar */
+    --ptg-table-head-bg: #F8FAFC;     /* list/table header band — slate-50 strip */
     --ptg-sidebar-rail-width: var(--layout-sidebar-mini);
     --ptg-sidebar-menu-width: var(--layout-sidebar);
 
-    /* ---- Radius (Phase 2: Standardized Enterprise Radii) ---- */
-    --radius-base: 6px;        /* input / select / textarea / control */
-    --radius-input: 6px;       /* form controls */
-    --radius-card: 8px;        /* panels, stat cards, containers */
-    --radius-card-16: 8px;     /* flat: former big card radius collapses to 8 */
-    --radius-table: 12px;      /* table wrapper / table card frame (Chortke .data-table) */
-    --radius-btn: 6px;        /* primary / secondary action buttons (Chortke) */
-    --radius-chip: 6px;       /* filter chips, status badges */
-    --radius-pill: 999px;      /* round status badges */
+    /* ---- Radius — frame 6 · control 8 · large/toast 12 · card and dialog 16 ---- */
+    --radius-base: 8px;        /* input / select / textarea / control */
+    --radius-input: 8px;       /* form controls */
+    --radius-card: 16px;       /* panels, stat cards, containers */
+    --radius-card-16: 16px;    /* panel / modal */
+    --radius-table: 16px;      /* table card frame */
+    --radius-btn: 8px;         /* every action button */
+    --radius-chip: 999px;      /* filter chips */
+    --radius-pill: 999px;      /* status badges */
 
-    /* ---- Shadows — flat content; depth only for overlay components ---- */
-    --shadow-card: none;
-    --shadow-dialog: 0 10px 30px rgba(16, 24, 40, .10);
-    --shadow-dropdown: 0 6px 18px rgba(16, 24, 40, .08);
+    /* ---- Shadows — soft cards, slate-tinted overlays ---- */
+    --shadow-card: 0 4px 20px rgba(15, 23, 42, .08), 0 1px 3px rgba(15, 23, 42, .10);
+    --shadow-dialog: 0 20px 50px rgba(15, 23, 42, .18);
+    --shadow-dropdown: 0 10px 30px rgba(15, 23, 42, .12);
 
     /* ---- Layout metrics ---- */
-    --layout-sidebar: 224px;        /* expanded desktop sidebar */
-    --layout-sidebar-mini: 88px;    /* persistent laptop / collapsed desktop rail */
+    --layout-sidebar: 240px;        /* expanded desktop sidebar */
+    --layout-sidebar-mini: 64px;    /* persistent laptop / collapsed desktop icon rail */
     --layout-navpanel: var(--layout-sidebar);
     --layout-rail: var(--layout-sidebar-mini);
     --layout-shell-gap: 0px;
-    --layout-nav-mobile: 304px;
-    --layout-header: 64px;
+    --layout-nav-mobile: 240px;
+    --layout-header: 48px;
     --layout-transition: 150ms ease-out;
-    --layout-content-max: 1280px;
-    --layout-gutter-desktop: 40px;
-    --layout-gutter-laptop: 32px;
-    --layout-gutter-compact: 24px;
+    --layout-content-max: 1600px;
+    --layout-gutter-desktop: 56px;
+    --layout-gutter-laptop: 48px;
+    --layout-gutter-compact: 32px;
     --layout-gutter-mobile: 16px;
 
     /* ---- Page working surface (72-surfaces.css paints it) ---- */
     --ptg-page-surface-padding: 24px;
     --ptg-page-surface-radius: var(--radius-card);
 
-    /* ---- Akaunting motion ---- */
+    /* ---- Motion ---- */
     --ptg-motion-fast: 140ms;
 
-    /* ---- Shared typography scale — readable office ERP (Vazirmatn) ---- */
-    --font-page-title: 20px;    --line-page-title: 1.5; --weight-page-title: 500;
-    --font-section-title: 16px; --line-section-title: 1.5; --weight-section-title: 500;
-    --font-card-title: 17px;    --line-card-title: 1.5; --weight-card-title: 600;
-    --font-body: 15px;          --line-body: 1.6; --weight-body: 400;
-    /* لیبل فرم: چرتکه 14px/20px با وزن عادی — لیبل بولد ریز صفحه را شلوغ نشان می‌دهد. */
+    /* ---- Shared typography scale — Novatech (IRANSans 400 / 500 / 700) ----
+       14px is the base for body, tables, controls and buttons. Only three real
+       weights exist: 500–600 share the Medium file, 700–800 the Bold file. */
+    --font-page-title: 20px;    --line-page-title: 1.4; --weight-page-title: 700;
+    --font-section-title: 18px; --line-section-title: 1.5; --weight-section-title: 700;
+    --font-card-title: 16px;    --line-card-title: 1.5; --weight-card-title: 700;
+    --font-body: 14px;          --line-body: 1.7; --weight-body: 400;
     --font-label: 14px;         --line-label: 1.6; --weight-label: 500;
-    /* هدر جدول: چرتکه 14px/700 با رنگ کم‌کنتراست تا داده جلوتر بنشیند. */
-    --font-table-head: 14px;    --line-table-head: 1.5; --weight-table-head: 500;
+    --font-table-head: 14px;    --line-table-head: 1.5; --weight-table-head: 700;
     --font-table-cell: 14px;    --line-table-cell: 1.5; --weight-table-cell: 400;
-    /* چرتکه مقیاس تایپ را عمداً کم‌تنوع نگه می‌دارد: 24 / 16 / 14 (+11 ریزنوشته).
-       اعداد هم‌اندازه متن بدنه‌اند و خوانایی از tabular-nums می‌آید، نه از ریز کردن. */
     --font-number: 14px;        --line-number: 1.5; --weight-number: 400;
-    --font-kpi: 25px;           --line-kpi: 1.25; --weight-kpi: 600;
-    --font-caption: 13px;       --line-caption: 1.5; --weight-caption: 400;
+    --font-kpi: 24px;           --line-kpi: 1.25; --weight-kpi: 700;
+    --font-caption: 12px;       --line-caption: 1.5; --weight-caption: 400;
     --font-button: 14px;        --line-button: 1.43; --weight-button: 500;
-    --font-status: 14px;        --line-status: 1; --weight-status: 600;
+    --font-status: 12px;        --line-status: 1; --weight-status: 500;
 
     /* Legacy aliases remain stable while resolving to the shared scale. */
-    --font-h1: var(--font-page-title); --lh-h1: 33px; --fw-h1: var(--weight-page-title);
-    --font-h2: 20px; --lh-h2: 26px; --fw-h2: 600;
-    --font-h3: 18px; --lh-h3: 27px; --fw-h3: 600;
-    --font-h4: var(--font-card-title); --lh-h4: 25px; --fw-h4: var(--weight-card-title);
-    --font-h5: 17px; --lh-h5: 25px; --fw-h5: 600;
-    --font-h6: var(--font-label); --lh-h6: 24px; --fw-h6: var(--weight-label);
-    --font-body1: var(--font-body); --lh-body1: 25px;
-    --font-body2: var(--font-label); --lh-body2: 24px;
-    --lh-caption: 23px;
-    --lh-button: 23px; --fw-button: var(--weight-button);
+    --font-h1: var(--font-page-title); --lh-h1: 28px; --fw-h1: var(--weight-page-title);
+    --font-h2: 20px; --lh-h2: 28px; --fw-h2: 700;
+    --font-h3: 18px; --lh-h3: 28px; --fw-h3: 700;
+    --font-h4: var(--font-card-title); --lh-h4: 24px; --fw-h4: var(--weight-card-title);
+    --font-h5: 16px; --lh-h5: 24px; --fw-h5: 700;
+    --font-h6: var(--font-label); --lh-h6: 22px; --fw-h6: var(--weight-label);
+    --font-body1: var(--font-body); --lh-body1: 24px;
+    --font-body2: var(--font-label); --lh-body2: 22px;
+    --lh-caption: 16px;
+    --lh-button: 20px; --fw-button: var(--weight-button);
 
-    /* ---- Legacy app-* aliases (retargeted to Akaunting) ---- */
+    /* ---- Legacy app-* aliases ---- */
     --app-bg: var(--background-default);
     --app-border: var(--divider);
     --app-text: var(--text-primary);
@@ -172,99 +170,98 @@
     --app-primary-hover: var(--primary-dark);
     --app-danger: var(--error-main);
 
-    /* ---- Legacy ptg-* aliases (retargeted to Akaunting) ---- */
+    /* ---- Legacy ptg-* aliases ---- */
     --ptg-bg: var(--background-default);
     --ptg-surface: var(--background-default);
     --ptg-surface-soft: var(--background-neutral);
     --ptg-soft-section: var(--background-neutral);
     --ptg-table-header: var(--ptg-table-head-bg);
-    /* هدر جدول کم‌کنتراست + hover بسیار روشن ردیف — همان مقادیر چرتکه. */
-    --ptg-table-head-ink: #7E8C9E;
-    --ptg-table-row-hover: #F7F9FD;
-    --ptg-table-row-line: #E8E8E8;
+    /* سرستون جدول: slate-600 روی نوار slate-50؛ hover ردیف slate-50. */
+    --ptg-table-head-ink: #475569;
+    --ptg-table-row-hover: #F8FAFC;
+    --ptg-table-row-line: #F1F5F9;
     --ptg-border: var(--divider);
-    --ptg-border-strong: #ABBACC;   /* cool lavender-gray — field borders */
+    --ptg-border-strong: #94A3B8;   /* slate-400 — strong field border */
     --ptg-input-border: #CBD5E1;
-    /* ---- Form-field surfaces — calibrated to the reference kit ----
-       canvas #FCFCFC (off-white)  ·  field fill #FFFFFF (pure white)
-       borders = cool lavender-gray  ·  disabled = soft cool gray-blue. */
+    /* ---- Form-field surfaces ----
+       canvas #F3F4F8  ·  field fill #FFFFFF  ·  border slate-300  ·  disabled slate-50. */
     --ptg-field-bg: #FFFFFF;
-    --ptg-field-border: #CBD5E1;        /* Chortke control border */
-    --ptg-field-border-hover: #ABBACC;
-    --ptg-field-disabled-bg: var(--background-neutral); /* Chortke filled/readonly field */
-    --ptg-field-placeholder: #AEAEAE;
-    --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .12);
+    --ptg-field-border: #CBD5E1;        /* slate-300 control border */
+    --ptg-field-border-hover: #94A3B8;
+    --ptg-field-disabled-bg: var(--background-neutral);
+    --ptg-field-placeholder: #94A3B8;
+    --ptg-field-focus-ring: rgba(var(--primary-main-rgb), .18);
 
     /* ---- Create/Edit form column — constrained, start-aligned ---- */
     /* One form width for the whole system (see 76-form-system.css). */
     --ak-form-content-max: var(--chk-form-width);
     --ptg-text: var(--text-primary);
     --ptg-muted: var(--text-secondary);
-    --ptg-label: #2B2B2B;   /* Chortke form-label ink */
+    --ptg-label: #334155;   /* slate-700 form-label ink */
     --ptg-light: var(--text-disabled);
     --ptg-primary: var(--primary-main);
     --ptg-primary-dark: var(--primary-dark);
-    --ptg-primary-soft: rgba(16, 98, 208, 0.08);
-    --ptg-primary-tint: #E8F1FF;    /* Purple 100 */
+    --ptg-primary-soft: rgba(0, 125, 178, 0.08);
+    --ptg-primary-tint: #E6F4FA;    /* brand 50 */
     --ptg-primary-contrast: var(--primary-contrast);
     /* Primary actions and interaction share one palette. */
     --ptg-btn-primary: var(--primary-main);
     --ptg-btn-primary-dark: var(--primary-dark);
     --ptg-btn-primary-rgb: var(--primary-main-rgb);
-    --ptg-btn-primary-tint: #E8F1FF;
+    --ptg-btn-primary-tint: #E6F4FA;
 
-    /* دکمهٔ ثانویه/خنثی (Akaunting «Connect Your Bank»): خاکستری نرم، بدون بوردر. */
-    --ptg-btn-quiet: #F7F7F7;
-    --ptg-btn-quiet-hover: #ECECEC;
-    --ptg-btn-quiet-text: #4F4F4F;
+    /* دکمهٔ خنثی (subtle): slate-100 با متن slate-700، بدون بوردر. */
+    --ptg-btn-quiet: #F1F5F9;
+    --ptg-btn-quiet-hover: #E2E8F0;
+    --ptg-btn-quiet-text: #334155;
     --ptg-accent-blue: var(--info-main);
-    --ptg-accent-blue-soft: #E8F1FF;
+    --ptg-accent-blue-soft: #DBEAFE;
+    /* Badge tones: 100 surface + 700 ink (4.8–6:1). */
     --ptg-danger: var(--error-main);
-    --ptg-danger-soft: #FFEAF0;
-    --ptg-danger-text: #B00A0A;
+    --ptg-danger-soft: #FEE2E2;
+    --ptg-danger-text: #B91C1C;
     --ptg-warning: var(--warning-main);
-    --ptg-warning-soft: #FDF1E3;
-    --ptg-warning-text: #8A5200;
+    --ptg-warning-soft: #FEF3C7;
+    --ptg-warning-text: #B45309;
     --ptg-success: var(--success-main);
-    --ptg-success-soft: #E7F5E9;
-    --ptg-success-text: #23713B;
-    --ptg-info-soft: #E8F1FF;
-    --ptg-info-text: #0D52AF;
-    --ptg-viewed-soft: #EEEEF3;
-    --ptg-viewed-text: #4D4F7D;
-    --ptg-draft-soft: #ECECEC;
-    --ptg-draft-text: #3B3B3B;
-
-    /* ---- Chart series (Akaunting) ---- */
+    --ptg-success-soft: #D1FAE5;
+    --ptg-success-text: #047857;
+    --ptg-info-soft: #DBEAFE;
+    --ptg-info-text: #1D4ED8;
+    --ptg-viewed-soft: #F3E8FF;
+    --ptg-viewed-text: #7E22CE;
+    --ptg-draft-soft: #F1F5F9;
+    --ptg-draft-text: #475569;
 
     --ptg-radius-card: var(--radius-card-16);
-    --ptg-radius-input: 6px;
+    --ptg-radius-input: 8px;
     --ptg-radius-button: var(--radius-btn);
-    --ptg-radius-badge: 6px;
+    --ptg-radius-badge: 999px;
     --ptg-radius-avatar: 9999px;
-    --ptg-radius-sm: 4px;
-    --ptg-radius-md: 6px;
-    --ptg-radius-lg: 8px;
-    --ptg-radius-xl: 10px;
+    --ptg-radius-sm: 6px;
+    --ptg-radius-md: 8px;
+    --ptg-radius-lg: 12px;
+    --ptg-radius-xl: 16px;
 
-    /* ---- Spacing (4px scale) ---- */
-    --ptg-space-page: 16px;
-    --ptg-page-top: 4px; /* slim top gap above header + sidebar */
-    --ptg-space-card: 16px;
-    --ptg-space-gap: 12px;
+    /* ---- Spacing (4px scale; 24px between page blocks) ---- */
+    --ptg-space-page: 24px;
+    --ptg-page-top: 0px;
+    --ptg-space-card: 24px;
+    --ptg-space-gap: 24px;
     --ptg-space-gap-lg: 24px;
-    --ptg-space-field: 12px;
+    --ptg-space-field: 16px;
 
     --ptg-shadow-soft: none;
     --ptg-shadow-card: none;
 
-    /* Panel elevation. Content panels (cards, KPI tiles, detail and form panels,
-       list surfaces) drop their 1px outline and separate from the page with this
-       soft shadow instead. Single source of truth — the dashboard chart cards
-       read the same token, so the two can never drift apart. */
-    --ptg-panel-shadow: 0 1px 3px rgba(16, 24, 40, 0.04), 0 10px 28px rgba(16, 24, 40, 0.06);
+    /* Panel elevation (Novatech card). Content panels (cards, KPI tiles, detail
+       and form panels, list surfaces) separate from the canvas with this soft
+       shadow. Panels never lift on hover; only clickable tiles do. */
+    --ptg-panel-shadow: 0 4px 20px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.10);
+    --ptg-panel-shadow-hover: 0 16px 48px rgba(15, 23, 42, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08);
+    --ptg-panel-border-hover: #DDE3EA;
 
-    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 3px rgba(16, 98, 208, 0.12);
+    --ptg-ring: 0 0 0 1px var(--primary-main), 0 0 0 3px rgba(0, 125, 178, 0.18);
 
     --ptg-sidebar-width: var(--layout-sidebar);
     --ptg-mini-sidebar: var(--layout-sidebar-mini);
@@ -301,35 +298,36 @@
 
     --chk-primary: var(--primary-main);
     --chk-primary-hover: var(--primary-dark);
-    --chk-primary-light: #E8F1FF;
+    --chk-primary-light: #E6F4FA;
 
     --chk-surface: #FFFFFF;
-    --chk-surface-soft: #F2F5FC;
-    --chk-rail: #F7F7F7;
+    --chk-surface-soft: #F8FAFC;
+    --chk-rail: #F1F5F9;
     --chk-disabled-bg: #F8FAFC;
 
-    --chk-border: #C2D0E3;
-    --chk-border-strong: #ABBACC;
-    --chk-border-soft: #E7E7E7;
+    --chk-border: #CBD5E1;
+    --chk-border-strong: #94A3B8;
+    --chk-border-soft: #E2E8F0;
 
-    --chk-title: #1A1919;
-    --chk-text: #3D3D3D;
-    --chk-label: #4F4F4F;
-    --chk-text-secondary: #6F6F6F;
-    --chk-text-muted: #AEAEAE;
+    --chk-title: #1E293B;
+    --chk-text: #334155;
+    --chk-label: #334155;
+    --chk-text-secondary: #64748B;
+    --chk-text-muted: #94A3B8;
 
-    --chk-success: #24AF22;
-    --chk-success-light: #E7F5E9;
-    --chk-danger: #CB0B0B;
-    --chk-danger-light: #FFEAF0;
+    --chk-success: #059669;
+    --chk-success-light: #D1FAE5;
+    --chk-danger: #DC2626;
+    --chk-danger-light: #FEE2E2;
 
-    --chk-control-h: 44px;
-    --chk-compact-h: 38px;
-    --chk-button-h: 48px;
-    --chk-radius-control: 6px;
-    --chk-radius-surface: 8px;
+    /* Novatech control scale: 40 default · 44 large (save, toolbar) · 32 compact. */
+    --chk-control-h: 40px;
+    --chk-compact-h: 32px;
+    --chk-button-h: 44px;
+    --chk-radius-control: 8px;
+    --chk-radius-surface: 16px;
 
-    --chk-col-gap: 12px;
+    --chk-col-gap: 16px;
     --chk-row-gap: 16px;
     --chk-section-gap: 24px;
     --chk-surface-pad: 24px;
@@ -339,35 +337,34 @@
        Single source for the three shared field components. Field surface tokens
        reuse the calibrated --ptg-field-* above; component-specific values below. */
     --ak-control-height: var(--chk-control-h);
-    /* ارتفاع فشرده — همان مقدار فرم مرجع «ثبت دریافت / پرداخت»؛ برای کنترل‌های
-       نوار ابزار و پاورقی لیست‌ها که نباید هم‌قد فیلد اصلی فرم باشند. */
+    /* ارتفاع فشرده — برای کنترل‌های پاورقی لیست، pager و اکشن ردیف. */
     --ak-control-compact-height: var(--chk-compact-h);
     --ak-control-bg: var(--ptg-field-bg);
     --ak-control-border: var(--ptg-field-border);
     --ak-control-border-focus: var(--primary-main);
-    --ak-control-radius: 6px;
+    --ak-control-radius: 8px;
     --ak-control-text: var(--ptg-text);
     --ak-control-placeholder: var(--ptg-field-placeholder);
 
     /* Date picker popup */
     --ak-date-panel-bg: #FFFFFF;
-    --ak-date-panel-border: #E7E7E7;
-    --ak-date-panel-radius: 8px;
-    --ak-date-panel-shadow: 0 6px 18px rgba(16, 24, 40, 0.08);
-    --ak-date-weekday: #777777;
-    --ak-date-day-text: #555555;
-    --ak-date-muted: #D1D2D8;
-    --ak-date-hover-bg: #F5F6FA;
+    --ak-date-panel-border: #E2E8F0;
+    --ak-date-panel-radius: 12px;
+    --ak-date-panel-shadow: var(--shadow-dropdown);
+    --ak-date-weekday: #64748B;
+    --ak-date-day-text: #334155;
+    --ak-date-muted: #CBD5E1;
+    --ak-date-hover-bg: #F1F5F9;
     --ak-date-selected-bg: var(--primary-main);
     --ak-date-selected-text: #FFFFFF;
     --ak-date-motion-duration: 140ms;
 
     /* Segmented boolean */
     --ak-segment-height: 36px;
-    --ak-segment-radius: 6px;
-    --ak-segment-padding-inline: 11px;
-    --ak-segment-off-bg: #F7F7F7;
-    --ak-segment-off-text: #6F6F6F;
+    --ak-segment-radius: 8px;
+    --ak-segment-padding-inline: 12px;
+    --ak-segment-off-bg: #F1F5F9;
+    --ak-segment-off-text: #475569;
     --ak-segment-no-bg: var(--error-main);
     --ak-segment-no-text: #FFFFFF;
     --ak-segment-yes-bg: var(--success-main);
@@ -378,10 +375,10 @@
     --ak-selection-chip-text: #FFFFFF;
     --ak-selection-chip-remove: rgba(255, 255, 255, 0.74);
     --ak-selection-chip-height: 30px;
-    --ak-selection-chip-radius: 4px;
-    --ak-selection-chip-padding-inline: 10px;
-    --ak-selection-chip-muted-bg: #F2F5FC;
-    --ak-selection-chip-muted-text: #6F6F6F;
+    --ak-selection-chip-radius: 999px;
+    --ak-selection-chip-padding-inline: 12px;
+    --ak-selection-chip-muted-bg: #F1F5F9;
+    --ak-selection-chip-muted-text: #475569;
 }
 
 /* Dark-mode calibration for the shared components. */
@@ -402,11 +399,9 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    /* Akaunting flat ground: the content sits directly on the near-white body.
-       Inside a panel, separation still comes from 1px dividers and whitespace.
-       The panel itself is lifted off the page by --ptg-panel-shadow (see
-       72-surfaces.css), not by an outline. */
-    --ptg-bg: #F5F6FA;
+    /* Content sits on the #F3F4F8 canvas; white panels are lifted by
+       --ptg-panel-shadow (see 72-surfaces.css), not by an outline. */
+    --ptg-bg: #F3F4F8;
     --ptg-shadow-card: none;
     --boltz-bg: var(--ptg-bg);
     --boltz-surface-soft: var(--ptg-surface-soft);
@@ -441,9 +436,9 @@ body.ptg-modal-document {
     --ptg-panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
 
     /* Form design system in dark mode — same roles, dark surfaces. */
-    --chk-primary: #5B94E3;
-    --chk-primary-hover: #7DAEEB;
-    --chk-primary-light: rgba(91, 148, 227, 0.16);
+    --chk-primary: #38A8D8;
+    --chk-primary-hover: #63BCE2;
+    --chk-primary-light: rgba(56, 168, 216, 0.16);
 
     --chk-surface: #1E1E27;
     --chk-surface-soft: #26262F;
@@ -460,8 +455,8 @@ body.ptg-modal-document {
     --chk-text-secondary: #B7B7C2;
     --chk-text-muted: #6F6F7A;
 
-    --chk-success: #5FD65C;
-    --chk-success-light: rgba(95, 214, 92, 0.16);
+    --chk-success: #34D399;
+    --chk-success-light: rgba(52, 211, 153, 0.16);
     --chk-danger: #FF9A9A;
     --chk-danger-light: rgba(255, 120, 120, 0.14);
 
@@ -476,24 +471,25 @@ body.ptg-modal-document {
     --ptg-table-head-bg: #2A2A34;
 
     /* Sidebar lifts a few points above the darker content canvas (#16161D)
-       so the edge stays legible in dark mode; hue stays in the indigo family. */
+       so the edge stays legible in dark mode; the accent stays brand blue. */
     --ptg-sidebar-panel: #1E1E27;
     --ptg-sidebar-rail: #16161D;
+    --ptg-sidebar-foot: #16161D;
     --ptg-sidebar-ink: #B7B7C2;
     --ptg-sidebar-icon: #B7B7C2;
     --ptg-sidebar-ink-strong: #FFFFFF;
-    --ptg-sidebar-accent: #5B94E3;
+    --ptg-sidebar-accent: #38A8D8;
     --ptg-sidebar-line: rgba(255, 255, 255, 0.14);
     --ptg-sidebar-sub-ink: #9E9E9E;
     --ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.06);
-    --ptg-sidebar-active-bg: rgba(91, 148, 227, 0.16);
+    --ptg-sidebar-active-bg: rgba(56, 168, 216, 0.18);
     --ptg-sidebar-danger: #FF9A9A;
     --ptg-sidebar-danger-bg: rgba(255, 120, 120, 0.12);
     --ptg-sidebar-plate: transparent;
     --ptg-sidebar-plate-border: rgba(255, 255, 255, 0.10);
 }
 
-/* Keep the dark shell dark — beats the body-level light near-white override. */
+/* Keep the dark shell dark — beats the body-level light canvas override. */
 :root[data-theme="dark"] body.boltz-shell.app-shell-authenticated,
 :root[data-bs-theme="dark"] body.boltz-shell.app-shell-authenticated,
 body.boltz-shell.app-shell-authenticated[data-bs-theme="dark"],

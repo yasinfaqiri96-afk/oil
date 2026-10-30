@@ -1,19 +1,20 @@
 /*
- * PTG sidebar — compact menu panel.
+ * PTG sidebar — Novatech brand column. The single owner of sidebar visuals;
+ * no other layer restyles .ptg-sidebar, the brand, the nav items or the footer.
  *
- *   .ak-navpanel  280px  surface   main menu (icon + label + inline submenus)
- *   ------------------------------------------------------------------
- *   desktop sidebar column = 280px
+ *   expanded desktop (>=1200)   240px  icon + label + inline submenus
+ *   collapsed desktop / laptop   64px  icon-only rail (native title tooltip)
+ *   below 992px                 240px  off-canvas drawer from the inline-start edge
  *
- * Collapsed desktop / laptop: the panel becomes an 88px icon rail.
- * Below 992px: the whole sidebar becomes an off-canvas drawer.
- * All geometry uses logical properties so RTL keeps the sidebar on the right,
- * with the rail on the outer edge and the panel toward the content.
+ * Colours come only from the --ptg-sidebar-* tokens in 01-tokens.css.
+ * All geometry uses logical properties so RTL keeps the sidebar on the right.
  */
 
 body.boltz-shell.app-shell-authenticated {
     --ptg-sidebar-width: var(--layout-sidebar);
     --boltz-sidebar-width: var(--layout-sidebar);
+    --ptg-nav-item-h: 44px;
+    --ptg-nav-ic-size: 22px;
 }
 
 @media (min-width: 1200px) {
@@ -26,71 +27,57 @@ body.boltz-shell.app-shell-authenticated {
     }
 }
 
-/* ---- Sidebar shell: flex row of rail + panel, no colour of its own ---- */
+/* ---- Sidebar column ---- */
 body.boltz-shell.app-shell-authenticated .ptg-sidebar {
     position: sticky;
     top: 0;
+    z-index: 1040;
+    align-self: start;
     display: flex;
     align-items: stretch;
     inline-size: var(--layout-sidebar);
     min-block-size: 100vh;
     max-block-size: 100vh;
     overflow: hidden;
-    background: none;
     border: 0;
     border-radius: 0;
+    background: var(--ptg-sidebar-panel);
     box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    transition: inline-size 300ms ease;
 }
 
-/* ============================================================= *
- * Main menu panel
- * ============================================================= */
 body.boltz-shell.app-shell-authenticated .sidebar-panel,
 body.boltz-shell.app-shell-authenticated .ak-navpanel {
     display: flex;
+    flex-direction: column;
     flex: 0 0 var(--layout-navpanel);
     inline-size: var(--layout-navpanel);
     min-inline-size: 0;
+    block-size: 100vh;
+    block-size: 100dvh;
+    min-block-size: 0;
     background: var(--ptg-sidebar-panel);
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll {
-    display: flex;
-    flex-direction: column;
-    inline-size: 100%;
+/* ---- Header: brand + fiscal-year context (fixed, never scrolls) ---- */
+body.boltz-shell.app-shell-authenticated .mashal-sidebar-header {
+    position: relative;
+    flex: 0 0 auto;
     min-inline-size: 0;
-    min-block-size: 100vh;
-    max-block-size: 100vh;
-    gap: 18px;
-    padding: 22px 6px;
-    background: transparent;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--ptg-sidebar-line) transparent;
+    padding: 0 12px 16px;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll::-webkit-scrollbar {
-    width: 5px;
+body.boltz-shell.app-shell-authenticated .mashal-sidebar-close {
+    display: none;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll::-webkit-scrollbar-thumb {
-    background: var(--ptg-sidebar-line);
-    border-radius: 8px;
-}
-
-/* ---- Brand ----
- * Expanded: the transparent white wordmark sits directly on the sidebar.
- * Collapsed: only the compact colour brand mark shows (see rail blocks).
- */
 body.boltz-shell.app-shell-authenticated .boltz-brand {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-block-size: 72px;
-    padding-block: 14px 6px;
-    padding-inline: 6px;
+    block-size: 64px;
+    min-block-size: 64px;
+    padding: 8px 0;
     border: 0;
     background: transparent;
 }
@@ -100,36 +87,146 @@ body.boltz-shell.app-shell-authenticated .boltz-brand-mark {
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    inline-size: 100%;
-    padding: 10px 8px;
+    inline-size: 48px;
+    block-size: 48px;
+    padding: 0;
     border: 0;
     border-radius: 0;
-    background: transparent;
+    background: var(--ptg-sidebar-plate) center / contain no-repeat;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-brand-logo {
     display: block;
-    inline-size: 92%;
-    block-size: auto;
-    max-inline-size: 100%;
+    inline-size: 100%;
+    block-size: 100%;
     object-fit: contain;
 }
 
-/* ---- Nav ---- */
+body.boltz-shell.app-shell-authenticated .mashal-sidebar-context {
+    display: grid;
+    gap: 8px;
+}
+
+/* Fiscal-year switcher: the sidebar search-row of the reference (32px, 6px radius). */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-wrap {
+    position: relative;
+    display: flex;
+    inline-size: 100%;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    inline-size: 100%;
+    block-size: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--ptg-sidebar-line);
+    border-radius: 6px;
+    background: var(--ptg-sidebar-hover-bg);
+    color: var(--ptg-sidebar-ink);
+    box-shadow: none;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color var(--layout-transition), border-color var(--layout-transition);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear::after {
+    display: none;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear:hover,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear[aria-expanded="true"] {
+    border-color: rgba(255, 255, 255, 0.32);
+    background: var(--ptg-sidebar-railbtn-hover-bg);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear:focus-visible {
+    outline: 2px solid var(--ptg-sidebar-accent);
+    outline-offset: 1px;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-ico {
+    flex: 0 0 auto;
+    color: var(--ptg-sidebar-icon);
+    font-size: 15px;
+    line-height: 1;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-text {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    line-height: 1;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-caption {
+    display: none;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-name {
+    overflow: hidden;
+    color: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear-caret {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    color: var(--ptg-sidebar-icon);
+    font-size: 11px;
+    line-height: 1;
+    transition: transform var(--layout-transition);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .ptg-hfyear[aria-expanded="true"] .ptg-hfyear-caret {
+    transform: rotate(180deg);
+}
+
+/* Read-only year: the only colour cue in the row. */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar :is(.ptg-hfyear.is-readonly .ptg-hfyear-ico, .ptg-hfyear-lock) {
+    color: var(--ptg-sidebar-warning);
+    font-size: 13px;
+}
+
+/* ---- Scrolling menu (only the nav list scrolls; scrollbar hidden) ---- */
+body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+    min-block-size: 0;
+    padding: 0 12px 12px;
+    background: transparent;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll::-webkit-scrollbar {
+    inline-size: 0;
+    block-size: 0;
+}
+
 body.boltz-shell.app-shell-authenticated .boltz-sidebar-nav {
     display: flex;
     flex-direction: column;
     inline-size: 100%;
     min-block-size: 0;
-    padding: 0;
     margin: 0;
+    padding: 0;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-sidebar-nav,
 body.boltz-shell.app-shell-authenticated .boltz-nav-list {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 8px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -140,66 +237,62 @@ body.boltz-shell.app-shell-authenticated .boltz-nav-item {
     list-style: none;
 }
 
-/* Top-level item / group toggle */
-body.boltz-shell.app-shell-authenticated .boltz-nav-link,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link {
+/* ---- Top-level item / group toggle / footer link: 44px, 8px radius ---- */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: flex-start;
     inline-size: 100%;
-    min-block-size: 40px;
-    gap: 5px;
-    padding-block: 5px;
-    padding-inline: 5px;
-    border: 0 !important;
+    min-block-size: var(--ptg-nav-item-h);
+    gap: 12px;
+    padding-block: 0;
+    padding-inline: 12px 8px;
+    border: 0;
     border-radius: 8px;
-    background: transparent !important;
-    color: var(--ptg-sidebar-ink) !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
+    background: transparent;
+    color: var(--ptg-sidebar-ink);
+    box-shadow: none;
     text-align: start;
+    text-decoration: none;
     font: inherit;
     cursor: pointer;
     transition: background-color var(--ptg-motion-fast) ease-out,
                 color var(--ptg-motion-fast) ease-out;
 }
 
-/* Compact icon container leaves more room for Persian labels. */
 body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
     display: grid;
     place-items: center;
-    flex: 0 0 26px;
-    inline-size: 26px;
-    block-size: 26px;
+    flex: 0 0 var(--ptg-nav-ic-size);
+    inline-size: var(--ptg-nav-ic-size);
+    block-size: var(--ptg-nav-ic-size);
     margin: 0;
     background: transparent;
-}
-
-body.boltz-shell.app-shell-authenticated .ptg-nav-ic {
     color: var(--ptg-sidebar-icon);
+    opacity: .9;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-nav-ic > svg {
     display: block;
-    inline-size: 22px;
-    block-size: 22px;
-    color: var(--ptg-sidebar-icon);
+    inline-size: var(--ptg-nav-ic-size);
+    block-size: var(--ptg-nav-ic-size);
+    color: inherit;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-link > span,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link span {
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link > span,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link span {
     flex: 1 1 auto;
     min-inline-size: 0;
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-    overflow-wrap: break-word;
-    color: var(--ptg-sidebar-ink);
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1.35;
-    letter-spacing: 0;
+    overflow: hidden;
+    color: inherit;
+    font-size: 13.5px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: .2px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Submenu arrow — rotates 180° when open */
@@ -208,9 +301,9 @@ body.boltz-shell.app-shell-authenticated .ptg-nav-arrow {
     place-items: center;
     flex: 0 0 auto;
     inline-size: 14px;
-    block-size: 18px;
+    block-size: 14px;
     color: var(--ptg-sidebar-icon);
-    transition: transform 0.3s ease;
+    transition: transform .3s ease;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-nav-arrow > svg {
@@ -222,90 +315,62 @@ body.boltz-shell.app-shell-authenticated .ptg-has-sub.is-open > .boltz-nav-group
     transform: rotate(180deg);
 }
 
-/* Hover / focus — همان پوستهٔ آیتم فعال: قرص گردِ هم‌رنگ با آیکنِ اکسنت. */
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:hover,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:focus-visible,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:hover,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:focus-visible {
-    color: var(--ptg-sidebar-ink-strong) !important;
-    background: var(--ptg-sidebar-hover-bg) !important;
-    box-shadow: none !important;
-    outline: none;
+/* Hover — white 8% wash */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link:hover,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link:hover {
+    background: var(--ptg-sidebar-hover-bg);
+    color: var(--ptg-sidebar-ink-strong);
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:hover > span,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:focus-visible > span,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):hover span,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):focus-visible span {
-    color: var(--ptg-sidebar-ink-strong) !important;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:hover .ptg-nav-ic,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:focus-visible .ptg-nav-ic,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):hover .ptg-nav-ic,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):focus-visible .ptg-nav-ic,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:hover .ptg-nav-ic > svg,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link:focus-visible .ptg-nav-ic > svg,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):hover .ptg-nav-ic > svg,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:not(.boltz-sidebar-foot-link-danger):focus-visible .ptg-nav-ic > svg {
+body.boltz-shell.app-shell-authenticated .ptg-sidebar :is(.boltz-nav-link, .boltz-sidebar-foot-link):hover .ptg-nav-ic,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link.is-active .ptg-nav-ic {
     color: var(--ptg-sidebar-accent);
+    opacity: 1;
 }
 
-/* Active — bold dark label + indigo leading rail (Akaunting) */
-body.boltz-shell.app-shell-authenticated .boltz-nav-link.is-active {
-    color: var(--ptg-sidebar-ink-strong) !important;
-    background: var(--ptg-sidebar-active-bg) !important;
+/* Active — darker brand fill, medium label */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link.is-active {
+    background: var(--ptg-sidebar-active-bg);
+    color: var(--ptg-sidebar-ink-strong);
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-link.is-active > span {
-    color: var(--ptg-sidebar-ink-strong) !important;
-    font-weight: 700;
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-link.is-active > span {
+    font-weight: 500;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-link.is-active .ptg-nav-ic,
-body.boltz-shell.app-shell-authenticated .boltz-nav-link.is-active .ptg-nav-ic > svg {
-    color: var(--ptg-sidebar-accent);
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-nav-link.is-active::before {
-    content: "";
-    position: absolute;
-    inset-inline-start: 0;
-    inset-block-start: 50%;
-    inline-size: 2px;
-    block-size: 18px;
-    transform: translateY(-50%);
-    border-radius: 2px;
-    background: var(--ptg-sidebar-accent);
+body.boltz-shell.app-shell-authenticated .ptg-sidebar :is(.boltz-nav-link, .boltz-nav-sublink, .boltz-sidebar-foot-link, .mashal-sidebar-close):focus-visible {
+    outline: 2px solid var(--ptg-sidebar-accent);
+    outline-offset: -2px;
 }
 
 /* ---- Submenu (inline accordion) ---- */
 body.boltz-shell.app-shell-authenticated .boltz-nav-sub {
     position: relative;
-    list-style: none;
     margin: 0;
     padding: 0;
     overflow: hidden;
+    list-style: none;
     max-block-size: 0;
     opacity: 0;
     transform: translateY(-0.5em);
-    transition: max-block-size 0.5s ease-out,
-                opacity 0.5s ease-out,
-                transform 0.5s ease-out;
+    transition: max-block-size .5s ease-out,
+                opacity .5s ease-out,
+                transform .5s ease-out;
 }
 
 body.boltz-shell.app-shell-authenticated .ptg-has-sub.is-open > .boltz-nav-sub {
     max-block-size: 40em;
+    padding-block: 4px;
     opacity: 1;
     transform: translateY(0);
 }
 
-/* 1px connector line running down the submenu, under the icon centre */
+/* 1px connector line under the icon centre */
 body.boltz-shell.app-shell-authenticated .boltz-nav-sub::before {
     content: "";
     position: absolute;
     inset-block: 4px;
-    inset-inline-start: 15px;
+    inset-inline-start: 22px;
     inline-size: 1px;
     background: var(--ptg-sidebar-line);
 }
@@ -315,73 +380,53 @@ body.boltz-shell.app-shell-authenticated .boltz-nav-subitem {
     list-style: none;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink {
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-sublink {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 5px;
-    min-block-size: 32px;
+    min-block-size: 36px;
     margin-block-start: 2px;
     padding-block: 4px;
-    padding-inline-start: 26px;
-    padding-inline-end: 4px;
+    padding-inline: 46px 8px;
     border-radius: 8px;
-    color: var(--ptg-sidebar-sub-ink) !important;
-    font-size: 16px;
-    font-weight: 500;
+    color: var(--ptg-sidebar-sub-ink);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
     text-decoration: none;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    overflow-wrap: break-word;
-    line-height: 1.35;
     transition: background-color var(--ptg-motion-fast) ease-out,
                 color var(--ptg-motion-fast) ease-out;
 }
 
-/* horizontal tick joining the connector line to the item */
 body.boltz-shell.app-shell-authenticated .ptg-nav-dot {
-    position: absolute;
-    inset-inline-start: 15px;
-    inset-block-start: 50%;
-    inline-size: 8px;
-    block-size: 1px;
-    transform: translateY(-50%);
-    background: var(--ptg-sidebar-line);
+    display: none;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink > span {
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-sublink > span {
     color: inherit;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink:hover,
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink:focus-visible {
-    color: var(--ptg-sidebar-ink-strong) !important;
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-sublink:hover {
     background: var(--ptg-sidebar-hover-bg);
-    outline: none;
+    color: var(--ptg-sidebar-ink-strong);
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink.is-active {
-    color: var(--ptg-sidebar-ink-strong) !important;
-    font-weight: 700;
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-nav-sublink.is-active {
     background: var(--ptg-sidebar-active-bg);
+    color: var(--ptg-sidebar-ink-strong);
+    font-weight: 500;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-nav-sublink.is-active .ptg-nav-dot {
-    background: var(--ptg-sidebar-accent);
-    inline-size: 10px;
-}
-
-/* ---- Footer (change password / logout) ---- */
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot {
+/* ---- Footer band (change password / logout) ---- */
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot {
     display: flex;
+    flex: 0 0 auto;
     flex-direction: column;
-    gap: 4px;
-    margin-block-start: auto;
-    padding-block: 12px 0;
-    padding-inline: 0;
+    gap: 2px;
+    margin: 0;
+    padding: 6px 12px max(6px, env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--ptg-sidebar-line);
-    background: transparent;
+    background: var(--ptg-sidebar-foot);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot form {
@@ -389,19 +434,23 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot form {
     margin: 0;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger {
-    color: var(--ptg-sidebar-danger) !important;
-    background: transparent !important;
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link {
+    min-block-size: 40px;
 }
 
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:hover,
-body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-visible {
-    color: var(--ptg-sidebar-danger) !important;
-    background: var(--ptg-sidebar-danger-bg) !important;
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link-danger,
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link-danger .ptg-nav-ic {
+    color: var(--ptg-sidebar-danger);
+}
+
+body.boltz-shell.app-shell-authenticated .ptg-sidebar .boltz-sidebar-foot-link-danger:hover {
+    background: var(--ptg-sidebar-danger-bg);
+    color: var(--ptg-sidebar-danger);
 }
 
 /* ============================================================= *
- * Collapsed (desktop >=1200): keep the menu as an 88px icon rail.
+ * Icon rail (64px): collapsed desktop >=1200 and resting laptop
+ * 992–1199. Labels hide; the native title attribute is the tooltip.
  * ============================================================= */
 @media (min-width: 1200px) {
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .ptg-sidebar {
@@ -414,107 +463,42 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-v
         inline-size: var(--layout-sidebar-mini);
     }
 
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-sidebar-scroll {
-        gap: 10px;
-        padding: 14px 3px 12px;
-        overflow-x: hidden;
+    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed :is(.mashal-sidebar-header, .boltz-sidebar-scroll, .boltz-sidebar-foot) {
+        padding-inline: 8px;
     }
 
-    /* Collapsed: swap the wordmark for the compact colour brand mark. */
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-brand {
-        min-block-size: auto;
-        padding-block: 10px 4px;
+    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .mashal-sidebar-context {
+        display: none;
     }
 
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-brand-mark {
-        inline-size: 46px;
-        block-size: 46px;
-        padding: 0;
-        border-radius: 0;
-        background-color: transparent;
-        background-image: url("../../images/saddiqi-loader-symbol.png");
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 34px 34px;
+        inline-size: 36px;
+        block-size: 36px;
     }
 
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-brand-logo {
-        display: none;
-    }
-
-    /* ریل: آیکن بالا، نام آیتم زیرش. */
-    /* `!important` لازم است: site.css روی .boltz-nav-link مقدار
-       `padding: .62rem 1.75rem !important` می‌گذارد که ۲۸px از هر طرفِ ریلِ
-       ۸۸px را می‌خورد و نام آیتم را از کادر بیرون می‌اندازد. */
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-nav-link,
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-sidebar-foot-link {
-        flex-direction: column;
-        align-items: center;
+    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed :is(.boltz-nav-link, .boltz-sidebar-foot-link) {
         justify-content: center;
-        box-sizing: border-box;
-        inline-size: 100%;
-        min-block-size: 62px;
-        min-height: 62px !important;
-        block-size: auto;
-        gap: 3px;
-        padding: 8px 2px !important;
-    }
-
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .ptg-nav-ic {
-        flex-basis: 32px;
-        inline-size: 32px;
-        block-size: 32px;
+        padding-inline: 0;
     }
 
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .ptg-nav-ic > svg {
-        inline-size: 27px;
-        block-size: 27px;
+        inline-size: 23px;
+        block-size: 23px;
     }
 
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .ptg-nav-arrow,
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-nav-sub {
-        display: none;
-    }
-
-    /* هیچ کلمپی نیست: نام کامل نمایش داده می‌شود و آیتم در صورت نیاز بلندتر می‌شود. */
+    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed :is(.ptg-nav-arrow, .boltz-nav-sub),
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-nav-link > span,
     body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-sidebar-foot-link span {
-        display: block;
-        flex: 0 0 auto;
-        inline-size: 100%;
-        overflow: visible;
-        font-size: 13px;
-        font-weight: 600;
-        line-height: 1.3;
-        text-align: center;
-        white-space: normal;
-        overflow-wrap: break-word;
-        word-break: normal;
-        hyphens: none;
-    }
-
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-sidebar-foot {
-        padding-block-start: 8px;
-    }
-
-    body.boltz-shell.app-shell-authenticated.is-sidebar-collapsed .boltz-sidebar-foot form {
-        inline-size: 100%;
+        display: none;
     }
 }
 
-/* ============================================================= *
- * Laptop (992-1199): persistent 88px rail, expandable from the toggle.
- * ============================================================= */
 @media (min-width: 992px) and (max-width: 1199.98px) {
     body.boltz-shell.app-shell-authenticated .ptg-sidebar {
-        position: sticky !important;
-        inset-block-start: 0 !important;
+        position: sticky;
+        inset-block-start: 0;
         inline-size: var(--layout-sidebar-mini);
-        min-block-size: 100vh;
-        max-block-size: 100vh;
-        transform: none !important;
-        display: flex !important;
-        box-shadow: none !important;
+        transform: none;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-navpanel {
@@ -522,92 +506,42 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-v
         inline-size: var(--layout-sidebar-mini);
     }
 
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-sidebar-scroll {
-        gap: 10px;
-        padding: 14px 3px 12px;
-        overflow-x: hidden;
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) :is(.mashal-sidebar-header, .boltz-sidebar-scroll, .boltz-sidebar-foot) {
+        padding-inline: 8px;
     }
 
-    /* Persistent laptop rail: same compact colour brand mark as desktop-collapsed. */
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-brand {
-        min-block-size: auto;
-        padding-block: 10px 4px;
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .mashal-sidebar-context {
+        display: none;
     }
 
     body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-brand-mark {
-        inline-size: 46px;
-        block-size: 46px;
-        padding: 0;
-        border-radius: 0;
-        background-color: transparent;
-        background-image: url("../../images/saddiqi-loader-symbol.png");
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: 34px 34px;
+        inline-size: 36px;
+        block-size: 36px;
     }
 
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-brand-logo {
-        display: none;
-    }
-
-    /* ریل: آیکن بالا، نام آیتم زیرش. */
-    /* همان دلیلِ بلوکِ دسکتاپ: خنثی‌کردن padding !important در site.css. */
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-nav-link,
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-sidebar-foot-link {
-        flex-direction: column;
-        align-items: center;
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) :is(.boltz-nav-link, .boltz-sidebar-foot-link) {
         justify-content: center;
-        box-sizing: border-box;
-        inline-size: 100%;
-        min-block-size: 62px;
-        min-height: 62px !important;
-        block-size: auto;
-        gap: 3px;
-        padding: 8px 2px !important;
-    }
-
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .ptg-nav-ic {
-        flex-basis: 32px;
-        inline-size: 32px;
-        block-size: 32px;
+        padding-inline: 0;
     }
 
     body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .ptg-nav-ic > svg {
-        inline-size: 27px;
-        block-size: 27px;
+        inline-size: 23px;
+        block-size: 23px;
     }
 
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .ptg-nav-arrow,
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-nav-sub {
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) :is(.ptg-nav-arrow, .boltz-nav-sub),
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-nav-link > span,
+    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-sidebar-foot-link span {
         display: none;
     }
 
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-nav-link > span,
-    body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .boltz-sidebar-foot-link span {
-        display: block;
-        flex: 0 0 auto;
-        inline-size: 100%;
-        overflow: visible;
-        font-size: 13px;
-        font-weight: 600;
-        line-height: 1.3;
-        text-align: center;
-        white-space: normal;
-        overflow-wrap: break-word;
-        word-break: normal;
-        hyphens: none;
-    }
-
+    /* Opened from the toggle: full 240px panel floating over the content. */
     body.boltz-shell.app-shell-authenticated.is-shell-nav-open .ptg-sidebar {
-        position: fixed !important;
-        inset-block: 0 !important;
-        inset-inline-start: 0 !important;
-        z-index: 1040;
+        position: fixed;
+        inset-block: 0;
+        inset-inline-start: 0;
         inline-size: min(var(--layout-sidebar), calc(100% - 24px));
-        min-block-size: 100dvh;
-        max-block-size: 100dvh;
-        box-shadow: var(--shadow-dialog) !important;
-        transition: transform var(--ptg-motion-fast) ease-out;
+        box-shadow: var(--shadow-dialog);
     }
 
     body.boltz-shell.app-shell-authenticated.is-shell-nav-open .ak-navpanel {
@@ -617,44 +551,57 @@ body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link-danger:focus-v
 }
 
 /* ============================================================= *
- * Tablet / mobile (<992): off-canvas drawer.
+ * Tablet / mobile (<992): off-canvas drawer, 300ms slide.
  * ============================================================= */
 @media (max-width: 991.98px) {
     body.boltz-shell.app-shell-authenticated .ptg-sidebar {
         position: fixed;
         inset-block: 0;
-        inset-inline-start: 0;
-        inline-size: min(var(--layout-nav-mobile), calc(100% - 24px));
+        inline-size: min(var(--layout-nav-mobile), calc(100% - 56px));
         min-block-size: 100dvh;
         max-block-size: 100dvh;
-        box-shadow: none;
-        transition: transform var(--ptg-motion-fast) ease-out;
+        transition: transform 300ms ease;
     }
 
     body.boltz-shell.app-shell-authenticated.boltz-rtl .ptg-sidebar {
+        right: 0;
+        left: auto;
         transform: translateX(100%);
     }
 
     body.boltz-shell.app-shell-authenticated.boltz-ltr .ptg-sidebar {
+        right: auto;
+        left: 0;
         transform: translateX(-100%);
     }
 
     body.boltz-shell.app-shell-authenticated.is-shell-nav-open .ptg-sidebar {
         transform: translateX(0);
+        box-shadow: var(--shadow-dialog);
     }
 
     body.boltz-shell.app-shell-authenticated:not(.is-shell-nav-open) .ptg-sidebar {
         display: none;
     }
 
-    /* The compact drawer uses the whole available inline size. */
     body.boltz-shell.app-shell-authenticated .ak-navpanel {
         flex: 1 1 auto;
         inline-size: auto;
     }
 
-    body.boltz-shell.app-shell-authenticated .boltz-sidebar-scroll {
-        min-block-size: 100%;
-        max-block-size: 100%;
+    /* The drawer carries its own close button next to the brand. */
+    body.boltz-shell.app-shell-authenticated.is-shell-nav-open .mashal-sidebar-close {
+        position: absolute;
+        inset-block-start: 14px;
+        inset-inline-end: 8px;
+        display: grid;
+        place-items: center;
+        inline-size: 36px;
+        block-size: 36px;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: var(--ptg-sidebar-hover-bg);
+        color: var(--ptg-sidebar-ink-strong);
     }
 }

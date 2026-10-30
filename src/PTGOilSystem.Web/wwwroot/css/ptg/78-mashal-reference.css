@@ -1,155 +1,26 @@
 /* =====================================================================
- * Mashal reference contract — the single, last runtime layer.
- *   Light content with shared navy navigation for every page, dashboard included.
- *   R05–R07 contribute only their content components (widgets, picker, receipt card).
- * Geometry is in CSS px after calibration (docs/ui-reference/calibration.json).
+ * Mashal reference contract — the single, last runtime layer for content
+ * primitives, retuned to the Novatech language (01-tokens.css).
+ *   The shell is not styled here: the sidebar belongs to 04-sidebar.css and
+ *   the header to 74-header-controls.css.
  * Presentation only: no binding, validation, permission or posting behaviour.
  * ===================================================================== */
 
 /* ---- 1. Tokens ------------------------------------------------------ */
 body.boltz-shell.app-shell-authenticated.mashal-ui {
-    --layout-sidebar: 224px;
-    --layout-navpanel: var(--layout-sidebar);
-    --layout-header: 48px;
-    --layout-shell-gap: 0px;
-    --layout-gutter-desktop: 24px;
-    --ptg-page-top: 0px;
-    --background-default: var(--mashal-canvas);
-    --ptg-bg: var(--mashal-canvas);
-    /* Sidebar colours inherit the shared navy palette from 01-tokens.css. */
-    --ptg-tabs-font-size: 15px;
-    --ptg-tabs-text-color: #6c757d;
-    --ptg-tabs-active-color: var(--mashal-primary);
-    --ptg-tabs-border-color: var(--mashal-line);
-    --ptg-tabs-border-width: 1px;
-    --ptg-tabs-item-gap: 14px;
-    --ptg-tabs-item-height: 24px;
-    --ptg-tabs-rail-height: 44px;
-    --ptg-tabs-rail-radius: 0;
-    --ptg-tabs-rail-bg: transparent;
-    --ptg-tabs-indicator-height: 2px;
-    --ptg-tabs-space-above: 0px;
-    --ptg-tabs-space-below: 0px;
     --chk-title: var(--mashal-text);
-    /* Form controls: one shared height so every field, select, combobox and date picker lines up. */
-    --mashal-field-h: 42px;
-    /* Field reference (Inventory/Create «جنس و محل نگهداری»): cool blue-gray hairline, 13px muted label. */
-    --ptg-field-border: #c2d0e3;
-    --ptg-label: #4f4f4f;
     --chk-field-border: var(--ptg-field-border);
     --chk-field-h: var(--mashal-field-h);
     color: var(--mashal-text);
     background: var(--mashal-canvas);
     font-family: IRANSans, Vazirmatn, Tahoma, sans-serif;
-    font-size: 15px;
-}
-
-/* ---- 2. Topbar ------------------------------------------------------ */
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-main { padding-block: 0 24px; gap: 0; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-topbar { position: relative; min-height: 48px; height: 48px; padding: 0 24px; background: #fff; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-start { display: flex; align-items: center; gap: 16px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-topbar-date { font-size: 15px; font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-light .mashal-topbar-date { display: none; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster { gap: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster :is(.ptg-h3d,.ptg-havatar-ring) { width: 26px; height: 30px; min-width: 26px; min-height: 30px; border: 0; border-radius: 4px; background: transparent; box-shadow: none; color: #6f86a3; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster :is(i,.ptg-havatar-ico) { font-size: 19px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui [data-offline-chip] { color: #5cb56a; }
-/* Sidebar toggle: quiet round ghost button in the topbar; on desktop it becomes a small
-   floating chevron centred on the sidebar edge (same element, so data-shell-toggle keeps working). */
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle { position: static; display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--mashal-ink); box-shadow: none; transition: background-color var(--ptg-motion-fast), color var(--ptg-motion-fast), box-shadow var(--ptg-motion-fast); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:hover,
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:focus-visible { background: var(--mashal-soft); color: var(--mashal-primary); }
-@media (min-width: 992px) {
-    /* The topbar carries the edge toggle, so it must stack just above the sticky sidebar (1040);
-       modals (1055), the assistant (1045) and toasts (1090) still sit above it. */
-    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-topbar { z-index: 1041; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle { position: absolute; inset-block-start: 11px; inset-inline-start: -13px; z-index: 1; flex-basis: 26px; width: 26px; height: 26px; min-height: 26px; background: #fff; color: #5b6b80; box-shadow: 0 0 0 1px rgb(16 24 40 / 6%), 0 2px 6px rgb(16 24 40 / 12%); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:hover,
-    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle:focus-visible { background: var(--mashal-primary); color: #fff; box-shadow: 0 0 0 1px var(--mashal-primary), 0 4px 10px rgb(45 96 201 / 28%); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle .hamburger { display: none; }
-    /* Chevron points toward the sidebar while it is open (collapse), away from it while it is a rail (expand). */
-    body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-topbar-toggle::before { content: ""; inline-size: 12px; block-size: 12px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3 5 8l5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10 3 5 8l5 5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; transition: transform var(--ptg-motion-base); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl .boltz-topbar-toggle::before { transform: scaleX(-1); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl.is-sidebar-collapsed .boltz-topbar-toggle::before { transform: none; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-ltr.is-sidebar-collapsed .boltz-topbar-toggle::before { transform: scaleX(-1); }
-}
-@media (min-width: 992px) and (max-width: 1199.98px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-rtl:not(.is-shell-nav-open) .boltz-topbar-toggle::before { transform: none; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.boltz-ltr:not(.is-shell-nav-open) .boltz-topbar-toggle::before { transform: scaleX(-1); }
-}
-
-/* ---- 3. Sidebar: shared navy palette ------------------------------- */
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar { box-shadow: -2px 0 10px rgb(29 46 78 / 6%); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .ak-navpanel { flex-direction: column; block-size: 100vh; block-size: 100dvh; min-block-size: 0; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-header { position: relative; flex: 0 0 auto; min-inline-size: 0; padding: 6px 12px 4px; border-block-end: 1px solid var(--ptg-sidebar-line); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-close { display: none; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .boltz-sidebar-scroll { flex: 1 1 0; min-block-size: 0; max-block-size: none; gap: 0; padding: 8px 8px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand { min-block-size: 140px; height: 140px; padding: 0; justify-content: center; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-mark { inline-size: 100%; block-size: 140px; padding: 0; justify-content: center; border-radius: var(--mashal-radius); background-color: var(--ptg-sidebar-plate); }
-/* The artwork carries ~6–10% transparent margin on every side; the scale spends it so the visible mark fills the header. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-brand-logo { inline-size: 100%; block-size: 100%; object-fit: contain; object-position: center; transform: scale(1.12); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-sidebar-context { display: grid; gap: 12px; padding: 8px 0 12px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-company-link { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 4px; color: var(--mashal-text); font-size: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear-wrap { inline-size: 100%; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; height: 36px; padding: 0 10px; border: 0; border-radius: 4px; background: #f1f3f5; color: var(--mashal-text); box-shadow: none; font-size: 13px; font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear-ico { display: none; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear-name { font-size: 13px; font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-hfyear-caret { margin-inline-start: auto; color: #8a9099; font-size: 12px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui #boltzSidebar a.mashal-primary-create { --_bg: var(--mashal-primary); --_fg: #fff; --_bg-h: var(--mashal-primary-hover); display: flex; align-items: center; justify-content: center; gap: 8px; height: 39px; padding: 0 12px; border: 0; border-radius: 4px; background: var(--mashal-primary); color: #fff; box-shadow: none; font-size: 14px; font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui #boltzSidebar a.mashal-primary-create:hover { background: var(--mashal-primary-hover); }
-body.boltz-shell.app-shell-authenticated.mashal-ui :is(.mashal-nav-search,.mashal-settings-search) { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid #ced4da; border-radius: 4px; background: #fff; color: #9aa0a8; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-nav-search { margin-block-end: 18px; flex-direction: row-reverse; }
-body.boltz-shell.app-shell-authenticated.mashal-ui :is(.mashal-nav-search,.mashal-settings-search) input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--mashal-text); font: inherit; font-size: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui :is(.mashal-nav-search,.mashal-settings-search) input::placeholder { color: var(--mashal-muted); }
-body.boltz-shell.app-shell-authenticated.mashal-ui :is(.mashal-nav-search,.mashal-settings-search):focus-within { border-color: var(--mashal-primary); }
-
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-list { gap: 3px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-link { min-block-size: 43px; gap: 12px; padding: 0 8px; border-radius: 4px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-link > span { font-size: 14px; font-weight: 400; line-height: 1.5; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-link.is-active > span { font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-link.is-active::before { display: block; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-nav-ic { flex: 0 0 18px; inline-size: 18px; block-size: 18px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-nav-ic > svg { inline-size: 18px; block-size: 18px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-nav-arrow { inline-size: 12px; block-size: 12px; color: var(--ptg-sidebar-sub-ink); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-nav-arrow > svg { inline-size: 12px; block-size: 12px; }
-/* Keep open groups and their connector within the sidebar palette. */
-body.boltz-shell.app-shell-authenticated.mashal-light .ptg-has-sub.is-open { margin-block: 2px; padding-block-end: 6px; border-radius: var(--mashal-radius); background: var(--ptg-sidebar-hover-bg); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sub { margin: 0; background: transparent; border-radius: 0; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sub::before { inset-block: 2px; inset-inline-start: 26px; background: var(--ptg-sidebar-line); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-nav-dot { display: none; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sublink { min-block-size: 32px; margin: 0; padding-block: 2px; padding-inline: 40px 8px; border-radius: 0; background: transparent; font-size: 14px; font-weight: 400; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sublink:hover { background: var(--ptg-sidebar-hover-bg); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sublink.is-active { background: var(--ptg-sidebar-active-bg); font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-nav-sublink.is-active::before { content: ""; position: absolute; inset-inline-start: 25px; inset-block: 4px; inline-size: 2px; border-radius: 1px; background: var(--ptg-sidebar-accent); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar .boltz-sidebar-foot { flex: 0 0 auto; gap: 4px; margin: 0; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--ptg-sidebar-line); background: var(--ptg-sidebar-panel); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-sidebar-foot-link { inline-size: 100%; min-block-size: 44px; gap: 12px; padding: 8px; text-align: start; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-sidebar :is(.boltz-nav-link,.boltz-nav-sublink,.boltz-sidebar-foot-link,.mashal-sidebar-close):focus-visible { outline: 2px solid var(--ptg-sidebar-accent); outline-offset: -2px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .boltz-sidebar-foot-link span { font-size: 14px; font-weight: 400; }
-@media (max-width: 1199.98px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-shell-nav-open .mashal-sidebar-close { position: absolute; inset-block-start: 16px; inset-inline-end: 6px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--mashal-radius); background: var(--ptg-sidebar-hover-bg); color: var(--ptg-sidebar-ink-strong); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-shell-nav-open .boltz-brand-mark { max-inline-size: calc(100% - 68px); }
-}
-@media (min-width: 992px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed :is(.mashal-sidebar-context,.mashal-nav-search) { display: none; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .mashal-sidebar-header { padding-inline: 4px; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .boltz-brand { min-block-size: 112px; height: 112px; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-sidebar-collapsed .boltz-brand-mark { background-image: url("../../images/mashal-mark.webp"); }
-}
-@media (min-width: 992px) and (max-width: 1199.98px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-shell-nav-open .boltz-shell-frame { grid-template-columns: var(--layout-sidebar) minmax(0,1fr); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui.is-shell-nav-open .ptg-sidebar { inline-size: var(--layout-sidebar); }
-    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .mashal-sidebar-context { display: none; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .mashal-sidebar-header { padding-inline: 4px; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .boltz-brand { min-block-size: 112px; height: 112px; }
-    body.boltz-shell.app-shell-authenticated.mashal-ui:not(.is-shell-nav-open) .boltz-brand-mark { background-image: url("../../images/mashal-mark.webp"); }
+    font-size: var(--font-body);
 }
 
 /* ---- 4. Shared Iconsax glyphs and R05 avatars ------------------------ */
 body.boltz-shell.app-shell-authenticated.mashal-ui svg.mashal-ic { flex: 0 0 auto; width: 1em; height: 1em; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-company-link > svg.mashal-ic { width: 18px; height: 18px; color: var(--mashal-primary); }
-body.boltz-shell.app-shell-authenticated.mashal-ui #boltzSidebar a.mashal-primary-create > svg.mashal-ic { width: 18px; height: 18px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui :is(.mashal-nav-search,.mashal-settings-search) > svg.mashal-ic { width: 14px; height: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-header-cluster svg.mashal-ic { width: 20px; height: 20px; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .mashal-settings-search > svg.mashal-ic { width: 14px; height: 14px; }
 body.mashal-settings #ptg-main-content .mashal-settings-group a > svg.mashal-ic { width: 18px; height: 18px; color: #6c757d; }
 body.mashal-settings #ptg-main-content .mashal-settings-group a.is-active > svg.mashal-ic { color: var(--mashal-primary); }
 /* R05 person placeholder: light disc, thin ring, grey head, darker shoulders. */
@@ -159,15 +30,16 @@ body.mashal-ui #ptg-main-content .ptg-person-avatar:not(:has(img)) { background:
 body.mashal-ui #ptg-main-content .ptg-person-avatar:not(:has(img)) > .bi { visibility: hidden; }
 
 /* ---- 5. Page frame, header and section tabs ------------------------- */
+body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-main { padding-block: 0; gap: 0; }
 body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-page { padding-block: 24px; }
-body.mashal-ui #ptg-main-content > .ptg-page-frame { gap: 16px; max-inline-size: var(--layout-content-max); }
-body.mashal-ui #ptg-main-content .ak-page-header { min-height: 38px; margin: 0 0 16px; padding: 0 2px; }
-body.mashal-ui #ptg-main-content .ak-page-title { color: var(--text-primary); font-size: var(--font-page-title); font-weight: 500; line-height: 1.5; }
+@media (min-width: 768px) { body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-page { padding-block: 32px; } }
+body.mashal-ui #ptg-main-content > .ptg-page-frame { gap: 24px; max-inline-size: var(--layout-content-max); }
+body.mashal-ui #ptg-main-content .ak-page-header { min-height: 40px; margin: 0 0 24px; padding: 0; }
+body.mashal-ui #ptg-main-content .ak-page-title { color: var(--text-primary); font-size: var(--font-page-title); font-weight: var(--weight-page-title); line-height: var(--line-page-title); }
 body.mashal-ui #ptg-main-content :is(.ak-page-subtitle,.ak-page-context,.ak-detail-subtitle) { margin: 4px 0 0; color: var(--mashal-muted); font-size: 14px; font-weight: 400; }
-body.mashal-ui #ptg-main-content :is(.ak-section-title,.ak-form-group-title,.fte-section-title) { color: #1a1a1a; font-size: 16px; font-weight: 500; }
-body.mashal-ui #ptg-main-content .ak-section-desc { margin: 2px 0 0; color: #6f6f6f; font-size: 12px; line-height: 1.8; }
+body.mashal-ui #ptg-main-content :is(.ak-section-title,.ak-form-group-title,.fte-section-title) { color: #334155; font-size: var(--font-section-title); font-weight: var(--weight-section-title); }
+body.mashal-ui #ptg-main-content .ak-section-desc { margin: 2px 0 0; color: var(--mashal-muted); font-size: 12px; line-height: 1.8; }
 body.mashal-ui #ptg-main-content .ak-section-head { --font-caption: 12px; margin-bottom: 11px; padding: 0; border: 0; }
-body.mashal-ui #ptg-main-content .ptg-tabs-rail .ptg-tab-item.is-active { font-weight: 500; }
 
 /* ---- 6. Surfaces ----------------------------------------------------- */
 /* Panels lift off the canvas with --ptg-panel-shadow; the outline stays transparent so the box model does not shift. */
@@ -177,17 +49,17 @@ body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form:not(.ak-list-page) {
 body.mashal-ui #ptg-main-content :is(.card,.ptg-td-card) { border-color: transparent; box-shadow: var(--ptg-panel-shadow); }
 /* Floating notices keep their tone accent and dialog shadow; only the outline goes. */
 body.mashal-ui .ptg-confirm__panel { border-color: transparent; }
-body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) { padding: 20px 24px; }
+body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) { padding: 24px; }
 body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) :is(.ak-form,.ak-list-card) { border: 0; border-radius: 0; box-shadow: none; }
 body.mashal-ui #ptg-main-content .ak-form-page-content { padding: 0; border: 0; background: transparent; box-shadow: none; }
 body.mashal-ui #ptg-main-content .ak-form { padding: 0; background: transparent; border: 0; box-shadow: none; }
 body.mashal-ui #ptg-main-content .ak-form-section { margin: 0 0 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
-body.mashal-ui #ptg-main-content .ak-form-section + .ak-form-section { padding-top: 24px; border-top: 1px solid #e7e7e7; }
+body.mashal-ui #ptg-main-content .ak-form-section + .ak-form-section { padding-top: 24px; border-top: 1px solid var(--divider); }
 body.mashal-ui #ptg-main-content :is(.ak-empty,.ak-detail-empty-state) { color: var(--mashal-muted); font-size: 14px; }
 /* Alerts: floating soft card — no outline and no edge stripe; the tone lives in the tint and text colour,
    a layered shadow lifts the card off the page. */
-body.mashal-ui #ptg-main-content :is(.alert,.ak-form-alert:not(:empty)) { padding: 11px 16px; border: 0; border-radius: 10px; background: #f4f7fd; color: var(--mashal-text); font-size: 13.5px; line-height: 1.7; box-shadow: 0 2px 6px rgb(16 24 40 / 6%), 0 12px 28px rgb(16 24 40 / 10%); }
-body.mashal-ui #ptg-main-content :is(.alert-danger,.ak-form-alert.text-danger:not(:empty)) { background: #fdf3f4; color: #a3172a; }
+body.mashal-ui #ptg-main-content :is(.alert,.ak-form-alert:not(:empty)) { padding: 11px 16px; border: 1px solid var(--mashal-line); border-radius: 12px; background: var(--ptg-info-soft); color: var(--ptg-info-text); font-size: 14px; line-height: 1.7; box-shadow: none; }
+body.mashal-ui #ptg-main-content :is(.alert-danger,.ak-form-alert.text-danger:not(:empty)) { background: var(--ptg-danger-soft); color: var(--ptg-danger-text); }
 body.mashal-ui #ptg-main-content .ak-note { color: var(--mashal-muted); font-size: 13px; }
 
 /* Preserve the meaning of alerts in every module. */
@@ -213,21 +85,21 @@ body.mashal-ui #ptg-main-content > .alert.ak-form-alert[data-offline-notice].ale
 }
 
 /* ---- 7. Forms (R02/R03 controls) ------------------------------------ */
-body.mashal-ui #ptg-main-content .ak-form-grid { gap: 21px 12px; }
-body.mashal-ui #ptg-main-content :is(.ak-field,.ak-form-grid > label) { gap: 5px; }
-body.mashal-ui #ptg-main-content :is(.ak-label,.form-label) { margin: 0; color: var(--ptg-label); font-size: 14px; font-weight: 400; line-height: 1.6; }
+body.mashal-ui #ptg-main-content .ak-form-grid { gap: 16px; }
+body.mashal-ui #ptg-main-content :is(.ak-field,.ak-form-grid > label) { gap: 8px; }
+body.mashal-ui #ptg-main-content :is(.ak-label,.form-label) { margin: 0; color: var(--ptg-label); font-size: var(--font-label); font-weight: var(--weight-label); line-height: 1.6; }
 body.mashal-ui #ptg-main-content .ak-req { color: var(--mashal-danger); font-size: 13px; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-combobox-input,.ak-entity-input,.ak-date-field,.ak-filter-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); padding-block: 0; padding-inline: 12px; border: 1px solid var(--ptg-field-border); border-radius: 6px; background-color: #fff; color: var(--mashal-text); box-shadow: none; font-size: 14px; line-height: calc(var(--mashal-field-h) - 2px); }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-combobox-input,.ak-entity-input,.ak-date-field) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); padding-block: 0; padding-inline: 12px; border: 1px solid var(--ptg-field-border); border-radius: 8px; background-color: #fff; color: var(--mashal-text); box-shadow: none; font-size: 14px; line-height: calc(var(--mashal-field-h) - 2px); }
 body.mashal-ui #ptg-main-content :is(textarea.ak-input,textarea.form-control) { height: auto; min-height: 84px; padding-block: 8px; line-height: 1.8; }
 body.mashal-ui #ptg-main-content div.ak-input[aria-readonly] { display: flex; align-items: center; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.ak-combobox-input,.ak-entity-input,.ak-filter-input)::placeholder { color: var(--ptg-field-placeholder); opacity: 1; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select,.ak-filter-input):focus { border-color: var(--mashal-primary); outline: 0; box-shadow: 0 0 0 2px rgb(var(--primary-main-rgb) / 12%); }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select):disabled { background-color: #f2f3f5; color: #9299a2; cursor: not-allowed; }
-body.mashal-ui #ptg-main-content :is(.ak-input,.form-control)[readonly] { background-color: #f7f8fa; }
-body.mashal-ui #ptg-main-content :is(.input-validation-error,[aria-invalid="true"]) { border-color: #cf3446; }
-body.mashal-ui #ptg-main-content :is(.ak-field-error,.field-validation-error,.validation-summary-errors) { color: #cf3446; font-size: 13px; font-weight: 400; }
-body.mashal-ui #ptg-main-content :is(.ak-help,.form-text) { color: var(--mashal-muted); font-size: 13px; line-height: 1.8; }
-body.mashal-ui #ptg-main-content :is(.form-check:not(.form-switch) > .form-check-input[type="checkbox"],.ak-check) { width: 16px; height: 16px; border: 1.5px solid var(--mashal-primary); border-radius: 3px; }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.ak-combobox-input,.ak-entity-input)::placeholder { color: var(--ptg-field-placeholder); opacity: 1; }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select):focus { border-color: var(--mashal-primary); outline: 0; box-shadow: 0 0 0 2px rgb(var(--primary-main-rgb) / 18%); }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control,.form-select):disabled { background-color: var(--ptg-field-disabled-bg); color: var(--text-disabled); cursor: not-allowed; }
+body.mashal-ui #ptg-main-content :is(.ak-input,.form-control)[readonly] { background-color: var(--ptg-field-disabled-bg); }
+body.mashal-ui #ptg-main-content :is(.input-validation-error,[aria-invalid="true"]) { border-color: var(--error-main); }
+body.mashal-ui #ptg-main-content :is(.ak-field-error,.field-validation-error,.validation-summary-errors) { color: var(--error-main); font-size: 12px; font-weight: 400; }
+body.mashal-ui #ptg-main-content :is(.ak-help,.form-text) { color: var(--mashal-muted); font-size: 12px; line-height: 1.8; }
+body.mashal-ui #ptg-main-content :is(.form-check:not(.form-switch) > .form-check-input[type="checkbox"],.ak-check) { width: 16px; height: 16px; border: 1.5px solid var(--ptg-field-border-hover); border-radius: 4px; }
 /* List checkboxes (reference 5): blue outline square, filled with a white tick when checked. */
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"] { flex: 0 0 auto; margin: 0; background: #fff center / 12px no-repeat; vertical-align: middle; cursor: pointer; -webkit-appearance: none; appearance: none; }
 body.mashal-ui #ptg-main-content input.ak-check[type="checkbox"]:checked { background-color: var(--mashal-primary); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
@@ -239,63 +111,49 @@ body.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple
 body.boltz-rtl.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-left: 34px; padding-right: 12px; background-position: left 11px top calc(50% + 6px); }
 body.boltz-ltr.mashal-ui #ptg-main-content select:is(.ak-input,.form-select):not([multiple]):not([size]) { padding-right: 34px; padding-left: 12px; background-position: right 11px top calc(50% + 6px); }
 body.mashal-ui #ptg-main-content :is(.form-check:not(.form-switch) > .form-check-input,.ak-check):checked { border-color: var(--mashal-primary); background-color: var(--mashal-primary); }
-body.mashal-ui #ptg-main-content .form-check-label { color: var(--mashal-text); font-size: 15px; }
-/* R03 switch: 36×18 grey pill, green when on. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .form-switch .form-check-input { width: 36px; height: 18px; border: 0; background-color: #dcdfe4; box-shadow: none; }
+body.mashal-ui #ptg-main-content .form-check-label { color: var(--mashal-text); font-size: 14px; }
+/* Switch: 42×20 rail; brand rail #BFE6F6 with a brand knob when on (Novatech privacy switch). */
+body.boltz-shell.app-shell-authenticated.mashal-ui .form-switch .form-check-input { width: 42px; height: 20px; border: 0; background-color: #E6E6E6; box-shadow: none; --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23BBBBBB'/%3e%3c/svg%3e"); }
 body.boltz-shell.app-shell-authenticated.mashal-ui .form-switch .form-check-input:checked,
-body.mashal-ui #ptg-main-content .form-switch .form-check-input:checked { border-color: var(--mashal-success); background-color: var(--mashal-success); }
+body.mashal-ui #ptg-main-content .form-switch .form-check-input:checked { border-color: var(--primary-light); background-color: var(--primary-light); --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23007DB2'/%3e%3c/svg%3e"); }
 body.mashal-ui #ptg-main-content .ak-toggle-field { align-self: end; min-height: var(--mashal-field-h); }
-body.mashal-ui #ptg-main-content .ak-input-unit { border-color: var(--ptg-field-border); border-radius: 6px; }
+body.mashal-ui #ptg-main-content .ak-input-unit { border-color: var(--ptg-field-border); border-radius: 8px; }
 
 /* ---- 8. Buttons ------------------------------------------------------ */
-body.mashal-ui #ptg-main-content :is(.btn,.ak-primary-action,.ak-secondary-action,.ak-save,.ak-cancel) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding-block: 0; padding-inline: 14px; border-radius: 4px; box-shadow: none; font-size: 14px; font-weight: 500; line-height: 1.4; }
-body.mashal-ui #ptg-main-content .btn-sm { min-height: 32px; padding-inline: 10px; font-size: 13px; }
-body.mashal-ui #ptg-main-content :is(.btn-primary,.ak-primary-action,.ak-save) { border: 1px solid var(--mashal-primary); background: var(--mashal-primary); color: #fff; }
-body.mashal-ui #ptg-main-content :is(.btn-primary,.ak-primary-action,.ak-save):hover { border-color: var(--mashal-primary-hover); background: var(--mashal-primary-hover); color: #fff; }
-body.mashal-ui #ptg-main-content :is(.btn-light,.btn-secondary,.btn-outline-secondary,.ak-secondary-action,.ak-cancel) { border: 1px solid var(--mashal-field-line); background: #fff; color: #495057; }
-body.mashal-ui #ptg-main-content :is(.btn-light,.btn-secondary,.btn-outline-secondary,.ak-secondary-action,.ak-cancel):hover { border-color: #c9ced5; background: var(--mashal-soft); color: var(--mashal-text); }
-/* Soft secondary: light blue tint for in-form add actions (e.g. «افزودن شریک»). */
-body.mashal-ui #ptg-main-content .ak-secondary-action.is-soft { border-color: transparent; background: var(--ptg-btn-primary-tint); color: var(--mashal-primary); }
-body.mashal-ui #ptg-main-content .ak-secondary-action.is-soft:hover { border-color: transparent; background: #d8e7fe; color: var(--mashal-primary-hover); }
-body.mashal-ui #ptg-main-content .ak-save { min-width: 96px; padding-inline: 20px; }
-body.mashal-ui #ptg-main-content :is(.btn-danger,.ak-danger.btn) { border-color: var(--mashal-danger); background: var(--mashal-danger); color: #fff; }
-body.mashal-ui #ptg-main-content :is(.btn:disabled,.btn.disabled,.ak-save:disabled) { border-color: #d6d9de; background: #e9ecef; color: #9aa0a8; opacity: 1; }
-/* R01/R02 save bar: low white strip, button at the inline end. */
-body.mashal-ui #ptg-main-content .ak-footer-actions { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 52px; margin-top: 24px; padding: 10px 16px; border: 0; border-radius: 4px; background: #fff; box-shadow: 0 0 10px rgb(24 40 70 / 8%); }
+/* .btn and page actions are owned by 05-components.css, .ak-save/.ak-cancel by 50. */
+/* Save bar: white strip, button at the inline end. */
+body.mashal-ui #ptg-main-content .ak-footer-actions { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 64px; margin-top: 24px; padding: 10px 16px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 -1px 0 var(--divider), 0 4px 20px rgb(15 23 42 / 8%); }
 body.mashal-ui #ptg-main-content .ak-footer-actions::before { display: none; }
 
 /* ---- 9. Tables, list toolbar and pager (R04 header density) --------- */
-body.mashal-ui #ptg-main-content .ak-list-toolbar { gap: 12px; padding: 12px 16px; border: 0; }
-body.mashal-ui #ptg-main-content .ak-filter-input-wrap { border: 0; }
-/* No resting rule under the list search; the primary underline appears only while it has focus. */
-body.mashal-ui #ptg-main-content .ak-filter { border-bottom-color: transparent; }
-body.mashal-ui #ptg-main-content .ak-filter.is-focused { border-bottom-color: var(--primary-main); }
-body.mashal-ui #ptg-main-content .ak-filter-enter { min-height: 30px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; color: var(--mashal-primary); font-size: 14px; }
+body.mashal-ui #ptg-main-content .ak-list-toolbar { gap: 8px; padding: 16px; border: 0; }
+/* The search box is the shared .ak-filter component (45-akaunting.css). */
 body.mashal-ui #ptg-main-content .ak-table-wrap { border: 0; border-radius: 0; }
-body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) :is(th,td) { padding: 8px 12px; border-color: #eef0f3; color: var(--mashal-text); font-size: 14px; vertical-align: middle; }
-body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) thead th { height: 46px; border-bottom: 0; background: var(--mashal-head); color: #2b2f33; font-weight: 500; white-space: nowrap; }
-body.mashal-ui #ptg-main-content .ak-table tbody tr { height: 48px; }
+body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) :is(th,td) { padding: 12px 16px; border-color: var(--ptg-table-row-line); color: #334155; font-size: var(--font-table-cell); vertical-align: middle; }
+body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) thead th { height: 48px; border-bottom: 1px solid var(--divider); background: var(--ptg-table-head-bg); color: var(--ptg-table-head-ink); font-weight: var(--weight-table-head); white-space: nowrap; }
+body.mashal-ui #ptg-main-content .ak-table tbody tr { height: 52px; }
 body.mashal-ui #ptg-main-content .ak-table tbody td .ak-num { font-weight: 400; }
 body.mashal-ui #ptg-main-content .ak-table .ptg-list-row-avatar { width: 28px; height: 32px; }
-body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) tbody td { border-bottom: 1px solid #eef0f3; }
-body.mashal-ui #ptg-main-content .ak-table tbody tr:hover > td { background: #f9fafc; }
+body.mashal-ui #ptg-main-content :is(.ak-table,.ak-detail-table) tbody td { border-bottom: 1px solid var(--ptg-table-row-line); }
+body.mashal-ui #ptg-main-content .ak-table tbody tr:hover > td { background: var(--ptg-table-row-hover); }
 body.mashal-ui #ptg-main-content .ak-table-total :is(td,th) { background: var(--mashal-soft); font-weight: 500; }
-body.mashal-ui #ptg-main-content .ak-list-footer { padding: 10px 16px; border-top: 0; }
+body.mashal-ui #ptg-main-content .ak-list-footer { padding: 12px 16px; border-top: 1px solid var(--ptg-table-row-line); }
 body.mashal-ui #ptg-main-content :is(.ak-list-result-count,.ak-page-size-label) { color: var(--mashal-muted); font-size: 14px; }
-body.mashal-ui #ptg-main-content .ak-page-size-select { width: 72px; min-height: 36px; height: 36px; }
-body.mashal-ui #ptg-main-content :is(.ak-pager .page-link,.pagination .page-link) { min-width: 28px; height: 32px; padding: 0 8px; border-color: var(--mashal-field-line); border-radius: 4px; color: var(--mashal-text); font-size: 14px; line-height: 26px; text-align: center; }
-body.mashal-ui #ptg-main-content :is(.ak-pager .active > .page-link,.pagination .active > .page-link) { border-color: var(--mashal-primary); background: #fff; color: var(--mashal-primary); }
-body.mashal-ui #ptg-main-content .ak-row-menu-btn { width: 28px; height: 32px; border: 0; border-radius: 4px; background: transparent; color: #5f6670; font-size: 18px; }
-body.mashal-ui #ptg-main-content .ak-row-menu-btn:hover { background: var(--mashal-soft); }
+body.mashal-ui #ptg-main-content .ak-page-size-select { width: 72px; min-height: var(--chk-compact-h); height: var(--chk-compact-h); }
+body.mashal-ui #ptg-main-content :is(.ak-pager .page-link,.pagination .page-link) { min-width: 32px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: #F1F5F9; color: #334155; font-size: 14px; line-height: 32px; text-align: center; }
+body.mashal-ui #ptg-main-content :is(.ak-pager .page-link,.pagination .page-link):hover { background: #E2E8F0; }
+body.mashal-ui #ptg-main-content :is(.ak-pager .active > .page-link,.pagination .active > .page-link) { background: var(--mashal-primary); color: #fff; }
+body.mashal-ui #ptg-main-content .ak-row-menu-btn { width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--mashal-primary); font-size: 18px; }
+body.mashal-ui #ptg-main-content .ak-row-menu-btn:hover { background: var(--ptg-primary-tint); }
 
 /* Reference 5 list grid (list-grid.js): "#" index, sortable headers, per-column filter row. */
-body.mashal-ui #ptg-main-content .ak-table :is(th,td).ak-col-index { width: 44px; padding-inline: 8px; color: #5f6670; text-align: center; white-space: nowrap; }
+body.mashal-ui #ptg-main-content .ak-table :is(th,td).ak-col-index { width: 44px; padding-inline: 8px; color: var(--mashal-muted); text-align: center; white-space: nowrap; }
 body.mashal-ui #ptg-main-content .ak-table th.ak-sortable { cursor: pointer; user-select: none; }
 body.mashal-ui #ptg-main-content .ak-table th.ak-sortable:hover { color: var(--mashal-primary); }
 body.mashal-ui #ptg-main-content .ak-sort-ic { display: inline-block; width: 8px; height: 12px; margin-inline-end: 6px; vertical-align: -1px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%23a6acb3' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
-body.mashal-ui #ptg-main-content th[aria-sort="ascending"] > .ak-sort-ic { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%232d60c9' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-body.mashal-ui #ptg-main-content th[aria-sort="descending"] > .ak-sort-ic { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%232d60c9' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-body.mashal-ui #ptg-main-content .ak-table thead tr.ak-filter-row > td { height: 44px; padding: 4px 12px; border-bottom: 1px solid #eef0f3; background: #fff; }
+body.mashal-ui #ptg-main-content th[aria-sort="ascending"] > .ak-sort-ic { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%23007DB2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+body.mashal-ui #ptg-main-content th[aria-sort="descending"] > .ak-sort-ic { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%23007DB2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+body.mashal-ui #ptg-main-content .ak-table thead tr.ak-filter-row > td { height: 44px; padding: 4px 16px; border-bottom: 1px solid var(--ptg-table-row-line); background: #fff; }
 body.mashal-ui #ptg-main-content .ak-col-filter { width: 100%; min-width: 0; height: 32px; padding-block: 0; padding-inline: 2px 20px; border: 0; border-bottom: 1px solid transparent; border-radius: 0; outline: 0; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11.5 21a9.5 9.5 0 1 0 0-19 9.5 9.5 0 0 0 0 19ZM22 22l-2-2' fill='none' stroke='%23a6acb3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat; background-size: 12px 12px; color: var(--mashal-text); font: inherit; font-size: 13px; }
 body.boltz-rtl.mashal-ui #ptg-main-content .ak-col-filter { background-position: left 2px center; padding-inline: 2px 20px; }
 body.boltz-ltr.mashal-ui #ptg-main-content .ak-col-filter { background-position: right 2px center; }
@@ -306,47 +164,43 @@ body.mashal-ui #ptg-main-content .ak-filter-empty > td { padding: 28px 12px; col
 @media (max-width: 767.98px) {
     body.mashal-ui #ptg-main-content .ak-table .ak-col-index { display: none; }
 }
-/* Reference 7 tabs: plain underline rail on the canvas, active label in primary. */
-body.mashal-ui #ptg-main-content .ptg-tabs-rail { padding-inline: 4px; border: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; background: transparent; }
+/* Tabs are owned by 16-system-tabs.css (Novatech pills). */
 
 /* Editable line tables inside forms (salary-document reference): inner hairline grid, no outer frame —
    the wrap is lifted by the panel shadow instead. */
 body.mashal-ui #ptg-main-content form.ak-form .ak-table { border: 0; border-collapse: collapse; }
-body.mashal-ui #ptg-main-content form.ak-form .ak-table :is(th,td) { border: 1px solid #e6e8ec; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table :is(th,td) { border: 1px solid var(--divider); }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table tr > :first-child { border-inline-start: 0; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table tr > :last-child { border-inline-end: 0; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table > :first-child > tr:first-child > * { border-block-start: 0; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table > :last-child > tr:last-child > * { border-block-end: 0; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table-wrap { border-radius: var(--mashal-radius); box-shadow: var(--ptg-panel-shadow); }
-body.mashal-ui #ptg-main-content form.ak-form .ak-table thead th { background: #f7f8fa; color: var(--mashal-muted); font-size: 13px; font-weight: 400; }
+body.mashal-ui #ptg-main-content form.ak-form .ak-table thead th { background: var(--ptg-table-head-bg); color: var(--ptg-table-head-ink); font-size: 13px; font-weight: 500; }
 body.mashal-ui #ptg-main-content form.ak-form .ak-table :is(tfoot td,.ak-table-total td) { background: #fff; font-weight: 500; }
-body.mashal-ui #ptg-main-content .ak-table :is(.bi-trash,.bi-trash3) { color: #e53935; }
+body.mashal-ui #ptg-main-content .ak-table :is(.bi-trash,.bi-trash3) { color: var(--error-main); }
 
 /* ---- 10. Badges, dropdowns, modals ----------------------------------- */
-body.mashal-ui #ptg-main-content :is(.badge,.ak-status,.status-badge) { min-height: 22px; padding: 2px 8px; border-radius: 3px; font-size: 13px; font-weight: 500; line-height: 21px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-menu { padding: 4px; border: 1px solid transparent; border-radius: var(--mashal-radius); box-shadow: 0 6px 18px rgb(24 40 70 / 8%); font-size: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item { min-height: 38px; padding: 6px 10px; border-radius: 4px; font-size: 14px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item:is(:hover,:focus) { background: var(--mashal-soft); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item.active { background: var(--mashal-head); color: var(--mashal-primary); }
-/* R06 dialog language: white, 8px radius, no outline, soft deep shadow, 40% scrim. */
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-content { border: 0; border-radius: 8px; background: #fff; box-shadow: 0 4px 12px rgb(16 24 40 / 8%), 0 24px 48px rgb(16 24 40 / 18%); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-header { padding: 16px 24px; border-bottom: 1px solid var(--mashal-line); }
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-title { color: var(--mashal-text); font-size: 16px; font-weight: 500; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-body { padding: 20px 24px; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-footer { gap: 12px; padding: 12px 24px 20px; border-top: 0; justify-content: flex-end; }
-body.boltz-shell.app-shell-authenticated.mashal-ui .modal-backdrop.show { opacity: .4; }
+/* Badges are styled once, in 71-typography.css (pill, 12px/500, 100 tint + 700 ink). */
+body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-menu { padding: 4px; border: 1px solid #EAEAEA; border-radius: 8px; box-shadow: var(--shadow-dropdown); font-size: 14px; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item { min-height: 36px; padding: 6px 12px; border-radius: 6px; color: #334155; font-size: 14px; }
+body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item:is(:hover,:focus) { background: var(--background-neutral); color: var(--text-primary); }
+body.boltz-shell.app-shell-authenticated.mashal-ui .dropdown-item.active { background: var(--ptg-primary-tint); color: var(--mashal-primary); }
+/* Dialogs are owned by 08-modals.css (Novatech: 16px card, slate scrim). */
 
 /* ---- 11. R01–R03: settings column and settings forms ---------------- */
 body.mashal-settings #ptg-main-content .ptg-page-frame > [data-section-tabs-strip] { display: none; }
 body.mashal-settings #ptg-main-content .mashal-settings-frame { display: grid; grid-template-columns: 265px minmax(0,1fr); min-height: calc(100vh - 96px); border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-settings #ptg-main-content .mashal-settings-nav { padding: 24px 18px; border-inline-end: 1px solid var(--mashal-line); }
-body.mashal-settings #ptg-main-content .mashal-settings-search { font-size: 13px; }
+body.mashal-settings #ptg-main-content .mashal-settings-search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--ptg-field-border); border-radius: 8px; background: #fff; color: var(--text-disabled); font-size: 13px; }
+body.mashal-settings #ptg-main-content .mashal-settings-search input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: transparent; color: var(--mashal-text); font: inherit; font-size: 14px; }
+body.mashal-settings #ptg-main-content .mashal-settings-search input::placeholder { color: var(--text-disabled); }
+body.mashal-settings #ptg-main-content .mashal-settings-search:focus-within { border-color: var(--mashal-primary); }
 body.mashal-settings #ptg-main-content .mashal-settings-group { margin-top: 22px; }
-body.mashal-settings #ptg-main-content .mashal-settings-group h2 { margin: 0 10px 6px; color: #a1a5ac; font-size: 13px; font-weight: 400; }
-body.mashal-settings #ptg-main-content .mashal-settings-group a { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border-radius: 3px; color: var(--mashal-ink); font-size: 14px; }
+body.mashal-settings #ptg-main-content .mashal-settings-group h2 { margin: 0 10px 6px; color: var(--text-disabled); font-size: 12px; font-weight: 500; }
+body.mashal-settings #ptg-main-content .mashal-settings-group a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 8px; color: #334155; font-size: 14px; }
 body.mashal-settings #ptg-main-content .mashal-settings-group a:hover { background: var(--mashal-soft); }
 body.mashal-settings #ptg-main-content .mashal-settings-link[hidden] { display: none; }
-body.mashal-settings #ptg-main-content .mashal-settings-group a.is-active { background: #f1f5fc; color: var(--mashal-primary); }
+body.mashal-settings #ptg-main-content .mashal-settings-group a.is-active { background: var(--ptg-primary-tint); color: var(--mashal-primary); font-weight: 500; }
 body.mashal-settings #ptg-main-content .mashal-settings-content { min-width: 0; padding: 16px 44px 0; }
 body.mashal-settings #ptg-main-content .mashal-settings-content :is(.ak-form-page,.ak-list-page,.ak-form,.ak-list-card) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 body.mashal-settings #ptg-main-content .mashal-settings-content .ak-page-title { font-size: var(--font-page-title); font-weight: var(--weight-page-title); }
@@ -365,10 +219,10 @@ body.mashal-ui #ptg-main-content .mashal-profile-fields { display: grid; flex: 1
 body.mashal-ui #ptg-main-content .mashal-security-title { margin: 16px 0 40px; color: var(--mashal-ink); font-size: 16px; font-weight: 400; }
 body.mashal-ui #ptg-main-content .mashal-password-details summary { display: flex; align-items: center; gap: 14px; cursor: pointer; list-style: none; }
 body.mashal-ui #ptg-main-content .mashal-password-details summary::-webkit-details-marker { display: none; }
-body.mashal-ui #ptg-main-content .mashal-security-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 4px; background: #edf2ff; color: var(--mashal-primary); font-size: 27px; }
+body.mashal-ui #ptg-main-content .mashal-security-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--ptg-primary-tint); color: var(--mashal-primary); font-size: 24px; }
 body.mashal-ui #ptg-main-content .mashal-password-details summary strong { display: block; font-size: 15px; font-weight: 500; }
 body.mashal-ui #ptg-main-content .mashal-password-details summary small { display: block; margin-top: 6px; color: var(--mashal-muted); font-size: 13px; }
-body.mashal-ui #ptg-main-content .mashal-password-action { margin-inline-start: auto; padding: 7px 12px; border-radius: 3px; background: var(--mashal-primary); color: #fff; font-size: 13px; white-space: nowrap; }
+body.mashal-ui #ptg-main-content .mashal-password-action { margin-inline-start: auto; padding: 8px 14px; border-radius: 8px; background: var(--mashal-primary); color: #fff; font-size: 13px; white-space: nowrap; }
 body.mashal-ui #ptg-main-content .mashal-password-details[open] > section { margin-top: 36px; }
 /* R02 business identity block. */
 body.mashal-ui #ptg-main-content .mashal-business-main { display: grid; grid-template-columns: 180px minmax(0,1fr); gap: 22px; padding-block: 56px 24px; }
@@ -406,15 +260,15 @@ body.mashal-ui #ptg-main-content .journal-primary-grid > .fec-span-4 { grid-colu
 body.mashal-ui #ptg-main-content .journal-primary-grid > .fec-span-5 { grid-column: span 5; }
 body.mashal-ui #ptg-main-content .journal-primary-grid > .ak-form-full { grid-column: 1/-1; }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-bottom: 24px; padding: 16px 14px; border-radius: var(--mashal-radius); background: var(--mashal-soft); }
-body.mashal-ui #ptg-main-content .mashal-payment-destinations > .fte-section { min-height: 230px; margin: 0; padding: 12px; border: 1px solid transparent; border-radius: 4px; background: #fff; box-shadow: var(--ptg-panel-shadow); }
+body.mashal-ui #ptg-main-content .mashal-payment-destinations > .fte-section { min-height: 230px; margin: 0; padding: 12px; border: 1px solid transparent; border-radius: 12px; background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .mashal-payment-bank { order: 1; }
 body.mashal-ui #ptg-main-content .mashal-payment-party { order: 2; }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations .journal-primary-grid { grid-template-columns: minmax(0,1fr); }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations .journal-primary-grid > .ak-field { grid-column: 1/-1; }
 body.mashal-ui #ptg-main-content .mashal-payment-destinations h2 { margin: -4px -4px 16px; padding: 6px 8px; background: var(--mashal-soft); font-size: 14px; }
-body.mashal-ui #ptg-main-content .journal-more-toggle { width: 100%; padding: 8px; border: 1px dashed var(--mashal-field-line); border-radius: 3px; color: var(--mashal-primary); font-size: 14px; }
+body.mashal-ui #ptg-main-content .journal-more-toggle { width: 100%; padding: 8px; border: 1px dashed var(--mashal-field-line); border-radius: 8px; color: var(--mashal-primary); font-size: 14px; }
 body.mashal-ui #ptg-main-content .journal-summary { margin: 24px 0 12px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 14px; }
-body.mashal-ui #roznamchaForm :is(.ak-entity-combobox-control,.ak-entity-combobox-input,.ak-date-control,.ak-date-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); border-radius: 6px; }
+body.mashal-ui #roznamchaForm :is(.ak-entity-combobox-control,.ak-entity-combobox-input,.ak-date-control,.ak-date-input) { min-height: var(--mashal-field-h); height: var(--mashal-field-h); border-radius: 8px; }
 body.mashal-ui #roznamchaForm :is(.journal-mode-bar,.journal-direction-segmented) { margin-block: 0 12px; }
 body.mashal-ui #roznamchaForm .mashal-payment-destinations { margin-block: 8px 16px; }
 body.mashal-ui #roznamchaForm .journal-action-bar { justify-content: end; }
@@ -436,7 +290,7 @@ body.mashal-ui.controller-home.action-index #ptg-main-content .dashboard-page.da
 body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar { order: 0; display: flex; align-items: center; justify-content: space-between; height: 56px; margin-bottom: 24px; padding: 0 20px; border: 1px solid transparent; border-radius: var(--mashal-radius); background: #fff; box-shadow: var(--ptg-panel-shadow); }
 body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar h1 { margin: 0; font-size: var(--font-page-title); font-weight: var(--weight-page-title); }
 body.mashal-ui #ptg-main-content .mashal-dashboard-toolbar > div { display: flex; align-items: center; gap: 16px; direction: ltr; }
-body.mashal-ui #ptg-main-content .mashal-dashboard-save { height: 42px; padding: 0 14px; border: 1px solid var(--mashal-primary); border-radius: 4px; background: var(--mashal-primary); color: #fff; font: inherit; font-size: 14px; }
+body.mashal-ui #ptg-main-content .mashal-dashboard-save { height: 42px; padding: 0 14px; border: 1px solid var(--mashal-primary); border-radius: 8px; background: var(--mashal-primary); color: #fff; font: inherit; font-size: 14px; }
 body.mashal-ui #ptg-main-content .mashal-dashboard-save i { margin-inline-end: 6px; color: #fff; }
 body.mashal-ui #ptg-main-content .mashal-widget-add { padding: 0; border: 0; background: transparent; color: #a530ff; font-size: 24px; }
 body.mashal-ui #ptg-main-content .mashal-dashboard-lists { display: grid; grid-template-columns: minmax(0,457fr) minmax(0,305fr) minmax(0,258fr); gap: 24px; margin-bottom: 24px; padding: 0; }
@@ -473,7 +327,7 @@ body.mashal-ui.controller-home.action-index #ptg-main-content .dash-card h2 { fo
 
 /* ---- 14. R06: widget picker (Bootstrap modal keeps focus trap/Escape) */
 body.mashal-ui .mashal-widget-picker .modal-dialog { width: calc(100% - 32px); max-width: 652px; min-height: calc(100% - 48px); margin: 19px auto 29px; }
-body.mashal-ui .mashal-widget-picker .modal-content { height: 469px; padding: 24px; border: 0; border-radius: 8px; background: #fff; box-shadow: 0 4px 12px rgb(16 24 40 / 8%), 0 24px 48px rgb(16 24 40 / 18%); }
+body.mashal-ui .mashal-widget-picker .modal-content { height: 469px; padding: 24px; border: 0; border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgb(16 24 40 / 8%), 0 24px 48px rgb(16 24 40 / 18%); }
 body.mashal-ui .mashal-widget-picker-head { display: flex; align-items: center; justify-content: space-between; height: 40px; margin-bottom: 24px; }
 body.mashal-ui .mashal-widget-picker-head h2 { margin: 0; font-size: 16px; font-weight: 400; }
 body.mashal-ui .mashal-widget-picker-head label { display: flex; align-items: center; gap: 7px; font-size: 14px; }
@@ -564,11 +418,8 @@ body.boltz-shell.app-shell-authenticated.mashal-ui :focus-visible { outline: 2px
     body.mashal-ui .mashal-invoice-receipt #roznamchaForm :is(.mashal-receipt-description,.mashal-receipt-party-options) { grid-row: auto; }
     body.mashal-ui .mashal-invoice-receipt #roznamchaForm .mashal-receipt-totals { grid-template-columns: minmax(0,1fr); gap: 12px; margin-bottom: 32px; }
 }
-@media (max-width: 767px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-topbar { padding: 0 12px; }
-}
 @media (max-width: 639px) {
-    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-page { padding: 12px; }
+    body.boltz-shell.app-shell-authenticated.mashal-ui .ptg-page { padding-block: 24px; }
     body.mashal-ui #ptg-main-content .ptg-page-frame > .ak-form-page:not(.ak-list-page,.dashboard-page) { padding: 16px; }
     body.mashal-settings #ptg-main-content .mashal-settings-frame { display: flex; flex-direction: column; min-width: 0; }
     body.mashal-settings #ptg-main-content .mashal-settings-nav { width: 100%; min-width: 0; padding: 14px; border-inline-end: 0; border-bottom: 1px solid var(--mashal-line); }

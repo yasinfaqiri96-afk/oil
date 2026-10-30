@@ -4,44 +4,9 @@
 
 body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
-    --ptg-field-bg: #FFFFFF;
-    --ptg-field-border: #C2D0E3;
     --ptg-field-muted-bg: var(--ptg-field-disabled-bg);
     --ptg-field-height: var(--ak-control-height);
     --ptg-form-gap: 16px;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.form-label, .col-form-label),
-body.ptg-modal-document :where(.form-label, .col-form-label) {
-    margin-bottom: 6px;
-    color: var(--ptg-label);
-    font-size: var(--font-label);
-    font-weight: var(--weight-label);
-    line-height: var(--line-label);
-}
-
-/* اندازهٔ caption فقط برای پیام اعتبارسنجی؛ .text-danger صرفاً utility رنگ است
-   و رنگش را _utilities.css می‌دهد. */
-body.boltz-shell.app-shell-authenticated :where(.field-validation-error, .validation-summary-errors),
-body.ptg-modal-document :where(.field-validation-error, .validation-summary-errors) {
-    color: var(--ptg-danger);
-    font-size: var(--font-caption);
-    font-weight: 500;
-    line-height: 1.6;
-}
-
-body.boltz-shell.app-shell-authenticated :where(.validation-summary-errors, .contract-validation-summary):not(:empty),
-body.ptg-modal-document :where(.validation-summary-errors, .contract-validation-summary):not(:empty) {
-    padding: .85rem 1rem;
-    border: 1px solid rgba(var(--ptg-danger-rgb), .16);
-    border-radius: var(--ptg-radius-md);
-    background: var(--ptg-danger-soft);
-}
-
-body.boltz-shell.app-shell-authenticated :where(.row.g-3, .row.g-4),
-body.ptg-modal-document :where(.row.g-3, .row.g-4) {
-    --bs-gutter-x: var(--ptg-form-gap);
-    --bs-gutter-y: var(--ptg-form-gap);
 }
 /* The parallel «ptg-form-*» shell that used to live below this line is gone:
    .ptg-form-page/-shell/-card/-header/-body/-section/-grid/-field, .ptg-input/
@@ -49,5 +14,5 @@ body.ptg-modal-document :where(.row.g-3, .row.g-4) {
    .ptg-btn-primary/-soft/-secondary/-danger, .app-form-card/.form-card and the
    *-one-page-form wrappers had no markup left in any view. Form design now has
    a single owner: 76-form-system.css, whose reference is the
-   «ثبت دریافت / پرداخت» form. Only the Bootstrap-vocabulary leftovers above
-   (.form-label, validation text, .row gutters) still have live markup. */
+   «ثبت دریافت / پرداخت» form. The Bootstrap-vocabulary leftovers (.form-label,
+   validation text, .row gutters) are styled once, in 17-system-forms.css. */

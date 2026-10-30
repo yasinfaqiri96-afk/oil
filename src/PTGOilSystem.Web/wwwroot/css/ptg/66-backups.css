@@ -1,17 +1,17 @@
 /* =========================================================================
    صفحهٔ پشتیبان‌گیری.
    همهٔ قاعده‌ها زیر .bk-page قفل‌اند تا هیچ صفحهٔ دیگری تحت تأثیر قرار نگیرد.
-   کارت سفید، پس‌زمینهٔ روشن، سایهٔ بسیار نرم، شعاع یکدست، رنگ اصلی #1062D0.
+   کارت سفید، پس‌زمینهٔ روشن، سایهٔ بسیار نرم، شعاع یکدست، رنگ اصلی برند (--primary-main).
    ========================================================================= */
 
 .bk-page {
-    --bk-primary: #1062D0;
+    --bk-primary: var(--primary-main);
     --bk-success: var(--ptg-success);
-    --bk-success-strong: #5C8A44;
+    --bk-success-strong: var(--ptg-success-text);
     --bk-surface: #ffffff;
-    --bk-border: #e6eaf0;
-    --bk-text: #1c2430;
-    --bk-muted: #6b7787;
+    --bk-border: var(--divider);
+    --bk-text: var(--text-primary);
+    --bk-muted: var(--text-secondary);
     --bk-radius: 12px;
     --bk-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 16px rgba(16, 24, 40, .05);
     --bk-gap: 16px;
@@ -74,10 +74,10 @@
     white-space: nowrap;
 }
 
-.bk-page .bk-badge.is-ok { background: #e7f6ec; color: #14713a; }
-.bk-page .bk-badge.is-bad { background: #fdecec; color: #b32318; }
-.bk-page .bk-badge.is-busy { background: #fff4e2; color: #9a5b00; }
-.bk-page .bk-badge.is-muted { background: #f1f3f6; color: var(--bk-muted); }
+.bk-page .bk-badge.is-ok { background: var(--ptg-success-soft); color: var(--ptg-success-text); }
+.bk-page .bk-badge.is-bad { background: var(--ptg-danger-soft); color: var(--ptg-danger-text); }
+.bk-page .bk-badge.is-busy { background: var(--ptg-warning-soft); color: var(--ptg-warning-text); }
+.bk-page .bk-badge.is-muted { background: var(--background-neutral); color: var(--bk-muted); }
 
 /* ---- Actions ---- */
 .bk-page .bk-actions {
@@ -99,9 +99,9 @@
 .bk-page .btn.bk-primary {
     --_bg: var(--bk-primary);
     --_fg: #fff;
-    --_bg-h: #1467d6;
+    --_bg-h: var(--primary-dark);
     --_bd: var(--bk-primary);
-    --_sh: rgba(16, 98, 208, .28);
+    --_sh: rgba(var(--primary-main-rgb), .28);
 
     padding: 9px 18px;
     font-weight: 600;
@@ -112,8 +112,8 @@
 
 .bk-page .btn.bk-primary:hover:not(:disabled),
 .bk-page .btn.bk-primary:focus-visible:not(:disabled) {
-    --_bg: #1467d6;
-    --_bd: #1467d6;
+    --_bg: var(--primary-dark);
+    --_bd: var(--primary-dark);
 }
 
 .bk-page .btn.bk-primary:disabled {
@@ -148,7 +148,7 @@
     box-shadow: none;
 }
 
-.bk-page .btn.bk-ghost:hover { background: #f7f9fc; }
+.bk-page .btn.bk-ghost:hover { background: var(--background-neutral); }
 
 /* ---- Panels & table ---- */
 .bk-page .bk-panel {
@@ -212,15 +212,15 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--bk-muted);
-    background: #fafbfd;
+    background: var(--background-neutral);
     padding: 10px 14px;
     border-bottom: 1px solid var(--bk-border);
 }
 
 .bk-page .bk-table > tbody > tr > td {
     padding: 10px 14px;
-    font-size: 16px;
-    border-bottom: 1px solid #f1f3f6;
+    font-size: var(--font-body);
+    border-bottom: 1px solid var(--background-neutral);
     vertical-align: middle;
 }
 
@@ -249,7 +249,7 @@
     box-shadow: none;
 }
 
-.bk-page .btn.bk-icon-btn:hover { background: #f7f9fc; }
+.bk-page .btn.bk-icon-btn:hover { background: var(--background-neutral); }
 
 .bk-page .bk-empty {
     display: flex;
@@ -258,7 +258,7 @@
     gap: 8px;
     padding: 28px 12px;
     color: var(--bk-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     white-space: normal;
 }
 
@@ -290,11 +290,11 @@
 
 .bk-page .bk-accordion .accordion-button:not(.collapsed) {
     color: var(--bk-text);
-    background: #f7f9fc;
+    background: var(--background-neutral);
 }
 
 .bk-page .bk-accordion .accordion-button:focus {
-    box-shadow: 0 0 0 3px rgba(16, 98, 208, .15);
+    box-shadow: 0 0 0 3px rgba(var(--primary-main-rgb), .15);
 }
 
 .bk-page .bk-accordion-badge { margin-inline-start: auto; }
@@ -323,7 +323,7 @@
 .bk-page .bk-field--full { grid-column: 1 / -1; }
 
 .bk-page .bk-label {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     color: var(--bk-muted);
 }
@@ -341,7 +341,7 @@
 .bk-page .bk-input:focus {
     outline: none;
     border-color: var(--bk-primary);
-    box-shadow: 0 0 0 3px rgba(16, 98, 208, .15);
+    box-shadow: 0 0 0 3px rgba(var(--primary-main-rgb), .15);
 }
 
 .bk-page .bk-switch {
@@ -353,7 +353,7 @@
     border-radius: 8px;
     padding: 10px 14px;
     margin: 0;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     cursor: pointer;
 }
@@ -368,7 +368,7 @@
 
 .bk-page .bk-alert {
     border-radius: 8px;
-    font-size: 16px;
+    font-size: var(--font-body);
     padding: 10px 14px;
 }
 
@@ -391,25 +391,25 @@
 
 .bk-page .bk-facts dd {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     overflow-wrap: anywhere;
 }
 
 /* ---- Error modal ---- */
 #backup-error-modal .bk-error-subject {
-    font-size: 16px;
-    color: #6b7787;
+    font-size: var(--font-body);
+    color: var(--text-secondary);
     margin-bottom: 10px;
     overflow-wrap: anywhere;
 }
 
 #backup-error-modal .bk-error-text {
-    background: #fafbfd;
-    border: 1px solid #e6eaf0;
+    background: var(--background-neutral);
+    border: 1px solid var(--divider);
     border-radius: 8px;
     padding: 12px 14px;
-    font-size: 16px;
+    font-size: var(--font-body);
     line-height: 1.7;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

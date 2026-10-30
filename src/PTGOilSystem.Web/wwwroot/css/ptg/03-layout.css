@@ -82,24 +82,6 @@ body.boltz-shell.app-shell-authenticated .boltz-content-body > :first-child {
     margin-top: 0;
 }
 
-body.boltz-shell.app-shell-authenticated .ptg-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    min-height: var(--ptg-topbar-height);
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    /* چرتکه: نوار بالا همیشه یکدست #FEFEFE، بدون سایه و بدون blur هنگام اسکرول. */
-    background: #FEFEFE;
-    box-shadow: none;
-}
-
-body.boltz-shell.app-shell-authenticated .boltz-topbar-start,
-body.boltz-shell.app-shell-authenticated .boltz-topbar-end {
-    gap: .9rem;
-}
-
 body.boltz-shell.app-shell-authenticated .ptg-page {
     gap: var(--ptg-space-gap);
     padding: 0;
@@ -418,13 +400,5 @@ body.ptg-search-open .ptg-app { overflow: hidden !important; }
     body.boltz-shell.app-shell-authenticated .ptg-app {
         --ptg-space-page: .75rem;
         gap: 1rem;
-    }
-
-    body.boltz-shell.app-shell-authenticated .ptg-topbar {
-        min-height: auto;
-    }
-
-    body.boltz-shell.app-shell-authenticated .boltz-topbar-start {
-        flex: 1 1 100%;
     }
 }

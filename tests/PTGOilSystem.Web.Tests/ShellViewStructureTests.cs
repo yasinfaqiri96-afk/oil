@@ -62,18 +62,18 @@ public class ShellViewStructureTests
             .Replace("\r\n", "\n", StringComparison.Ordinal);
         var navigationJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/navigation.js");
 
-        // The rail is the invariant this test guards: the collapsed sidebar must stay an
-        // 88px icon rail and the expanded sidebar must be strictly wider than it. The exact
-        // expanded width is a design choice (currently 224px) and is deliberately not pinned.
-        Assert.Contains("--layout-sidebar-mini: 88px", tokensCss);
+        // The rail is the invariant this test guards: the collapsed sidebar must stay a
+        // 64px icon-only rail (Novatech) and the expanded sidebar must be strictly wider
+        // than it. The exact expanded width is a design choice (currently 240px).
+        Assert.Contains("--layout-sidebar-mini: 64px", tokensCss);
         var expandedSidebarPx = ReadPixelToken(tokensCss, "--layout-sidebar");
         var railPx = ReadPixelToken(tokensCss, "--layout-sidebar-mini");
-        Assert.Equal(88, railPx);
+        Assert.Equal(64, railPx);
         Assert.True(
             expandedSidebarPx > railPx,
             $"Expanded sidebar ({expandedSidebarPx}px) must be wider than the icon rail ({railPx}px).");
         Assert.Contains("is-sidebar-collapsed .ak-navpanel {\n        display: flex;", sidebarCss);
-        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 27px;\n        block-size: 27px;", sidebarCss);
+        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 23px;\n        block-size: 23px;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .boltz-nav-link > span", sidebarCss);
         Assert.Contains("window.matchMedia(\"(min-width: 1200px)\")", navigationJs);
         Assert.Contains("window.matchMedia(\"(min-width: 992px)\")", navigationJs);
@@ -83,19 +83,21 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Sidebar_Uses_Light_Chortke_Surfaces_Without_Changing_State_Colors()
+    public void Sidebar_Uses_The_Novatech_Brand_Column_Without_Changing_State_Colors()
     {
         var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
         var sidebarCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/04-sidebar.css");
 
-        // نوار کناری Deep Navy است؛ همهٔ رنگ‌ها در 01-tokens متمرکزند و 04-sidebar فقط token می‌خواند.
-        Assert.Contains("--ptg-sidebar-panel: #1A467D", tokensCss);
-        Assert.Contains("--ptg-sidebar-rail: #14355F", tokensCss);
+        // نوار کناری ستون برند نواتیک (#007DB2) است و آیتم فعال روی #006088 می‌نشیند؛
+        // همهٔ رنگ‌ها در 01-tokens متمرکزند و 04-sidebar فقط token می‌خواند.
+        Assert.Contains("--primary-main: #007DB2", tokensCss);
+        Assert.Contains("--ptg-sidebar-panel: #007DB2", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #007DB2", tokensCss);
         Assert.Contains("--ptg-sidebar-panel: #1E1E27", tokensCss);
         Assert.Contains("--ptg-sidebar-rail: #16161D", tokensCss);
-        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10)", tokensCss);
-        Assert.Contains("--ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14)", tokensCss);
-        Assert.Contains("--ptg-sidebar-danger: #FF9A9A", tokensCss);
+        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.08)", tokensCss);
+        Assert.Contains("--ptg-sidebar-active-bg: #006088", tokensCss);
+        Assert.Contains("--ptg-sidebar-danger: #FFE1E1", tokensCss);
         Assert.Contains("background: var(--ptg-sidebar-panel)", sidebarCss);
     }
 
@@ -185,7 +187,7 @@ public class ShellViewStructureTests
         Assert.True(
             layout.LastIndexOf("~/css/ptg/70-page-frame.css", StringComparison.Ordinal)
             > layout.LastIndexOf("~/css/ptg/61-finance-workspace.css", StringComparison.Ordinal));
-        Assert.Contains("--layout-content-max: 1280px", tokensCss);
+        Assert.Contains("--layout-content-max: 1600px", tokensCss);
 
         // One form width for the whole system: the reference form
         // («ثبت دریافت / پرداخت») set it, and 76-form-system.css now applies it to
@@ -197,12 +199,13 @@ public class ShellViewStructureTests
 
         Assert.Contains("padding-inline: var(--layout-gutter-desktop)", pageFrameCss);
         Assert.Contains("max-inline-size: var(--layout-content-max)", pageFrameCss);
-        Assert.Contains("--layout-content-max: 1400px", pageFrameCss);
-        Assert.Contains("--layout-content-max: 1480px", pageFrameCss);
-        Assert.Contains("--layout-content-max: 1560px", pageFrameCss);
-        Assert.Contains("@media (min-width: 1200px) and (max-width: 1599.98px)", pageFrameCss);
+        // One cap (1600px) instead of per-monitor escalation; Novatech gutter ladder.
+        Assert.DoesNotContain("--layout-content-max: 1400px", pageFrameCss);
+        Assert.Contains("@media (min-width: 1024px) and (max-width: 1279.98px)", pageFrameCss);
+        Assert.Contains("padding-inline: var(--layout-gutter-laptop)", pageFrameCss);
+        Assert.Contains("@media (min-width: 640px) and (max-width: 1023.98px)", pageFrameCss);
         Assert.Contains("padding-inline: var(--layout-gutter-compact)", pageFrameCss);
-        Assert.Contains("@media (min-width: 768px) and (max-width: 1199.98px)", pageFrameCss);
+        Assert.Contains("@media (max-width: 639.98px)", pageFrameCss);
         Assert.DoesNotContain(".ptg-page > .boltz-content-body", akauntingCss);
 
         // The form column is owned by the form system, which loads after both
@@ -220,14 +223,21 @@ public class ShellViewStructureTests
     public void Header_Removes_Settings_And_Fits_The_Account_Avatar()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
-        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css")
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css");
+        var headerCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/74-header-controls.css");
 
         Assert.DoesNotContain("ptg-hgear", layout);
         Assert.DoesNotContain("bi bi-gear", layout);
         Assert.Contains("ptg-havatar-ring ptg-havatar-trigger", layout);
-        Assert.Contains(".ptg-havatar-ring {\n    width: 2.5rem;\n    height: 2.5rem;\n    padding: 2px;", shellCss);
-        Assert.Contains("object-fit: contain", shellCss);
+
+        // The header has a single owner: the legacy boltz-shell copies of the topbar,
+        // nav and header-button rules were removed so nothing competes with 74.
+        Assert.DoesNotContain(".ptg-havatar-ring", shellCss);
+        Assert.DoesNotContain(".ptg-h3d", shellCss);
+        Assert.DoesNotContain(".boltz-topbar", shellCss);
+        Assert.DoesNotContain(".boltz-nav-link", shellCss);
+        Assert.Contains("--hdr-ctl-size: 32px", headerCss);
+        Assert.Contains(":is(.boltz-topbar-toggle, .ptg-h3d, .ptg-havatar-ring)", headerCss);
     }
 
     [Fact]
@@ -300,21 +310,20 @@ public class ShellViewStructureTests
             > modalLayout.IndexOf("RenderSectionAsync(\"Styles\"", StringComparison.Ordinal),
             "Modal tabs must use the same final skin.");
 
-        // Chortke tab tokens. These are the contract every rail renders against.
-        Assert.Contains("--ptg-tabs-font-size: 18px", tabsCss);
-        Assert.Contains("--ptg-tabs-text-color: #333333", tabsCss);
-        Assert.Contains("--ptg-tabs-active-color: var(--primary-main)", tabsCss);
-        Assert.Contains("--ptg-tabs-border-color: #E0E0E0", tabsCss);
-        Assert.Contains("--ptg-tabs-item-gap: 32px", tabsCss);
-        Assert.Contains("--ptg-tabs-rail-height: 52px", tabsCss);
-        Assert.Contains("--ptg-tabs-indicator-height: 3px", tabsCss);
-        Assert.Contains("--ptg-tabs-transition-duration: 300ms", tabsCss);
-        Assert.Contains("--ptg-tabs-focus-color: rgba(16, 98, 208, .25)", tabsCss);
-        Assert.Contains("border-bottom: 1px solid var(--ptg-tabs-border-color)", tabsCss);
+        // Novatech pill tabs. These are the contract every rail renders against.
+        Assert.Contains("--ptg-tabs-font-size: 14px", tabsCss);
+        Assert.Contains("--ptg-tabs-text-color: var(--primary-main)", tabsCss);
+        Assert.Contains("--ptg-tabs-active-color: #FFFFFF", tabsCss);
+        Assert.Contains("--ptg-tabs-idle-bg: #F1F5F9", tabsCss);
+        Assert.Contains("--ptg-tabs-active-bg: var(--primary-main)", tabsCss);
+        Assert.Contains("--ptg-tabs-item-gap: 8px", tabsCss);
+        Assert.Contains("--ptg-tabs-item-height: 36px", tabsCss);
+        Assert.Contains("--ptg-tabs-item-radius: 8px", tabsCss);
+        Assert.Contains("--ptg-tabs-focus-color: rgba(var(--primary-main-rgb), .25)", tabsCss);
 
-        // Flat rail: spacing comes from tab padding, never from a gap, and the
-        // rail must not wrap to a second line on narrow screens.
-        Assert.Contains("gap: 0;", tabsCss);
+        // Pills sit in one row spaced by the rail gap; the rail never wraps to a
+        // second line on narrow screens — it scrolls.
+        Assert.Contains("gap: var(--ptg-tabs-item-gap);", tabsCss);
         Assert.Contains("flex-wrap: nowrap", tabsCss);
         Assert.Contains("scrollbar-width: thin", tabsCss);
         Assert.DoesNotContain("font-weight: 750 !important", listsCss);
@@ -683,17 +692,17 @@ public class ShellViewStructureTests
         Assert.Contains("assembleListCard(page, toolbar)", listScript);
         Assert.Contains("card.classList.add(\"ak-list-card\")", listScript);
         Assert.Contains("window.PTG.setListCardLoading", listScript);
-        Assert.Contains("--ptg-list-radius: 12px", listStyles);
+        Assert.Contains("--ptg-list-radius: var(--radius-table)", listStyles);
         Assert.Contains(".ak-list-card", listStyles);
         Assert.Contains("max-block-size: clamp(18rem, 56dvh, 44rem)", listStyles);
         Assert.Contains(".ak-list-page .ak-journal-scroll", listStyles);
         Assert.Contains("position: sticky", listStyles);
         Assert.Contains("inset-block-start: 0", listStyles);
         // چگالی ردیف دیگر در لایه لیست تکرار نمی‌شود؛ تنها منبع آن 50-ak-components.css
-        // است (چرتکه: 12 + 21 + 12 = ارتفاع ردیف 45px) تا دو لایه با هم نجنگند.
+        // است (نواتیک: 12 + 24 + 12 = ارتفاع ردیف 48px) تا دو لایه با هم نجنگند.
         Assert.DoesNotContain("height: 54px", listStyles);
         Assert.Contains(
-            "padding: 12px 10px",
+            "padding: 12px 16px",
             ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css"));
         Assert.Contains(".ak-list-footer", listStyles);
         Assert.Contains(".ak-list-loading-state", listStyles);

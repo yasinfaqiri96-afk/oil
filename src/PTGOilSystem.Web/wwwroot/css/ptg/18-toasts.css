@@ -7,7 +7,7 @@
 /* ---------- Toast host (top-center, away from sidebar/edges) ---------- */
 .ptg-toast-host {
     position: fixed;
-    top: calc(var(--ptg-topbar-height) + 1rem);
+    top: calc(var(--ptg-topbar-height) + 36px);
     left: 50%;
     right: auto;
     transform: translateX(-50%);
@@ -16,14 +16,14 @@
     flex-direction: column;
     align-items: center;
     gap: .5rem;
-    width: min(340px, calc(100dvi - 2rem));
-    max-width: 340px;
+    width: min(384px, calc(100dvi - 2rem));
+    max-width: 384px;
     pointer-events: none;
 }
 
-/* ---------- Toast card ----------
-   Compact and quiet: white surface, no outline, soft layered shadow; the type shows only
-   as a small tinted icon and the countdown hairline. */
+/* ---------- Toast card (Novatech) ----------
+   White 12px card with an #E9ECF1 hairline and a 3px tone stripe on the
+   inline-start edge; the type also shows as a tinted 32px icon disc. */
 .ptg-toast {
     --ptg-toast-tone: var(--ptg-primary);
     --ptg-toast-soft: var(--ptg-primary-tint);
@@ -31,13 +31,14 @@
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-block: 9px;
-    padding-inline: 12px 10px;
-    background: var(--ptg-surface);
-    border: 0;
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06), 0 10px 24px rgba(16, 24, 40, 0.12);
+    gap: 12px;
+    padding-block: 12px;
+    padding-inline: 14px 10px;
+    background: var(--background-paper);
+    border: 1px solid #E9ECF1;
+    border-inline-start: 3px solid var(--ptg-toast-tone);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
     color: var(--ptg-text);
     pointer-events: auto;
     overflow: hidden;
@@ -73,12 +74,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--ptg-toast-soft);
     color: var(--ptg-toast-tone);
-    font-size: 13px;
+    font-size: 16px;
     line-height: 1;
 }
 
@@ -91,14 +92,14 @@
 }
 
 .ptg-toast__title {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 1.5;
     color: var(--ptg-text);
 }
 
 .ptg-toast__message {
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.6;
     color: var(--ptg-muted);
     word-break: break-word;
@@ -110,10 +111,14 @@
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
-    padding: .25rem;
-    font-size: 11px;
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 12px;
     line-height: 1;
-    border-radius: 50%;
+    border-radius: 8px;
     transition-property: color, background;
     transition-duration: var(--ptg-motion-fast);
     transition-timing-function: var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
@@ -170,7 +175,7 @@
 .ptg-confirm__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(32, 35, 49, .42);
+    background: rgba(15, 23, 42, .40);
     backdrop-filter: blur(2px);
     opacity: 0;
     transition: opacity var(--ptg-motion-base) var(--ptg-motion-ease, cubic-bezier(0.2, 0, 0, 1));
@@ -178,7 +183,8 @@
 
 .ptg-confirm.is-open .ptg-confirm__backdrop { opacity: 1; }
 
-/* Panel: icon beside title/message (RTL start-aligned), compact actions at the end.
+/* Panel (Novatech confirm): centred 384px card — 56px tone disc, 18px title,
+   slate message, two equal 44px buttons with the safe «انصراف» first.
    Tone: danger (default, delete/deactivate) or primary (data-ptg-confirm-tone="primary"). */
 .ptg-confirm[data-tone="primary"] {
     --ptg-confirm-tone: var(--ptg-primary);
@@ -188,15 +194,15 @@
 .ptg-confirm__panel {
     position: relative;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: 14px;
-    width: min(420px, calc(100dvi - 2rem));
-    background: var(--ptg-surface);
-    border: 1px solid var(--ptg-border);
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    width: min(384px, calc(100dvi - 2rem));
+    background: var(--background-paper);
+    border: 0;
     border-radius: var(--ptg-radius-xl);
     box-shadow: var(--shadow-dialog);
-    padding: 20px;
-    text-align: start;
+    padding: 24px;
+    text-align: center;
     /* همان حرکت مودال‌های Bootstrap در 40-motion.css (بند ۴) تا دو نوع دیالوگ
        سیستم یک‌جور بالا بیایند. مدت زیر ۱۸۰ms می‌ماند چون closeConfirm در
        ptg-toasts.js با همان عدد پنل را hidden می‌کند. */
@@ -215,45 +221,43 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    grid-row: 1 / span 2;
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
     border-radius: 50%;
-    font-size: 18px;
+    font-size: 24px;
     background: var(--ptg-confirm-soft);
     color: var(--ptg-confirm-tone);
 }
 
 .ptg-confirm__title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
     line-height: 1.6;
-    margin: 0 0 4px;
+    margin: 0 0 8px;
     color: var(--ptg-text);
 }
 
 .ptg-confirm__message {
-    grid-column: 2;
     font-size: 14px;
-    line-height: 1.8;
+    line-height: 24px;
     color: var(--ptg-muted);
     margin: 0;
 }
 
 .ptg-confirm__actions {
-    grid-column: 1 / -1;
+    justify-self: stretch;
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    margin-top: 20px;
+    gap: 12px;
+    margin-top: 24px;
 }
 
 .ptg-confirm__btn {
-    flex: 0 0 auto;
-    min-width: 88px;
-    min-height: 36px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
     border: 0;
-    border-radius: var(--ptg-radius-button);
+    border-radius: var(--ptg-radius-lg);
     padding: 6px 16px;
     font-size: 14px;
     font-weight: 500;
@@ -264,20 +268,19 @@
 }
 
 .ptg-confirm__btn--ghost {
-    background: var(--ptg-surface);
+    background: #EBEEF3;
     color: var(--ptg-text);
-    border: 1px solid var(--ptg-border);
 }
 
-.ptg-confirm__btn--ghost:hover { background: var(--ptg-surface-soft); }
+.ptg-confirm__btn--ghost:hover { background: #E2E6EC; }
 
 /* Confirm button follows the dialog tone (class name kept for existing markup). */
 .ptg-confirm__btn--danger {
     background: var(--ptg-confirm-tone);
-    color: var(--ptg-field-bg);
+    color: #FFFFFF;
 }
 
-.ptg-confirm__btn--danger:hover { filter: brightness(.94); }
+.ptg-confirm__btn--danger:hover { filter: brightness(.92); }
 
 /* ---------- Mobile ---------- */
 @media (max-width: 575.98px) {

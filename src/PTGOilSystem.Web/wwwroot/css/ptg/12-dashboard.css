@@ -125,7 +125,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 
 .dash-chart-grid {
-    stroke: #eef1f6;
+    stroke: var(--ptg-table-row-line);
     stroke-width: 1;
 }
 
@@ -194,7 +194,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-donut-center-label {
     fill: var(--text-secondary);
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    font-size: 16px;
+    font-size: var(--font-body);
     text-anchor: middle;
 }
 
@@ -361,23 +361,23 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     inline-size: 100%;
     block-size: 10px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 999px;
     overflow: hidden;
     background: var(--ptg-draft-soft);
 }
 
 .dash-progress::-webkit-progress-bar {
-    border-radius: 8px;
+    border-radius: 999px;
     background: var(--ptg-draft-soft);
 }
 
 .dash-progress::-webkit-progress-value {
-    border-radius: 8px;
+    border-radius: 999px;
     background: var(--ptg-btn-primary);
 }
 
 .dash-progress::-moz-progress-bar {
-    border-radius: 8px;
+    border-radius: 999px;
     background: var(--ptg-btn-primary);
 }
 
@@ -420,14 +420,14 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 .dash-flow-progress .dash-progress.is-normal::-webkit-progress-value,
 .dash-flow-progress .dash-progress.is-warning::-webkit-progress-value,
 .dash-flow-progress .dash-progress.is-critical::-webkit-progress-value {
-    background: linear-gradient(90deg, #4f8ef8 0%, #1b5fe0 100%);
+    background: var(--primary-main);
 }
 
 .dash-flow-progress .dash-progress::-moz-progress-bar,
 .dash-flow-progress .dash-progress.is-normal::-moz-progress-bar,
 .dash-flow-progress .dash-progress.is-warning::-moz-progress-bar,
 .dash-flow-progress .dash-progress.is-critical::-moz-progress-bar {
-    background: linear-gradient(90deg, #4f8ef8 0%, #1b5fe0 100%);
+    background: var(--primary-main);
 }
 
 .dashboard-ref .ak-status.is-pending {

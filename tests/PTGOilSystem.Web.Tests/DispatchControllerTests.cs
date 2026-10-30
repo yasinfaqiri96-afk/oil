@@ -51,11 +51,11 @@ public class DispatchControllerTests
         var toastCssPath = GetProjectFilePath("src", "PTGOilSystem.Web", "wwwroot", "css", "ptg", "18-toasts.css");
         var toastCss = File.ReadAllText(toastCssPath);
 
-        Assert.Contains("--success-main: #24AF22;", tokens);
-        Assert.Contains("--success-rgb: 36, 175, 34;", tokens);
-        Assert.Contains("--error-main: #CB0B0B;", tokens);
-        Assert.Contains(".ptg-toast--success { background: var(--ptg-success", toastCss);
-        Assert.Contains(".ptg-toast--error   { background: var(--ptg-danger", toastCss);
+        Assert.Contains("--success-main: #059669;", tokens);
+        Assert.Contains("--success-rgb: 5, 150, 105;", tokens);
+        Assert.Contains("--error-main: #DC2626;", tokens);
+        Assert.Contains(".ptg-toast--success { --ptg-toast-tone: var(--ptg-success)", toastCss);
+        Assert.Contains(".ptg-toast--error   { --ptg-toast-tone: var(--ptg-danger)", toastCss);
     }
 
     [Fact]

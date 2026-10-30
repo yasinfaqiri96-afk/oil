@@ -10,7 +10,7 @@ body.controller-auth.action-login {
     margin: 0;
     min-width: 320px;
     overflow-x: hidden;
-    background: #ececee;
+    background: #F1F5F9;
 }
 
 body.controller-auth.action-login .boltz-public-shell {
@@ -26,22 +26,23 @@ body.controller-auth.action-login .boltz-public-shell {
 }
 
 .ptg-login-page {
-    --lg-page-bg: #ececee;
+    /* Novatech palette. The login page does not load 01-tokens.css, so the
+       brand values are mirrored here: #007DB2 / #006088, slate text, slate-50 fields. */
+    --lg-page-bg: linear-gradient(135deg, #F1F5F9 0%, #F8FAFC 55%, #EAF4FA 100%);
     --lg-card-bg: #ffffff;
-    --lg-art-bg: #e5f6fe;
-    --lg-form-bg: #fafafa;
-    --lg-heading: #1b333f;
-    --lg-muted: #63707a;
-    --lg-field-bg: #edf1f1;
-    --lg-field-label: #6d7a80;
-    --lg-field-text: #1b333f;
-    --lg-accent: #d9605c;
-    --lg-accent-hover: #cc514d;
-    /* دکمهٔ ورود: همان آبی اصلی سیستم (--primary-main / --primary-dark در 01-tokens). */
-    --lg-submit-bg: #1062D0;
-    --lg-submit-bg-hover: #0D52AF;
+    --lg-art-bg: #E6F4FA;
+    --lg-form-bg: #ffffff;
+    --lg-heading: #1E293B;
+    --lg-muted: #64748B;
+    --lg-field-bg: #F8FAFC;
+    --lg-field-label: #64748B;
+    --lg-field-text: #1E293B;
+    --lg-accent: #007DB2;
+    --lg-accent-hover: #006088;
+    --lg-submit-bg: #007DB2;
+    --lg-submit-bg-hover: #006088;
     --lg-submit-ink: #ffffff;
-    --lg-link: #c0504c;
+    --lg-link: #007DB2;
 
     display: block;
     min-height: 100svh;
@@ -61,8 +62,9 @@ body.controller-auth.action-login .boltz-public-shell {
     width: 100%;
     min-height: calc(100svh - 36px);
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 24px;
     background: var(--lg-card-bg);
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, .18);
 }
 
 /* ----- Artwork column --------------------------------------------------- */
@@ -146,7 +148,7 @@ body.controller-auth.action-login .boltz-public-shell {
     margin: 22px 0 0;
     font-size: 16px;
     line-height: 1.6;
-    color: #b3312c;
+    color: #B91C1C;
 }
 
 .ptg-login-alert:empty,
@@ -178,7 +180,7 @@ body.controller-auth.action-login .boltz-public-shell {
     margin: 0;
     padding: 20px 18px 6px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--lg-field-bg);
     font: inherit;
     font-size: 16px;
@@ -193,19 +195,19 @@ body.controller-auth.action-login .boltz-public-shell {
 }
 
 .ptg-login-input:hover {
-    background: #e7ecec;
+    background: #F1F5F9;
 }
 
 .ptg-login-input:focus {
     outline: none;
-    border-color: #cfdada;
-    background: #eaf0f0;
+    border-color: #CBD5E1;
+    background: #FFFFFF;
 }
 
 .ptg-login-input:-webkit-autofill,
 .ptg-login-input:-webkit-autofill:focus {
     -webkit-text-fill-color: var(--lg-field-text);
-    -webkit-box-shadow: 0 0 0 40px #edf1f1 inset;
+    -webkit-box-shadow: 0 0 0 40px #F8FAFC inset;
 }
 
 .ptg-login-label {
@@ -230,7 +232,7 @@ body.controller-auth.action-login .boltz-public-shell {
     margin: 6px 0 0 2px;
     font-size: 14px;
     line-height: 1.5;
-    color: #b3312c;
+    color: #B91C1C;
 }
 
 .ptg-login-error:empty {
@@ -244,7 +246,7 @@ body.controller-auth.action-login .boltz-public-shell {
     gap: 11px;
     margin-top: 30px;
     font-size: 16px;
-    color: #33454e;
+    color: #334155;
     cursor: pointer;
 }
 
@@ -252,7 +254,7 @@ body.controller-auth.action-login .boltz-public-shell {
     width: 19px;
     height: 19px;
     margin: 0;
-    border: 1.5px solid #d3dadd;
+    border: 1.5px solid #CBD5E1;
     border-radius: 5px;
     background: var(--ptg-field-bg);
     appearance: none;
@@ -278,7 +280,7 @@ body.controller-auth.action-login .boltz-public-shell {
     margin-top: 36px;
     padding: 0;
     border: 0;
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--lg-submit-bg);
     font: inherit;
     font-size: 16px;

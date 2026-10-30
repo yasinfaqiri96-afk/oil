@@ -25,10 +25,10 @@
     min-width: 0;
 }/* ---- Card surface --------------------------------------------------- */
 .ak-stat-card {
-    --ak-stat-fg: #1B2437;
-    --ak-stat-title: #4E5968;
-    --ak-stat-unit: #808B9C;
-    --ak-stat-border: #EDF0F3;
+    --ak-stat-fg: #1E293B;
+    --ak-stat-title: #64748B;
+    --ak-stat-unit: #64748B;
+    --ak-stat-border: transparent;
 
     display: grid;
     grid-template-columns: minmax(0, 45%) minmax(0, 55%);
@@ -52,7 +52,7 @@
     box-shadow: none;
 
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    transition: box-shadow .18s ease, border-color .18s ease;
+    transition: box-shadow .2s ease, border-color .2s ease, transform .2s ease;
 }
 
 .ak-stat-card:hover {

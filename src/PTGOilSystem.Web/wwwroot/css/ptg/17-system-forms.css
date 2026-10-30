@@ -9,8 +9,8 @@ body.ptg-modal-document {
        (bg/soft/border/text/blue/pad و field-height/field-radius) هیچ مصرف‌کننده‌ای
        نداشت و فقط یک منبع توکن موازی در کنار 01-tokens.css به نظر می‌رسید.
        ارتفاع و گردی فیلد تنها از --ak-control-height و --ptg-radius-input می‌آید. */
-    --ptg-system-form-muted: #6A7B93;
-    --ptg-system-form-gap: .72rem;
+    --ptg-system-form-muted: var(--text-secondary);
+    --ptg-system-form-gap: var(--ptg-space-field);
 }
 
 body.boltz-shell.app-shell-authenticated :is(.ptg-modal-form-scroll, .modal-body),
@@ -51,10 +51,11 @@ body.ptg-modal-document :is(.field-validation-error, .validation-summary-errors,
 
 body.boltz-shell.app-shell-authenticated :is(.validation-summary-errors, .contract-validation-summary):not(:empty),
 body.ptg-modal-document :is(.validation-summary-errors, .contract-validation-summary):not(:empty) {
-    padding: .65rem .8rem;
-    border: 1px solid #FFD4DC;
-    border-radius: var(--radius-card);
-    background: #FFF7F9;
+    padding: 12px 16px;
+    border: 1px solid rgba(var(--error-rgb), .18);
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-danger-soft);
+    color: var(--ptg-danger-text);
 }
 
 body.boltz-shell.app-shell-authenticated :is(.form-actions),
@@ -63,39 +64,14 @@ body.ptg-modal-document :is(.form-actions) {
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: .5rem;
-    padding-top: .75rem;
-}
-
-body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-header,
-body.ptg-modal-document:is(.action-create, .action-edit) .page-header {
-    padding: .82rem 1rem;
-    border-radius: 8px;
-}
-
-body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-title,
-body.ptg-modal-document:is(.action-create, .action-edit) .page-title {
-    font-size: 18px;
-    line-height: 1.35;
-}
-
-body.boltz-shell:is(.action-create, .action-edit) .boltz-content .page-subtitle,
-body.ptg-modal-document:is(.action-create, .action-edit) .page-subtitle,
-body.ptg-modal-document .ptg-reference-help-copy,
-body.boltz-shell.app-shell-authenticated .ptg-reference-help-copy {
-    display: none;
-}
-
-body.ptg-modal-document :is(.ptg-reference-main-panel),
-body.boltz-shell.app-shell-authenticated :is(.ptg-reference-main-panel) {
-    padding: .85rem;
-    background: var(--ptg-field-bg);
+    gap: 12px;
+    padding-top: 16px;
 }
 
 @media (max-width: 767.98px) {
     body.boltz-shell.app-shell-authenticated,
     body.ptg-modal-document {
-        --ptg-system-form-gap: .62rem;
+        --ptg-system-form-gap: 12px;
     }
 
     body.boltz-shell.app-shell-authenticated :is(.form-actions),
@@ -109,61 +85,6 @@ body.boltz-shell.app-shell-authenticated :is(.ptg-reference-main-panel) {
     }
 }
 
-/* Forms that keep a standalone .page-header on their create page
-   (AccountStatements, Inventory) — turn that header into the same blue bar. */
-body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action-create .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.05rem 1.5rem;
-    border: 0;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--ptg-primary) 0%, var(--ptg-primary-dark) 100%);
-    color: var(--ptg-field-bg);
-}
-body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action-create .page-header .page-subtitle {
-    display: none;
-}
-
-body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action-create .page-header .page-title {
-    margin: 0;
-    color: var(--ptg-field-bg);
-    font-size: 1.18rem;
-    font-weight: 800;
-}
-
-body.boltz-shell:is(.controller-accountstatements, .controller-inventory).action-create .page-header .btn-outline-secondary {
-    border-color: rgba(255, 255, 255, .55);
-    background: rgba(255, 255, 255, .14);
-    color: var(--ptg-field-bg);
-}
-
-body.boltz-shell:is(.controller-dispatch, .controller-sales, .controller-expenses, .controller-lossevents, .controller-customsdeclarations):is(.action-create, .action-edit) .contract-section-title {
-    margin: 0 0 .7rem;
-    padding: 0 0 .5rem;
-    border-bottom: 1px solid var(--ptg-border);
-    color: #1f344f;
-    font-size: 16px;
-    font-weight: 800;
-    text-align: right;
-}
-
-/* Master data and people index pages: keep the page chrome compact and remove
-   repeated breadcrumb/subtitle copy already represented by the sidebar/tabs. */
-body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .boltz-content .page-header {
-    min-height: 0;
-    padding: .58rem .78rem;
-    border-radius: 8px;
-    box-shadow: none;
-}
-
-body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .boltz-content .page-title {
-    margin: 0;
-    font-size: 18px;
-    line-height: 1.25;
-}
-
 /* (Master-data / parties reference-grid overrides removed in B8: the
    .ptg-master-form-grid family has zero consumers after the ak-form migration.) */
 
@@ -171,11 +92,10 @@ body.boltz-shell.app-shell-authenticated.is-master-data-compact.action-index .bo
    invoice layout. Scoped to this action only; field names and save logic stay
    untouched. */
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation {
-    --fara-form-border: #d5d5d5;
-    --fara-form-section: #ffffff;
-    --fara-form-table-head: #ffffff;
-    --fara-form-text: #566070;
-    --fara-form-green: #67bd4a;
+    --fara-form-border: var(--divider);
+    --fara-form-section: var(--background-neutral);
+    --fara-form-table-head: var(--ptg-table-head-bg);
+    --fara-form-text: #334155;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .boltz-content {
@@ -185,11 +105,11 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form {
     width: min(100%, 1280px);
     margin: 0 auto;
-    padding: .65rem .65rem .55rem;
-    border: 1px solid var(--fara-form-border);
-    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-card);
     background: var(--ptg-field-bg);
-    box-shadow: none;
+    box-shadow: var(--ptg-panel-shadow);
     color: var(--fara-form-text);
     overflow: hidden;
 }
@@ -199,13 +119,13 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form .alert-info {
-    margin: 0 0 .48rem;
-    padding: .28rem .75rem;
+    margin: 0 0 12px;
+    padding: 10px 16px;
     border: 0;
-    border-radius: 0;
-    background: var(--fara-form-section);
-    color: #4a4a4a;
-    font-size: 16px;
+    border-radius: var(--ptg-radius-lg);
+    background: var(--ptg-info-soft);
+    color: var(--ptg-info-text);
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.45;
     text-align: center;
@@ -224,9 +144,9 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     padding: .2rem .45rem;
     border-bottom: 0;
     background: var(--fara-form-table-head);
-    color: #687181;
+    color: var(--ptg-table-head-ink);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.35;
     text-align: center;
 }
@@ -235,17 +155,17 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     margin: 0 .45rem .42rem;
     padding: .35rem .55rem;
     border: 0;
-    border-radius: 0;
-    background: #fbfbfb;
-    color: #666;
-    font-size: 14px;
+    border-radius: var(--ptg-radius-md);
+    background: var(--fara-form-section);
+    color: var(--text-secondary);
+    font-size: 12px;
     text-align: center;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form .table-responsive {
     margin: 0 .45rem;
-    border: 0;
-    border-radius: 6px;
+    border: 1px solid var(--fara-form-border);
+    border-radius: var(--ptg-radius-lg);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     max-width: 100%;
@@ -267,7 +187,7 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     border: 0;
     border-bottom: 0;
     background: var(--fara-form-table-head);
-    color: var(--ptg-text-muted);
+    color: var(--ptg-table-head-ink);
     font-size: 14px;
     font-weight: 700;
     line-height: 1.25;
@@ -279,36 +199,17 @@ body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.actio
     padding: .22rem .34rem;
     border: 0;
     background: var(--ptg-field-bg);
-    color: #596273;
+    color: #334155;
     font-size: 14px;
     vertical-align: middle;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form table tbody :is(strong, .text-muted) {
-    color: #596273;
+    color: #334155;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form table tbody tr + tr td {
     border-top: 0;
 }
 
-body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form .btn {
-    min-height: 2.15rem;
-    padding: .34rem .9rem;
-    border-radius: 4px;
-    font-size: 16px;
-    font-weight: 700;
-    box-shadow: none;
-}
-
-body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form .btn-primary {
-    border-color: var(--fara-form-green);
-    background: var(--fara-form-green);
-    color: var(--ptg-field-bg);
-}
-
-body.boltz-shell.app-shell-authenticated.controller-inventorytransportlegs.action-creategroupoperation .fara-document-form .btn-outline-secondary {
-    border-color: transparent;
-    background: #f8f8f8;
-    color: #647083;
-}
+/* Buttons inside the document form use the shared button system (05-components.css). */

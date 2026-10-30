@@ -23,7 +23,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip > 
 
 body.boltz-shell.app-shell-authenticated :where(.summary-tile-label) {
     color: var(--ptg-muted);
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 650;
 }
 
@@ -74,7 +74,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-secondary,
 
 body.boltz-shell.app-shell-authenticated .boltz-content :where(.warning-note) {
     background: var(--ptg-warning-soft) !important;
-    color: #8A5A00;
+    color: var(--ptg-warning-text);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb a) {
@@ -286,11 +286,11 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 
 .storage-tank-fact-label {
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 .storage-tank-fact-value {
-    font-size: 16px;
+    font-size: var(--font-body);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
@@ -304,7 +304,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     padding: 4px 8px 4px 14px;
     border-top: 1px solid var(--divider);
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: var(--font-body);
 }
 
 @media (prefers-reduced-motion: reduce) {
