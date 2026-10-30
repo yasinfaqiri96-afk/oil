@@ -21,10 +21,12 @@
         <vc:stat-card title="@UiText.T(Context, "مانده (همهٔ نتایج)", "Balance (all results)")" value="@Model.FilteredBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/svc-training.webp"></vc:stat-card>
     </section>
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@AkSearchFilterModel.SearchOnly("q", Model.Query, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly("q", Model.Query, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

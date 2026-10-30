@@ -102,14 +102,14 @@
                         Model.FromDate?.ToString("yyyy-MM-dd"), "toDate", Model.ToDate?.ToString("yyyy-MM-dd"))
                 });
         }
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="loadingFilter" />
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="loadingFilter" />
+            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
+        </div>
         @if (Model.WithoutReceipt)
         {
             <p class="ak-note mb-2"><i class="bi bi-funnel" aria-hidden="true"></i> @UiText.T(Context, "فقط بارگیری‌های بدون رسید نمایش داده می‌شود.", "Showing only loadings without a receipt.")</p>
         }
-        <div class="d-flex justify-content-end mt-2 mb-2 no-print">
-            <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
-        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

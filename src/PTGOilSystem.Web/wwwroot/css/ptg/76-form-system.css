@@ -222,16 +222,20 @@ form.ak-form .ak-form-grid > .ak-form-grid {
 form.ak-form .ak-form-grid .ak-field,
 form.ak-form .ak-form-grid .ak-toggle-field,
 form.ak-form .ak-form-grid > label {
-    grid-column: span 4;
+    grid-column: span 6;
 }
-form.ak-form .fec-span-3 { grid-column: span 3; }
-form.ak-form .fec-span-4 { grid-column: span 4; }
-form.ak-form .fec-span-5 { grid-column: span 5; }
-form.ak-form .fec-span-6 { grid-column: span 6; }
-form.ak-form .fec-span-8 { grid-column: span 8; }
+form.ak-form .ak-form-grid .fec-span-3 { grid-column: span 3; }
+form.ak-form .ak-form-grid .fec-span-4 { grid-column: span 4; }
+form.ak-form .ak-form-grid .fec-span-5 { grid-column: span 5; }
+form.ak-form .ak-form-grid .fec-span-6 { grid-column: span 6; }
+form.ak-form .ak-form-grid .fec-span-8 { grid-column: span 8; }
 
 form.ak-form .ak-form-grid .ak-form-full,
 form.ak-form .ak-form-grid .ak-col-full {
+    grid-column: 1 / -1;
+}
+
+form.ak-form .ak-form-grid .ak-field:has(> textarea.ak-input) {
     grid-column: 1 / -1;
 }
 

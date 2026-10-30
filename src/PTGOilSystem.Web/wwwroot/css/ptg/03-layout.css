@@ -247,8 +247,8 @@ body.ptg-account-open .ptg-account-drawer {
     position: absolute;
     top: .9rem;
     inset-inline-start: .9rem;
-    width: 2rem;
-    height: 2rem;
+    width: 44px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -266,7 +266,11 @@ body.ptg-account-open .ptg-account-drawer {
 .ptg-account-close:focus-visible {
     background: rgba(var(--grey-500-rgb), .12);
     color: var(--text-primary);
-    outline: none;
+}
+
+.ptg-account-close:focus-visible {
+    outline: 2px solid var(--primary-main);
+    outline-offset: 2px;
 }
 
 .ptg-account-head {
@@ -370,7 +374,11 @@ body.ptg-account-open .ptg-account-drawer {
 .ptg-account-link:focus-visible {
     background: rgba(var(--grey-500-rgb), .1);
     color: var(--text-primary);
-    outline: none;
+}
+
+.ptg-account-link:focus-visible {
+    outline: 2px solid var(--primary-main);
+    outline-offset: 2px;
 }
 
 .ptg-account-link:hover .ptg-account-link-ic,
@@ -395,7 +403,12 @@ body.ptg-account-open .ptg-account-drawer {
 }
 
 .ptg-account-logout:hover,
-.ptg-account-logout:focus-visible { background: rgba(var(--error-rgb), .16); outline: none; }
+.ptg-account-logout:focus-visible { background: rgba(var(--error-rgb), .16); }
+
+.ptg-account-logout:focus-visible {
+    outline: 2px solid var(--error-main);
+    outline-offset: 2px;
+}
 
 /* Lock the app scroller while the drawer/search overlay is open (no layout shift). */
 body.ptg-account-open .ptg-app,

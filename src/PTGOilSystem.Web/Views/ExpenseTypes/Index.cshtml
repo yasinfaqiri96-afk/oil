@@ -41,9 +41,11 @@
                     expTypesIsActive)
             });
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="expenseTypesFilter" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="expenseTypesFilter" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "لیست انواع مصارف", "Expense type list")">
                 <thead>

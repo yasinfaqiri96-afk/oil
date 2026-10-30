@@ -1,11 +1,10 @@
 # PTG Oil System — UI/UX Design System
 
-> **Source of Truth:** این فایل منبع اصلی و دائمی طراحی پروژه است.
-> پیش از طراحی یا اصلاح هر صفحه باید این فایل خوانده شود.
-> سپس راهنمای همان نوع صفحه در `design-system/pages/` خوانده شود.
-> `ui-ux-pro-max` فقط در چارچوب این سند استفاده می‌شود؛ پیشنهاد عمومی Skill حق تغییر هویت PTG را ندارد.
-> هماهنگی کل نرم‌افزار مهم‌تر از نوآوری جداگانه در یک صفحه است.
-> قرارداد اجرایی یکپارچه‌سازی بر اساس تصاویر مرجع Mashal در `design-system/mashal-unified-contract.md` است؛ primitiveها مشترک‌اند و فقط دو variant رسمی `mashal-light` و `mashal-legacy` مجازند.
+> **Source of Truth:** این فایل منبع اصلی طراحی پروژه است؛ سند اجرایی جزئیات در `docs/UI-DESIGN-SYSTEM.md` نگهداری می‌شود.
+> گزارش «دیزاین سیستم مدیریت نواتیک» مرجع بصریِ پورت است، نه منبع کد/معماری/محتوای PTG.
+> PTG روی MVC/Razor و Bootstrap RTL می‌ماند؛ نام، لوگو، دامنهٔ نفت، route، مجوز و workflowهای PTG حفظ می‌شوند.
+> هدف، یک زبان بصری مشترک است؛ wrapperهای Mashal فقط برای مصرف‌کننده‌های runtime حفظ می‌شوند، نه به‌عنوان variant طراحی مستقل.
+> CSS/JS قدیمی تا وقتی مصرف‌کنندهٔ زنده دارند حذف نمی‌شوند؛ پاک‌سازی نیازمند اثبات نبود مصرف‌کننده و validation است.
 
 ## 1. دامنه و ترتیب اولویت
 
@@ -52,30 +51,33 @@
 
 ### 4.1 رنگ‌ها
 
-| نقش | توکن runtime | مقدار فعلی | کاربرد |
+| نقش | توکن runtime | مقدار هدف | کاربرد |
 |---|---|---:|---|
-| Navigation / interaction | `--primary-main` | `#173F73` | لینک، تب، focus، shell |
-| Navigation hover | `--primary-dark` | `#123258` | hover/focus تعاملی |
-| Primary action | `--ptg-btn-primary` | `#1877F2` | Save/Create/عمل اصلی |
-| Primary action hover | `--ptg-btn-primary-dark` | `#0B5ED7` | hover/active |
-| Canvas | `--background-default` | `#FCFCFC` | پس‌زمینه اصلی |
+| Navigation shell | `--ptg-sidebar-panel` | `#007DB2` | سطح sidebar |
+| Sidebar active | `--ptg-sidebar-active-bg` | `#006088` | انتخاب آیتم ناوبری |
+| Primary interaction | `--primary-main` | `#2563EB` | لینک، تب، focus |
+| Primary action | `--ptg-btn-primary` | `#2563EB` | Save/Create/عمل اصلی |
+| Primary action hover | `--ptg-btn-primary-dark` | `#1D4ED8` | hover/active |
+| Canvas | `--background-default` | `#F3F4F8` | پس‌زمینه اصلی |
 | Paper | `--background-paper` | `#FFFFFF` | modal، dropdown، سطح سفید |
-| Neutral surface | `--background-neutral` | `#F5F7FA` | hover و ردیف نرم |
-| Text | `--text-primary` | `#424242` | عنوان، متن، عدد |
-| Muted text | `--text-secondary` | `#666B75` | توضیح و metadata |
-| Divider | `--divider` | `#E5E7EB` | جداکننده و جدول |
-| Success | `--success-main` | `#6EA152` | فقط موفقیت واقعی |
-| Warning | `--warning-main` | `#F59E0B` | نیازمند توجه |
-| Error | `--error-main` | `#CC0000` | خطا/عمل مخرب |
-| Info | `--info-main` | `#006EA6` | اطلاع خنثی |
+| Neutral surface | `--background-neutral` | `#F8FAFC` | hover و ردیف نرم |
+| Text | `--text-primary` | `#334155` | عنوان، متن، عدد |
+| Muted text | `--text-secondary` | `#64748B` | توضیح و metadata |
+| Divider | `--divider` | `#E2E8F0` | جداکننده و جدول |
+| Success | `--success-main` | `#047857` | فقط موفقیت واقعی |
+| Warning | `--warning-main` | `#B45309` | نیازمند توجه |
+| Error | `--error-main` | `#B91C1C` | خطا/عمل مخرب |
+| Info | `--info-main` | `#0369A1` | اطلاع خنثی |
 
-`#206BC4` و `#00A76F` در حال حاضر توکن canonical runtime نیستند. آن‌ها را مستقیم یا صفحه‌ای وارد نکن؛ هر تغییر پالت باید ابتدا در `01-tokens.css` و با درخواست مستقل انجام شود.
+این‌ها palette هدف مهاجرت بصری‌اند؛ در runtime روی scope مشترک `mashal-ui` از `78-mashal-reference.css` اعمال می‌شوند. انتقال نهایی به `01-tokens.css` و حذف overrideهای تکراری فقط پس از مرور مصرف‌کننده‌های فعال انجام شود. رنگ جدید یا صفحه‌ای نساز.
+
+وضعیت اجرا و مرورهای باقی‌مانده را در `docs/UI-DESIGN-SYSTEM.md` ببینید؛ فازهای ۱ تا ۶ در کد اعمال شده‌اند، اما مرور بصری مرورگری برای sign-off باید جداگانه تکمیل شود.
 
 قواعد رنگ:
 
 - رنگ وضعیت فقط برای state واقعی و همراه با متن/آیکون استفاده شود.
 - پول مثبت/منفی را فقط در جای تصمیم‌ساز رنگی کن؛ متن مالی عادی تیره بماند.
-- CTA اصلی آبی است؛ success جای CTA را نمی‌گیرد.
+- CTA اصلی آبی است؛ teal فقط برای پوسته/ناوبری و success جای CTA را نمی‌گیرد.
 - در هر ناحیه معمولاً یک accent اصلی کافی است.
 - رنگ hard-coded جدید ممنوع؛ از توکن موجود استفاده کن.
 
@@ -83,12 +85,11 @@
 
 خانواده اصلی `IRANSans` است و `Vazirmatn` فقط fallback آن است (ترتیب واقعی stack در `02-base.css`). Poppins فقط بخشی از shell legacy است و نباید برای محتوای جدید انتخاب شود.
 
-مقادیر زیر از اندازه‌گیری مستقیم مرورگر روی صفحات زنده گرفته شده‌اند (۱۴۴۰px، RTL)
-و مرجع همان فرم «ثبت دریافت / پرداخت» است:
+مقادیر زیر مقیاس هدف پس از پورت بصری‌اند (۱۴۴۰px، RTL)؛ وضعیت اجرا در هر خانواده صفحه جداگانه تأیید می‌شود:
 
 | نقش | اندازه / وزن runtime |
 |---|---|
-| عنوان صفحه (لیست) | `24px / 500` |
+| عنوان صفحه (لیست) | `24px / 600` |
 | عنوان صفحه (Details) | `clamp(24px…30px) / 720` |
 | عنوان سکشن فرم | `18px / 600` |
 | عنوان کارت / سکشن Details | `16px / 700` |
@@ -105,9 +106,9 @@
 | نقش | توکن | مقدار |
 |---|---|---|
 | فیلد فرم | `--ak-control-height` / `--chk-control-h` | `40px` |
-| کنترل فشرده (نوار ابزار، پاورقی لیست، اکشن ردیف) | `--ak-control-compact-height` / `--chk-compact-h` | `34px` |
-| دکمهٔ عملیات هدر و نوار ابزار | — | `36px` |
-| دکمهٔ ثبت فرم (`.ak-save`) | `--chk-button-h` | `46px` |
+| کنترل فشرده (نوار ابزار، پاورقی لیست، اکشن ردیف) | `--ak-control-compact-height` / `--chk-compact-h` | `32px` |
+| دکمهٔ عملیات هدر و نوار ابزار | — | `44px` |
+| دکمهٔ ثبت فرم (`.ak-save`) | `--chk-button-h` | `48px` |
 | لمسی (`pointer: coarse`) | `--ak-control-height` در `10-responsive.css` | `44px` |
 
 قواعد:
@@ -137,7 +138,8 @@ ERP باید متراکم اما تنفس‌پذیر باشد:
 
 ### 4.4 Radius، Border و Shadow
 
-- Input / card canonical: `8px`
+- Input/control canonical: `8px`
+- Card/panel canonical: `16px`
 - کوچک: `6px`
 - بزرگ کنترل‌شده: `12px`
 - badge: `12px`
@@ -152,10 +154,10 @@ Border ضخیم، radius بزرگ، glow، shadow سنگین و elevation تود
 
 | نقش | مقدار |
 |---|---:|
-| Sidebar expanded | `224px` |
-| Sidebar rail | `88px` |
+| Sidebar expanded | `240px` |
+| Sidebar rail | `64px` |
 | Mobile navigation | `304px` |
-| Header desktop/mobile | `56px / 52px` |
+| Header desktop/mobile | `48px / 48px` |
 | Content max | `1280px` (progressive up to `1560px` on wide monitors) |
 | Form max | `860px` |
 | Wide form max | `1080px` |
@@ -184,7 +186,7 @@ Breakpointهای canonical Bootstrap:
 ## 5. Shell و جهت
 
 - `_Layout.cshtml` مالک Sidebar، Topbar، جستجو، زبان، سال مالی و lifecycle assets است.
-- Sidebar تیره و محتوای اصلی روشن است؛ رنگ shell را صفحه‌ای override نکن.
+- Sidebar teal برند با متن روشن و active state تیره‌تر است؛ رنگ shell را صفحه‌ای override نکن. پوستهٔ سبک قدیمی در `78-mashal-reference.css` به‌تدریج به همین زبان بصری مهاجرت می‌کند.
 - در فارسی/دری `dir="rtl"` و در UI انگلیسی `ltr` حفظ شود.
 - CSS جدید باید از logical properties مثل `margin-inline` و `inset-inline` استفاده کند.
 - `spa-nav.js` shell را نگه می‌دارد و `<main>` را جایگزین می‌کند؛ initialization باید idempotent و سازگار با `ptg:page-ready` باشد.

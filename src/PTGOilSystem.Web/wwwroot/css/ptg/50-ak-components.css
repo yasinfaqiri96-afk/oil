@@ -1954,8 +1954,6 @@ select.ak-input {
  * this file only styles them.
  * ============================================================= */
 .ak-modal-content {
-    border: 0;
-    border-radius: var(--ptg-radius-lg);
     overflow: hidden;
 }
 
@@ -1988,11 +1986,11 @@ select.ak-input {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     border: 0;
-    border-radius: var(--ptg-radius-sm);
+    border-radius: var(--ptg-radius-lg);
     background: transparent;
     color: var(--ptg-muted);
     cursor: pointer;
@@ -2002,6 +2000,11 @@ select.ak-input {
 .ak-modal-close:hover {
     background: rgba(var(--primary-main-rgb), 0.06);
     color: var(--ptg-text);
+}
+
+.ak-modal-close:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 2px;
 }
 
 /* The body shares the inline rhythm of .ak-modal-head / .ak-modal-foot (24px).
@@ -4095,5 +4098,490 @@ select.ak-input {
     .ak-navigation-group,
     .ak-navigation-group[data-navigation-group="overview"] {
         flex: 1 1 100%;
+    }
+}
+
+/* Compact mirrored party panels for the party-to-party settlement form. */
+.party-settlement-form {
+    --party-settlement-line: var(--divider);
+    --party-settlement-head: var(--background-neutral);
+    --party-settlement-surface: var(--background-paper);
+}
+.party-settlement-intro {
+    margin-block-end: 16px;
+    padding: 10px 14px 4px;
+    border: 1px solid var(--party-settlement-line);
+    background: var(--party-settlement-head);
+}
+.party-settlement-intro .ak-section-head {
+    margin-block-end: 0;
+}
+.party-settlement-parties {
+    margin-block-end: 14px;
+}
+.party-settlement-party {
+    height: 100%;
+    padding: 12px;
+    border: 1px solid var(--party-settlement-line);
+    border-radius: 8px;
+    background: var(--party-settlement-surface);
+}
+.party-settlement-party-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-block-end: 12px;
+    padding: 0 0 9px;
+    border-block-end: 1px solid var(--party-settlement-line);
+}
+.party-settlement-party-head h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+.party-settlement-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 64px;
+    justify-content: center;
+    padding: 5px 11px;
+    border-radius: 6px;
+    color: var(--primary-contrast);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.party-settlement-role--sender {
+    background: var(--error-main);
+}
+.party-settlement-role--recipient {
+    background: var(--success-main);
+}
+.party-settlement-party .ak-field {
+    margin: 0;
+}
+.party-settlement-party .ak-input {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+}
+.party-settlement-party .ak-entity-input {
+    height: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+}
+.party-settlement-party .ak-entity-chevron {
+    top: calc(50% - 7px);
+}
+.party-settlement-details .ak-input {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+}
+.party-settlement-details textarea.ak-input {
+    height: auto;
+    min-height: 96px;
+}
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .party-settlement-form :is(.ak-input, .form-control, .form-select, .ak-combobox-input, .ak-entity-input, .ak-date-field) {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+}
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .party-settlement-form textarea.ak-input {
+    height: auto;
+    min-height: 96px;
+}
+.party-settlement-label-icon {
+    margin-inline-end: 5px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+.party-settlement-balance {
+    display: block;
+    min-height: 20px;
+    margin-block-start: 5px;
+    font-variant-numeric: tabular-nums;
+}
+.party-settlement-details {
+    padding: 12px;
+    border: 1px solid var(--party-settlement-line);
+    border-radius: 8px;
+    background: var(--background-paper);
+}
+.party-settlement-details-title {
+    margin: 0 0 12px;
+    padding-block-end: 8px;
+    border-block-end: 1px solid var(--party-settlement-line);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+.party-settlement-details .ak-form-grid {
+    margin-block-end: 0;
+}
+@media (max-width: 767.98px) {
+    .party-settlement-intro {
+        padding-inline: 10px;
+    }
+    .party-settlement-party,
+    .party-settlement-details {
+        padding: 10px;
+    }
+}
+
+
+/* ============================================================= *
+ * List workspace — reference layout
+ * The page stays on the canvas; KPI cards and the data list are separate paper
+ * surfaces. list-toolbar-row.js moves the page actions and export into the
+ * list toolbar, so the row reads: search · filter · export · primary action.
+ * ============================================================= */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* The title row is empty once its actions join the toolbar: the H1 stays for
+   assistive technology while the KPI cards open the page visually. */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-page-header:not(.ak-detail-header):not(:has(.ak-page-actions)) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-stat-grid {
+    margin-bottom: 24px;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-list:has(.ak-table-wrap),
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-table-wrap {
+    min-width: 0;
+    margin-block: 0;
+    padding: 32px 32px 24px;
+    background: var(--background-paper);
+    border: 0;
+    border-radius: var(--ptg-radius-card);
+    box-shadow: var(--ptg-panel-shadow);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card > .ak-list-toolbar,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    gap: 16px;
+    margin: 0 0 24px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar > .ak-filter-host {
+    flex: 1 1 360px;
+    min-width: 0;
+    margin: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar-actions,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar .ak-page-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+}
+
+/* Framed search field plus a separate outline filter control. */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-host {
+    min-height: 48px;
+    margin-block: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-filter,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter {
+    flex-direction: row;
+    min-height: 48px;
+    align-items: center;
+    gap: 16px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-filter.is-focused,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter.is-focused {
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-input-wrap {
+    min-width: 0;
+    min-height: 48px;
+    overflow: hidden;
+    background: var(--background-paper);
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-xl);
+    transition: border-color var(--ptg-motion-fast) ease, box-shadow var(--ptg-motion-fast) ease;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter.is-focused .ak-filter-input-wrap,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-input-wrap:focus-within {
+    border-color: var(--primary-main);
+    box-shadow: var(--ptg-ring);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-filter-input,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-input {
+    height: 46px;
+    padding-block: 0;
+    padding-inline: 48px 16px;
+    color: var(--text-primary);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font-size: 15px;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-input::placeholder {
+    color: var(--text-disabled);
+    opacity: 1;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-filter-enter,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-enter {
+    inset-block-start: 7px;
+    inset-inline-start: 8px;
+    inset-inline-end: auto;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    place-items: center;
+    color: var(--text-disabled);
+    background: transparent;
+    border: 0;
+    border-radius: var(--ptg-radius-xl);
+    font-size: 18px;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-enter:hover:not(:disabled) {
+    color: var(--primary-main);
+    background: var(--background-neutral);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-filter-clear,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-clear {
+    inset-block-start: 7px;
+    inset-inline-start: 44px;
+    inset-inline-end: auto;
+}
+
+/* Filter, export and the page actions share one 48px control height. */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page :is(.ak-filter-toggle, .ak-list-toolbar .ak-export-menu > .btn, .ak-list-toolbar .ak-secondary-action, .ak-list-toolbar .ak-primary-action) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 20px;
+    border-radius: var(--ptg-radius-xl);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--ptg-motion-fast) ease, border-color var(--ptg-motion-fast) ease, color var(--ptg-motion-fast) ease, box-shadow var(--ptg-motion-fast) ease;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page :is(.ak-filter-toggle, .ak-list-toolbar .ak-export-menu > .btn, .ak-list-toolbar .ak-secondary-action) {
+    color: var(--text-primary);
+    background: var(--background-paper);
+    border: 1px solid var(--divider);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 2px 6px rgb(15 23 42 / 6%);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page :is(.ak-filter-toggle, .ak-list-toolbar .ak-export-menu > .btn, .ak-list-toolbar .ak-secondary-action):hover,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-toggle[aria-expanded="true"],
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar .ak-export-menu > .btn[aria-expanded="true"] {
+    color: var(--primary-main);
+    background: var(--background-paper);
+    border-color: var(--primary-main);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar .ak-primary-action {
+    padding: 0 22px;
+    color: var(--ptg-primary-contrast);
+    background: var(--ptg-btn-primary);
+    border: 1px solid var(--ptg-btn-primary);
+    box-shadow: 0 6px 14px rgb(var(--ptg-btn-primary-rgb) / 28%);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar .ak-primary-action:not(:disabled):not(.disabled):hover {
+    color: var(--ptg-primary-contrast);
+    background: var(--ptg-btn-primary-dark);
+    border-color: var(--ptg-btn-primary-dark);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page :is(.ak-filter-toggle, .ak-list-toolbar .ak-export-menu > .btn, .ak-list-toolbar .ak-secondary-action, .ak-list-toolbar .ak-primary-action) > .bi {
+    font-size: 18px;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar .ak-export-menu > .btn.dropdown-toggle::after {
+    display: none;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page :is(.ak-filter-toggle, .ak-filter-enter, .ak-list-toolbar .ak-export-menu > .btn, .ak-list-toolbar .ak-primary-action, .ak-list-toolbar .ak-secondary-action):focus-visible {
+    outline: 2px solid var(--primary-main);
+    outline-offset: 2px;
+}
+
+/* Table: white header band with dark bold titles, tall rows split by a hairline. */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card .ak-table-wrap,
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-table-wrap {
+    background: var(--background-paper);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-table > thead > tr > th {
+    height: auto;
+    padding: 16px;
+    color: var(--text-primary);
+    background: var(--background-paper);
+    border-block: 0;
+    border-bottom: 1px solid var(--divider);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-table > tbody > tr > td {
+    height: 68px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    background: transparent;
+    border-block: 0;
+    border-bottom: 1px solid var(--divider);
+    font-size: 15px;
+    vertical-align: middle;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-table > tbody > tr:hover > td {
+    background: var(--background-neutral);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-table .ak-status {
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+/* Footer: result count on the start side, pager on the end side. */
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 24px 0 0;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--divider);
+    font-size: 14px;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer .pagination {
+    gap: 8px;
+    margin: 0;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer .page-link {
+    display: inline-grid;
+    min-width: 48px;
+    height: 44px;
+    padding: 0 16px;
+    place-items: center;
+    color: var(--text-primary);
+    background: var(--background-paper);
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-xl);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 2px 6px rgb(15 23 42 / 6%);
+    font-weight: 700;
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer .page-item.active > .page-link {
+    color: var(--ptg-primary-contrast);
+    background: var(--ptg-btn-primary);
+    border-color: var(--ptg-btn-primary);
+}
+
+body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer .page-item.disabled > .page-link {
+    color: var(--text-disabled);
+    box-shadow: none;
+}
+
+@media (max-width: 760px) {
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-card,
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-list:has(.ak-table-wrap),
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page > .ak-table-wrap {
+        padding: 16px 12px 12px;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar > .ak-filter-host {
+        flex-basis: 100%;
+    }
+
+    /* Search and filter share one row; applied chips take their own row above. */
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-chips:has(.ak-chip-group) {
+        flex-basis: 100%;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-filter-input-wrap {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-toolbar-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    body.boltz-shell.app-shell-authenticated.mashal-ui #ptg-main-content .ak-list-page .ak-list-footer {
+        flex-wrap: wrap;
     }
 }

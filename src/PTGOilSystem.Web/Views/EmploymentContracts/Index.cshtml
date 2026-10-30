@@ -36,9 +36,11 @@
                     Model.ExpiringOnly ? "true" : null)
             });
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="filter" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="filter" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "فهرست قراردادها", "Contract list")">
                 <thead>

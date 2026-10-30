@@ -372,6 +372,16 @@ body.boltz-shell.app-shell-authenticated .boltz-nav-sublink.is-active .ptg-nav-d
     inline-size: 10px;
 }
 
+/* Keyboard focus remains distinct from hover and active navigation. */
+body.boltz-shell.app-shell-authenticated .boltz-nav-link:focus-visible,
+body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot-link:focus-visible,
+body.boltz-shell.app-shell-authenticated .boltz-nav-sublink:focus-visible {
+    outline: 2px solid var(--ptg-sidebar-accent);
+    outline-offset: 2px;
+    position: relative;
+    z-index: 1;
+}
+
 /* ---- Footer (change password / logout) ---- */
 body.boltz-shell.app-shell-authenticated .boltz-sidebar-foot {
     display: flex;

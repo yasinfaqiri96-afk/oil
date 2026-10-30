@@ -47,9 +47,9 @@
 
     background: var(--ptg-field-bg);
     border: 1px solid var(--ak-stat-border);
-    /* چرتکه: کارت تخت، بدون سایه؛ عمق فقط برای لایه‌های شناور. */
+    /* کارت آمار از canvas و کارت فهرست مستقل است؛ سایهٔ آرام جدایی را نشان می‌دهد. */
     border-radius: var(--ptg-radius-xl);
-    box-shadow: none;
+    box-shadow: var(--ptg-panel-shadow);
 
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
     transition: box-shadow .18s ease, border-color .18s ease;
@@ -57,7 +57,7 @@
 
 .ak-stat-card:hover {
     border-color: var(--ptg-field-border);
-    box-shadow: none;
+    box-shadow: var(--ptg-panel-shadow);
 }
 
 /* ---- Text block: physically fixed on the left ----------------------- */

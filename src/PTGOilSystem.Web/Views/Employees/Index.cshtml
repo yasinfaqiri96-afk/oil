@@ -56,9 +56,11 @@
             UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."),
             employeeFilters);
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="employeesFilter" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="employeesFilter" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

@@ -765,6 +765,7 @@ body.is-finance-workspace .rephub-card {
     border: 0;
 
     text-decoration: none;
+    cursor: pointer;
 }
 
 body.is-finance-workspace .rephub-card-art {
@@ -775,12 +776,13 @@ body.is-finance-workspace .rephub-card-art {
 }
 
 body.is-finance-workspace .rephub-card:focus-visible {
-    outline: none;
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 4px;
+    border-radius: var(--ptg-radius-input);
 }
 
 body.is-finance-workspace .rephub-card:focus-visible .rephub-card-art {
-    outline: 2px solid var(--primary-main);
-    outline-offset: 3px;
+    outline: none;
 }
 
 /* آواتار داخل دایره فرو نشسته تا هاله‌اش به لبهٔ دایره نچسبد. */
@@ -801,11 +803,17 @@ body.is-finance-workspace .rephub-card-title {
     font-size: clamp(12px, 8.8cqi, 14.5px);
     font-weight: 600;
     line-height: 1.45;
-    color: #0B2868;
+    color: var(--text-primary);
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 150ms ease;
+}
+
+body.is-finance-workspace .rephub-card:hover .rephub-card-title,
+body.is-finance-workspace .rephub-card:focus-visible .rephub-card-title {
+    color: var(--ptg-primary);
 }
 
 /* زیر دسکتاپ بزرگ، عنوان دسته یک سطر کامل مستقل می‌شود تا کارت‌ها فشرده نشوند. */
@@ -836,7 +844,7 @@ body.is-finance-workspace .rephub-card-title {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    body.is-finance-workspace .rephub-card {
+    body.is-finance-workspace .rephub-card-title {
         transition: none;
     }
 }

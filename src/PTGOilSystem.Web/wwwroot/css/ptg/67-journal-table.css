@@ -11,9 +11,9 @@
 
 .ak-journal-page .ak-journal-card {
     margin-block-start: 12px;
-    border: 1px solid #EEF1F5;
-    border-radius: 8px;
-    background: var(--ptg-field-bg);
+    border: 1px solid var(--divider);
+    border-radius: var(--ptg-radius-card);
+    background: var(--background-paper);
     box-shadow: var(--ptg-panel-shadow);
     overflow: hidden;
 }
@@ -42,15 +42,15 @@
 
 /* ---- هدر: کوچک، خاکستری روشن، فقط یک خط جداکنندهٔ افقی ---- */
 .ak-journal-page .ak-journal-table > thead > tr > th {
-    padding: 13px 16px;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 16px;
-    color: #98A2B3;
+    padding: 12px 16px;
+    font-size: var(--font-table-head);
+    font-weight: var(--weight-table-head);
+    line-height: var(--line-table-head);
+    color: var(--ptg-table-head-ink);
     text-align: start;
     white-space: nowrap;
-    background: #FBFCFD;
-    border-block-end: 1px solid #EEF1F5;
+    background: var(--ptg-table-head-bg);
+    border-block-end: 1px solid var(--ptg-table-row-line);
 }
 
 /* ---- بدنه: سطر فشرده، بدون zebra، بدون خط عمودی ---- */
@@ -60,7 +60,7 @@
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr:hover {
-    background: #FAFBFC;
+    background: var(--ptg-table-row-hover);
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr[data-href] {
@@ -68,13 +68,13 @@
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr > td {
-    padding: 15px 16px;
-    font-size: 12px;
-    line-height: 20px;
-    color: #475467;
+    padding: 12px 16px;
+    font-size: var(--font-table-cell);
+    line-height: var(--line-table-cell);
+    color: var(--ptg-text);
     vertical-align: middle;
     white-space: nowrap;
-    border-block-end: 1px solid #F3F5F8;
+    border-block-end: 1px solid var(--ptg-table-row-line);
 }
 
 .ak-journal-page .ak-journal-table > tbody > tr:last-child > td {
@@ -91,7 +91,7 @@
 }
 .ak-journal-page .ak-journal-table > tbody > tr > td.jr-receipt {
     font-size: 12px;
-    color: #667085;
+    color: var(--ptg-muted);
     letter-spacing: .01em;
     direction: ltr;
     text-align: end;
@@ -100,8 +100,8 @@
 
 .ak-journal-page .ak-journal-table > tbody > tr > td.jr-name {
     font-size: 14px;
-    font-weight: 700;
-    color: #101828;
+    font-weight: 600;
+    color: var(--ptg-text);
 }
 
 /* نام تنها ستون کشسان جدول است؛ سقف عرض دارد تا یک نام بلند کل جدول را
@@ -117,7 +117,7 @@
 
 .ak-journal-page .ak-journal-table > tbody > tr > td.jr-date {
     font-size: 12px;
-    color: #667085;
+    color: var(--ptg-muted);
 }
 
 /* تاریخ یک دکمهٔ بی‌صدا است: ظاهرش دقیقاً متن سلول می‌ماند، ولی جای تاریخ را
@@ -137,11 +137,11 @@
 }
 
 .ak-journal-page .jr-date-btn:hover {
-    color: #344054;
+    color: var(--ptg-text);
 }
 
 .ak-journal-page .jr-date-btn:focus-visible {
-    outline: 2px solid #B4BDC9;
+    outline: 2px solid var(--ptg-primary);
     outline-offset: 2px;
     border-radius: 4px;
 }
@@ -150,14 +150,14 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    color: #667085;
+    color: var(--ptg-muted);
     direction: ltr;
     unicode-bidi: isolate;
 }
 
 .ak-journal-page .jr-time-text > i {
     font-size: 12px;
-    color: #B4BDC9;
+    color: var(--ptg-muted);
 }
 
 .ak-journal-page .jr-date-text[hidden],
@@ -179,11 +179,11 @@
 }
 
 .ak-journal-page .jr-amount.is-in {
-    color: #12854A;
+    color: var(--success-main);
 }
 
 .ak-journal-page .jr-amount.is-out {
-    color: #D3302F;
+    color: var(--error-main);
 }
 
 /* ---- کپسول‌ها ---- */
@@ -193,7 +193,7 @@
     gap: 5px;
     max-inline-size: 100%;
     padding: 3px 10px;
-    border-radius: 8px;
+    border-radius: var(--ptg-radius-badge);
     font-size: 12px;
     font-weight: 600;
     line-height: 18px;
@@ -206,18 +206,18 @@
 }
 
 .ak-journal-page .jr-pill-in {
-    color: #12854A;
-    background: #ECFDF3;
+    color: var(--success-main);
+    background: var(--ptg-success-soft);
 }
 
 .ak-journal-page .jr-pill-out {
-    color: #D3302F;
-    background: #FEF3F2;
+    color: var(--error-main);
+    background: var(--ptg-danger-soft);
 }
 
 .ak-journal-page .jr-pill-neutral {
-    color: #475467;
-    background: #F2F4F7;
+    color: var(--ptg-text);
+    background: var(--background-neutral);
     font-weight: 500;
 }
 
@@ -228,7 +228,7 @@
     gap: 6px;
     max-inline-size: 100%;
     font-size: 12px;
-    color: #667085;
+    color: var(--ptg-muted);
 }
 
 .ak-journal-page .jr-party > span {
@@ -239,7 +239,7 @@
 .ak-journal-page .jr-party > i {
     flex: 0 0 auto;
     font-size: 14px;
-    color: #B4BDC9;
+    color: var(--ptg-muted);
 }
 
 /* ---- عملیات: فقط دو آیکون، بدون پس‌زمینه ---- */
@@ -259,7 +259,7 @@
     border: 0;
     border-radius: 6px;
     background: transparent;
-    color: #98A2B3;
+    color: var(--ptg-muted);
     font-size: 14px;
     line-height: 1;
     text-decoration: none;
@@ -268,7 +268,7 @@
 
 .ak-journal-page .jr-action:hover,
 .ak-journal-page .jr-action:focus-visible {
-    color: #344054;
+    color: var(--ptg-text);
     background: transparent;
     text-decoration: none;
 }
@@ -277,7 +277,7 @@
 .ak-journal-page .ak-journal-table > tbody > tr > td.jr-empty {
     padding: 40px 16px;
     text-align: center;
-    color: #98A2B3;
+    color: var(--ptg-muted);
     white-space: normal;
 }
 

@@ -368,7 +368,7 @@ body.ptg-modal-document .dropdown-menu {
     min-width: 160px;
     padding-block: 8px;
     border: 1px solid var(--divider);
-    border-radius: var(--ptg-radius-sm);
+    border-radius: var(--ptg-radius-lg);
     background: var(--background-paper);
     box-shadow: var(--shadow-dropdown);
 }
@@ -384,10 +384,23 @@ body.ptg-modal-document .dropdown-item {
     border-radius: 0;
 }
 
-body.boltz-shell.app-shell-authenticated .dropdown-item:is(:hover, :focus, .active),
-body.ptg-modal-document .dropdown-item:is(:hover, :focus, .active) {
+body.boltz-shell.app-shell-authenticated .dropdown-item:is(:hover, :focus),
+body.ptg-modal-document .dropdown-item:is(:hover, :focus) {
     background: var(--background-neutral);
     color: var(--ptg-text);
+}
+
+body.boltz-shell.app-shell-authenticated .dropdown-item.active,
+body.ptg-modal-document .dropdown-item.active {
+    background: var(--ptg-primary-soft);
+    color: var(--ptg-primary);
+    font-weight: 600;
+}
+
+body.boltz-shell.app-shell-authenticated .dropdown-item:focus-visible,
+body.ptg-modal-document .dropdown-item:focus-visible {
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: -2px;
 }
 
 body.boltz-shell.app-shell-authenticated .tooltip .tooltip-inner {
@@ -454,13 +467,13 @@ body.boltz-shell.app-shell-authenticated .boltz-footer {
  * P. Late fixes discovered in visual QA
  * ============================================================= */
 
-/* Generic table header band: one soft darker strip so the field-title row
-   separates from the data rows on every list/table surface. */
-body.boltz-shell.app-shell-authenticated .boltz-content table thead th,
-body.boltz-shell.app-shell-authenticated .boltz-content table thead tr,
-body.boltz-shell.app-shell-authenticated table thead th,
-body.ptg-modal-document table thead th,
-body.ptg-modal-document table thead tr {
+/* Legacy generic table header band: canonical .ak-table and journal tables own
+   their clean header surface and are excluded from this compatibility rule. */
+body.boltz-shell.app-shell-authenticated .boltz-content table:not(.ak-table):not(.ak-journal-table) thead th,
+body.boltz-shell.app-shell-authenticated .boltz-content table:not(.ak-table):not(.ak-journal-table) thead tr,
+body.boltz-shell.app-shell-authenticated table:not(.ak-table):not(.ak-journal-table) thead th,
+body.ptg-modal-document table:not(.ak-table):not(.ak-journal-table) thead th,
+body.ptg-modal-document table:not(.ak-table):not(.ak-journal-table) thead tr {
     background: var(--ptg-table-head-bg);
     background-color: var(--ptg-table-head-bg);
 }/* ============================================================= *

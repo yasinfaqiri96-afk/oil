@@ -45,7 +45,9 @@
                     new("Filter.StorageTankId", UiText.T(Context, "مخزن", "Tank"), "select", IlkOpts(ViewBag.StorageTanks), IlkQ("Filter.StorageTankId"))
                 });
         }
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="ilinkaFilter" />
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="ilinkaFilter" />
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table ilinka-stock-table">

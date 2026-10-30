@@ -9,10 +9,12 @@
                        "ثبت تسویه", "bi-plus-lg", Url.Action("Create"), (string?)null,
                        "صراف‌ها", "bi-arrow-right", Url.Action("Index", "Sarrafs")))" />
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@AkSearchFilterModel.SearchOnly("search", ViewData["Search"] as string, "جستجو یا فیلتر نتایج...")" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly("search", ViewData["Search"] as string, "جستجو یا فیلتر نتایج...")" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

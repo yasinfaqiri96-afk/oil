@@ -11,7 +11,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 .dashboard-page.dashboard-ref {
     display: grid;
-    gap: 16px;
+    gap: 20px;
     width: 100%;
     max-inline-size: 100%;
     margin-inline: 0;
@@ -20,8 +20,8 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
     --dash-green: var(--ptg-chart-positive);
     --dash-amber: var(--ptg-chart-warning);
     --dash-red: var(--ptg-chart-negative);
-    --dash-card-radius: var(--radius-card);
-    --dash-card-border: 0;
+    --dash-card-radius: var(--ptg-radius-card);
+    --dash-card-border: 1px solid var(--ptg-border);
     /* The dashboard card is the reference for the system-wide panel treatment;
        both now read the same token (01-tokens.css / 72-surfaces.css). */
     --dash-card-shadow: var(--ptg-panel-shadow);
@@ -48,14 +48,14 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 /* ===== analytics row ===== */
 .dash-analytics {
     display: grid;
-    grid-template-columns: minmax(300px, 1fr) minmax(0, 1.85fr);
-    gap: 18px;
+    grid-template-columns: minmax(280px, .9fr) minmax(0, 1.5fr);
+    gap: 20px;
     align-items: stretch;
 }
 
 .dash-card {
     min-inline-size: 0;
-    padding: 15px 18px;
+    padding: 20px;
     border: var(--dash-card-border);
     border-radius: var(--dash-card-radius);
     background: var(--background-paper);
@@ -64,9 +64,9 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 
 .dash-card-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 18px;
+    gap: 16px;
 }
 
 .dash-card-head h2 {
@@ -125,7 +125,8 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 }
 
 .dash-chart-grid {
-    stroke: #eef1f6;
+    stroke: var(--ptg-border);
+    stroke-opacity: .72;
     stroke-width: 1;
 }
 
@@ -133,8 +134,8 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-chart-x-label {
     fill: var(--text-secondary);
     font-family: "IRANSans", "Vazirmatn", system-ui, sans-serif;
-    /* برچسب محورها زیر ۱۰px روی نمایشگر کوچک خوانا نبود. */
-    font-size: 10px;
+    /* برچسب‌های محور قابل‌خواندن بمانند، بدون غلبه بر دادهٔ نمودار. */
+    font-size: 11px;
     letter-spacing: -0.02em;
 }
 
@@ -242,7 +243,7 @@ body.boltz-shell.app-shell-authenticated.controller-home.action-index .ptg-page-
 .dash-insights {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: 20px;
     align-items: stretch;
 }
 
@@ -484,7 +485,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 
 @media (max-width: 575.98px) {
     .dash-card {
-        padding: 15px;
+        padding: 16px;
     }
 
     .dash-trend-head {
@@ -506,7 +507,7 @@ body.boltz-shell.app-shell-authenticated .ptg-page-frame .dash-flow-state .ak-st
 }
 
 :root[data-theme="dark"] .dashboard-page.dashboard-ref {
-    --dash-card-border: 0;
+    --dash-card-border: 1px solid var(--ptg-border);
     --dash-card-shadow: var(--ptg-panel-shadow);
 }
 

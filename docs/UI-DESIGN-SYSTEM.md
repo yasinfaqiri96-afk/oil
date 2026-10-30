@@ -1,156 +1,75 @@
-# UI DESIGN SYSTEM — `ak-*`
+# PTG UI Design System — visual port
 
-> Design System فعال پروژه.
-> **قاعدهٔ اول:** برای صفحهٔ جدید هیچ CSS صفحه‌ای، skin، variant یا `!important` جدید نساز. از کامپوننت‌های زیر استفاده کن.
+## وضعیت و دامنه
 
-## توکن‌ها
+این سند قرارداد ظاهری PTG است. گزارش «دیزاین سیستم مدیریت نواتیک» مرجع بصریِ پورت است، نه کد قابل انتقال: PTG همچنان ASP.NET Core MVC، Razor، Bootstrap 5 RTL و اجزای مشترک `ak-*` را به‌کار می‌برد. نام محصول، لوگو، محتوای نفت و گاز، route، مجوز، مدل، binding، validation، POST، منطق موجودی و Ledger همگی متعلق به PTG می‌مانند.
 
-منبع واحد: `wwwroot/css/ptg/01-tokens.css`.
+**وضعیت مهاجرت:** فازهای ۱ تا ۶ برای پوسته، داشبورد/جزئیات، فرم/جدول، مودال/ناوبری، گزارش/نمودار و پاکسازی نهایی در کد اعمال شده‌اند. `78-mashal-reference.css` همچنان لایهٔ runtime نهایی است؛ wrapperها و CSS سازگاری با مصرف‌کنندهٔ زنده حفظ شده‌اند و حذف نشده‌اند. بررسی ایستای UI و syntax اسکریپت نمودار موفق است؛ مرور تصویری واقعی در viewportهای ۳۷۵، ۷۶۸، ۱۰۲۴ و ۱۴۴۰ و تأیید نهایی بصری هنوز لازم است. پسوند `mashal-*` hook runtime است، نه مجوز ساخت visual system موازی.
 
-| نقش | مقدار |
-|---|---|
-| پس‌زمینهٔ بدنه | `#FCFCFC` (flat) |
-| متن | `#424242` |
-| بنفش ناوبری/تعاملی | `#55588B` / hover `#404268` |
-| سبز اکشن | `#6EA152` / hover `#53793E` |
-| ریل سایدبار | `#DCE2F9` (۵۶px) |
-| پنل سایدبار | `#F2F4FC` (۲۲۴px) |
-| موفق | `#F1F6EE` / `#63914A` |
-| خطا | `#FAE6E6` / `#B80000` |
-| هشدار | `#FEF5E7` / `#B87708` |
-| اطلاع | `#E6F1F6` / `#006395` |
-| چارت | ورودی `#8BB475` · خروجی `#FB7185` · سود `#7779A2` |
+## اصولی که در همهٔ صفحات ثابت می‌مانند
 
-تایپوگرافی: Vazirmatn، RTL کامل، اعداد مالی LTR + tabular.
-عنوان صفحه ۳۶px/۳۰۰ · عنوان سکشن ۱۶px/۵۰۰ · هدر جدول ۱۲px · سلول ۱۴px.
-کانتینر: lg ۱۰۰۰ / 2xl ۱۱۴۵. شعاع ۶/۸/۱۲. موشن ۱۴۰–۱۹۰ms. Shadow فقط Dropdown/Tooltip/Modal.
-سبک: flat — بدون Card تزئینی، بدون Shadow تزئینی، بدون گرادیان تزئینی.
+- **یک زبان بصری:** teal فقط برای پوستهٔ ناوبری، آبی عمیق برای action/link/tab/focus، canvas خاکستری روشن، سطح سفید، کارت‌های سفید با سایهٔ نرم، مرزهای خنثی و جزئیات تزئینی محدود.
+- **ابعاد هدف:** header حدود ۴۸px؛ sidebar باز ۲۴۰px و ریل جمع‌شده ۶۴px؛ کنترل استاندارد ۴۰px، کنترل/اکشن برجسته ۴۴px، Save فرم ۴۸px؛ متن بدنه و کنترل ۱۴px؛ عنوان صفحه ۲۴px؛ عنوان بخش ۱۸px.
+- **شکل و عمق:** کنترل و دکمه ۸px، کارت ۱۶px، پنل‌های متمایز shadow نرم؛ hover-lift فقط برای عنصر واقعاً کلیک‌پذیر. CTA پررنگ ساده و بدون گرادیان سراسری است؛ برای وضعیت/نمودار رنگ معنایی از accent برند جداست.
+- **رنگ هدف:** sidebar `#007DB2` و active آن `#006088`؛ CTA/link/tab/focus آبی `#2563EB` با hover `#1D4ED8`؛ canvas `#F3F4F8`؛ سطح `#FFFFFF`؛ neutral `#F8FAFC`؛ متن `#334155`؛ متن فرعی `#64748B`؛ divider `#E2E8F0`؛ موفق `#047857`؛ هشدار `#B45309`؛ خطا `#B91C1C`. آبی روشن مرجع `#3B82F6` در CTA با متن سفید نسبت ۴٫۵:۱ را نمی‌گذراند؛ رنگ action عمداً به نزدیک‌ترین shade قابل‌دسترسی تیره شده است. رنگ به‌تنهایی معنا را منتقل نکند.
+- فونت محتوای فارسی/دری IRANSans با fallback Vazirmatn؛ عدد/پول/rate در `dir=ltr` یا `<bdi>` و tabular figures؛ زبان و لحن PTG حفظ شود.
+- RTL با Bootstrap RTL و logical properties؛ mobile ابتدا محتوا را نگه می‌دارد و گروه‌بندی می‌کند، دادهٔ backend را حذف نمی‌کند. در viewportهای ۳۷۵، ۷۶۸، ۱۰۲۴ و ۱۴۴۰ پیکسل کل صفحه overflow افقی ندارد؛ جدول پهن فقط در wrapper خودش scroll می‌شود.
+- فوکوس صفحه‌کلید آشکار، label متصل به کنترل، اندازهٔ هدف لمسی مناسب، reduced-motion، `aria-live` برای پیام پویا، و semantics صحیح button/link لازم‌اند.
 
-## کامپوننت‌های مشترک Razor
+## قرارداد کامپوننت‌ها
 
-مسیر: `Views/Shared/Components/Ak/`
+### پوسته، Header و Sidebar
 
-| کامپوننت | کاربرد |
-|---|---|
-| `_AkPageHeader` | هدر صفحه: عنوان + اکشن اصلی سبز + منوی سه‌نقطه |
-| `_AkSectionHead` | عنوان سکشن + توضیح + divider |
-| `_AkSearchFilter` | **تنها** Search/Filter پروژه (بخش زیر) — مسیر: `Views/Shared/_AkSearchFilter.cshtml` |
-| `_AkFooterActions` | فوتر فرم: Cancel خنثی + Save سبز |
+Header سفید و فشرده: جای لوگوی اصلی PTG، تاریخ/دوره، کلیدهای عملیاتی و منوی حساب در جای خود باقی می‌مانند؛ عرض/موقعیت‌ها در موبایل بازچینی می‌شوند. Sidebar از teal برند با متن و آیکن پرکنتراست، active state تیره‌تر، جستجو و حالت جمع‌شده استفاده می‌کند. آیتم‌های منو، مجوزها، ترتیب و route تغییر نمی‌کنند. tooltip فقط در حالت rail و با keyboard/focus نیز قابل‌دسترسی است.
 
-کامپوننت‌های مشترک دیگر که همچنان زنده‌اند: `_DetailsTabs` (ریل `ptg-tabs-rail` + `details-tabs.js`)، `_PagedListFooter`، `_ToggleActiveButton`، `_PartyStatementTable`، `_SupplierStatementLedger`، `_ReferenceMetricCard`.
+### Header صفحه، Toolbar و اقدام‌ها
 
-TagHelper: `AkEntityComboboxTagHelper` (+ `wwwroot/js/ak-entity-combobox.js`) — کمبوی انتخاب موجودیت با «ایجاد سریع» و بازگشت از طریق `returnUrl`.
+`_AkPageHeader` مالک H1، context و گروه اقدام است. یک CTA اصلی؛ Export، edit و اقدام کم‌تکرار ثانویه؛ destructive در منو با تأیید. عنوان صفحه در mobile حذف نمی‌شود. `_AkSearchFilter` تنها مالک جست‌وجو/فیلتر صفحه است؛ query string، scope، sorting و pagination موجود دست‌نخورده می‌مانند.
 
-## کلاس‌های CSS
+### Panel و StatCard
 
-منبع ساختاری: `wwwroot/css/ptg/50-ak-components.css` (بدون `!important`).
-قواعد عمومی/توکن: `wwwroot/css/ptg/45-akaunting.css`.
+از سطح سفید با padding متوازن و radius حدود ۱۶px استفاده شود. Static panel حرکت hover ندارد. StatCard فقط عدد تصمیم‌ساز واقعی نشان می‌دهد؛ mobile در grid دوستونهٔ فشرده، desktop تا چهار ستون. مقدار طولانی truncate یا wrap کنترل‌شده دارد، واحد کنار عدد و ارقام tabular هستند. از آیکن/تصویر تزئینی و KPI تکراری پرهیز شود.
 
-| خانواده | کلاس‌ها |
-|---|---|
-| صفحه | `ak-form-page` · `ak-list-page` · `ak-party-page` |
-| فرم | `ak-form` · `ak-form-section` · `ak-form-grid` · `ak-field` · `ak-label` · `ak-input` · `ak-input-unit` · `ak-field-error` · `ak-footer-actions` |
-| جدول | `ak-table` · `ak-table-wrap` · `ak-col-grow` · `ak-col-num` · `ak-col-check` · `ak-col-actions` · `ak-num` · `ak-name` |
-| لیست/خلاصه | `ak-list` · `ak-list-row` · `ak-summary` · `ak-summary-list` · `ak-subrow` · `ak-row-muted` |
-| وضعیت و اکشن | `ak-status` · `ak-row-menu` · `ak-empty` · `ak-pager` |
-| Search/Filter (مالک واحد) | `ak-filter-host` · `ak-filter` · `ak-filter-chips` · `ak-chip` · `ak-filter-input` · `ak-filter-enter` · `ak-filter-clear` · `ak-filter-popover` — تعریف در `45-akaunting.css` |
-| تولبار (غیر Search/Filter) | `ak-report-parameters` · `ak-detail-toolbar` · `ak-subform-toolbar` (بخش «تولبارها») |
-| داشبورد | `ak-hub-grid` · `ak-hub-tile` |
-| مودال | `ak-page-modal` (+ حالت `is-compact`) |
-| تب | `ptg-tabs-rail` · `ptg-tab-item` (canonical، پیش از ak هم بود) |
+### Tabs
 
-## Search / Filter — مالک واحد
+فقط یک مدل انتخاب شود: navigation tabها لینک واقعی و URL را تغییر دهند؛ tab تعاملی باید panel، `aria-controls`، انتخاب/فوکوس و keyboard behavior کامل داشته باشد. labelها کوتاه و rail در موبایل قابل پیمایش است؛ تب جدید فقط برای حوزهٔ اطلاعاتی مستقل.
 
-کل Search و Filter پروژه دقیقاً چهار فایل است. جای دیگری Search/Filter ساخته نمی‌شود:
+### Form و Field
 
-| فایل | نقش |
-|---|---|
-| `Views/Shared/_AkSearchFilter.cshtml` | تنها markup Search/Filter (chips + input + popover) |
-| `Models/AkSearchFilterModel.cs` | مدل: `SearchName`/`SearchValue`/`Placeholder`/`Filters`/`Hidden` (+ `AkFilterDefinition`, `AkFilterOption`) |
-| `wwwroot/js/ak-search-filter.js` | تنها JS این کامپوننت (popover، chips، clear) |
-| بخش Search/Filter در `wwwroot/css/ptg/45-akaunting.css` | تنها CSS این کامپوننت |
+`.ak-form`, `.ak-form-section`, `.ak-form-grid`, `.ak-field`, `.ak-label`, `.ak-input` و `_AkFooterActions` مرجع‌اند. فرم معمولی دو ستون desktop و تک‌ستون موبایل؛ سطرهای ویرایشگر فقط به‌اندازهٔ نیاز عملیاتی چندستونه می‌شوند. همهٔ فیلدهای موجود و name/id/data-hook حفظ شوند؛ فیلد کم‌استفاده فقط طبق قرارداد به Advanced منتقل شود، نه حذف/پنهان. خطای نزدیک فیلد و خلاصهٔ خطا در ابتدای فرم؛ حالت loading/resubmit روشن. همهٔ POSTها `@Html.AntiForgeryToken()` صریح دارند.
 
-### رفتار قطعی
+### Table و Data
 
-- **جستجوی آزاد server-side است**: `<form method="get">` معمولی؛ نتیجه از سرور می‌آید.
-- **انواع فیلتر پشتیبانی‌شده**: `select`، `bool`، `date`، `daterange`، `text`. هر فیلتر ۱:۱ به یک پارامتر query موجود نگاشت می‌شود (`Key`، و برای بازه `SecondKey`).
-- **query string منبع حقیقت است.** وضعیت فیلتر از View خوانده و به‌صورت server-rendered رندر می‌شود؛ state پنهان در JS/localStorage وجود ندارد.
-- **chipها server-rendered** هستند (`ak-chip-group` به‌ازای هر فیلتر اعمال‌شده) و مقدارشان با `<input type="hidden">` واقعاً submit می‌شود.
-- **hidden passthrough**: پارامترهای scope (مثل `contractId`) از طریق `Hidden` رد می‌شوند و در search/filter/clear حفظ می‌مانند (chip نمی‌شوند).
-- **حذف یک chip** = حذف پارامتر آن + submit مجدد. **Clear All** = پاک‌کردن همهٔ chipها و متن جستجو، با حفظ `Hidden`.
-- **sorting و pagination دست‌نخورده‌اند**: کامپوننت آن‌ها را نمی‌شناسد و مصرف نمی‌کند.
-- **RTL کامل** (منطق `inset-inline-*`).
-- **SPA lifecycle**: init روی `ptg:page-ready` تکرارپذیر است و listener تکراری ثبت نمی‌کند.
-- **visibility فقط با صفت `hidden`** کنترل می‌شود (popover و دکمهٔ clear).
-- **هیچ فیلتر client-side وجود ندارد**: نه `row.hidden`، نه مخفی‌کردن ردیف در مرورگر. فیلترکردن فقط سمت سرور است.
+از `.ak-table-wrap`، `.ak-table`، `.ak-num`، `.ak-status`، `_PersonCell`، `_Capsule` و `.ak-row-menu` استفاده شود. header و cell در desktop حداقل خوانایی ۱۴px؛ هویت، metadata، عدد، وضعیت و action ترتیب معنایی دارند. هر جدول موبایل باید برای همهٔ داده‌ها راه دسترسی داشته باشد: کارت‌سازی فقط با label صریح برای هر مقدار، وگرنه wrapper افقیِ محلی. کلیک روی ردیف جایگزین لینک/دکمهٔ معنایی نیست. جمع و currency/units حذف نمی‌شوند.
 
-### وضعیت مهاجرت (۲۰۲۶-۰۷-۱۴)
+### Badge، Money و Progress
 
-- **۴۳ صفحه** `[data-ak-filter]` دارند؛ تمام Search/Filterهای واقعی به همین مالک مشترک مهاجرت کرده‌اند.
-- **مصرف‌کنندهٔ legacy Search/Filter = صفر.**
-- `wwwroot/js/ak-filter.js` **حذف شد** و reference آن از `_Layout.cshtml` **حذف شد**.
-- CSS legacy (`.ak-fbar*`، `.ak-token*`، `.ak-fpop*`، `.ak-filterbar`، `.ak-search`، `.ak-search-input`، `.ak-filter-pop`، `.ak-filter-toggle`، `.ak-filter-field`، `.ak-filter-apply`) از `50-ak-components.css` **حذف شد**.
+`_StatusBadge`/`.ak-status` وضعیت معنایی را با متن و رنگ نشان می‌دهند؛ مجموعهٔ tone محدود به success/info/warning/danger/neutral است. «معلق» یا «متوقف» در ماژول‌های مختلف باید بر اساس معنا نگاشت شود، نه رنگ دلخواه. ارقام با tabular figures، currency/units مشخص و LTR isolation؛ مبالغ مخفی/نمایش‌داده‌شده باید در تمام سطوح (از جمله modal) سیاست امنیتی واحد داشته باشند. Progressbar دارای label و `aria-valuenow/min/max` است.
 
-### محدودیت‌های شناخته‌شده (عمدی)
+### Modal، Toast و feedback
 
-- operatorهای نمایشی `≠`، `∈`، `↔` پیاده نشده‌اند؛ backend فعلی آن‌ها را پشتیبانی نمی‌کند.
-- multi-select ساخته نشده؛ قرارداد چندمقداری در backend وجود ندارد.
-- باگ `DateTime Kind=Unspecified → timestamptz` یک مشکل شناخته‌شدهٔ **server-side** است و خارج از مهاجرت UI؛ در این مهاجرت دست نخورد.
+Bootstrap modal و lifecycle موجود را حفظ کنید: focus trap، Escape، بازگرداندن فوکوس، body scroll و stacking به bootstrap/manager موجود واگذار شود؛ nested modal تازه ساخته نشود. Toast برای success/info زمان‌دار، برای خطای مهم ماندگار یا قابل‌بستن؛ پیام `aria-live` و قابل‌اقدام باشد. Empty state علت‌محور، کوتاه و در صورت امکان دارای action واقعی است.
 
-### قانون نگهداری
+### Dashboard و Charts
 
-- Search/Filter جدید **فقط** با `_AkSearchFilter` ساخته می‌شود.
-- ساخت partial، CSS یا JavaScript **موازی** برای Search/Filter ممنوع است.
-- استفادهٔ دوباره از نام `.ak-filterbar` برای Search/Filter ممنوع است.
-- فیلتر جدید فقط وقتی اضافه می‌شود که backend واقعاً پارامتر آن را پشتیبانی کند.
+Dashboard همچنان داده‌های واقعی عملیاتی PTG را نشان می‌دهد؛ هدف بصری گزارش—چهار KPI، دو ناحیهٔ تحلیلی و خلاصه‌های قابل اسکن—به محدودیت داده و تصمیم‌های نفت/گاز تطبیق می‌یابد، نه این‌که ماژول‌های مشتری/پروژهٔ محصول مرجع وارد PTG شوند. رنگ نمودار با متن/legend تفکیک شود و جدول یا خلاصهٔ متنی جایگزینِ دسترس‌پذیر داشته باشد.
 
-## تولبارها — این‌ها Search/Filter نیستند
+### Print، PDF و Excel
 
-سه خانوادهٔ زیر فقط ردیف اکشن/پارامترند. **نباید** با `_AkSearchFilter` ادغام شوند و **نباید** به‌عنوان Search/Filter استفاده شوند:
+قالب invoice، اسناد حقوقی، PDF و Excel جزو design system هستند اما visual shell آن‌ها با صفحات authenticated یکی نیست. خروجی‌های رسمی، ترتیب/فونت/واحد/RTL/صفحه‌بندی و business content خود را حفظ می‌کنند؛ print stylesheet نباید header/sidebar برنامه را روی سند چاپ کند.
 
-| کلاس | کاربرد | زیرکلاس‌ها |
-|---|---|---|
-| `ak-report-parameters` | پنل پارامتر گزارش‌ها (`Reports/*`): دکمهٔ قیف + popover پارامترهای GET | `-bar` · `-anchor` · `-toggle` · `-pop` · `-field` · `-apply` |
-| `ak-detail-toolbar` | صفحات Details و عملیات: انتخاب دوره/قرارداد، چاپ/خروجی، اکشن گروهی، چیپ نوع | `-actions` · `-search` · `-chip` · `-start` |
-| `ak-subform-toolbar` | زیرفرم‌ها و CreateGroup (مصرف/فروش گروهی، وارد کردن اکسل وسایط) | `-search` |
+## مهاجرت و پاک‌سازی
 
-تعریف هر سه در `50-ak-components.css`.
+1. فازهای ۱ تا ۶ (shell/tokens، dashboard/details، form/table، modal/navigation، reports/charts و cleanup) در کد اعمال شده‌اند؛ پیش از sign-off، viewportهای هدف و صفحات/خروجی‌های حساس باید در مرورگر واقعی بازبینی شوند.
+2. برای هر خانواده: دو صفحهٔ مرجع، markup، JS hooks، route/model/validation و viewport بررسی شود؛ حداقل تغییر shared انجام گیرد.
+3. CSS/JS قدیمی با جست‌وجوی کل `src/PTGOilSystem.Web` و references در Razor/JS/TagHelper/bundle سنجیده شود. حذف فقط وقتی مجاز است که selector/script هیچ مصرف‌کنندهٔ runtime نداشته باشد و targeted UI/build checks بگذرند.
+4. هر POST، permission، field، route، workflow مالی و stock invariant حفظ شود. اصلاح business logic، schema یا محاسبه خارج از این مهاجرت است.
+5. stylesheetهای compatibility و wrapperهای route تا زمانی که مصرف‌کنندهٔ runtime دارند حذف نمی‌شوند؛ style جدید در آن‌ها نوشته نمی‌شود. فایل مرجع نهایی `78-mashal-reference.css` است و componentها در مالک shared خود باقی می‌مانند.
 
-## ترتیب بارگذاری CSS در `_Layout`
+## قرارداد فنی ثابت PTG
 
-```text
-_utilities → _variables → boltz-shell
-→ ptg/01-tokens → 02-base → 03-layout → 04-sidebar → 05-components
-→ 06-forms → 07-tables → 08-modals → 09-pages → 10-responsive
-→ 11-details → 12-dashboard → 13-compat → 14-master-details
-→ 15-system-lists → 16-system-tabs → 17-system-forms → 18-toasts
-→ 40-motion → 41-compact → 45-akaunting → 50-ak-components
-→ site.css
-```
-
-۲۶ فایل، ~۴۰۸ KB خام در هر page-load. فایل CSS جدید اضافه نکنید؛ اگر قاعدهٔ ساختاری تازه لازم شد، به `50-ak-components.css` اضافه کنید.
-
-## قواعد عملی (زخم‌خورده)
-
-- **CSS صفحه‌ای باید page-asset باشد.** ناوبری SPA چرخهٔ CSS پایه را رد می‌کند؛ CSS مخصوص صفحه باید با `data-ptg-page-asset` و پرچم آن بیرون از `renderShellChrome` تعریف شود، وگرنه صفحه بی‌استایل می‌آید.
-- **`@section Styles` از ناوبری SPA جان سالم به‌در نمی‌برد.** `<style>` درون صفحه بعد از کلیک روی لینک SPA برمی‌گردد؛ CSS صفحه را در فایل سراسری با کلاس صفحه scope کنید.
-- **فرم POST به اکشن `[HttpPost]`-only** باید `data-no-spa` بگیرد، وگرنه fallback‌ـه spa-nav به GET صفحهٔ خالی ۴۰۵ می‌دهد.
-- **هر فرم POST باید `@Html.AntiForgeryToken()` صریح داشته باشد** — auto-inject خاموش است؛ نبودش یعنی ۴۰۰ خاموش («هیچ اتفاقی نمی‌افتد»).
-- منوی `ak-row-menu` داخل `ak-table-wrap` (که `overflow-x:auto` دارد) بریده می‌شود؛ `tables.js` برای این حالت `data-bs-strategy="fixed"` ست می‌کند.
-
-## خانواده‌های Legacy — استفاده ممنوع
-
-این کلاس‌ها حذف شده‌اند و نباید برگردند:
-`sd-*` · `od-*` · `pp-*` / `party-*` · `cj-*` / `journey-*` / `lifecycle-*` · `ulist-*` · `ds-form-shell` · `app-form-card` · `ptg-card` · `ptg-master-*` · `status-badge` · `report-*` · `chortke-*`
-
-### Search/Filter منسوخ — حذف‌شده، بازتولید ممنوع
-
-| منسوخ | وضعیت |
-|---|---|
-| `wwwroot/js/ak-filter.js` | فایل حذف شد؛ reference از `_Layout` حذف شد |
-| `.ak-fbar*` · `.ak-fpop*` · `.ak-token*` | CSS حذف شد (نوار توکنی client-side) |
-| `.ak-filterbar` به‌عنوان Search/Filter | حذف شد؛ نام آن دیگر برای Search/Filter استفاده نمی‌شود |
-| `.ak-search` · `.ak-search-input` · `.ak-filter-pop` · `.ak-filter-toggle` | CSS حذف شد |
-| `_AkSearchBar` | حذف شد؛ جایگزین: `_AkSearchFilter` |
-| `_ManagementFilterBar` | حذف شد؛ جایگزین: `_AkSearchFilter` |
-| dropdown فیلتر Bootstrap قدیمی (`data-bs-toggle="dropdown"` روی نوار فیلتر لیست) | حذف شد؛ popover مالک مشترک جایگزین است |
+- ASP.NET Core MVC/Razor + Bootstrap 5 RTL؛ بدون مهاجرت به React/Tailwind/shadcn.
+- `Views/Shared/Components/Ak/` و `Views/Shared/Partials/` بر markup موازی اولویت دارند.
+- مسیر `.NET`، data binding، validation، permission، antiforgery، SPA lifecycle، حسابداری/Ledger و موجودی در این کار تغییر نمی‌کنند.
+- CSS جدید فقط اگر component/token موجود پاسخ ندهد؛ selector جدید باید دقیق و در لایهٔ مالک component باشد، نه skin موازی صفحه.
+- CSS صفحه‌ای در ناوبری SPA باید با page asset قراردادشده بیاید؛ `@section Styles` تنها به‌تنهایی کافی نیست.

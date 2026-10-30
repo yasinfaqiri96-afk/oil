@@ -3,17 +3,18 @@
    فقط زیر .cbr-page/.cbr-sheet اعمال می‌شود و روی هیچ صفحهٔ دیگر اثر ندارد.
    PDF چیدمان A4 خودش را در CompanyBalancePdfDocument دارد؛ اینجا برگه عریض‌تر و
    متن و ردیف‌ها برای خواندن روی صفحه بزرگ‌ترند.
-   رنگ‌ها همان ثابت‌های PDF‌اند و فقط اینجا یک بار تعریف شده‌اند.
+   رنگ و سطح صفحه از توکن‌های UI مشترک می‌آیند؛ PDF مستقل و دست‌نخورده می‌ماند.
    ========================================================================== */
 
 .cbr-page {
-    --cbr-navy: #0B1B3A;
-    --cbr-secondary: #526077;
-    --cbr-teal: #008B87;
-    --cbr-head: #F5F7FA;
-    --cbr-border: #D9E0E8;
-    --cbr-hero: #F1FAF9;
-    --cbr-negative: #A53A3A;
+    --cbr-navy: var(--text-primary);
+    --cbr-secondary: var(--text-secondary);
+    --cbr-teal: var(--ptg-primary);
+    --cbr-link: var(--ptg-primary);
+    --cbr-head: var(--background-neutral);
+    --cbr-border: var(--ptg-border);
+    --cbr-hero: var(--ptg-primary-soft);
+    --cbr-negative: var(--ptg-danger);
     --cbr-row: 44px;
     --cbr-body: 15px;
     --cbr-small: 13px;
@@ -54,9 +55,10 @@
     max-inline-size: 1320px;
     padding: 28px 32px;
     color: var(--cbr-navy);
-    background: #FFFFFF;
+    background: var(--background-paper);
     border: 1px solid var(--cbr-border);
-    border-radius: 8px;
+    border-radius: var(--ptg-radius-card);
+    box-shadow: var(--ptg-panel-shadow);
     font-size: var(--cbr-body);
     line-height: 1.6;
 }
@@ -90,7 +92,7 @@
     padding: 18px 20px;
     background: var(--cbr-head);
     border: 1px solid var(--cbr-border);
-    border-radius: 8px;
+    border-radius: var(--ptg-radius-input);
 }
 
 .cbr-hero__item--net {
@@ -215,13 +217,13 @@ body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > tbody > tr:hove
     background: var(--cbr-head);
 }
 
-/* رنگ لینک شل از توکن‌های رنگ اصلی خوانده می‌شود؛ داخل برگه همان توکن‌ها به رنگ سند اشاره می‌کنند. */
+/* لینک‌های جزئیات رنگ اصلی PTG را نگه می‌دارند؛ اعداد و تیترهای برگه خنثی می‌مانند. */
 .cbr-sheet {
-    --primary-main: var(--cbr-navy);
-    --primary-dark: var(--cbr-teal);
-    --ptg-primary: var(--cbr-navy);
-    --app-primary: var(--cbr-navy);
-    --boltz-primary: var(--cbr-navy);
+    --primary-main: var(--cbr-link);
+    --primary-dark: var(--cbr-link);
+    --ptg-primary: var(--cbr-link);
+    --app-primary: var(--cbr-link);
+    --boltz-primary: var(--cbr-link);
 }
 
 .cbr-link {
@@ -239,8 +241,15 @@ body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > tbody > tr:hove
 
 .cbr-link:hover,
 .cbr-link:focus-visible {
+    color: var(--cbr-link);
     text-decoration: underline;
     text-underline-offset: 3px;
+}
+
+.cbr-link:focus-visible {
+    outline: 2px solid var(--cbr-link);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
 /* ── یادداشت‌ها ──────────────────────────────────────────────────────────── */
@@ -252,7 +261,8 @@ body.boltz-shell.app-shell-authenticated .cbr-sheet .cbr-table > tbody > tr:hove
     line-height: 1.8;
     color: var(--cbr-secondary);
     background: var(--cbr-head);
-    border-radius: 8px;
+    border: 1px solid var(--cbr-border);
+    border-radius: var(--ptg-radius-input);
 }
 
 /* ── صفحهٔ جزئیات ────────────────────────────────────────────────────────── */

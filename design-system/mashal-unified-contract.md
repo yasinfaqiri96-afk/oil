@@ -1,14 +1,12 @@
-# قرارداد یکپارچهٔ رابط PTG بر اساس Mashal UI Reference
+# قرارداد یکپارچهٔ رابط PTG — پورت زبان بصری
 
-این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ تفاوت ظاهری فقط در دو variant رسمی مرجع محدود است.
+این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ wrapperهای legacy فقط تا وقتی مصرف‌کنندهٔ runtime دارند حفظ می‌شوند و هدف بصری جداگانه نیستند.
 
 ## منبع مرجع
 
-- R01 تا R04: پوستهٔ روشن برای تنظیمات، فرم‌ها و تراکنش.
-- R05 و R06: پوستهٔ آبی داشبورد و modal انتخاب ابزار.
-- R07: پوستهٔ آبی برای دریافت مرتبط با فاکتور و کارت شخص/بانک همان جریان.
-- فایل‌های مرجع در `.work/design-reference/pack/Mashal-UI-Reference-Pack/ui-references/` نگهداری شده‌اند و asset تولیدی نیستند.
-- منبع component kit، شاخهٔ `design/mashal-reference-components` در مخزن مرجع است؛ فایل‌های runtime انتخاب‌شده در `src/PTGOilSystem.Web/wwwroot/mashal-kit/` قرار دارند و روی `#ptg-main-content` با `data-mr-theme` و `data-mr-adapt` فعال می‌شوند.
+- گزارش «گزارش-دیزاین-سیستم.md» مرجع زبان بصری و رفتار نمونه‌هاست؛ گزارش متعلق به یک محصول React/Tailwind است و asset یا معماری آن به PTG منتقل نمی‌شود.
+- هویت و محتوای PTG، IRANSans، MVC/Razor، Bootstrap RTL، کلاس‌های `ak-*`، routeها و workflowهای عملیاتی باقی می‌مانند.
+- assetهای فعلی Mashal و hookهای `mashal-*` صرفاً وابستگی runtime فعلی‌اند؛ لوگو/نام محصول مرجع جایگزین برند PTG نمی‌شود.
 
 ## قرارداد مشترک همهٔ صفحات
 
@@ -16,24 +14,22 @@
 - عنوان صفحه، section head، فرم، table، status، card، modal، dropdown، pager و action bar باید از primitiveهای مشترک استفاده کنند؛ selector صفحه‌ای جدید فقط برای layout اختصاصی همان صفحه مجاز است.
 - منطق business، route، binding، validation، permission، anti-forgery، POST، SPA lifecycle، ledger و inventory تغییر نمی‌کند.
 - فونت همان IRANSans با fallback فعلی پروژه است؛ متن و دادهٔ دامنهٔ نفت و گاز حفظ می‌شود.
-- کنترل‌ها فشرده، خوانا و RTL هستند؛ radius کوچک، border ظریف، shadow محدود و بدون gradient/glow استفاده می‌شود.
+- کنترل‌ها خوانا و RTL هستند؛ کنترل ۴۰px، radius کنترل ۸px، border ظریف و shadow محدود. CTA اصلی آبیِ ساده و پرکنتراست است؛ گرادیان سراسری و glow تزئینی ممنوع.
 - رنگ وضعیت فقط برای state واقعی استفاده می‌شود؛ دکمهٔ اصلی یک accent مشخص دارد.
 - در 375، 768، 1024 و 1440 پیکسل نباید صفحهٔ اصلی horizontal overflow داشته باشد.
 
-## Variantها
+## زبان بصری هدف واحد
 
-### `mashal-light`
-
-برای تنظیمات، صفحات عملیاتی و تراکنش عادی: canvas روشن، surface سفید، sidebar روشن، کنترل‌های فشرده و primary action آبی روشن (`#2D60C9`).
-
-### `mashal-legacy`
-
-فقط برای داشبورد و دریافت مرتبط با فاکتور: topbar/sidebar آبی (`#007DB2`)، active navigation تیره‌تر، کارت‌های سفید و metricهای dashboard با چگالی R05/R07.
-
-این دو variant نباید با هم ترکیب شوند؛ primitiveها مشترک‌اند و فقط token/layout variant تغییر می‌کند.
+- Canvas روشن `#F3F4F8`، سطح سفید، متن `#334155` و مرز `#E2E8F0`؛ teal `#007DB2`/`#006088` فقط برای sidebar و آبی `#2563EB`/`#1D4ED8` برای action و focus.
+- Sidebar teal با متن روشن؛ کنترل استاندارد ۴۰px، اکشن ۴۴/۴۸px، radius کنترل ۸px و کارت ۱۶px؛ shadow نرم و فقط روی سطحی که از canvas جدا می‌شود.
+- وضعیت از palette معنایی مستقل می‌آید؛ آبی روشن `#3B82F6` با متن سفید برای CTA استفاده نشود، چون contrast AA را تأمین نمی‌کند.
+- `mashal-light` و `mashal-legacy` wrapperهای route هستند، نه دو هدف طراحی. تا حذف واقعی مصرف‌کننده‌ها حفظ می‌شوند؛ استثناهای فعال page-specific به‌جای پاک‌کردن کورکورانه مستند و در مرورگر بازبینی می‌شوند.
 
 ## وضعیت فعلی و مسیر اصلاح
 
-- `78-mashal-reference.css` آخرین لایهٔ runtime است و باید تنها محل overrideهای مرجع باشد.
+- فازهای ۱ تا ۶ برای shell، dashboard/details، فرم/جدول، modal/navigation و گزارش/نمودار در کد اعمال شده‌اند؛ پاکسازی نهایی، overrideهای عمومیِ متعارض را به tokenهای مشترک برگرداند.
+- مرور تصویری واقعی در viewportهای هدف، print/PDF/Excel و صفحه‌های حساسِ route-specific پیش از اعلام visual sign-off باقی است؛ از بررسی ایستای CSS نتیجهٔ screenshot-level گرفته نمی‌شود.
+- `78-mashal-reference.css` آخرین لایهٔ runtime است؛ rule تازهٔ سراسری فقط در مالک shared مربوطه یا همین لایهٔ مرجع، با scope محدود، اضافه شود.
+- CSS/JS قدیمی حذف نمی‌شود مگر این‌که جست‌وجوی runtime مصرف‌کنندهٔ زنده‌ای نیابد و UI verification بگذرد.
 - bundleهای Production باید پس از هر تغییر CSS با `PtgBuildBundles=true` بازسازی شوند.
-- صفحات جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کنند.
+- صفحهٔ جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کند.

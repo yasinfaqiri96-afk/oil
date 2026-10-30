@@ -75,12 +75,12 @@
 
     function appendGradients(svg) {
         var defs = svgElement("defs", {});
-        [["dashAreaGreen", "34, 197, 94"], ["dashAreaAmber", "245, 165, 36"]].forEach(function (pair) {
+        [["dashAreaGreen", "var(--dash-green)"], ["dashAreaAmber", "var(--dash-amber)"]].forEach(function (pair) {
             var grad = svgElement("linearGradient", {
                 id: pair[0], x1: "0", y1: "0", x2: "0", y2: "1"
             });
-            grad.appendChild(svgElement("stop", { offset: "0", "stop-color": "rgb(" + pair[1] + ")", "stop-opacity": "0.30" }));
-            grad.appendChild(svgElement("stop", { offset: "1", "stop-color": "rgb(" + pair[1] + ")", "stop-opacity": "0" }));
+            grad.appendChild(svgElement("stop", { offset: "0", "stop-color": pair[1], "stop-opacity": "0.30" }));
+            grad.appendChild(svgElement("stop", { offset: "1", "stop-color": pair[1], "stop-opacity": "0" }));
             defs.appendChild(grad);
         });
         svg.appendChild(defs);
@@ -209,14 +209,14 @@
             // track
             svg.appendChild(svgElement("circle", {
                 cx: center, cy: center, r: radius,
-                fill: "none", stroke: "#eef1f6", "stroke-width": strokeWidth,
+                fill: "none", stroke: "var(--ptg-border)", "stroke-width": strokeWidth,
                 "aria-hidden": "true"
             }));
             // progress
             var arc = svgElement("circle", {
                 cx: center, cy: center, r: radius,
                 fill: "none",
-                stroke: seg.color || "#22c55e",
+                stroke: seg.color || "var(--dash-green)",
                 "stroke-width": strokeWidth,
                 "stroke-linecap": "round",
                 "stroke-dasharray": (fraction * circumference) + " " + circumference,

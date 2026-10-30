@@ -63,6 +63,13 @@ body.boltz-shell.app-shell-authenticated :where(.modal-backdrop.show) {
     opacity: .30;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    body.boltz-shell.app-shell-authenticated .modal.fade .modal-dialog,
+    body.ptg-modal-document .modal.fade .modal-dialog {
+        transition: none;
+    }
+}
+
 /* ============================================================= *
  * 2. In-dialog form shell — _CreateModalShell renders the form inside a
  *    Bootstrap modal, so the scroll region is capped to the viewport.
