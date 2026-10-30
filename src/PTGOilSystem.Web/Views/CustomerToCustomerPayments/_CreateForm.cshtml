@@ -3,54 +3,125 @@
 @Html.AntiForgeryToken()
 <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
 
-<div class="alert alert-info ak-form-alert">
-    @UiText.T(Context,
-        "این ثبت فقط برای گزارش است و روی صندوق، دفتر کل، ماندهٔ مشتریان نزد شرکت و سود و زیان اثری ندارد.",
-        "Record only: it does not affect cash, ledger, customer balances with the company, or P&L.")
-</div>
-
-<section class="ak-form-section">
-    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
-             model="@((UiText.T(Context, "پرداخت بین مشتریان", "Customer-to-customer payment"), (string?)UiText.T(Context, "چه کسی به چه کسی، چه مبلغی داد.", "Who paid whom, and how much.")))" />
-    <div class="ak-form-grid">
-        <div class="ak-field">
-            <label asp-for="PaymentDate" class="ak-label">@UiText.T(Context, "تاریخ", "Date") <span class="ak-req">*</span></label>
-            <input asp-for="PaymentDate" type="date" class="ak-input" />
-            <span asp-validation-for="PaymentDate" class="ak-field-error"></span>
+<div class="ctc-transfer-form" dir="rtl">
+    <div class="ctc-transfer-intro">
+        <div>
+            <span class="ctc-eyebrow">ثبت و تصویب بین طرف‌حساب‌ها</span>
+            <h2 class="ctc-title">انتقال مستقیم پول بین مشتریان</h2>
+            <p class="ctc-subtitle">فرستنده و گیرنده را انتخاب کنید، سپس مبلغ انتقال را یک‌بار ثبت نمایید.</p>
         </div>
-        <div class="ak-field">
-            <label asp-for="PayerCustomerId" class="ak-label">@UiText.T(Context, "مشتری پرداخت‌کننده", "Payer customer") <span class="ak-req">*</span></label>
-            <select asp-for="PayerCustomerId" asp-items="@(ViewBag.PayerCustomers as SelectList)" class="ak-input">
-                <option value="">@UiText.T(Context, "- انتخاب مشتری -", "- Select customer -")</option>
-            </select>
-            <span asp-validation-for="PayerCustomerId" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field">
-            <label asp-for="PayeeCustomerId" class="ak-label">@UiText.T(Context, "مشتری دریافت‌کننده", "Payee customer") <span class="ak-req">*</span></label>
-            <select asp-for="PayeeCustomerId" asp-items="@(ViewBag.PayeeCustomers as SelectList)" class="ak-input">
-                <option value="">@UiText.T(Context, "- انتخاب مشتری -", "- Select customer -")</option>
-            </select>
-            <span asp-validation-for="PayeeCustomerId" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field">
-            <label asp-for="Amount" class="ak-label">@UiText.T(Context, "مبلغ", "Amount") <span class="ak-req">*</span></label>
-            <input asp-for="Amount" type="number" step="0.0001" min="0" class="ak-input" />
-            <span asp-validation-for="Amount" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field">
-            <label asp-for="Currency" class="ak-label">@UiText.T(Context, "ارز", "Currency") <span class="ak-req">*</span></label>
-            <select asp-for="Currency" asp-items="@(ViewBag.Currencies as SelectList)" class="ak-input"></select>
-            <span asp-validation-for="Currency" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field">
-            <label asp-for="Reference" class="ak-label">@UiText.T(Context, "شماره مرجع", "Reference")</label>
-            <input asp-for="Reference" class="ak-input" />
-            <span asp-validation-for="Reference" class="ak-field-error"></span>
-        </div>
-        <div class="ak-field ak-col-full">
-            <label asp-for="Description" class="ak-label">@UiText.T(Context, "توضیحات", "Description")</label>
-            <textarea asp-for="Description" class="ak-input" rows="2"></textarea>
-            <span asp-validation-for="Description" class="ak-field-error"></span>
+        <div class="ctc-info-note">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <span>@UiText.T(Context, "این سند گزارش انتقال مستقیم است و صندوق، دفتر کل و سود و زیان شرکت را تغییر نمی‌دهد.", "This record reports a direct transfer and does not change company cash, ledger, or P&amp;L.")</span>
         </div>
     </div>
-</section>
+
+    <div class="ctc-party-grid">
+        <section class="ctc-party-card ctc-party-card--payee" aria-labelledby="ctc-payee-title">
+            <header class="ctc-party-header">
+                <div class="ctc-party-heading">
+                    <span class="ctc-party-icon"><i class="bi bi-arrow-down-left" aria-hidden="true"></i></span>
+                    <div>
+                        <span class="ctc-party-kicker">مقصد دریافت</span>
+                        <h3 id="ctc-payee-title">طرف گیرنده</h3>
+                    </div>
+                </div>
+                <button type="button" class="ctc-clear-button" data-ctc-clear="PayeeCustomerId">
+                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                    حذف
+                </button>
+            </header>
+            <div class="ctc-party-body">
+                <div class="ctc-field ctc-field--wide">
+                    <label asp-for="PayeeCustomerId" class="ctc-label">انتخاب مشتری دریافت‌کننده <span class="ctc-required">*</span></label>
+                    <select asp-for="PayeeCustomerId" asp-items="@(ViewBag.PayeeCustomers as SelectList)" class="ctc-control">
+                        <option value="">انتخاب مشتری دریافت‌کننده</option>
+                    </select>
+                    <span asp-validation-for="PayeeCustomerId" class="ctc-error"></span>
+                </div>
+                <div class="ctc-field ctc-field--wide">
+                    <label class="ctc-label" for="ctc-payee-display">نام طرف حساب</label>
+                    <input id="ctc-payee-display" class="ctc-control ctc-display-control" value="@(Model.PayeeCustomer?.Name ?? "")" placeholder="پس از انتخاب مشتری نمایش داده می‌شود" readonly />
+                </div>
+                <div class="ctc-amount-row">
+                    <div class="ctc-field">
+                        <label asp-for="Amount" class="ctc-label">مبلغ دریافت <span class="ctc-required">*</span></label>
+                        <input asp-for="Amount" type="number" step="0.0001" min="0" class="ctc-control ctc-number" data-ctc-amount />
+                        <span asp-validation-for="Amount" class="ctc-error"></span>
+                    </div>
+                    <div class="ctc-field ctc-currency-field">
+                        <label asp-for="Currency" class="ctc-label">ارز</label>
+                        <select asp-for="Currency" asp-items="@(ViewBag.Currencies as SelectList)" class="ctc-control" data-ctc-currency></select>
+                        <span asp-validation-for="Currency" class="ctc-error"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ctc-party-card ctc-party-card--payer" aria-labelledby="ctc-payer-title">
+            <header class="ctc-party-header">
+                <div class="ctc-party-heading">
+                    <span class="ctc-party-icon"><i class="bi bi-arrow-up-right" aria-hidden="true"></i></span>
+                    <div>
+                        <span class="ctc-party-kicker">مبدأ پرداخت</span>
+                        <h3 id="ctc-payer-title">طرف فرستنده</h3>
+                    </div>
+                </div>
+                <button type="button" class="ctc-clear-button" data-ctc-clear="PayerCustomerId">
+                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                    حذف
+                </button>
+            </header>
+            <div class="ctc-party-body">
+                <div class="ctc-field ctc-field--wide">
+                    <label asp-for="PayerCustomerId" class="ctc-label">انتخاب مشتری پرداخت‌کننده <span class="ctc-required">*</span></label>
+                    <select asp-for="PayerCustomerId" asp-items="@(ViewBag.PayerCustomers as SelectList)" class="ctc-control">
+                        <option value="">انتخاب مشتری پرداخت‌کننده</option>
+                    </select>
+                    <span asp-validation-for="PayerCustomerId" class="ctc-error"></span>
+                </div>
+                <div class="ctc-field ctc-field--wide">
+                    <label class="ctc-label" for="ctc-payer-display">نام طرف حساب</label>
+                    <input id="ctc-payer-display" class="ctc-control ctc-display-control" value="@(Model.PayerCustomer?.Name ?? "")" placeholder="پس از انتخاب مشتری نمایش داده می‌شود" readonly />
+                </div>
+                <div class="ctc-amount-row">
+                    <div class="ctc-field">
+                        <label class="ctc-label" for="ctc-payer-amount">مبلغ پرداخت</label>
+                        <input id="ctc-payer-amount" class="ctc-control ctc-number ctc-display-control" value="@Model.Amount.ToString("0.####")" data-ctc-amount-mirror readonly />
+                    </div>
+                    <div class="ctc-field ctc-currency-field">
+                        <label class="ctc-label" for="ctc-payer-currency">ارز</label>
+                        <input id="ctc-payer-currency" class="ctc-control ctc-display-control" value="@Model.Currency" data-ctc-currency-mirror readonly />
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section class="ctc-details-card" aria-labelledby="ctc-details-title">
+        <div class="ctc-details-heading">
+            <i class="bi bi-receipt" aria-hidden="true"></i>
+            <div>
+                <h3 id="ctc-details-title">جزئیات ثبت</h3>
+                <span>اطلاعات سند برای پیگیری و چاپ رسید</span>
+            </div>
+        </div>
+        <div class="ctc-details-grid">
+            <div class="ctc-field">
+                <label asp-for="PaymentDate" class="ctc-label">تاریخ <span class="ctc-required">*</span></label>
+                <input asp-for="PaymentDate" type="date" class="ctc-control" />
+                <span asp-validation-for="PaymentDate" class="ctc-error"></span>
+            </div>
+            <div class="ctc-field">
+                <label asp-for="Reference" class="ctc-label">شماره مرجع</label>
+                <input asp-for="Reference" class="ctc-control" placeholder="اختیاری" />
+                <span asp-validation-for="Reference" class="ctc-error"></span>
+            </div>
+            <div class="ctc-field ctc-field--wide">
+                <label asp-for="Description" class="ctc-label">توضیحات</label>
+                <textarea asp-for="Description" class="ctc-control ctc-textarea" rows="3" placeholder="توضیح اختیاری دربارهٔ انتقال"></textarea>
+                <span asp-validation-for="Description" class="ctc-error"></span>
+            </div>
+        </div>
+    </section>
+</div>

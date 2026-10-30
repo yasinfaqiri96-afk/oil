@@ -6,5 +6,34 @@
     ViewData["CreateFormPartialPath"] = "/Views/CustomerToCustomerPayments/_CreateForm.cshtml";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/ptg/82-customer-transfer.css" asp-append-version="true" />
+}
+
 <partial name="~/Views/Shared/_CreatePageShell.cshtml" model="Model" />
-@section Scripts { @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); } }
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script>
+        (() => {
+            const amount = document.querySelector('[data-ctc-amount]');
+            const currency = document.querySelector('[data-ctc-currency]');
+            const amountMirror = document.querySelector('[data-ctc-amount-mirror]');
+            const currencyMirror = document.querySelector('[data-ctc-currency-mirror]');
+            const sync = () => {
+                if (amountMirror && amount) amountMirror.value = amount.value;
+                if (currencyMirror && currency) currencyMirror.value = currency.value;
+            };
+            amount?.addEventListener('input', sync);
+            currency?.addEventListener('change', sync);
+            sync();
+            document.querySelectorAll('[data-ctc-clear]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const select = document.getElementById(button.dataset.ctcClear);
+                    if (!select) return;
+                    select.value = '';
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            });
+        })();
+    </script>
+}

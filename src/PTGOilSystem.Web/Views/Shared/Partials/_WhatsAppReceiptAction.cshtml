@@ -1,0 +1,27 @@
+@model (string? Phone, string Text, string Label)
+@{
+    var digits = new string((Model.Phone ?? string.Empty).Where(char.IsDigit).ToArray());
+    if (digits.StartsWith("00", StringComparison.Ordinal)) { digits = digits[2..]; }
+    if (digits.StartsWith("0", StringComparison.Ordinal)) { digits = "93" + digits[1..]; }
+    var whatsappUrl = digits.Length is >= 8 and <= 15
+        ? $"https://wa.me/{digits}?text={Uri.EscapeDataString(Model.Text)}"
+        : null;
+}
+
+<div class="ak-detail-actions mb-3 print-hidden" data-whatsapp-receipt-action>
+    @if (whatsappUrl is not null)
+    {
+        <a class="btn btn-success ak-primary-action" href="@whatsappUrl" target="_blank" rel="noopener">
+            <i class="bi bi-whatsapp" aria-hidden="true"></i>
+            @Model.Label
+        </a>
+        <span class="ak-note me-2">متن رسید آماده است؛ برای ارسال نهایی دکمهٔ Send را بزنید.</span>
+    }
+    else
+    {
+        <span class="ak-note text-muted">
+            <i class="bi bi-telephone-x me-1" aria-hidden="true"></i>
+            برای این طرف‌حساب شمارهٔ معتبر ثبت نشده است.
+        </span>
+    }
+</div>
