@@ -1,6 +1,6 @@
-# قرارداد یکپارچهٔ رابط PTG بر اساس Mashal UI Reference
+# قرارداد یکپارچهٔ رابط PTG — پورت زبان بصری
 
-این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ تفاوت ظاهری فقط در دو variant رسمی مرجع محدود است.
+این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ wrapperهای legacy فقط تا وقتی مصرف‌کنندهٔ runtime دارند حفظ می‌شوند و هدف بصری جداگانه نیستند.
 
 ## منبع مرجع
 
@@ -16,7 +16,7 @@
 - عنوان صفحه، section head، فرم، table، status، card، modal، dropdown، pager و action bar باید از primitiveهای مشترک استفاده کنند؛ selector صفحه‌ای جدید فقط برای layout اختصاصی همان صفحه مجاز است.
 - منطق business، route، binding، validation، permission، anti-forgery، POST، SPA lifecycle، ledger و inventory تغییر نمی‌کند.
 - فونت همان IRANSans با fallback فعلی پروژه است؛ متن و دادهٔ دامنهٔ نفت و گاز حفظ می‌شود.
-- کنترل‌ها فشرده، خوانا و RTL هستند؛ radius کوچک، border ظریف، shadow محدود و بدون gradient/glow استفاده می‌شود.
+- کنترل‌ها خوانا و RTL هستند؛ کنترل ۴۰px، radius کنترل ۸px، border ظریف و shadow محدود. CTA اصلی آبیِ ساده و پرکنتراست است؛ گرادیان سراسری و glow تزئینی ممنوع.
 - رنگ وضعیت فقط برای state واقعی استفاده می‌شود؛ دکمهٔ اصلی یک accent مشخص دارد.
 - در 375، 768، 1024 و 1440 پیکسل نباید صفحهٔ اصلی horizontal overflow داشته باشد.
 
@@ -32,4 +32,4 @@
 
 - `78-mashal-reference.css` آخرین لایهٔ runtime برای primitiveهای محتوا است و shell را استایل نمی‌کند؛ مالک Sidebar فقط `04-sidebar.css`، مالک Header فقط `74-header-controls.css` و مالک تب‌ها فقط `16-system-tabs.css`، مالک دکمه‌ها `05-components.css`، مالک dialog `08-modals.css` و مالک جعبهٔ جستجو `45-akaunting.css` است. قواعد تکراری هدر/منو از `boltz-shell.css`، `03-layout`، `10-responsive`، `13-compat` و `45-akaunting` حذف شدند.
 - bundleهای Production باید پس از هر تغییر CSS با `PtgBuildBundles=true` بازسازی شوند.
-- صفحات جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کنند.
+- صفحهٔ جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کند.

@@ -46,9 +46,11 @@
                     expRulesIsActive)
             });
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="expenseRulesFilter" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="expenseRulesFilter" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="لیست قواعد مصرف">
                 <thead>

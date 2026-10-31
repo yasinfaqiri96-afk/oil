@@ -94,8 +94,8 @@
                     }, statusFilter)
             });
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
-    <div class="d-flex justify-content-end mt-2 no-print">
+    <div class="ak-list-toolbar">
+        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
         <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
     </div>
         <div class="ak-table-wrap">

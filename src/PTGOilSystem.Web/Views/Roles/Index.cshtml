@@ -12,8 +12,10 @@
                        UiText.T(Context, "نقش جدید", "New role"), "bi-plus-lg",
                        (string?)Url.Action("Create"), (string?)null,
                        (string?)null, (string?)null, (string?)null))" />
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-                 model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "جستجو نام یا توضیح نقش", "Search role name or description"))" />
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "جستجو نام یا توضیح نقش", "Search role name or description"))" />
+        </div>
 
         <div class="ak-table-wrap">
             <table class="ak-table">

@@ -792,6 +792,7 @@ body.is-finance-workspace .rephub-card {
     border: 0;
 
     text-decoration: none;
+    cursor: pointer;
 }
 
 body.is-finance-workspace .rephub-card-art {
@@ -802,12 +803,13 @@ body.is-finance-workspace .rephub-card-art {
 }
 
 body.is-finance-workspace .rephub-card:focus-visible {
-    outline: none;
+    outline: 2px solid var(--ptg-primary);
+    outline-offset: 4px;
+    border-radius: var(--ptg-radius-input);
 }
 
 body.is-finance-workspace .rephub-card:focus-visible .rephub-card-art {
-    outline: 2px solid var(--primary-main);
-    outline-offset: 3px;
+    outline: none;
 }
 
 /* آواتار داخل دایره فرو نشسته تا هاله‌اش به لبهٔ دایره نچسبد. */
@@ -887,7 +889,7 @@ body.is-finance-workspace .rephub-card-description {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    body.is-finance-workspace .rephub-card {
+    body.is-finance-workspace .rephub-card-title {
         transition: none;
     }
 }

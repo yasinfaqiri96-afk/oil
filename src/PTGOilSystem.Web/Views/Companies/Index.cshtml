@@ -23,10 +23,12 @@
         <vc:stat-card title="@UiText.T(Context, "کشورها", "Countries")" value="@countryCount.ToString("N0")" unit="@UiText.T(Context, "کشور", "countries")" avatar="locations"></vc:stat-card>
     </section>
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly("q", q, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

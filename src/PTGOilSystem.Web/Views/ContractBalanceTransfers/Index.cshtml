@@ -14,13 +14,15 @@
 
     <p class="ak-note">این بخش انتقال داخلی مانده بین قراردادها را نشان می‌دهد؛ پرداخت بانکی یا حرکت موجودی ایجاد نمی‌کند.</p>
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@(new AkSearchFilterModel("search", ViewData["Search"] as string, "جستجو یا فیلتر نتایج...", null,
-                       Model.ContractId.HasValue
-                           ? new Dictionary<string, string> { ["contractId"] = Model.ContractId.Value.ToString() }
-                           : null))" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@(new AkSearchFilterModel("search", ViewData["Search"] as string, "جستجو یا فیلتر نتایج...", null,
+                               Model.ContractId.HasValue
+                                   ? new Dictionary<string, string> { ["contractId"] = Model.ContractId.Value.ToString() }
+                                   : null))" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>

@@ -32,9 +32,11 @@
                     }, driversIsActive)
             });
     }
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="driversFilter" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="driversFilter" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "لیست راننده‌ها", "Driver list")">
                 <thead>

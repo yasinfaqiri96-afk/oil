@@ -1,11 +1,10 @@
 # PTG Oil System — UI/UX Design System
 
-> **Source of Truth:** این فایل منبع اصلی و دائمی طراحی پروژه است.
-> پیش از طراحی یا اصلاح هر صفحه باید این فایل خوانده شود.
-> سپس راهنمای همان نوع صفحه در `design-system/pages/` خوانده شود.
-> `ui-ux-pro-max` فقط در چارچوب این سند استفاده می‌شود؛ پیشنهاد عمومی Skill حق تغییر هویت PTG را ندارد.
-> هماهنگی کل نرم‌افزار مهم‌تر از نوآوری جداگانه در یک صفحه است.
-> قرارداد اجرایی یکپارچه‌سازی بر اساس تصاویر مرجع Mashal در `design-system/mashal-unified-contract.md` است؛ primitiveها مشترک‌اند و فقط دو variant رسمی `mashal-light` و `mashal-legacy` مجازند.
+> **Source of Truth:** این فایل منبع اصلی طراحی پروژه است؛ سند اجرایی جزئیات در `docs/UI-DESIGN-SYSTEM.md` نگهداری می‌شود.
+> گزارش «دیزاین سیستم مدیریت نواتیک» مرجع بصریِ پورت است، نه منبع کد/معماری/محتوای PTG.
+> PTG روی MVC/Razor و Bootstrap RTL می‌ماند؛ نام، لوگو، دامنهٔ نفت، route، مجوز و workflowهای PTG حفظ می‌شوند.
+> هدف، یک زبان بصری مشترک است؛ wrapperهای Mashal فقط برای مصرف‌کننده‌های runtime حفظ می‌شوند، نه به‌عنوان variant طراحی مستقل.
+> CSS/JS قدیمی تا وقتی مصرف‌کنندهٔ زنده دارند حذف نمی‌شوند؛ پاک‌سازی نیازمند اثبات نبود مصرف‌کننده و validation است.
 
 ## 1. دامنه و ترتیب اولویت
 
@@ -57,7 +56,7 @@
 
 ### 4.1 رنگ‌ها
 
-| نقش | توکن runtime | مقدار فعلی | کاربرد |
+| نقش | توکن runtime | مقدار هدف | کاربرد |
 |---|---|---:|---|
 | Brand / navigation / interaction | `--primary-main` | `#007DB2` | Sidebar، لینک، تب، focus |
 | Brand hover / active nav item | `--primary-dark` | `#006088` | hover، آیتم فعال منو |
@@ -82,7 +81,7 @@ Badge/وضعیت: سطح ۱۰۰ + متن ۷۰۰ (`--ptg-*-soft` / `--ptg-*-text`
 
 - رنگ وضعیت فقط برای state واقعی و همراه با متن/آیکون استفاده شود.
 - پول مثبت/منفی را فقط در جای تصمیم‌ساز رنگی کن؛ متن مالی عادی تیره بماند.
-- CTA اصلی آبی است؛ success جای CTA را نمی‌گیرد.
+- CTA اصلی آبی است؛ teal فقط برای پوسته/ناوبری و success جای CTA را نمی‌گیرد.
 - در هر ناحیه معمولاً یک accent اصلی کافی است.
 - رنگ hard-coded جدید ممنوع؛ از توکن موجود استفاده کن.
 
@@ -191,7 +190,7 @@ Breakpointهای canonical Bootstrap:
 ## 5. Shell و جهت
 
 - `_Layout.cshtml` مالک Sidebar، Topbar، جستجو، زبان، سال مالی و lifecycle assets است.
-- Sidebar تیره و محتوای اصلی روشن است؛ رنگ shell را صفحه‌ای override نکن.
+- Sidebar teal برند با متن روشن و active state تیره‌تر است؛ رنگ shell را صفحه‌ای override نکن. پوستهٔ سبک قدیمی در `78-mashal-reference.css` به‌تدریج به همین زبان بصری مهاجرت می‌کند.
 - در فارسی/دری `dir="rtl"` و در UI انگلیسی `ltr` حفظ شود.
 - CSS جدید باید از logical properties مثل `margin-inline` و `inset-inline` استفاده کند.
 - `spa-nav.js` shell را نگه می‌دارد و `<main>` را جایگزین می‌کند؛ initialization باید idempotent و سازگار با `ptg:page-ready` باشد.

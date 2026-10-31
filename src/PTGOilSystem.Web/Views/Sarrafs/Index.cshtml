@@ -20,10 +20,12 @@
         <vc:stat-card title="@UiText.T(Context, "مانده (مثبت = طلب شرکت)", "Balance (+ = we are owed)")" value="@Model.TotalOfficialBalanceUsd.ToString("#,0.##")" unit="USD" avatar-path="/images/stat-cards/ref-people/sarraf-vault.webp"></vc:stat-card>
     </section>
 
-    <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
-             model="@AkSearchFilterModel.SearchOnly("search", Model.Search, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
-
     <div class="ak-list">
+        <div class="ak-list-toolbar">
+            <partial name="~/Views/Shared/_AkSearchFilter.cshtml"
+                     model="@AkSearchFilterModel.SearchOnly("search", Model.Search, UiText.T(Context, "جستجو یا فیلتر نتایج...", "Search or filter results..."))" />
+        </div>
+
         <div class="ak-table-wrap">
             <table class="ak-table">
                 <thead>
