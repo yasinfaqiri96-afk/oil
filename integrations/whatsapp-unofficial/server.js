@@ -47,7 +47,11 @@ async function pump() {
     lastSentAt = Date.now();
     console.log(JSON.stringify({ event: 'sent', id: item.id }));
   } catch (error) {
-    console.error(JSON.stringify({ event: 'failed', id: item.id, error: String(error) }));
+    // قطع اتصال پیام را از بین نمی‌برد؛ پس از اتصال دوباره (حداکثر ۳ بار) ارسال می‌شود.
+    item.attempts = (item.attempts || 0) + 1;
+    const retry = !ready && item.attempts < 3;
+    if (retry) queue.unshift(item);
+    console.error(JSON.stringify({ event: retry ? 'retry' : 'failed', id: item.id, error: String(error) }));
   } finally {
     busy = false;
     setImmediate(pump);

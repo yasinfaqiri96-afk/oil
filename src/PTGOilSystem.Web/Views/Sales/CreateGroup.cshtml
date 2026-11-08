@@ -23,7 +23,7 @@
         {
             AkFilterDefinition.MultiSelect("fKind", "نوع منبع", FilterOptions(sources.Select(item => item.KindLabel)), null),
             AkFilterDefinition.MultiSelect("fVehicle", "نوع وسیله", FilterOptions(sources.Select(item => item.VehicleKind)), null),
-            AkFilterDefinition.MultiSelect("fContract", "قرارداد", FilterOptions(sources.Select(item => item.ContractNumber)), null),
+            AkFilterDefinition.MultiSelect("fContract", "قرارداد", PTGOilSystem.Web.Services.PurchaseContractGroupLookup.BuildContractFilterOptions(sources.Select(item => (item.ContractNumber, item.ContractGroup))), null),
             AkFilterDefinition.MultiSelect("fProduct", "کالا", FilterOptions(sources.Select(item => item.ProductName)), null),
             AkFilterDefinition.MultiSelect("fStatus", "وضعیت", FilterOptions(sources.Select(item => item.StatusLabel)), null)
         });
@@ -284,6 +284,8 @@
     product = o.ProductName,
     company = o.CompanyName,
     contract = o.ContractNumber,
+    contractGroup = o.ContractGroup?.FilterValue,
+    contractGroupText = o.ContractGroup?.Label,
     available = o.AvailableMt,
     isFull = o.IsFullVehicle,
     status = o.StatusLabel,
@@ -376,6 +378,12 @@
             var values = filterValues(key);
             return values.length === 0 || values.indexOf(value) !== -1;
         }
+        // قرارداد مادر منابع همهٔ ردیف‌هایش را نشان می‌دهد؛ منشأ هر منبع همان قرارداد ردیف می‌ماند.
+        function matchesContract(o) {
+            var values = filterValues('fContract');
+            return values.length === 0 || values.indexOf(o.contract) !== -1
+                || (!!o.contractGroup && values.indexOf(o.contractGroup) !== -1);
+        }
         function filterValue(key) {
             var field = sourceFilter.querySelector('[data-ak-filter-param][name="' + key + '"]');
             return field ? field.value : '';
@@ -386,10 +394,10 @@
             state.filtered = sources.filter(function (o) {
                 if (!matchesAny('fKind', o.kindLabel)) return false;
                 if (!matchesAny('fVehicle', o.vehicle)) return false;
-                if (!matchesAny('fContract', o.contract)) return false;
+                if (!matchesContract(o)) return false;
                 if (!matchesAny('fProduct', o.product)) return false;
                 if (!matchesAny('fStatus', o.status)) return false;
-                if (q && (o.number + ' ' + escapeHtml(o.route) + ' ' + o.contract + ' ' + escapeHtml(o.kindLabel) + ' ' + escapeHtml(o.company) + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
+                if (q && (o.number + ' ' + escapeHtml(o.route) + ' ' + o.contract + ' ' + escapeHtml(o.contractGroupText || '') + ' ' + escapeHtml(o.kindLabel) + ' ' + escapeHtml(o.company) + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;

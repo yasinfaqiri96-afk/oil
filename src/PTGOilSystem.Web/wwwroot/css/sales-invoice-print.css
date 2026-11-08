@@ -53,7 +53,7 @@
     --fw-semibold: 600;
     --fw-bold: 700;
 
-    --screen-canvas: #F3F4F8;
+    --screen-canvas: #eceff3;
 }
 
 *,
@@ -88,24 +88,24 @@ body {
     gap: 10px;
     padding: 12px;
     background: rgba(247, 249, 252, .94);
-    border-bottom: 1px solid #EAEAEA;
+    border-bottom: 1px solid #d9dee8;
 }
 
 .invoice-actions a,
 .invoice-actions button {
-    border: 1px solid #CBD5E1;
-    border-radius: 8px;
+    border: 1px solid #c8d0dd;
+    border-radius: 6px;
     background: var(--ptg-field-bg);
-    color: #334155;
-    padding: 8px 16px;
+    color: #16264b;
+    padding: 8px 14px;
     font: var(--fw-semibold) 13px var(--invoice-font);
     text-decoration: none;
     cursor: pointer;
 }
 
 .invoice-actions button {
-    border-color: #007DB2;
-    background: #007DB2;
+    border-color: #16264b;
+    background: #16264b;
     color: var(--ptg-field-bg);
 }
 

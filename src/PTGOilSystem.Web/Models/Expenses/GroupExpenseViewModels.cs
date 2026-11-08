@@ -17,6 +17,8 @@ public sealed class GroupExpenseOperationItem
     public string Route { get; init; } = "";
     public string ProductName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    // قرارداد مادرِ ردیف خرید چندتأمین‌کننده؛ فقط برای فیلتر یک‌جای همهٔ ردیف‌ها.
+    public PTGOilSystem.Web.Services.PurchaseGroupRef? ContractGroup { get; set; }
     public decimal QuantityMt { get; init; }
     public string StatusLabel { get; init; } = "";
     public DateTime MoveDate { get; init; }

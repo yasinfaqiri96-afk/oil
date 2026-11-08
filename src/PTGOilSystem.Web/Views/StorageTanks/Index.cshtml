@@ -54,11 +54,9 @@
                     }, tankIsActive)
             });
     }
-    <div class="ak-list">
-        <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="storageTanksFilter" />
-        </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="storageTanksFilter" />
 
+    <div class="ak-list">
         <div class="storage-tank-grid">
             @foreach (var item in Model.Items)
             {

@@ -1860,6 +1860,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("PurchaseContractGroupId")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("PurchaseSourceLocationId")
                         .HasColumnType("integer");
 
@@ -1931,6 +1934,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ParentContractId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("PurchaseContractGroupId");
 
                     b.HasIndex("PurchaseSourceLocationId");
 
@@ -8888,6 +8893,56 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PurchaseContractGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ContractDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GroupNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("GroupNumber")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseContractGroups");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>
                 {
                     b.Property<int>("Id")
@@ -11809,6 +11864,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.PurchaseContractGroup", "PurchaseContractGroup")
+                        .WithMany("Lines")
+                        .HasForeignKey("PurchaseContractGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Location", "PurchaseSourceLocation")
                         .WithMany()
                         .HasForeignKey("PurchaseSourceLocationId")
@@ -11839,6 +11899,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ParentContract");
 
                     b.Navigation("Product");
+
+                    b.Navigation("PurchaseContractGroup");
 
                     b.Navigation("PurchaseSourceLocation");
 
@@ -14125,6 +14187,17 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PurchaseContractGroup", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Company", "Company")
@@ -14900,6 +14973,11 @@ namespace PTGOilSystem.Web.Migrations
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PreSaleOrder", b =>
                 {
                     b.Navigation("Deliveries");
+                });
+
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.PurchaseContractGroup", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.QualityInspection", b =>

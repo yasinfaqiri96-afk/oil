@@ -31,11 +31,9 @@
                     vesselsIsActive)
             });
     }
-    <div class="ak-list">
-        <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="vesselsFilter" />
-        </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="vesselsFilter" />
 
+    <div class="ak-list">
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "لیست کشتی‌ها", "Vessel list")">
                 <thead>

@@ -26,7 +26,7 @@
             AkFilterDefinition.MultiSelect("fOperation", "نوع عملیات", FilterOptions(operations.Select(item => item.OperationLabel)), null),
             AkFilterDefinition.MultiSelect("fVehicle", "نوع وسیله", FilterOptions(operations.Select(item => item.VehicleKind)), null),
             AkFilterDefinition.MultiSelect("fRoute", "مسیر", FilterOptions(operations.Select(item => item.Route)), null),
-            AkFilterDefinition.MultiSelect("fContract", "قرارداد", FilterOptions(operations.Select(item => item.ContractNumber)), null),
+            AkFilterDefinition.MultiSelect("fContract", "قرارداد", PTGOilSystem.Web.Services.PurchaseContractGroupLookup.BuildContractFilterOptions(operations.Select(item => (item.ContractNumber, item.ContractGroup))), null),
             AkFilterDefinition.MultiSelect("fProduct", "کالا", FilterOptions(operations.Select(item => item.ProductName)), null),
             AkFilterDefinition.MultiSelect("fStatus", "وضعیت", FilterOptions(operations.Select(item => item.StatusLabel)), null),
             new("fFrom", "تاریخ حرکت", "daterange", null, null, "fTo")
@@ -229,7 +229,7 @@
                             <span class="ak-alloc-method-body">
                                 <i class="bi bi-box-seam" aria-hidden="true"></i>
                                 <strong>بر اساس مقدار</strong>
-                                <small>نرخ فی تن × مقدار هر حمل</small>
+                                <small>نرخ فی تن، یا مبلغ کل به نسبت مقدار</small>
                             </span>
                         </label>
                         <label class="ak-alloc-method">
@@ -264,6 +264,7 @@
                                 <span data-cur-tag>USD</span>
                                 <input asp-for="TotalAmount" type="number" step="0.01" min="0" class="ak-input" placeholder="0.00" />
                             </div>
+                            <small class="ak-note" id="totalByQuantityNote" hidden>اگر نرخ فی تن خالی باشد، این مبلغ به نسبت مقدار (تن) هر عملیات تقسیم می‌شود و جمع سهم‌ها دقیقاً همین مبلغ است.</small>
                         </div>
                         <div class="ak-field" id="rateField" hidden>
                             <label asp-for="RatePerTon">نرخ فی تن <em>*</em></label>
@@ -442,6 +443,8 @@
     route = o.Route,
     product = o.ProductName,
     contract = o.ContractNumber,
+    contractGroup = o.ContractGroup?.FilterValue,
+    contractGroupText = o.ContractGroup?.Label,
     qty = o.QuantityMt,
     status = o.StatusLabel,
     date = o.MoveDate.ToString("yyyy-MM-dd"),
@@ -526,6 +529,12 @@
             var values = filterValues(key);
             return values.length === 0 || values.indexOf(value) !== -1;
         }
+        // قرارداد مادر همهٔ ردیف‌های تأمین‌کننده‌اش را می‌گیرد؛ ردیف تکی هم جدا قابل انتخاب است.
+        function matchesContract(o) {
+            var values = filterValues('fContract');
+            return values.length === 0 || values.indexOf(o.contract) !== -1
+                || (!!o.contractGroup && values.indexOf(o.contractGroup) !== -1);
+        }
 
         function applyFilters() {
             var q = ($('fQuery').value || '').trim().toLowerCase();
@@ -534,12 +543,12 @@
                 if (!matchesAny('fOperation', o.op)) return false;
                 if (!matchesAny('fVehicle', o.vehicle)) return false;
                 if (!matchesAny('fRoute', o.route)) return false;
-                if (!matchesAny('fContract', o.contract)) return false;
+                if (!matchesContract(o)) return false;
                 if (!matchesAny('fProduct', o.product)) return false;
                 if (!matchesAny('fStatus', o.status)) return false;
                 if (from && o.date < from) return false;
                 if (to && o.date > to) return false;
-                if (q && (o.number + ' ' + o.route + ' ' + o.op + ' ' + o.vehicle + ' ' + o.contract + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
+                if (q && (o.number + ' ' + o.route + ' ' + o.op + ' ' + o.vehicle + ' ' + o.contract + ' ' + (o.contractGroupText || '') + ' ' + o.product).toLowerCase().indexOf(q) < 0) return false;
                 return true;
             });
             state.page = 1;
@@ -640,7 +649,8 @@
         function syncMethodFields() {
             var m = currentMethod();
             $('perOpField').hidden = m !== 1;
-            $('totalField').hidden = m !== 2;
+            $('totalField').hidden = m !== 2 && m !== 3;
+            $('totalByQuantityNote').hidden = m !== 3;
             $('rateField').hidden = m !== 3;
             $('rateHint').hidden = m !== 3;
             $('manualHint').hidden = m !== 4;
@@ -694,11 +704,11 @@
             if (!line.typeName) return 'نوع مصرف را وارد کنید.';
             if (line.method === 1 && !(line.perOp > 0)) return 'مبلغ برای هر عملیات را وارد کنید.';
             if (line.method === 2 && !(line.total > 0)) return 'مبلغ کل برای تقسیم را وارد کنید.';
-            if (line.method === 3 && !(line.rate > 0)) {
+            if (line.method === 3 && !(line.rate > 0) && !usesTotalByQuantity(line)) {
                 var missingRate = Array.from(state.selected.values()).some(function (s) {
                     return !(parseFloat(line.rates[key(s.op)]) > 0);
                 });
-                if (missingRate) return 'نرخ فی تن را وارد کنید یا برای همه حمل‌ها نرخ اختصاصی بدهید.';
+                if (missingRate) return 'نرخ فی تن یا مبلغ کل را وارد کنید، یا برای همه حمل‌ها نرخ اختصاصی بدهید.';
             }
             if (line.method === 4) {
                 var bad = Array.from(state.selected.values()).some(function (s) {
@@ -730,11 +740,34 @@
             return true;
         }
 
+        // «بر اساس مقدار» با مبلغ کل: فقط وقتی نه نرخ مشترک هست نه نرخ اختصاصی (هم‌سان با سرور).
+        function usesTotalByQuantity(line) {
+            if (line.method !== 3 || line.rate > 0 || !(line.total > 0)) return false;
+            return !Array.from(state.selected.values()).some(function (s) {
+                return parseFloat(line.rates[key(s.op)]) > 0;
+            });
+        }
+
+        // پیش‌نمایش همان تقسیم سرور: سنت‌ها به نسبت مقدار، باقیمانده به بزرگ‌ترین کسرها.
+        function splitByQuantity(total, items) {
+            var totalCents = Math.round(total * 100);
+            var weights = items.map(function (s) { return Number(s.op.qty) || 0; });
+            var sum = weights.reduce(function (a, b) { return a + b; }, 0);
+            if (!(sum > 0)) return items.map(function () { return 0; });
+            var cents = weights.map(function (w) { return Math.floor(totalCents * w / sum); });
+            var order = weights.map(function (w, i) { return { i: i, r: totalCents * w / sum - cents[i] }; })
+                .sort(function (a, b) { return b.r - a.r || a.i - b.i; });
+            var left = totalCents - cents.reduce(function (a, b) { return a + b; }, 0);
+            for (var k = 0; k < order.length && left > 0; k++, left--) { cents[order[k].i]++; }
+            return cents.map(function (c) { return c / 100; });
+        }
+
         function lineSharesFor(line) {
             var items = Array.from(state.selected.values());
             var n = items.length;
             if (n === 0) return [];
             if (line.method === 1) return items.map(function () { return line.perOp; });
+            if (usesTotalByQuantity(line)) return splitByQuantity(line.total, items);
             if (line.method === 3) return items.map(function (s) {
                 var rate = parseFloat(line.rates[key(s.op)]);
                 if (!(rate > 0)) rate = line.rate;
@@ -960,6 +993,7 @@
                 if (line.method === 1) mk(prefix + 'AmountPerOperation', line.perOp);
                 if (line.method === 2) mk(prefix + 'TotalAmount', line.total);
                 if (line.method === 3) {
+                    if (usesTotalByQuantity(line)) mk(prefix + 'TotalAmount', line.total);
                     if (line.rate > 0) mk(prefix + 'RatePerTon', line.rate);
                     items.forEach(function (s, i) {
                         var rate = parseFloat(line.rates[key(s.op)]);

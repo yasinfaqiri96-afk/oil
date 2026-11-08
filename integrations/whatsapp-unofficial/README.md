@@ -5,14 +5,13 @@
 ## اجرا
 
 ```powershell
-cd integrations/whatsapp-unofficial
-npm.cmd install --no-audit --no-fund
-$env:WA_SENDER_SECRET = "یک-راز-طولانی-محلی"
-$env:WA_MIN_INTERVAL_MS = "60000"
-$env:WA_MAX_QUEUE = "100"
-npm.cmd start
+powershell -ExecutionPolicy Bypass -File integrations/whatsapp-unofficial/start.ps1
 ```
 
-QR را با شمارهٔ جداگانه اسکن کنید. نشست در `.baileys_auth` ذخیره می‌شود و در `.gitignore` قرار دارد؛ آن را به کسی ندهید.
+بار اول اسکریپت `WA_SENDER_SECRET` را می‌سازد و در متغیرهای کاربر ویندوز ذخیره می‌کند، وابستگی‌ها را نصب می‌کند و QR نشان می‌دهد. QR را با شمارهٔ جداگانه اسکن کنید (واتساپ › Linked devices). نشست در `.baileys_auth` ذخیره می‌شود و در `.gitignore` قرار دارد؛ آن را به کسی ندهید.
 
-پس از پیام `Baileys WhatsApp sender ready`، پروژهٔ ASP.NET را در PowerShell جدا با همان `WA_SENDER_SECRET` اجرا کنید. endpointهای `/health` و `/send-receipt` روی localhost هستند و کد C# پس از Commit موفق پرداخت یا فروش، رسید را وارد صف می‌کند.
+پس از پیام `Baileys WhatsApp sender ready`، برنامهٔ ASP.NET را یک‌بار ببندید و دوباره اجرا کنید تا همان راز را بخواند. این پنجره باید باز بماند.
+
+## چه وقت رسید می‌رود
+
+پس از Commit موفق: پرداخت/دریافت، فروش (عادی، از محموله، گروهی، موتر، فروش مستقیم از حمل) و پرداخت بین مشتریان. شماره از کارت طرف‌حساب خوانده می‌شود؛ شماره‌های `07…` به `+93` تبدیل می‌شوند. بین هر دو پیام حداقل `WA_MIN_INTERVAL_MS` (پیش‌فرض ۶۰ ثانیه) فاصله است. اگر sender خاموش باشد، ثبت مالی انجام می‌شود و فقط پیام نمی‌رود.

@@ -1134,6 +1134,14 @@
                 </ol>
             </section>
 
+            @if (Model.PurchaseContractGroupId is { } purchaseGroupId)
+            {
+                <p class="ak-note no-print" data-purchase-group-link>
+                    @T("این قرارداد ردیفی از قرارداد چندتأمین‌کننده است:", "This contract is a line of a multi-supplier contract:")
+                    <a asp-controller="Contracts" asp-action="PurchaseGroup" asp-route-id="@purchaseGroupId" data-no-spa="true">@Model.PurchaseContractGroupLabel</a>
+                </p>
+            }
+
             @if (Model.SubContractItems.Any())
             {
                 <section class="ak-form-section ak-detail-section" data-sub-contracts>

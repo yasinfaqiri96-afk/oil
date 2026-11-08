@@ -45,8 +45,7 @@ public class AuthLoginViewStructureTests
         Assert.Contains(".ptg-login-art", css);
         Assert.Contains(".ptg-login-panel", css);
         Assert.Contains(".ptg-login-heading", css);
-        Assert.Contains("--lg-accent: #007DB2;", css);
-        Assert.Contains("--lg-submit-bg: #007DB2;", css);
+        Assert.Contains("--lg-accent: #d9605c;", css);
         Assert.True(artwork.Exists);
         Assert.True(artwork.Length > 20_000);
     }

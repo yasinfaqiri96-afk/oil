@@ -1,4 +1,4 @@
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
+﻿@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject Microsoft.Extensions.Configuration.IConfiguration AppConfiguration
 @inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.OnboardingOptions> OnboardingOptionsAccessor
 @inject Microsoft.Extensions.Options.IOptions<PTGOilSystem.Web.Configuration.ClientProfileOptions> ClientProfileOptionsAccessor
@@ -112,10 +112,6 @@
         }
     }
 
-    var mashalSettings = (currentController == "Auth" && currentAction == "ChangePassword")
-        || new[] { "SystemSettings", "Users", "Roles", "OfflineSync", "Backups", "BackupRestore", "AuditLogs", "Companies", "FiscalYears", "CashAccounts" }
-            .Contains(currentController, StringComparer.OrdinalIgnoreCase)
-        || (currentController == "ChartOfAccounts" && currentAction == "Mapping");
     var routeBodyClass = $"controller-{currentController.ToLowerInvariant()} action-{currentAction.ToLowerInvariant()}{genericActionClass}";
 
     var foundationItems = new (string Controller, string Action, string Label, string Icon)[]
@@ -279,20 +275,13 @@
     }
     if (settingsItems.Count > 0)
     {
-        var settingsTarget = settingsItems
-            .Where(item => CanAccessController(item.Controller))
-            .OrderByDescending(item => item.Controller == "SystemSettings")
-            .FirstOrDefault();
-        if (settingsTarget.Controller is not null)
-        {
-            navSource.Add(NavNode(
-                settingsTarget.Controller,
-                settingsTarget.Action,
-                T("تنظیمات", "Settings"),
-                "nav-settings",
-                active: userManagementControllers.Concat(backupManagementControllers)
-                    .Concat(new[] { "SystemSettings", "OfflineSync", "Auth", "Companies", "FiscalYears", "Currencies", "DailyFxRates", "CashAccounts", "ChartOfAccounts" }).ToArray()));
-        }
+        navSource.Add(NavNode(
+            "SystemSettings",
+            "Index",
+            T("تنظیمات", "Settings"),
+            "nav-settings",
+            active: userManagementControllers.Concat(backupManagementControllers).Append("SystemSettings").Append("OfflineSync").ToArray(),
+            children: settingsItems.ToArray()));
     }
 
     // Access filtering: keep visible children; keep node if it (or any child) is reachable.
@@ -304,10 +293,7 @@
         .ToList();
 
     bool NavNodeIsActive(string[] active)
-        => active.Contains("SystemSettings", StringComparer.OrdinalIgnoreCase)
-            ? mashalSettings
-            : (!mashalSettings || settingsItems.Count == 0)
-                && active.Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
+        => active.Any(controller => string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase));
 
     bool NavChildIsActive(
         (string Controller, string Action, string Label, string Icon) child,
@@ -353,7 +339,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#FCFCFC" />
-    <title>@title - @T("مشعل | نواتیک", "Mashal | Novatech")</title>
+    <title>@title - @T("گروپ کمپنی‌های فواد صدیقی", "Fawad Saddiqi Group of Companies")</title>
     @if (!isLoginPage && renderShellChrome)
     {
         <link rel="preload" href="~/vendor/fonts/iransans/files/iransans-400.woff2" asp-append-version="true" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -492,7 +478,6 @@
             @* راهنمای هوشمند — همهٔ قواعد زیر .ptg-assistant قفل‌اند. مثل ۶۱ و ۶۴ در همین
                پوستهٔ ماندگار می‌ماند تا با ناوبری SPA بدون CSS خودش نرسد. *@
             <link rel="stylesheet" href="~/css/ptg/80-assistant.css" asp-append-version="true" />
-            <link rel="stylesheet" href="~/css/ptg/78-mashal-reference.css" asp-append-version="true" />
         }
         else
         {
@@ -511,7 +496,7 @@
         <link rel="stylesheet" href="~/css/ptg/60-loader.css" asp-append-version="true" />
     }
 </head>
-<body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass mashal-ui mashal-light @(mashalSettings ? "mashal-settings" : null)"
+<body class="app-body boltz-shell @(isAuthenticated ?"app-shell-authenticated" : "app-shell-public") @(isEnglishUi ? "boltz-ltr" : "boltz-rtl") @foundationCompactClass @masterDataCompactClass @(isFinanceWorkspace ? "is-finance-workspace" : null) @routeBodyClass"
       data-ui-language="@htmlLanguage"
       data-calendar="@(PTGOilSystem.Web.Helpers.DateDisplay.IsSolarHijri ? "solar" : "gregorian")"
       data-ptg-view="@(uiPickEnabled ? ViewContext.View?.Path : null)"
@@ -546,24 +531,15 @@
             <aside class="boltz-sidebar ptg-sidebar" id="boltzSidebar">
                 <partial name="_NavIconSprite" />
 
-                @* هدر و فوتر ثابت‌اند؛ فقط فهرست منو اسکرول می‌شود. *@
+                @* ===== Shared 280px desktop / 88px laptop panel ===== *@
                 <div class="sidebar-panel ak-navpanel">
-                    <header class="mashal-sidebar-header">
-                        <button type="button" class="mashal-sidebar-close" data-shell-close="true"
-                                aria-label="@T("بستن منوی کناری", "Close Sidebar")" title="@T("بستن منوی کناری", "Close Sidebar")">
-                            <i class="bi bi-x-lg" aria-hidden="true"></i>
-                        </button>
+                <div class="boltz-sidebar-scroll">
                     <a class="boltz-brand boltz-brand-logo-only" asp-controller="Home" asp-action="Index">
                         <span class="boltz-brand-mark">
-                            <img class="boltz-brand-logo" src="~/images/mashal-sidebar-flame-white.webp" asp-append-version="true" alt="مشعل" width="1254" height="1254" decoding="async" />
+                            <img class="boltz-brand-logo" src="~/images/saddiqi-sidebar-wordmark.webp" asp-append-version="true" alt="گروپ کمپنی‌های فواد صدیقی" width="1226" height="354" decoding="async" />
                         </span>
                     </a>
 
-                    <div class="mashal-sidebar-context">
-                        <vc:fiscal-year-switcher></vc:fiscal-year-switcher>
-                    </div>
-                    </header>
-                <div class="boltz-sidebar-scroll">
                     <nav class="boltz-sidebar-nav" aria-label="@T("ناوبری اصلی", "Main Navigation")">
                         <ul class="boltz-nav-list ptg-sidebar-nav">
                             @foreach (var node in navTree)
@@ -574,7 +550,8 @@
                                 {
                                     var childControllersUnique = node.Children.Select(c => c.Controller).Distinct(StringComparer.OrdinalIgnoreCase).Count() == node.Children.Length;
                                     var anyChildActive = node.Children.Any(child => NavChildIsActive(child, childControllersUnique));
-                                    var groupOpen = nodeActive || anyChildActive;
+                                    var groupOpen = (nodeActive || anyChildActive)
+                                        && !string.Equals(node.Controller, "SystemSettings", StringComparison.OrdinalIgnoreCase);
                                     <li class="boltz-nav-item ptg-has-sub @(groupOpen ? "is-open" : null)" data-nav-group data-nav-item="@node.Controller">
                                         <button type="button"
                                                 class="boltz-nav-link boltz-nav-group-toggle ptg-sidebar-link @(groupOpen ? "is-active" : null)"
@@ -621,11 +598,9 @@
                             }
                         </ul>
                     </nav>
-                </div>
 
-                    <footer class="boltz-sidebar-foot">
-                        <a class="boltz-sidebar-foot-link" asp-controller="Auth" asp-action="ChangePassword"
-                           title="@T("تغییر رمز عبور", "Change Password")">
+                    <div class="boltz-sidebar-foot">
+                        <a class="boltz-sidebar-foot-link" asp-controller="Auth" asp-action="ChangePassword">
                             <i class="ptg-nav-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-key"></use></svg></i>
                             <span>@T("تغییر رمز عبور", "Change Password")</span>
                         </a>
@@ -633,13 +608,13 @@
                         <form asp-controller="Auth" asp-action="Logout" method="post"
                               data-no-spa="true" data-no-submit-guard>
                             @Html.AntiForgeryToken()
-                            <button type="submit" class="boltz-sidebar-foot-link boltz-sidebar-foot-link-danger"
-                                    title="@T("خروج", "Logout")">
+                            <button type="submit" class="boltz-sidebar-foot-link boltz-sidebar-foot-link-danger">
                                 <i class="ptg-nav-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-logout"></use></svg></i>
                                 <span>@T("خروج", "Logout")</span>
                             </button>
                         </form>
-                    </footer>
+                    </div>
+                </div>
                 </div>
             </aside>
             }
@@ -648,12 +623,10 @@
                 @if (renderShellChrome)
                 {
                 <header class="boltz-topbar ptg-topbar">
-                    <div class="boltz-topbar-start"><span class="mashal-topbar-date">@PTGOilSystem.Web.Helpers.DateDisplay.Date(BusinessClock.Today)</span>
+                    <div class="boltz-topbar-start">
                         <button type="button"
                                 class="boltz-topbar-toggle"
                                 data-shell-toggle="true"
-                                data-label-open="@T("باز کردن منوی کناری", "Open Sidebar")"
-                                data-label-close="@T("بستن منوی کناری", "Close Sidebar")"
                                 aria-controls="boltzSidebar"
                                 aria-expanded="false"
                                 aria-label="@T("باز کردن منوی کناری", "Open Sidebar")">
@@ -678,13 +651,13 @@
                                data-onboarding-open
                                title="@T("راهنمای شروع", "Getting started")"
                                aria-label="@T("راهنمای شروع", "Getting started")">
-                                <svg class="mashal-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-guide"></use></svg>
+                                <i class="bi bi-signpost-2" aria-hidden="true"></i>
                             </a>
                         }
                         @* Language selector — same ghost line-icon chip as search and account. *@
                         <div class="dropdown boltz-language-menu ptg-hflag-wrap">
                             <button class="ptg-h3d ptg-hflag" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Language">
-                                <svg class="mashal-ic ptg-hflag-ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-language"></use></svg>
+                                <i class="bi bi-translate ptg-hflag-ico" aria-hidden="true"></i>
                                 <span class="visually-hidden" data-current-language-label>@(isEnglishUi ? "EN" : "FA")</span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end boltz-dropdown-menu boltz-language-dropdown">
@@ -707,7 +680,7 @@
 
                         @* Account — opens the account drawer (not a dropdown) *@
                         <button type="button" class="ptg-havatar-ring ptg-havatar-trigger" data-account-open aria-haspopup="dialog" aria-controls="ptgAccountDrawer" aria-expanded="false" aria-label="@T("حساب کاربری", "Account")">
-                            <svg class="mashal-ic ptg-havatar-ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#nav-profile"></use></svg>
+                            <i class="bi bi-person ptg-havatar-ico" aria-hidden="true"></i>
                         </button>
                     </div>
                 </header>
@@ -738,17 +711,7 @@
                             @await Html.PartialAsync("_SectionTabs")
                         }
 
-                        @if (mashalSettings)
-                        {
-                            <div class="mashal-settings-frame">
-                                <partial name="_MashalSettingsNav" />
-                                <div class="mashal-settings-content">@RenderBody()</div>
-                            </div>
-                        }
-                        else
-                        {
-                            @RenderBody()
-                        }
+                        @RenderBody()
                     </div>
                 </main>
 

@@ -134,7 +134,7 @@ public partial class ReportsController
         return File(
             output.ToArray(),
             "application/pdf",
-            $"MASHAL_Company_Balance_{model.ReportToDate:yyyy-MM-dd}_{model.CurrencyCode}.pdf");
+            $"Fawad_Saddiqi_Group_Company_Balance_{model.ReportToDate:yyyy-MM-dd}_{model.CurrencyCode}.pdf");
     }
 
     private async Task<CompanyBalanceReportViewModel> BuildCompanyBalanceAsync(CompanyBalanceReportFilterViewModel filter)

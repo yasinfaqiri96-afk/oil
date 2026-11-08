@@ -62,18 +62,18 @@ public class ShellViewStructureTests
             .Replace("\r\n", "\n", StringComparison.Ordinal);
         var navigationJs = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/navigation.js");
 
-        // The rail is the invariant this test guards: the collapsed sidebar must stay a
-        // 64px icon-only rail (Novatech) and the expanded sidebar must be strictly wider
-        // than it. The exact expanded width is a design choice (currently 240px).
-        Assert.Contains("--layout-sidebar-mini: 64px", tokensCss);
+        // The rail is the invariant this test guards: the collapsed sidebar must stay an
+        // 88px icon rail and the expanded sidebar must be strictly wider than it. The exact
+        // expanded width is a design choice (currently 224px) and is deliberately not pinned.
+        Assert.Contains("--layout-sidebar-mini: 88px", tokensCss);
         var expandedSidebarPx = ReadPixelToken(tokensCss, "--layout-sidebar");
         var railPx = ReadPixelToken(tokensCss, "--layout-sidebar-mini");
-        Assert.Equal(64, railPx);
+        Assert.Equal(88, railPx);
         Assert.True(
             expandedSidebarPx > railPx,
             $"Expanded sidebar ({expandedSidebarPx}px) must be wider than the icon rail ({railPx}px).");
         Assert.Contains("is-sidebar-collapsed .ak-navpanel {\n        display: flex;", sidebarCss);
-        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 23px;\n        block-size: 23px;", sidebarCss);
+        Assert.Contains("is-sidebar-collapsed .ptg-nav-ic > svg {\n        inline-size: 27px;\n        block-size: 27px;", sidebarCss);
         Assert.Contains("is-sidebar-collapsed .boltz-nav-link > span", sidebarCss);
         Assert.Contains("window.matchMedia(\"(min-width: 1200px)\")", navigationJs);
         Assert.Contains("window.matchMedia(\"(min-width: 992px)\")", navigationJs);
@@ -83,46 +83,24 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Sidebar_Uses_The_Novatech_Brand_Column_Without_Changing_State_Colors()
+    public void Sidebar_Uses_Light_Chortke_Surfaces_Without_Changing_State_Colors()
     {
         var tokensCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/01-tokens.css");
         var sidebarCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/04-sidebar.css");
 
-        // نوار کناری ستون برند نواتیک (#007DB2) است و آیتم فعال روی #006088 می‌نشیند؛
-        // همهٔ رنگ‌ها در 01-tokens متمرکزند و 04-sidebar فقط token می‌خواند.
-        Assert.Contains("--primary-main: #007DB2", tokensCss);
-        Assert.Contains("--ptg-sidebar-panel: #007DB2", tokensCss);
-        Assert.Contains("--ptg-sidebar-rail: #007DB2", tokensCss);
+        // نوار کناری Deep Navy است؛ همهٔ رنگ‌ها در 01-tokens متمرکزند و 04-sidebar فقط token می‌خواند.
+        Assert.Contains("--ptg-sidebar-panel: #1A467D", tokensCss);
+        Assert.Contains("--ptg-sidebar-rail: #14355F", tokensCss);
         Assert.Contains("--ptg-sidebar-panel: #1E1E27", tokensCss);
         Assert.Contains("--ptg-sidebar-rail: #16161D", tokensCss);
-        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.08)", tokensCss);
-        Assert.Contains("--ptg-sidebar-active-bg: #006088", tokensCss);
-        Assert.Contains("--ptg-sidebar-danger: #FFE1E1", tokensCss);
+        Assert.Contains("--ptg-sidebar-hover-bg: rgba(255, 255, 255, 0.10)", tokensCss);
+        Assert.Contains("--ptg-sidebar-active-bg: rgba(255, 255, 255, 0.14)", tokensCss);
+        Assert.Contains("--ptg-sidebar-danger: #FF9A9A", tokensCss);
         Assert.Contains("background: var(--ptg-sidebar-panel)", sidebarCss);
     }
 
     [Fact]
-    public void Sidebar_Keeps_Logo_And_Account_Actions_Outside_The_Scrolling_Menu()
-    {
-        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
-        var sidebar = layout.Split("id=\"boltzSidebar\"")[1].Split("</aside>")[0];
-        var header = sidebar.Split("<header class=\"mashal-sidebar-header\">")[1].Split("</header>")[0];
-        Assert.Contains("boltz-brand-logo", header);
-        Assert.Contains("<vc:fiscal-year-switcher>", header);
-        Assert.DoesNotContain("mashal-primary-create", sidebar);
-        Assert.DoesNotContain("mashal-company-link", sidebar);
-        Assert.DoesNotContain("data-mashal-nav-search", sidebar);
-        Assert.Contains("</nav>\n                </div>\n\n                    <footer class=\"boltz-sidebar-foot\">", sidebar.Replace("\r\n", "\n"));
-        var footer = sidebar.Split("<footer class=\"boltz-sidebar-foot\">")[1].Split("</footer>")[0];
-        Assert.Contains("asp-action=\"ChangePassword\"", footer);
-        Assert.Contains("asp-action=\"Logout\" method=\"post\"", footer);
-        Assert.Contains("@Html.AntiForgeryToken()", footer);
-        Assert.Contains("data-label-open=", layout);
-        Assert.Contains("data-label-close=", layout);
-    }
-
-    [Fact]
-    public void Sidebar_Opens_Settings_Directly_Without_Submenus()
+    public void Sidebar_Groups_Users_And_Backups_Under_Settings()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
@@ -131,46 +109,20 @@ public class ShellViewStructureTests
         Assert.Contains("if (canManageBackups)", layout);
         Assert.Contains("settingsItems.Add((\"Backups\", \"Index\", T(\"بکاپ‌گیری\", \"Backups\"), \"nav-settings\"))", layout);
         Assert.Contains("T(\"تنظیمات\", \"Settings\")", layout);
-        Assert.Contains(".Where(item => CanAccessController(item.Controller))", layout);
-        Assert.Contains(".OrderByDescending(item => item.Controller == \"SystemSettings\")", layout);
-        Assert.Contains("settingsTarget.Controller,", layout);
-        Assert.DoesNotContain("children: settingsItems.ToArray()", layout);
+        Assert.Contains("children: settingsItems.ToArray()", layout);
         Assert.DoesNotContain("navSource.Add(NavNode(\"Users\"", layout);
         Assert.DoesNotContain("navSource.Add(NavNode(\"Backups\"", layout);
     }
 
     [Fact]
-    public void Sidebar_Uses_Mashal_Brand_And_Settings_Has_No_Collapse_Exception()
+    public void Sidebar_Uses_Saddiqi_Brand_And_Settings_Starts_Collapsed()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
 
-        Assert.Contains("~/images/mashal-sidebar-flame-white.webp", layout);
-        Assert.Contains("alt=\"مشعل\"", layout);
+        Assert.Contains("~/images/saddiqi-sidebar-wordmark.webp", layout);
+        Assert.Contains("alt=\"گروپ کمپنی‌های فواد صدیقی\"", layout);
         Assert.DoesNotContain("~/images/mashal-sidebar-white.webp", layout);
-        Assert.DoesNotContain("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);
-    }
-
-    [Fact]
-    public void Settings_Destinations_Stay_In_The_Shared_Frame_And_Keep_Permission_Gates()
-    {
-        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
-        var navigation = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_MashalSettingsNav.cshtml");
-        var frameCondition = layout.Split("var mashalSettings =")[1].Split("var routeBodyClass")[0];
-
-        foreach (var controller in new[] { "Auth", "Companies", "Users", "Roles", "ChartOfAccounts", "FiscalYears", "CashAccounts", "SystemSettings", "OfflineSync", "Backups", "BackupRestore", "AuditLogs" })
-        {
-            Assert.Contains($"\"{controller}\"", frameCondition);
-        }
-        Assert.DoesNotContain("\"Currencies\"", frameCondition);
-        Assert.DoesNotContain("\"DailyFxRates\"", frameCondition);
-        Assert.Contains("(\"OfflineSync\", \"Index\", T(\"عملیات آفلاین\", \"Offline operations\")", navigation);
-        Assert.Contains("RoleAccessRules.CanAccessController(User, target, Modules)", navigation);
-        Assert.Contains("RoleAccessRules.CanManageBackups(User)", navigation);
-        Assert.Contains("RoleAccessRules.CanManageUsers(User)", navigation);
-        Assert.Contains("group.Items.Where(item => CanOpen(item.Item1))", navigation);
-        Assert.Contains("controller is \"Backups\" or \"BackupRestore\"", navigation);
-        Assert.Contains("controller is \"Users\" or \"Roles\"", navigation);
-        Assert.Contains("aria-current=\"@(active ? \"page\" : null)\"", navigation);
+        Assert.Contains("!string.Equals(node.Controller, \"SystemSettings\", StringComparison.OrdinalIgnoreCase)", layout);
     }
 
     [Fact]
@@ -187,7 +139,7 @@ public class ShellViewStructureTests
         Assert.True(
             layout.LastIndexOf("~/css/ptg/70-page-frame.css", StringComparison.Ordinal)
             > layout.LastIndexOf("~/css/ptg/61-finance-workspace.css", StringComparison.Ordinal));
-        Assert.Contains("--layout-content-max: 1600px", tokensCss);
+        Assert.Contains("--layout-content-max: 1280px", tokensCss);
 
         // One form width for the whole system: the reference form
         // («ثبت دریافت / پرداخت») set it, and 76-form-system.css now applies it to
@@ -199,13 +151,12 @@ public class ShellViewStructureTests
 
         Assert.Contains("padding-inline: var(--layout-gutter-desktop)", pageFrameCss);
         Assert.Contains("max-inline-size: var(--layout-content-max)", pageFrameCss);
-        // One cap (1600px) instead of per-monitor escalation; Novatech gutter ladder.
-        Assert.DoesNotContain("--layout-content-max: 1400px", pageFrameCss);
-        Assert.Contains("@media (min-width: 1024px) and (max-width: 1279.98px)", pageFrameCss);
-        Assert.Contains("padding-inline: var(--layout-gutter-laptop)", pageFrameCss);
-        Assert.Contains("@media (min-width: 640px) and (max-width: 1023.98px)", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1400px", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1480px", pageFrameCss);
+        Assert.Contains("--layout-content-max: 1560px", pageFrameCss);
+        Assert.Contains("@media (min-width: 1200px) and (max-width: 1599.98px)", pageFrameCss);
         Assert.Contains("padding-inline: var(--layout-gutter-compact)", pageFrameCss);
-        Assert.Contains("@media (max-width: 639.98px)", pageFrameCss);
+        Assert.Contains("@media (min-width: 768px) and (max-width: 1199.98px)", pageFrameCss);
         Assert.DoesNotContain(".ptg-page > .boltz-content-body", akauntingCss);
 
         // The form column is owned by the form system, which loads after both
@@ -223,21 +174,14 @@ public class ShellViewStructureTests
     public void Header_Removes_Settings_And_Fits_The_Account_Avatar()
     {
         var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
-        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css");
-        var headerCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/74-header-controls.css");
+        var shellCss = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/boltz-shell.css")
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.DoesNotContain("ptg-hgear", layout);
         Assert.DoesNotContain("bi bi-gear", layout);
         Assert.Contains("ptg-havatar-ring ptg-havatar-trigger", layout);
-
-        // The header has a single owner: the legacy boltz-shell copies of the topbar,
-        // nav and header-button rules were removed so nothing competes with 74.
-        Assert.DoesNotContain(".ptg-havatar-ring", shellCss);
-        Assert.DoesNotContain(".ptg-h3d", shellCss);
-        Assert.DoesNotContain(".boltz-topbar", shellCss);
-        Assert.DoesNotContain(".boltz-nav-link", shellCss);
-        Assert.Contains("--hdr-ctl-size: 32px", headerCss);
-        Assert.Contains(":is(.boltz-topbar-toggle, .ptg-h3d, .ptg-havatar-ring)", headerCss);
+        Assert.Contains(".ptg-havatar-ring {\n    width: 2.5rem;\n    height: 2.5rem;\n    padding: 2px;", shellCss);
+        Assert.Contains("object-fit: contain", shellCss);
     }
 
     [Fact]
@@ -248,9 +192,7 @@ public class ShellViewStructureTests
             "src/PTGOilSystem.Web/Views/Shared/Components/FiscalYearSwitcher/Default.cshtml");
 
         // The topbar cluster no longer carries the fiscal-year switcher.
-        var topbar = layout[layout.IndexOf("<header class=\"boltz-topbar", StringComparison.Ordinal)..layout.IndexOf("</header>", layout.IndexOf("<header class=\"boltz-topbar", StringComparison.Ordinal), StringComparison.Ordinal)];
-        Assert.DoesNotContain("<vc:fiscal-year-switcher>", topbar);
-        Assert.Contains("<vc:fiscal-year-switcher>", layout);
+        Assert.DoesNotContain("<vc:fiscal-year-switcher>", layout);
         Assert.DoesNotContain("ptg-hfyear", layout);
 
         // The component itself stays intact: selection posts to the dedicated context
@@ -275,8 +217,8 @@ public class ShellViewStructureTests
         // The page-level fake search was removed; the two real controls remain line icons.
         Assert.DoesNotContain("ptg-hsearch-trigger", layout);
         Assert.DoesNotContain("data-global-search", layout);
-        Assert.Contains("mashal-ic ptg-hflag-ico", layout);
-        Assert.Contains("mashal-ic ptg-havatar-ico", layout);
+        Assert.Contains("bi bi-translate ptg-hflag-ico", layout);
+        Assert.Contains("bi bi-person ptg-havatar-ico", layout);
         Assert.DoesNotContain("ptgUkFlag", layout);
 
         // The header trigger itself carries no image — the drawer keeps its own avatar.
@@ -310,20 +252,21 @@ public class ShellViewStructureTests
             > modalLayout.IndexOf("RenderSectionAsync(\"Styles\"", StringComparison.Ordinal),
             "Modal tabs must use the same final skin.");
 
-        // Novatech pill tabs. These are the contract every rail renders against.
-        Assert.Contains("--ptg-tabs-font-size: 14px", tabsCss);
-        Assert.Contains("--ptg-tabs-text-color: var(--primary-main)", tabsCss);
-        Assert.Contains("--ptg-tabs-active-color: #FFFFFF", tabsCss);
-        Assert.Contains("--ptg-tabs-idle-bg: #F1F5F9", tabsCss);
-        Assert.Contains("--ptg-tabs-active-bg: var(--primary-main)", tabsCss);
-        Assert.Contains("--ptg-tabs-item-gap: 8px", tabsCss);
-        Assert.Contains("--ptg-tabs-item-height: 36px", tabsCss);
-        Assert.Contains("--ptg-tabs-item-radius: 8px", tabsCss);
-        Assert.Contains("--ptg-tabs-focus-color: rgba(var(--primary-main-rgb), .25)", tabsCss);
+        // Chortke tab tokens. These are the contract every rail renders against.
+        Assert.Contains("--ptg-tabs-font-size: 16px", tabsCss);
+        Assert.Contains("--ptg-tabs-text-color: #333333", tabsCss);
+        Assert.Contains("--ptg-tabs-active-color: var(--primary-main)", tabsCss);
+        Assert.Contains("--ptg-tabs-border-color: #E0E0E0", tabsCss);
+        Assert.Contains("--ptg-tabs-item-gap: 32px", tabsCss);
+        Assert.Contains("--ptg-tabs-rail-height: 52px", tabsCss);
+        Assert.Contains("--ptg-tabs-indicator-height: 3px", tabsCss);
+        Assert.Contains("--ptg-tabs-transition-duration: 300ms", tabsCss);
+        Assert.Contains("--ptg-tabs-focus-color: rgba(16, 98, 208, .25)", tabsCss);
+        Assert.Contains("border-bottom: 1px solid var(--ptg-tabs-border-color)", tabsCss);
 
-        // Pills sit in one row spaced by the rail gap; the rail never wraps to a
-        // second line on narrow screens — it scrolls.
-        Assert.Contains("gap: var(--ptg-tabs-item-gap);", tabsCss);
+        // Flat rail: spacing comes from tab padding, never from a gap, and the
+        // rail must not wrap to a second line on narrow screens.
+        Assert.Contains("gap: 0;", tabsCss);
         Assert.Contains("flex-wrap: nowrap", tabsCss);
         Assert.Contains("scrollbar-width: thin", tabsCss);
         Assert.DoesNotContain("font-weight: 750 !important", listsCss);
@@ -414,6 +357,7 @@ public class ShellViewStructureTests
         Assert.DoesNotContain("dashboard-metric-card", view);
         Assert.DoesNotContain("dashboard-activity", view);
         Assert.Contains("Model.RecentActivities", view);
+        Assert.Contains("data-mashal-widget-choice", view);
 
         // The quick-action rail was removed from the dashboard; navigation lives in the shell.
         Assert.DoesNotContain("dash-quick", view);
@@ -569,27 +513,6 @@ public class ShellViewStructureTests
     }
 
     [Fact]
-    public void Index_Lists_Load_The_Reference_List_Grid_Without_Touching_Server_State()
-    {
-        var layout = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Layout.cshtml");
-        var project = ReadRepoFile("src/PTGOilSystem.Web/PTGOilSystem.Web.csproj");
-        var grid = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/list-grid.js");
-        var tables = ReadRepoFile("src/PTGOilSystem.Web/wwwroot/js/tables.js");
-
-        Assert.Contains("~/js/list-grid.js", layout);
-        Assert.Contains("<PtgCoreJs Include=\"wwwroot/js/list-grid.js\" />", project);
-        Assert.True(project.IndexOf("wwwroot/js/list-grid.js", StringComparison.Ordinal)
-            > project.IndexOf("wwwroot/js/tables.js", StringComparison.Ordinal));
-        // Only Index lists; detail tables and modals keep their own layout.
-        Assert.Contains("document.body.classList.contains(\"action-index\")", grid);
-        Assert.Contains("[data-ak-detail-v2='true'], [data-list-grid='off'], .modal", grid);
-        // Filtering hides rendered rows only; it never submits or rewrites the query.
-        Assert.DoesNotContain("submit", grid);
-        Assert.DoesNotContain("location.href", grid);
-        Assert.Contains("table.ptgClientPagerRefresh = function ()", tables);
-    }
-
-    [Fact]
     public void Server_Paged_Tables_Are_Excluded_From_Shared_Client_Pagination()
     {
         var pagination = ReadRepoFile("src/PTGOilSystem.Web/Views/Shared/_Pagination.cshtml");
@@ -600,7 +523,7 @@ public class ShellViewStructureTests
         Assert.Contains("if (hasServerPagination(table)) return;", tables);
         Assert.Contains("table.closest(\".ak-list, [data-operations-list], .ak-list-page, .ak-form-page\")", tables);
         Assert.Contains("list.querySelector(\"[data-server-pagination='true']\")", tables);
-        Assert.Contains("var pageSize = 10;", tables);
+        Assert.Contains("var pageSize = 20;", tables);
 
         // Tables without a server marker keep the existing client-side pager.
         Assert.Contains("if (rows.length <= pageSize) return;", tables);
@@ -692,17 +615,17 @@ public class ShellViewStructureTests
         Assert.Contains("assembleListCard(page, toolbar)", listScript);
         Assert.Contains("card.classList.add(\"ak-list-card\")", listScript);
         Assert.Contains("window.PTG.setListCardLoading", listScript);
-        Assert.Contains("--ptg-list-radius: var(--radius-table)", listStyles);
+        Assert.Contains("--ptg-list-radius: 12px", listStyles);
         Assert.Contains(".ak-list-card", listStyles);
         Assert.Contains("max-block-size: clamp(18rem, 56dvh, 44rem)", listStyles);
         Assert.Contains(".ak-list-page .ak-journal-scroll", listStyles);
         Assert.Contains("position: sticky", listStyles);
         Assert.Contains("inset-block-start: 0", listStyles);
         // چگالی ردیف دیگر در لایه لیست تکرار نمی‌شود؛ تنها منبع آن 50-ak-components.css
-        // است (نواتیک: 12 + 24 + 12 = ارتفاع ردیف 48px) تا دو لایه با هم نجنگند.
+        // است (چرتکه: 12 + 21 + 12 = ارتفاع ردیف 45px) تا دو لایه با هم نجنگند.
         Assert.DoesNotContain("height: 54px", listStyles);
         Assert.Contains(
-            "padding: 12px 16px",
+            "padding: 12px 10px",
             ReadRepoFile("src/PTGOilSystem.Web/wwwroot/css/ptg/50-ak-components.css"));
         Assert.Contains(".ak-list-footer", listStyles);
         Assert.Contains(".ak-list-loading-state", listStyles);
@@ -894,8 +817,7 @@ public class ShellViewStructureTests
         Assert.Contains("Model.Groups", reports);
         Assert.DoesNotContain("managementReportKeys", reports);
         Assert.DoesNotContain("financePartyReportKeys", reports);
-        Assert.DoesNotContain("TitleFa = \"وضعیت شرکت\"", reportsController);
-        Assert.Contains("TitleFa = \"پول، طلبات و بدهی‌ها\"", reportsController);
+        Assert.Contains("وضعیت شرکت", reportsController);
         Assert.Contains("کنترول و اسناد", reportsController);
 
         Assert.Contains("UPDATE \"Currencies\"", migration);

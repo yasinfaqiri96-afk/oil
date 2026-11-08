@@ -32,6 +32,7 @@ public sealed class FormIdempotencyCoverageTests
         {
             // مسیرهایی که پیش از PTG-P0-01 هم محافظت داشتند (نباید از دست بروند).
             Path.Combine("Contracts", "Create.cshtml"),
+            Path.Combine("Contracts", "PurchaseGroup.cshtml"),
             Path.Combine("Payments", "Create.cshtml"),
             Path.Combine("Sales", "Create.cshtml"),
             Path.Combine("Inventory", "Create.cshtml"),

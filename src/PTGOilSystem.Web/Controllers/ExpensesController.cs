@@ -2662,6 +2662,15 @@ public partial class ExpensesController : Controller
             MoveDate = d.DispatchDate
         }));
 
+        // انتخاب قرارداد مادر در فیلتر، عملیات همهٔ ردیف‌هایش را می‌آورد؛ مصرف هر عملیات همچنان
+        // روی قرارداد واقعی همان ردیف ثبت می‌شود.
+        var contractGroups = await PurchaseContractGroupLookup.LoadByContractNumberAsync(
+            _db, items.Select(i => i.ContractNumber));
+        foreach (var item in items)
+        {
+            item.ContractGroup = contractGroups.GetValueOrDefault(item.ContractNumber);
+        }
+
         return items
             .OrderByDescending(i => i.MoveDate)
             .ThenByDescending(i => i.Id)
@@ -2756,6 +2765,25 @@ public partial class ExpensesController : Controller
                 // سهم هر عملیات = نرخ فی تن × مقدار (تن) همان حمل. مثال: نرخ ۲ و حمل ۴۰ تن → سهم ۸۰.
                 // نرخ هر عملیات می‌تواند جداگانه (اکسل/دستی) داده شود؛ در نبودِ آن، نرخ مشترک خط.
                 var sharedRate = line.RatePerTon is > 0 ? line.RatePerTon.Value : (decimal?)null;
+                // مبلغ کل به‌جای نرخ (مثلاً ۹۰۰ دالر کرایه برای کل قرارداد): به نسبت مقدار هر عملیات
+                // تقسیم می‌شود و جمع سهم‌ها دقیقاً همان مبلغ کل است.
+                if (!sharedRate.HasValue && items.All(i => i.RatePerTon is not > 0) && line.TotalAmount is > 0)
+                {
+                    if (items.Any(i => i.QuantityMt <= 0))
+                    {
+                        error = "مقدار (تن) بعضی از عملیات‌های انتخاب‌شده صفر است؛ محاسبه بر اساس مقدار ممکن نیست.";
+                        return false;
+                    }
+
+                    total = Math.Round(line.TotalAmount.Value, 2);
+                    shares = ExpenseAmountAllocator.SplitByWeight(total, items.Select(i => i.QuantityMt).ToList()).ToList();
+                    if (shares.Any(s => s <= 0))
+                    {
+                        error = "با این مبلغ و روش تقسیم، سهم بعضی عملیات‌ها صفر یا منفی می‌شود.";
+                        return false;
+                    }
+                    return true;
+                }
                 if (!sharedRate.HasValue && items.Any(i => i.RatePerTon is not > 0))
                 {
                     error = "نرخ فی تن باید بزرگ‌تر از صفر باشد.";

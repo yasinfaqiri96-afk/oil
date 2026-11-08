@@ -36,7 +36,8 @@ public partial class ContractsController
                 Party = c.ContractType == ContractType.Purchase ? c.Supplier!.Name : c.Customer!.Name,
                 Product = c.Product != null ? c.Product.Name : "",
                 Unit = c.Unit != null ? (c.Unit.Symbol ?? c.Unit.Code ?? c.Unit.Name) : "MT",
-                c.QuantityMt, c.ContractType, c.ContractDate, c.EndDate, c.Status
+                c.QuantityMt, c.ContractType, c.ContractDate, c.EndDate, c.Status,
+                GroupNumber = c.PurchaseContractGroup != null ? c.PurchaseContractGroup.GroupNumber : ""
             })
             .ToListAsync(cancellationToken);
 
@@ -54,14 +55,16 @@ public partial class ContractsController
                 new("جنس", "Product", Width: 18), new("مقدار", "Quantity", TabularExportValueType.Number, 15),
                 new("واحد", "Unit", Width: 10), new("نوع", "Type", Width: 12),
                 new("تاریخ قرارداد", "Contract date", TabularExportValueType.Date, 14),
-                new("تاریخ ختم", "End date", TabularExportValueType.Date, 14), new("وضعیت", "Status", Width: 13)
+                new("تاریخ ختم", "End date", TabularExportValueType.Date, 14), new("وضعیت", "Status", Width: 13),
+                new("قرارداد چندتأمین‌کننده", "Multi-supplier contract", Width: 17)
             ],
             Rows = rows.Select(r => new TabularExportRow(
             [
                 TabularExportCell.Text(r.ContractName), TabularExportCell.Text(r.ContractNumber),
                 TabularExportCell.Text(r.Party), TabularExportCell.Text(r.Product),
                 TabularExportCell.Number(r.QuantityMt), TabularExportCell.Text(r.Unit), TabularExportCell.Text(r.ContractType.ToString()),
-                TabularExportCell.Date(r.ContractDate), TabularExportCell.Date(r.EndDate), TabularExportCell.Text(r.Status.ToString())
+                TabularExportCell.Date(r.ContractDate), TabularExportCell.Date(r.EndDate), TabularExportCell.Text(r.Status.ToString()),
+                TabularExportCell.Text(r.GroupNumber)
             ]))
         });
     }

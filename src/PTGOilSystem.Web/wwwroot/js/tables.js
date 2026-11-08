@@ -611,7 +611,7 @@
 
     function setupClientTablePagination(table) {
         var rows;
-        var pageSize = 10;
+        var pageSize = 20;
         var currentPage = 1;
         var pager;
         var pagerInfo;

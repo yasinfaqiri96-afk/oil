@@ -14,8 +14,30 @@ public sealed class ContractPartnerShareInput
     public decimal? SharePercent { get; set; }
 }
 
+public sealed class PurchaseContractLineInput
+{
+    [Display(Name = "تأمین‌کننده")]
+    public int? SupplierId { get; set; }
+
+    [Display(Name = "محصول")]
+    public int? ProductId { get; set; }
+
+    [Display(Name = "مقدار (MT)")]
+    public decimal? QuantityMt { get; set; }
+
+    [Display(Name = "فی تن")]
+    public decimal? UnitPrice { get; set; }
+
+    public bool IsEmpty => !SupplierId.HasValue && !ProductId.HasValue && !QuantityMt.HasValue && !UnitPrice.HasValue;
+}
+
 public sealed class ContractFormViewModel
 {
+    /// <summary>قرارداد خرید چندتأمین‌کننده: هر ردیفِ <see cref="PurchaseLines"/> یک قرارداد مستقل می‌شود.</summary>
+    public bool IsMultiSupplier { get; set; }
+
+    public List<PurchaseContractLineInput> PurchaseLines { get; set; } = [];
+
     /// <summary>
     /// PTG-P1-05 — نسخهٔ سطری که کاربر هنگامِ بازکردنِ فرم دید. با فرم برمی‌گردد تا ذخیره
     /// روی نسخهٔ کهنه رد شود. صفر یعنی فرم نسخه نفرستاده است.

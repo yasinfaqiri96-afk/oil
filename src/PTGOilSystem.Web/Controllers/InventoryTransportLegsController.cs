@@ -18,6 +18,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Notifications;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -75,8 +76,10 @@ public partial class InventoryTransportLegsController : Controller
         IAfghanistanBusinessClock? businessClock = null,
         InventoryTransportReceiptService? receiptService = null,
         ITransportQuantityService? quantities = null,
-        ITransportChainService? transportChain = null)
+        ITransportChainService? transportChain = null,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
+        _whatsAppReceipts = whatsAppReceipts;
         _quantities = quantities ?? new TransportQuantityService(db);
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
@@ -96,6 +99,7 @@ public partial class InventoryTransportLegsController : Controller
     }
 
     private readonly InventoryTransportReceiptService _receiptService;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
     // تک‌منبع «باقیماندهٔ حمل»؛ هیچ اکشنی نباید فرمول خودش را داشته باشد.
     private readonly ITransportQuantityService _quantities;
     // موتور عمومی وسیله → وسیله؛ انتقال گروهی فقط آن را به‌صورت Bulk اجرا می‌کند.
@@ -1754,6 +1758,7 @@ public partial class InventoryTransportLegsController : Controller
             return View(model);
         }
 
+        var directSaleIds = new List<int>();
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync()
             : null;
@@ -1763,7 +1768,8 @@ public partial class InventoryTransportLegsController : Controller
             new FormTokenGuard(_db).Stamp(formToken, "Transport.GroupOperation", nameof(InventoryTransportReceipt));
             foreach (var (perModel, leg) in perLeg)
             {
-                await receiptService.ApplyAsync(perModel, leg, saleConversion);
+                var receipt = await receiptService.ApplyAsync(perModel, leg, saleConversion);
+                if (receipt.SalesTransactionId.HasValue) directSaleIds.Add(receipt.SalesTransactionId.Value);
             }
 
             if (transaction is not null)
@@ -1785,6 +1791,14 @@ public partial class InventoryTransportLegsController : Controller
             RefreshGroupOperationDisplay(model, legs);
             await PopulateGroupOperationLookupsAsync(model);
             return View(model);
+        }
+
+        if (_whatsAppReceipts is not null)
+        {
+            foreach (var saleId in directSaleIds)
+            {
+                await _whatsAppReceipts.QueueSaleReceiptAsync(saleId, CancellationToken.None);
+            }
         }
 
         TempData["ok"] = $"{perLeg.Count:N0} تخصیص این حمل به‌صورت گروهی ثبت شد.";

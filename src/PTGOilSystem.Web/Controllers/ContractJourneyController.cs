@@ -206,6 +206,7 @@ public partial class ContractJourneyController : Controller
             .Include(c => c.Supplier)
             .Include(c => c.Customer)
             .Include(c => c.ParentContract)
+            .Include(c => c.PurchaseContractGroup)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == contractId);
 
@@ -251,6 +252,10 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = loadingsValueUsd,
             ParentContractId = contract.ParentContractId,
             ParentContractNumber = contract.ParentContract?.DisplayLabel,
+            PurchaseContractGroupId = contract.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = contract.PurchaseContractGroup is { } purchaseGroup
+                ? $"{purchaseGroup.GroupNumber} — {purchaseGroup.Name}"
+                : null,
             SubContractItems = subContractItems,
             IsPartnershipContract = contract.OwnershipType == ContractOwnershipType.Partnership,
             PartnerShareItems = partnerShareItems,
@@ -2045,6 +2050,8 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = baseModel.LoadingsValueUsd,
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
+            PurchaseContractGroupId = baseModel.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = baseModel.PurchaseContractGroupLabel,
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
@@ -2172,6 +2179,8 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = source.LoadingsValueUsd,
             ParentContractId = source.ParentContractId,
             ParentContractNumber = source.ParentContractNumber,
+            PurchaseContractGroupId = source.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = source.PurchaseContractGroupLabel,
             Currency = source.Currency,
             PriceDisplay = source.PriceDisplay,
             PricingMethodName = source.PricingMethodName,
@@ -2777,6 +2786,8 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = baseModel.LoadingsValueUsd,
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
+            PurchaseContractGroupId = baseModel.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = baseModel.PurchaseContractGroupLabel,
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
@@ -3839,6 +3850,8 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = baseModel.LoadingsValueUsd,
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
+            PurchaseContractGroupId = baseModel.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = baseModel.PurchaseContractGroupLabel,
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
@@ -4531,6 +4544,8 @@ public partial class ContractJourneyController : Controller
             LoadingsValueUsd = baseModel.LoadingsValueUsd,
             ParentContractId = baseModel.ParentContractId,
             ParentContractNumber = baseModel.ParentContractNumber,
+            PurchaseContractGroupId = baseModel.PurchaseContractGroupId,
+            PurchaseContractGroupLabel = baseModel.PurchaseContractGroupLabel,
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,

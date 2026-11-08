@@ -103,6 +103,46 @@ public sealed class ExpenseAccountingAdapterTests(AccountingPostgreSqlFixture fi
         Assert.Equal(2, await db.JournalEntries.CountAsync(j => reversedIds.Contains(j.SourceEventId!)));
     }
 
+    [Fact]
+    public async Task Group_Expense_Total_By_Quantity_Is_Split_Server_Side_And_Sums_Exactly()
+    {
+        await using var db = fixture.CreateDbContext();
+        var scope = await PaymentAccountingAdapterTests.CreateScopeAsync(db);
+        var type = await AddExpenseTypeAsync(db, ExpensePayableKind.AccruedExpense);
+        var first = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Contract.ProductId,
+            LoadedQuantityMt = 20m, LoadingDate = ExpenseDate, TransportType = LoadingTransportType.Wagon, WagonNumber = "QTY-ONE" };
+        var second = new LoadingRegister { ContractId = scope.Contract.Id, ProductId = scope.Contract.ProductId,
+            LoadedQuantityMt = 30m, LoadingDate = ExpenseDate, TransportType = LoadingTransportType.Wagon, WagonNumber = "QTY-TWO" };
+        db.LoadingRegisters.AddRange(first, second);
+        await db.SaveChangesAsync();
+        var http = new DefaultHttpContext();
+        var controller = new ExpensesController(db, new CurrencyConversionService(new PricingService(db)),
+            new AuditService(db), NullLogger<ExpensesController>.Instance, CreateAdapter(db, true))
+        {
+            ControllerContext = new ControllerContext { HttpContext = http },
+            TempData = new TempDataDictionary(http, new GroupExpenseTempDataProvider())
+        };
+
+        var result = await controller.CreateGroup(new GroupExpenseCreateViewModel
+        {
+            ExpenseDate = ExpenseDate, Currency = "USD", SettlementMode = ExpenseSettlementMode.NonCash,
+            // کلاینت سهم نمی‌فرستد؛ فقط مبلغ کل. سرور به نسبت ۲۰/۳۰ تن تقسیم می‌کند.
+            Lines = [new GroupExpenseLineInput { ExpenseTypeId = type.Id,
+                AllocationMethod = ExpenseAllocationMethod.ByQuantity, TotalAmount = 100.01m }],
+            Items = [new GroupExpenseSelectedInput { Kind = "Loading", Id = first.Id },
+                new GroupExpenseSelectedInput { Kind = "Loading", Id = second.Id }]
+        }, Guid.NewGuid().ToString("N"));
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var expenses = await db.ExpenseTransactions.AsNoTracking()
+            .Where(e => e.LoadingRegisterId == first.Id || e.LoadingRegisterId == second.Id).OrderBy(e => e.LoadingRegisterId).ToListAsync();
+        Assert.Equal(new[] { 40.00m, 60.01m }, expenses.Select(e => e.Amount));
+        Assert.Equal(100.01m, expenses.Sum(e => e.AmountUsd));
+        Assert.Single(expenses.Select(e => e.ExpenseBatchId).Distinct());
+        var batch = await db.ExpenseBatches.AsNoTracking().SingleAsync(b => b.Id == expenses[0].ExpenseBatchId);
+        Assert.Equal(100.01m, batch.TotalAmount);
+    }
+
     private sealed class GroupExpenseTempDataProvider : ITempDataProvider
     {
         public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();

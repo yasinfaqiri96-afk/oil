@@ -7,7 +7,7 @@ body.boltz-shell.app-shell-authenticated,
 body.ptg-modal-document {
     /* این لایه رنگ و متریک مستقل ندارد؛ همه چیز از توکن‌های سراسری می‌آید تا
        دو منبع حقیقت و جنگ !important بین لایه‌ها به وجود نیاید. */
-    --ptg-list-radius: var(--radius-table);
+    --ptg-list-radius: 12px;            /* برابر با --radius-table */
     --ptg-list-border: var(--ptg-border);
     --ptg-list-line: var(--ptg-table-row-line);
     --ptg-list-head-bg: var(--ptg-table-head-bg);
@@ -28,7 +28,7 @@ body.ptg-modal-document .ptg-client-pager {
     border-top: 1px solid var(--ptg-list-line);
     background: var(--ptg-field-bg);
     color: var(--ptg-list-muted);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.4;
 }
@@ -37,7 +37,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-info,
 body.ptg-modal-document .ptg-client-pager-info {
     margin-inline-end: auto;
     color: var(--ptg-list-soft);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     direction: ltr;
     unicode-bidi: plaintext;
@@ -59,12 +59,12 @@ body.ptg-modal-document .ptg-client-pager-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0 10px;
-    border: 0;
+    padding: .32rem .62rem;
+    border: 1px solid #E3EAF4;
     border-radius: var(--radius-btn);
-    background: var(--ptg-btn-quiet);
-    color: var(--ptg-btn-quiet-text);
-    font-size: 14px;
+    background: var(--ptg-field-bg);
+    color: var(--ptg-list-muted);
+    font-size: 12px;
     font-weight: 700;
     line-height: 1;
     box-shadow: none;
@@ -75,14 +75,16 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-button
 body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-button:focus,
 body.ptg-modal-document .ptg-client-pager-button:hover,
 body.ptg-modal-document .ptg-client-pager-button:focus {
-    background: var(--ptg-btn-quiet-hover);
-    color: var(--text-primary);
+    border-color: rgba(var(--ptg-primary-rgb), .24);
+    background: var(--ptg-list-blue-bg);
+    color: var(--ptg-list-blue);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-button.is-active,
 body.ptg-modal-document .ptg-client-pager-button.is-active {
-    background: var(--primary-main);
-    color: #FFFFFF;
+    border-color: rgba(var(--ptg-primary-rgb), .32);
+    background: var(--ptg-list-blue-bg);
+    color: var(--ptg-list-blue);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ptg-client-pager-button:disabled,
@@ -95,11 +97,11 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody tr,
     body.ptg-modal-document table:is(.table.is-responsive-table) tbody tr {
         gap: .28rem !important;
-        padding: 16px !important;
-        border: 1px solid transparent !important;
-        border-radius: var(--radius-card) !important;
+        padding: 1rem .95rem !important;
+        border: 1px solid var(--ptg-list-border) !important;
+        border-radius: 8px !important;
         background: var(--ptg-field-bg) !important;
-        box-shadow: var(--ptg-panel-shadow) !important;
+        box-shadow: none !important;
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(td, th),
@@ -112,9 +114,9 @@ body.ptg-modal-document .ptg-client-pager-button:disabled {
 
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(td, th)::before,
     body.ptg-modal-document table:is(.table.is-responsive-table) tbody :is(td, th)::before {
-        color: var(--text-secondary) !important;
+        color: var(--ptg-list-muted) !important;
         font-size: 12px !important;
-        font-weight: 500 !important;
+        font-weight: 700 !important;
     }
 
     body.boltz-shell.app-shell-authenticated .boltz-content table:is(.table.is-responsive-table) tbody :is(.action-cell, .table-actions),
@@ -201,7 +203,7 @@ body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > :is(.card, details) > .card-header {
     min-height: 44px !important;
     padding: .5rem .75rem !important;
-    font-size: var(--font-body) !important;
+    font-size: 14px !important;
 }
 
 body.boltz-shell.app-shell-authenticated.controller-shipmentpnl.action-details .shipment-summary-pane > .card > .card-body {
@@ -239,9 +241,9 @@ body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card > .ak-list
 body.ptg-modal-document .ak-list-card > .ak-list-toolbar {
     position: relative;
     z-index: 5;
-    min-height: 76px;
+    min-height: 72px;
     margin: 0;
-    padding: 16px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--ptg-list-line);
     border-radius: var(--ptg-list-radius) var(--ptg-list-radius) 0 0;
     background: var(--ptg-field-bg);
@@ -265,7 +267,40 @@ body.ptg-modal-document .ak-list-card > .ak-list-toolbar:has(.ak-filter-popover:
     z-index: var(--ptg-z-dropdown);
 }
 
-/* The search box itself is the shared .ak-filter component (45-akaunting.css). */
+/* Same underline bar the detail-page tabs use (contract journey → loadings),
+   so every search in the system reads as one component. Only the compact
+   height/offsets below stay list-card specific. */
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter,
+body.ptg-modal-document .ak-list-card .ak-filter {
+    min-height: var(--ak-control-height);
+    border: 0;
+    border-bottom: 1px solid var(--divider);
+    border-radius: 0;
+    background: transparent;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter.is-focused,
+body.ptg-modal-document .ak-list-card .ak-filter.is-focused {
+    border-bottom-color: var(--primary-main);
+    box-shadow: none;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-input,
+body.ptg-modal-document .ak-list-card .ak-filter-input {
+    height: 40px;
+    padding-block: 0;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-enter,
+body.ptg-modal-document .ak-list-card .ak-filter-enter {
+    inset-block-start: 6px;
+}
+
+body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-filter-clear,
+body.ptg-modal-document .ak-list-card .ak-filter-clear {
+    inset-block-start: 4px;
+}
+
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-toolbar-actions,
 body.ptg-modal-document .ak-list-card .ak-list-toolbar-actions,
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-page-actions,
@@ -359,7 +394,7 @@ body.ptg-modal-document .ak-list-card .ak-check {
     width: 16px;
     height: 16px;
     margin: 0;
-    border: 1px solid var(--ptg-border-strong);
+    border: 1px solid #AFC0D5;
     border-radius: 4px;
     vertical-align: middle;
     accent-color: var(--ptg-primary);
@@ -374,29 +409,29 @@ body.ptg-modal-document .ak-list-card .ak-col-actions {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status,
 body.ptg-modal-document .ak-list-card .ak-status {
-    min-height: 24px;
-    padding: 2px 12px;
-    font-size: var(--font-status);
-    font-weight: var(--weight-status);
-    line-height: 20px;
+    min-height: 22px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-active,
 body.ptg-modal-document .ak-list-card .ak-status.is-active {
-    background: var(--ptg-success-soft);
-    color: var(--ptg-success-text);
+    background: #EAF8F1;
+    color: #087A53;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-pending,
 body.ptg-modal-document .ak-list-card .ak-status.is-pending {
-    background: var(--ptg-warning-soft);
-    color: var(--ptg-warning-text);
+    background: #FFF7E7;
+    color: #A45D08;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-status.is-inactive,
 body.ptg-modal-document .ak-list-card .ak-status.is-inactive {
-    background: var(--ptg-draft-soft);
-    color: var(--ptg-draft-text);
+    background: #F2F4F7;
+    color: #667085;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-empty,
@@ -415,8 +450,8 @@ body.ptg-modal-document .ak-list-card .ak-empty {
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-empty i,
 body.ptg-modal-document .ak-list-card .ak-empty i {
     margin: 0 0 4px;
-    color: var(--text-disabled);
-    font-size: 40px;
+    color: #AAB7C8;
+    font-size: 30px;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-footer,
@@ -435,7 +470,7 @@ body.ptg-modal-document .ak-list-card .ak-list-footer {
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .ak-list-result-count,
 body.ptg-modal-document .ak-list-card .ak-list-result-count {
     color: var(--ptg-list-muted);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -474,7 +509,7 @@ body.ptg-modal-document .ak-list-card .pagination .page-link {
     border-radius: 8px;
     background: transparent;
     color: var(--ptg-list-muted);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     box-shadow: none;
 }
@@ -488,14 +523,14 @@ body.ptg-modal-document .ak-list-card .pagination .page-item.active .page-link {
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover,
 body.ptg-modal-document .ak-list-card .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
-    border-color: transparent;
-    background: var(--ptg-btn-quiet-hover);
-    color: var(--text-primary);
+    border-color: rgba(16, 98, 208, .18);
+    background: #EEF5FF;
+    color: var(--ptg-primary);
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card .pagination .page-item.disabled .page-link,
 body.ptg-modal-document .ak-list-card .pagination .page-item.disabled .page-link {
-    color: var(--text-disabled);
+    color: #B4BECC;
     background: transparent;
 }
 
@@ -511,7 +546,7 @@ body.ptg-modal-document .ak-list-loading-state {
     border-radius: inherit;
     background: rgba(255, 255, 255, .88);
     color: var(--ptg-list-muted);
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     backdrop-filter: blur(1px);
 }
@@ -524,7 +559,7 @@ body.ptg-modal-document .ak-list-loading-state[hidden] {
 .ak-list-loading-spinner {
     width: 22px;
     height: 22px;
-    border: 2px solid rgba(var(--primary-main-rgb), .18);
+    border: 2px solid rgba(16, 98, 208, .18);
     border-top-color: var(--ptg-primary);
     border-radius: 8px;
     animation: ak-list-loading-spin .75s linear infinite;
@@ -592,11 +627,118 @@ body.ptg-modal-document .ak-list-loading-state[hidden] {
 @media print {
     body.boltz-shell.app-shell-authenticated .boltz-content .ak-list-card,
     body.ptg-modal-document .ak-list-card {
-        border-color: var(--divider);
+        border-color: #D9DEE7;
         box-shadow: none;
     }
 
     .ak-list-loading-state {
         display: none !important;
+    }
+}
+
+/* List grid (list-grid.js): "#" index, sortable headers and per-column filter row. */
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-table :is(th, td).ak-col-index {
+    width: 44px;
+    padding-inline: 8px;
+    color: var(--ptg-list-muted);
+    text-align: center;
+    white-space: nowrap;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-table th.ak-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-table th.ak-sortable:hover {
+    color: var(--ptg-list-blue);
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-sort-ic {
+    display: inline-block;
+    width: 8px;
+    height: 12px;
+    margin-inline-end: 6px;
+    vertical-align: -1px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%23a6acb3' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content th[aria-sort="ascending"] > .ak-sort-ic {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%231062d0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content th[aria-sort="descending"] > .ak-sort-ic {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3' fill='none' stroke='%23d3d7dc' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M1 7.5l3 3 3-3' fill='none' stroke='%231062d0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-table thead tr.ak-filter-row > td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--ptg-list-line);
+    background: var(--ptg-surface);
+    vertical-align: middle;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-col-filter {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding-block: 0;
+    padding-inline: 8px 26px;
+    border: 1px solid var(--ptg-list-border);
+    border-radius: 8px;
+    outline: 0;
+    background: var(--ptg-field-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11.5 21a9.5 9.5 0 1 0 0-19 9.5 9.5 0 0 0 0 19ZM22 22l-2-2' fill='none' stroke='%23a6acb3' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") left 9px center / 12px 12px no-repeat;
+    color: var(--ptg-text);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 400;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+body.boltz-shell.app-shell-authenticated.boltz-ltr #ptg-main-content .ak-col-filter {
+    background-position: right 9px center;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-col-filter::placeholder {
+    color: var(--ptg-muted);
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-col-filter:focus {
+    border-color: var(--ptg-primary);
+    box-shadow: 0 0 0 3px var(--ptg-primary-soft);
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-col-filter::-webkit-search-cancel-button {
+    display: none;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-filter-empty > td {
+    padding: 28px 12px;
+    color: var(--ptg-muted);
+    text-align: center;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-local-filter-state:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-local-filter-state > span {
+    flex: 1 1 16rem;
+}
+
+@media (max-width: 767.98px) {
+    body.boltz-shell.app-shell-authenticated #ptg-main-content .ak-table .ak-col-index {
+        display: none;
+    }
+}
+
+@media print {
+    body.boltz-shell.app-shell-authenticated #ptg-main-content :is(.ak-filter-row, .ak-local-filter-state) {
+        display: none;
     }
 }

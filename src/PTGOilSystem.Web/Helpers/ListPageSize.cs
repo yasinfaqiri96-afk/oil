@@ -8,7 +8,7 @@ namespace PTGOilSystem.Web.Helpers;
 public static class ListPageSize
 {
     /// <summary>پیش‌فرض مشترک همهٔ لیست‌ها.</summary>
-    public const int Default = 10;
+    public const int Default = 20;
 
     /// <summary>گزینه‌های استاندارد نمایش داده‌شده در انتخابگر.</summary>
     public static readonly int[] Options = { 10, 20, 50, 100, 200, 500 };

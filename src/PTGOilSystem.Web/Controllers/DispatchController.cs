@@ -19,6 +19,7 @@ using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Notifications;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -41,6 +42,7 @@ public partial class DispatchController : Controller
     private readonly IAuditService _audit;
     private readonly ILossEventWorkflowService _lossWorkflow;
     private readonly ILogger<DispatchController> _logger;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
     private const int DefaultListLimit = 100;
     private const int LookupLimit = 200;
     private sealed record TransportResolution(int TruckId, int? DriverId, Truck? CreatedTruck, Driver? CreatedDriver);
@@ -63,8 +65,10 @@ public partial class DispatchController : Controller
         IInventoryMovementWriter? movements = null,
         ITransportChainService? transportChain = null,
         ITransportSourceAllocationService? sourceAllocations = null,
-        IFormTokenGuard? formTokens = null)
+        IFormTokenGuard? formTokens = null,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
+        _whatsAppReceipts = whatsAppReceipts;
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         // PTG-P0-01 — نگهبان ثبت دوباره (Refresh/تب دوم/تلاش پس از Timeout).
@@ -2302,6 +2306,11 @@ public partial class DispatchController : Controller
             {
                 await transaction.DisposeAsync();
             }
+        }
+
+        if (_whatsAppReceipts is not null)
+        {
+            await _whatsAppReceipts.QueueSaleReceiptAsync(sale, CancellationToken.None);
         }
 
         TempData["ok"] = "فروش موتر بدون حرکت موجودی ثبت شد (موجودی هنگام بارگیری قبلاً کم شده).";

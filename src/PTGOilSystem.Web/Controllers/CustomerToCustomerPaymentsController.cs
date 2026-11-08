@@ -9,6 +9,7 @@ using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Audit;
+using PTGOilSystem.Web.Services.Notifications;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -21,12 +22,15 @@ public class CustomerToCustomerPaymentsController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IAuditService _audit;
     private readonly IAfghanistanBusinessClock _businessClock;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
 
-    public CustomerToCustomerPaymentsController(ApplicationDbContext db, IAuditService audit, IAfghanistanBusinessClock businessClock)
+    public CustomerToCustomerPaymentsController(ApplicationDbContext db, IAuditService audit, IAfghanistanBusinessClock businessClock,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
         _db = db;
         _audit = audit;
         _businessClock = businessClock;
+        _whatsAppReceipts = whatsAppReceipts;
     }
 
     public async Task<IActionResult> Index(string? q, int? customerId, string? currency, DateTime? from, DateTime? to,
@@ -207,6 +211,10 @@ public class CustomerToCustomerPaymentsController : Controller
                 ("PayeeCustomerId", model.PayeeCustomerId),
                 ("Amount", model.Amount),
                 ("Currency", model.Currency)));
+        if (_whatsAppReceipts is not null)
+        {
+            await _whatsAppReceipts.QueueCustomerTransferReceiptAsync(model, CancellationToken.None);
+        }
         TempData["ok"] = "پرداخت بین مشتریان ثبت شد.";
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
         return RedirectToAction(nameof(Index));

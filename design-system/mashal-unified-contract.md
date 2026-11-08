@@ -1,6 +1,6 @@
-# قرارداد یکپارچهٔ رابط PTG — پورت زبان بصری
+# قرارداد یکپارچهٔ رابط PTG بر اساس Mashal UI Reference
 
-این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ wrapperهای legacy فقط تا وقتی مصرف‌کنندهٔ runtime دارند حفظ می‌شوند و هدف بصری جداگانه نیستند.
+این سند قرارداد اجرایی یکپارچه‌سازی رابط پروژه است. ساختار HTML/Razor و کامپوننت‌ها در کل سیستم مشترک می‌ماند؛ تفاوت ظاهری فقط در دو variant رسمی مرجع محدود است.
 
 ## منبع مرجع
 
@@ -16,13 +16,13 @@
 - عنوان صفحه، section head، فرم، table، status، card، modal، dropdown، pager و action bar باید از primitiveهای مشترک استفاده کنند؛ selector صفحه‌ای جدید فقط برای layout اختصاصی همان صفحه مجاز است.
 - منطق business، route، binding، validation، permission، anti-forgery، POST، SPA lifecycle، ledger و inventory تغییر نمی‌کند.
 - فونت همان IRANSans با fallback فعلی پروژه است؛ متن و دادهٔ دامنهٔ نفت و گاز حفظ می‌شود.
-- کنترل‌ها خوانا و RTL هستند؛ کنترل ۴۰px، radius کنترل ۸px، border ظریف و shadow محدود. CTA اصلی آبیِ ساده و پرکنتراست است؛ گرادیان سراسری و glow تزئینی ممنوع.
+- کنترل‌ها فشرده، خوانا و RTL هستند؛ radius کوچک، border ظریف، shadow محدود و بدون gradient/glow استفاده می‌شود.
 - رنگ وضعیت فقط برای state واقعی استفاده می‌شود؛ دکمهٔ اصلی یک accent مشخص دارد.
 - در 375، 768، 1024 و 1440 پیکسل نباید صفحهٔ اصلی horizontal overflow داشته باشد.
 
 ## پوسته
 
-یک پوستهٔ واحد `mashal-light` برای همهٔ صفحات، از جمله داشبورد و دریافت ذیل فاکتور، با زبان بصری نواتیک: Sidebar برند `#007DB2` (۲۴۰/۶۴px)، Header سفید ۴۸px، کارت سفید ۱۶px روی بوم `#F3F4F8`، کنترل ۴۰px با radius ۸px، Badge قرصی و تب‌های قرصی. از تصاویر R05–R07 فقط کامپوننت‌های محتوایی (کارت‌های ابزارک، مودال انتخاب ابزار، کارت شخص/بانک و آواتارها) با رنگ اصلی `#007DB2` استفاده می‌شوند.
+یک پوستهٔ واحد `mashal-light` (R01–R04) برای همهٔ صفحات، از جمله داشبورد و دریافت ذیل فاکتور. پوستهٔ آبی R05–R07 حذف شد؛ از آن تصاویر فقط کامپوننت‌های محتوایی (کارت‌های ابزارک، مودال انتخاب ابزار، کارت شخص/بانک و آواتارها) با رنگ اصلی `#2D60C9` استفاده می‌شوند.
 
 - آیکن‌ها: Iconsax Linear (همان خانوادهٔ منوهای مرجع) در `_NavIconSprite.cshtml`.
 - آواتار: R01 اپراتور (`images/mashal-profile-avatar.png`)، R05 placeholder خاکستری برای ردیف اشخاص، R07 آواتار خطی (`images/mashal-receipt-avatar.png`).
@@ -30,6 +30,6 @@
 
 ## وضعیت فعلی و مسیر اصلاح
 
-- `78-mashal-reference.css` آخرین لایهٔ runtime برای primitiveهای محتوا است و shell را استایل نمی‌کند؛ مالک Sidebar فقط `04-sidebar.css`، مالک Header فقط `74-header-controls.css` و مالک تب‌ها فقط `16-system-tabs.css`، مالک دکمه‌ها `05-components.css`، مالک dialog `08-modals.css` و مالک جعبهٔ جستجو `45-akaunting.css` است. قواعد تکراری هدر/منو از `boltz-shell.css`، `03-layout`، `10-responsive`، `13-compat` و `45-akaunting` حذف شدند.
+- `78-mashal-reference.css` آخرین لایهٔ runtime است و باید تنها محل overrideهای مرجع باشد؛ قواعد `!important` قدیمی که هدر/منو را قفل می‌کردند (site.css، 13-compat، 45-akaunting) حذف شدند.
 - bundleهای Production باید پس از هر تغییر CSS با `PtgBuildBundles=true` بازسازی شوند.
-- صفحهٔ جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کند.
+- صفحات جدید نباید CSS مستقل برای بازتعریف global componentها اضافه کنند.

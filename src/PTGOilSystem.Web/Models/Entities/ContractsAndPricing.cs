@@ -43,6 +43,11 @@ public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
     public Contract? ParentContract { get; set; }
     public ICollection<Contract> ChildContracts { get; set; } = [];
 
+    // ردیفِ قرارداد خرید چندتأمین‌کننده. خالی یعنی قرارداد عادی.
+    // خودِ ردیف یک قرارداد کامل است؛ بارگیری، رسید، پرداخت و دفتر کل روی همین قرارداد می‌مانند.
+    public int? PurchaseContractGroupId { get; set; }
+    public PurchaseContractGroup? PurchaseContractGroup { get; set; }
+
     public int CompanyId { get; set; }
     public Company? Company { get; set; }
     public int ProductId { get; set; }
@@ -103,6 +108,22 @@ public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
     [MaxLength(600)] public string? SearchKey { get; set; }
 
     public string BuildSearchSource() => string.Join(' ', new[] { ContractName, ContractNumber });
+}
+
+/// <summary>
+/// سرِبرگِ قرارداد خرید چندتأمین‌کننده. عمداً <see cref="Contract"/> نیست: هیچ بارگیری، پرداخت،
+/// موجودی یا سند مالی نمی‌تواند روی سرِبرگ ثبت شود و مقدار آن در گزارش‌ها دوباره جمع نمی‌شود.
+/// هر ردیف یک <see cref="Contract"/> با تأمین‌کننده، مقدار و نرخ خودش است.
+/// </summary>
+public class PurchaseContractGroup : BaseEntity
+{
+    [Required, MaxLength(50)] public string GroupNumber { get; set; } = "";
+    [Required, MaxLength(200)] public string Name { get; set; } = "";
+    public int CompanyId { get; set; }
+    public Company? Company { get; set; }
+    public DateTime ContractDate { get; set; }
+    [MaxLength(1000)] public string? Notes { get; set; }
+    public ICollection<Contract> Lines { get; set; } = [];
 }
 
 /// <summary>

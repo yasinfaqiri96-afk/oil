@@ -1,0 +1,13 @@
+/* فقط صفحهٔ قرارداد چندتأمین‌کننده این فایل را بار می‌کند: جدول ردیف‌ها در A4 عمودی جا نمی‌شود. */
+@page {
+    size: A4 landscape;
+    margin: 9mm;
+}
+
+@media print {
+    body.mashal-ui #ptg-main-content .purchase-group-document .ak-table :is(th, td) {
+        padding-inline: 6px;
+        font-size: 12px;
+        white-space: normal;
+    }
+}

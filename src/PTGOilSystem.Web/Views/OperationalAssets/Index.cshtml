@@ -36,11 +36,9 @@
                     OaQ("Filter.IsActive"))
             });
     }
-    <div class="ak-list">
-        <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="oaFilter" />
-        </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="oaFilter" />
 
+    <div class="ak-list">
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "فهرست دارایی‌های عملیاتی", "Operational assets list")">
                 <thead>

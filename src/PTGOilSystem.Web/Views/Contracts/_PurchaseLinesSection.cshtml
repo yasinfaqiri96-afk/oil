@@ -1,0 +1,66 @@
+@model PTGOilSystem.Web.Models.Contracts.ContractFormViewModel
+@using PTGOilSystem.Web.Models.Contracts
+@{
+    var suppliers = (ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList)?.ToList()
+        ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var products = (ViewBag.Products as Microsoft.AspNetCore.Mvc.Rendering.SelectList)?.ToList()
+        ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var lines = Model.PurchaseLines.Any()
+        ? Model.PurchaseLines
+        : new List<PurchaseContractLineInput> { new() { SupplierId = Model.SupplierId }, new() };
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var linesError = ViewData.ModelState[nameof(Model.PurchaseLines)]?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+
+<section class="ak-form-section @(Model.IsMultiSupplier ? null : "d-none")" data-multi-supplier-section>
+    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", (T("تأمین‌کنندگان و جزئیات خرید", "Suppliers and purchase details"), (string?)T("هر ردیف قرارداد و حساب مستقل خودش را دارد؛ مقدار به تن است و قیمت به ارز قرارداد.", "Each line has its own contract and account; quantity is in tons and price is in the contract currency.")))
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn ak-secondary-action is-soft" data-add-purchase-line>
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            @T("افزودن تأمین‌کننده / ردیف خرید", "Add supplier / purchase line")
+        </button>
+    </div>
+    <div class="ak-table-wrap">
+        <table class="ak-table">
+            <thead>
+                <tr>
+                    <th>@T("تأمین‌کننده", "Supplier")</th>
+                    <th>@T("محصول", "Product")</th>
+                    <th>@T("مقدار (MT)", "Quantity (MT)")</th>
+                    <th>@T("فی تن", "Price per ton")</th>
+                    <th>@T("ارزش خرید", "Purchase value")</th>
+                    <th>@T("عملیات", "Operations")</th>
+                </tr>
+            </thead>
+            <tbody data-purchase-lines-body>
+                @for (var i = 0; i < lines.Count; i++)
+                {
+                    <partial name="_PurchaseLineRow" model="@((i.ToString(), lines[i], suppliers, products))" />
+                }
+            </tbody>
+        </table>
+    </div>
+    <template data-purchase-line-template>
+        <partial name="_PurchaseLineRow" model="@(("__index__", new PurchaseContractLineInput(), suppliers, products))" />
+    </template>
+    <span class="ak-field-error d-block mt-2" data-purchase-lines-error>@linesError</span>
+    <section class="ak-summary mt-3" aria-label="@T("جمع قرارداد", "Contract totals")" aria-live="polite">
+        <article class="ak-field">
+            <span>@T("مجموع مقدار", "Total quantity")</span>
+            <strong class="ak-num" data-total-quantity>0</strong>
+        </article>
+        <article class="ak-field is-primary">
+            <span>@T("مجموع ارزش", "Total value")</span>
+            <strong class="ak-num" data-total-value>0</strong>
+        </article>
+        <article class="ak-field">
+            <span>@T("تعداد تأمین‌کنندگان", "Suppliers")</span>
+            <strong class="ak-num" data-total-suppliers>0</strong>
+        </article>
+        <article class="ak-field">
+            <span>@T("میانگین وزنی فی تن", "Weighted average price")</span>
+            <strong class="ak-num" data-total-average>-</strong>
+        </article>
+    </section>
+    <p class="ak-note mt-2">@T("میانگین وزنی فقط گزارشی است؛ بهای تمام‌شدهٔ موجودی از قیمت هر ردیف می‌آید. نرخ Platt's یا نرخ بارگیری را پس از ثبت، از «وارد کردن قیمت قرارداد» همان ردیف تعیین کنید.", "The weighted average is for reporting only; inventory cost uses each line's own price. Set Platt's or loading-time pricing afterwards from that line's contract pricing.")</p>
+</section>

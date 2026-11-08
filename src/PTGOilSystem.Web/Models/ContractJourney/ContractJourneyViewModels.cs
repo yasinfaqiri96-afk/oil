@@ -120,6 +120,9 @@ public sealed class ContractJourneyDetailsViewModel
     // قرارداد اصلی / زیرقرارداد (فقط گزارش تجمیعی؛ پرداخت و دفتر کل جابه‌جا نمی‌شود).
     public int? ParentContractId { get; init; }
     public string? ParentContractNumber { get; init; }
+    // ردیفِ قرارداد خرید چندتأمین‌کننده (فقط پیوند گزارشی؛ حساب‌ها روی همین ردیف می‌مانند).
+    public int? PurchaseContractGroupId { get; init; }
+    public string? PurchaseContractGroupLabel { get; init; }
     public IReadOnlyList<ContractJourneySubContractItemViewModel> SubContractItems { get; init; } = [];
     // مالکیت شراکتی: فقط برای نمایش سهم هر شریک در تب خلاصه. هیچ اثر مالی یا دفترکلی ندارد.
     public bool IsPartnershipContract { get; init; }

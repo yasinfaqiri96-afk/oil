@@ -50,15 +50,8 @@
         line-height: var(--line-section-title);
     }
 
-    body.boltz-shell.app-shell-authenticated :where(.modal-title),
-    body.ptg-modal-document :where(.modal-title) {
-        font-size: var(--font-section-title);
-        font-weight: var(--weight-section-title);
-        line-height: var(--line-section-title);
-    }
-
-    body.boltz-shell.app-shell-authenticated :where(.card-title, .dash-card h2, .finance-action-group h2),
-    body.ptg-modal-document :where(.card-title) {
+    body.boltz-shell.app-shell-authenticated :where(.card-title, .modal-title, .dash-card h2, .finance-action-group h2),
+    body.ptg-modal-document :where(.card-title, .modal-title) {
         font-size: var(--font-card-title);
         font-weight: var(--weight-card-title);
         line-height: var(--line-card-title);
@@ -136,10 +129,10 @@
     /* Tables: clear headers, readable rows and aligned figures. */
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table > thead > tr > th,
     body.ptg-modal-document .ptg-modal-body-shell table > thead > tr > th {
-        padding: 12px 16px;
-        color: var(--ptg-table-head-ink);
-        font-size: var(--font-table-head);
-        font-weight: var(--weight-table-head);
+        padding: 11px 14px;
+        color: var(--text-primary) !important;
+        font-size: var(--font-table-head) !important;
+        font-weight: var(--weight-table-head) !important;
         line-height: var(--line-table-head);
         vertical-align: middle;
         white-space: nowrap;
@@ -147,8 +140,8 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table > tbody > tr > :where(td, th),
     body.ptg-modal-document .ptg-modal-body-shell table > tbody > tr > :where(td, th) {
-        padding: 12px 16px;
-        color: #334155;
+        padding: 12px 14px;
+        color: var(--text-primary);
         font-size: var(--font-table-cell);
         font-weight: var(--weight-table-cell);
         line-height: var(--line-table-cell);
@@ -176,7 +169,7 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx),
     body.ptg-modal-document .ptg-modal-body-shell table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx) {
-        font-size: var(--font-number);
+        font-size: var(--font-number) !important;
         font-weight: var(--weight-number) !important;
     }
 
@@ -250,53 +243,53 @@
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__title {
-        font-size: clamp(12.5px, 0.85vw, 14.5px);
+        font-size: clamp(10.5px, 0.85vw, 12.5px);
         font-weight: 600;
         line-height: 1.2;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
     body.boltz-shell.app-shell-authenticated .ak-stat-card__trend {
-        font-size: clamp(11px, 0.72vw, 12.5px);
+        font-size: clamp(9px, 0.72vw, 10.5px);
         font-weight: 500;
         line-height: 1.2;
     }
 
     body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(14px, 1.25vw, 19px); letter-spacing: -0.035em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(14px, 1.05vw, 17.5px); letter-spacing: -0.04em; }
-    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(13px, 0.85vw, 14.5px); letter-spacing: -0.045em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(12px, 1.05vw, 15.5px); letter-spacing: -0.04em; }
+    body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 0.85vw, 12.5px); letter-spacing: -0.045em; }
 
     /* Tablets keep four cards on one row and phones show two, so the card box is
        a fraction of a narrow page. The type steps down with it — mirrors the
        compact tier in 52-stat-card.css, restated here for the load-order reason
        above. */
     @media (max-width: 1399.98px) {
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__title { font-size: clamp(13px, 1.05vw, 14px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__title { font-size: clamp(11px, 1.05vw, 12px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__value { font-size: clamp(13px, 1.75vw, 20px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__value--compact { font-size: clamp(12px, 1.5vw, 17px); }
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(13px, 1.25vw, 16px); }
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(13px, 1vw, 13px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--dense { font-size: clamp(11px, 1.25vw, 14px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__value--ultra { font-size: clamp(11px, 1vw, 11px); }
         body.boltz-shell.app-shell-authenticated .ak-stat-card__unit,
-        body.boltz-shell.app-shell-authenticated .ak-stat-card__trend { font-size: clamp(12px, 0.92vw, 12.5px); }
+        body.boltz-shell.app-shell-authenticated .ak-stat-card__trend { font-size: clamp(10px, 0.92vw, 10.5px); }
     }
 
     body.boltz-shell.app-shell-authenticated :where(.summary-tile-value, .finance-status-strip dd) {
-        font-size: 18px;
+        font-size: 16px;
         font-weight: var(--weight-number);
         font-variant-numeric: tabular-nums lining-nums;
     }
 
-    /* Shared status capsule (Novatech badge): pill, 12px/500, 100 tint + 700 ink, no shadow. */
+    /* Shared status capsule: soft surface, strong readable label, no shadow. */
     body.boltz-shell.app-shell-authenticated .ptg-page-frame :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status),
     body.ptg-modal-document .ptg-modal-body-shell :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status) {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 24px !important;
+        min-height: 28px !important;
         block-size: auto;
         padding: 0 12px !important;
         border: 0 !important;
-        border-radius: var(--radius-pill) !important;
+        border-radius: 8px !important;
         background: var(--ptg-draft-soft);
         color: var(--ptg-draft-text);
         font-size: var(--font-status) !important;
@@ -334,6 +327,13 @@
     body.ptg-modal-document .ptg-modal-body-shell :where(.badge, .status-badge, .ptg-capsule-badge, .ak-status):is(.is-neutral, .is-muted, .is-inactive, .bg-secondary, .text-bg-secondary, .bg-light, .text-bg-light) {
         background: var(--ptg-draft-soft) !important;
         color: var(--ptg-draft-text) !important;
+    }
+
+    @media (max-width: 1199.98px) {
+        body.boltz-shell.app-shell-authenticated :where(.ak-page-title, .page-title, .ak-detail-title),
+        body.ptg-modal-document :where(.ak-page-title, .page-title, .ak-detail-title) {
+            font-size: 28px;
+        }
     }
 
     /* Sticky shell chrome must not cover linked headings. */

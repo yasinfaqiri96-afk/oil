@@ -14,19 +14,19 @@ namespace PTGOilSystem.Web.Tests;
 /// </summary>
 public class ListPaginationTests
 {
-    private const int PageSize = 10;
+    private const int PageSize = 20;
 
     [Fact]
-    public void Shared_Page_Size_Defaults_To_Ten_And_Honors_Manual_Selection()
+    public void Shared_Page_Size_Defaults_To_Twenty_And_Honors_Manual_Selection()
     {
-        Assert.Equal(10, ListPageSize.Resolve(requested: null, fallback: 500));
+        Assert.Equal(20, ListPageSize.Resolve(requested: null, fallback: 500));
         Assert.Equal(50, ListPageSize.Resolve(requested: 50, fallback: 500));
     }
 
     [Theory]
     [InlineData(1, PageSize)]
     [InlineData(2, PageSize)]
-    [InlineData(12, PageSize)]
+    [InlineData(6, PageSize)]
     public async Task ContractBalanceTransfers_Index_Returns_One_Page_Of_Rows(int page, int expectedRows)
     {
         await using var db = NewDb();
@@ -40,7 +40,7 @@ public class ListPaginationTests
 
         Assert.Equal(120, model.TotalCount);
         Assert.Equal(expectedRows, model.Items.Count);
-        Assert.Equal(12, model.PageCount);
+        Assert.Equal(6, model.PageCount);
         Assert.Equal(page, model.CurrentPage);
     }
 

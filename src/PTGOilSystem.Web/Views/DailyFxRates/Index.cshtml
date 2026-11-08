@@ -48,11 +48,9 @@
                     ViewData["from"]?.ToString(), "to", ViewData["to"]?.ToString())
             });
     }
-    <div class="ak-list">
-        <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="fxRatesFilter" />
-        </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="fxRatesFilter" />
 
+    <div class="ak-list">
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="لیست نرخ ارز روزانه">
                 <thead><tr>

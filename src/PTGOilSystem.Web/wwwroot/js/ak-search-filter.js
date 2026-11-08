@@ -164,8 +164,6 @@
             popover.hidden = true;
             popover.innerHTML = "";
             input.setAttribute("aria-expanded", "false");
-            var filterToggle = root.querySelector("[data-ak-filter-toggle]");
-            if (filterToggle) filterToggle.setAttribute("aria-expanded", "false");
             nav.state = "field";
             nav.field = null;
             if (restoreFocus) {
@@ -193,8 +191,6 @@
                     T("جستجو برای «", "Search for “") + esc(q) + T("»", "”") + "</button>";
                 popover.hidden = false;
                 input.setAttribute("aria-expanded", "true");
-                var filterToggle = root.querySelector("[data-ak-filter-toggle]");
-                if (filterToggle) filterToggle.setAttribute("aria-expanded", "true");
                 return;
             }
 
@@ -211,8 +207,6 @@
             popover.innerHTML = html;
             popover.hidden = !html;
             input.setAttribute("aria-expanded", html ? "true" : "false");
-            var filterToggle = root.querySelector("[data-ak-filter-toggle]");
-            if (filterToggle) filterToggle.setAttribute("aria-expanded", String(!popover.hidden));
         }
 
         function renderFields(q) {
@@ -454,17 +448,6 @@
         }
 
         root.addEventListener("click", function (e) {
-            var filterToggle = e.target.closest("[data-ak-filter-toggle]");
-            if (filterToggle) {
-                e.preventDefault();
-                if (popover) {
-                    if (popover.hidden) openFieldList();
-                    else closePopover();
-                    root.classList.toggle("is-focused", !popover.hidden);
-                }
-                return;
-            }
-
             var enter = e.target.closest("[data-ak-filter-enter], [data-ak-search-text]");
             if (clientMode && enter) {
                 e.preventDefault();

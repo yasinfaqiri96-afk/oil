@@ -154,7 +154,7 @@ public sealed class OfflineSyncApiController(
 
         await sync.RegisterDeviceAsync(userId, request, ct);
         var pair = await mobileTokens.IssueForLoginAsync(user,
-            new MobileClientInfo(request.DeviceId.ToString("D"), request.DeviceName ?? "Mashal PWA", HttpContext.Connection.RemoteIpAddress?.ToString()), ct);
+            new MobileClientInfo(request.DeviceId.ToString("D"), request.DeviceName ?? "Fawad Saddiqi PWA", HttpContext.Connection.RemoteIpAddress?.ToString()), ct);
         return Ok(new
         {
             tokenType = "Bearer",

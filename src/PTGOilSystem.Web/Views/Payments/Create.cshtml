@@ -44,7 +44,7 @@
         || !string.IsNullOrWhiteSpace(Model.Description);
 }
 
-<div class="ak-form-page roznamcha-entry-page @(Model.SalesTransactionId.HasValue ? "mashal-invoice-receipt" : "mashal-transaction")" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
+<div class="ak-form-page roznamcha-entry-page" dir="@(UiText.IsEn(Context) ? "ltr" : "rtl")">
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((ViewData["Title"] as string ?? "روزنامچه", false,
                        (string?)null, (string?)null, (string?)null, (string?)null,
@@ -172,10 +172,9 @@
                     </div>
                 </section>
 
-                <div class="mashal-payment-destinations">
                 @* ===== طرف حساب: اول نوع، بعد خودِ طرف حساب ===== *@
-                <section class="fte-section mashal-payment-party">
-                    <h2 class="fte-section-title"><i class="bi bi-person" aria-hidden="true"></i> طرف حساب</h2>
+                <section class="fte-section">
+                    <h2 class="fte-section-title">طرف حساب</h2>
                     <div class="ak-form-grid journal-primary-grid">
                         <div class="ak-field fec-span-3">
                             <label asp-for="CounterpartyType" class="ak-label">نوع طرف حساب</label>
@@ -245,7 +244,7 @@
                 </section>
 
                 @* ===== حساب و منبع وجه ===== *@
-                <section class="fte-section mashal-payment-bank">
+                <section class="fte-section">
                     <h2 class="fte-section-title"
                         data-direction-label
                         data-label-in="حساب دریافت"
@@ -286,7 +285,6 @@
                     </div>
                 </section>
 
-                </div>
                 <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
 
                 @* پیوندهای اختیاری فقط برای مسیرهای ورودی موجود حفظ می‌شوند و فورم را شلوغ نمی‌کنند. *@

@@ -25,6 +25,7 @@
         : string.Empty;
     var purchaseContractNumberPreview = ViewBag.PurchaseContractNumberPreview as string ?? Model.ContractNumber;
     var saleContractNumberPreview = ViewBag.SaleContractNumberPreview as string ?? Model.ContractNumber;
+    var purchaseGroupNumberPreview = ViewBag.PurchaseGroupNumberPreview as string ?? string.Empty;
     var cancelUrl = Url.Action("Index", "Contracts") ?? "/Contracts";
 }
 
@@ -39,6 +40,18 @@
             @Html.FormToken()
             @Html.FormDraft("Contracts.Create")
             <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
+
+            <input asp-for="IsMultiSupplier" type="hidden" data-multi-supplier-flag />
+            <div class="ak-choice-grid ak-choice-grid--2 ak-choice-grid--compact" role="group" aria-label="@UiText.T(Context, "نوع ثبت قرارداد", "Contract entry type")">
+                <button type="button" class="ak-choice @(Model.IsMultiSupplier ? null : "is-selected")" aria-pressed="@(Model.IsMultiSupplier ? "false" : "true")" data-contract-mode="single">
+                    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                    @UiText.T(Context, "قرارداد عادی", "Standard contract")
+                </button>
+                <button type="button" class="ak-choice @(Model.IsMultiSupplier ? "is-selected" : null)" aria-pressed="@(Model.IsMultiSupplier ? "true" : "false")" data-contract-mode="multi">
+                    <i class="bi bi-people" aria-hidden="true"></i>
+                    @UiText.T(Context, "چندتأمین‌کننده", "Multi-supplier")
+                </button>
+            </div>
 
             <div >
             <section class="ak-form-section">
@@ -59,7 +72,8 @@
                                    aria-readonly="true"
                                    data-contract-number-auto
                                    data-purchase-number="@purchaseContractNumberPreview"
-                                   data-sale-number="@saleContractNumberPreview" />
+                                   data-sale-number="@saleContractNumberPreview"
+                                   data-multi-supplier-number="@purchaseGroupNumberPreview" />
                         </div>
                         <span asp-validation-for="ContractNumber" class="ak-field-error"></span>
                     </div>
@@ -101,7 +115,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="ak-field">
+                    <div class="ak-field" data-single-contract-only>
                         <label asp-for="ProductId" class="ak-label">محصول <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="ProductId" asp-items="products" id="ProductId" class="ak-input">
@@ -109,7 +123,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="ak-field" data-contract-supplier-field>
+                    <div class="ak-field" data-contract-supplier-field data-single-contract-only>
                         <label asp-for="SupplierId" class="ak-label">تأمین‌کننده (خرید)</label>
                         <div >
                             <select asp-for="SupplierId" asp-items="suppliers" class="ak-input">
@@ -223,16 +237,18 @@
                 </template>
             </section>
 
+            <partial name="_PurchaseLinesSection" model="Model" />
+
             <section class="ak-form-section">
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("مقدار و قیمت‌گذاری", (string?)null))
                 <div class="ak-form-grid">
-                    <div class="ak-field">
+                    <div class="ak-field" data-single-contract-only>
                         <label asp-for="QuantityMt" class="ak-label">مقدار (MT) <span class="ak-req">*</span></label>
                         <div >
                             <input asp-for="QuantityMt" class="ak-input" placeholder="0.0000" />
                         </div>
                     </div>
-                    <div class="ak-field">
+                    <div class="ak-field" data-single-contract-only>
                         <label asp-for="UnitId" class="ak-label">واحد <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="UnitId" asp-items="units" id="UnitId" class="ak-input">
@@ -240,7 +256,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="ak-field">
+                    <div class="ak-field" data-single-contract-only>
                         <label asp-for="PricingMethod" class="ak-label">نوع نرخ <span class="ak-req">*</span></label>
                         <div >
                             <select asp-for="PricingMethod" id="pricingMethod" class="ak-input">
@@ -259,7 +275,7 @@
                                     <option value="">@UiText.T(Context,"انتخاب کنید","Select")</option>
                                 </select>
                             </div>
-                            <div class="ak-field" data-rub-equivalent-field>
+                            <div class="ak-field" data-rub-equivalent-field data-single-contract-only>
                                 <label asp-for="UnitPriceInCurrency" class="ak-label">قیمت واحد <span class="ak-req">*</span></label>
                                 <input asp-for="UnitPriceInCurrency" class="ak-input" />
                                 <span asp-validation-for="UnitPriceInCurrency" class="ak-field-error"></span>
@@ -450,6 +466,7 @@
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="~/js/contract-book-owner.js" asp-append-version="true" defer></script>
+    <script src="~/js/contract-multi-supplier.js" asp-append-version="true" defer></script>
     <script>
         (function () {
             const ownershipType = document.getElementById('ownershipType');

@@ -4,7 +4,7 @@
     ViewData["Title"] = UiText.T(Context, "\u0642\u0631\u0627\u0631\u062f\u0627\u062f\u0647\u0627", "Contracts");
     ViewData["HideSectionTabs"] = true;
 
-    var items = Model.Items.ToList();
+    var rows = Model.Rows;
     var qFilter = Model.Query;
     var typeFilter = Model.Types;
     var statusFilter = Model.Statuses;
@@ -42,6 +42,26 @@
 
     string QuantityText(Contract contract)
         => $"{FormatCardDecimal(contract.QuantityMt)} {UnitName(contract)}";
+
+    string StatusText(ContractStatus status)
+        => status switch
+        {
+            ContractStatus.Draft => T("جدید", "New"),
+            ContractStatus.Active => T("فعال", "Active"),
+            ContractStatus.Closed => T("بسته‌شده", "Closed"),
+            ContractStatus.Cancelled => T("منقضی شده", "Expired"),
+            _ => status.ToString()
+        };
+
+    string StatusToneClass(ContractStatus status)
+        => status switch
+        {
+            ContractStatus.Active => "is-active",
+            ContractStatus.Draft => "is-pending",
+            ContractStatus.Closed => "is-neutral",
+            ContractStatus.Cancelled => "is-inactive",
+            _ => string.Empty
+        };
 
     string ContractStatusToneClass(Contract contract)
         => contract.Status switch
@@ -94,8 +114,8 @@
                     }, statusFilter)
             });
     }
-    <div class="ak-list-toolbar">
-        <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="contractsFilter" />
+    <div class="d-flex justify-content-end mt-2 no-print">
         <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
     </div>
         <div class="ak-table-wrap">
@@ -112,8 +132,83 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var item in items)
+                    @foreach (var row in rows)
                     {
+                        if (row.Group is { } group)
+                        {
+                            var groupUrl = Url.Action("PurchaseGroup", new { id = group.Id });
+                            var groupDetailId = $"contract-group-{group.Id}";
+                            var groupUnit = string.IsNullOrWhiteSpace(group.UnitName) ? "" : $" {group.UnitName}";
+                            var supplierCountText = $"{group.Totals.SupplierCount:N0} {T("تأمین‌کننده", "suppliers")}";
+                            <tr data-href="@groupUrl">
+                                <td class="ak-col-check"><input type="checkbox" class="ak-check" data-ops-row-select aria-label="@T("انتخاب ردیف", "Select row")" /></td>
+                                <td class="ak-col-grow">
+                                    <a asp-action="PurchaseGroup" asp-route-id="@group.Id" data-no-spa="true" class="ak-name" title="@group.DisplayLabel">@group.DisplayLabel</a>
+                                    <small class="d-block text-muted">@T("قرارداد چندتأمین‌کننده", "Multi-supplier contract") · @group.CompanyName</small>
+                                </td>
+                                <td>
+                                    <partial name="~/Views/Shared/Partials/_Capsule.cshtml" model="@((supplierCountText, (string?)"muted"))" />
+                                </td>
+                                <td>
+                                    <span class="ak-num">@FormatCardDecimal(group.Totals.TotalQuantityMt)@groupUnit</span>
+                                    <small class="d-block text-muted">
+                                        @T("ارزش", "Value"): <span class="ak-num">@FormatCardDecimal(group.Totals.TotalValueUsd, true)</span> USD
+                                        @if (group.Totals.WeightedAveragePriceUsd is { } averagePrice)
+                                        {
+                                            <span> · @T("میانگین وزنی", "Weighted avg"): <span class="ak-num">@FormatCardDecimal(averagePrice, true)</span></span>
+                                        }
+                                    </small>
+                                </td>
+                                <td>@DashIfEmpty(group.ProductNames)</td>
+                                <td><span class="ak-status @StatusToneClass(group.Status)">@StatusText(group.Status)</span></td>
+                                <td class="ak-col-actions no-print">
+                                    <button type="button" class="ak-row-menu-btn" data-bs-toggle="collapse" data-bs-target="#@groupDetailId" aria-expanded="false" aria-controls="@groupDetailId" title="@T("ردیف‌های تأمین‌کننده", "Supplier lines")">
+                                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                    </button>
+                                    <div class="ak-row-menu dropdown" data-ak-static-row-menu="true">
+                                        <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" asp-action="PurchaseGroup" asp-route-id="@group.Id" data-no-spa="true"><i class="bi bi-eye"></i> @T("جزئیات قرارداد مادر", "Parent contract details")</a></li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="@groupDetailId">
+                                <td colspan="7">
+                                    <table class="ak-table ak-detail-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="ak-col-grow">@T("زیرقرارداد", "Line contract")</th>
+                                                <th>@T("تأمین‌کننده", "Supplier")</th>
+                                                <th>@T("محصول", "Product")</th>
+                                                <th class="ak-col-num">@T("مقدار", "Quantity")</th>
+                                                <th class="ak-col-num">@T("فی USD", "Unit price USD")</th>
+                                                <th class="ak-col-num">@T("ارزش USD", "Value USD")</th>
+                                                <th>@T("وضعیت", "Status")</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var line in group.Lines)
+                                            {
+                                                var linePrice = PTGOilSystem.Web.Helpers.ContractPricingAdapter.GetCanonicalFinalPrice(line);
+                                                <tr class="@(line.Status == ContractStatus.Cancelled ? "ak-row-muted" : "")">
+                                                    <td class="ak-col-grow"><a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@line.Id" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name">@line.ContractNumber</a></td>
+                                                    <td>@PartyName(line)</td>
+                                                    <td>@DashIfEmpty(line.Product?.Name)</td>
+                                                    <td class="ak-col-num ak-num">@QuantityText(line)</td>
+                                                    <td class="ak-col-num ak-num">@(linePrice is { } price ? FormatCardDecimal(price, true) : "-")</td>
+                                                    <td class="ak-col-num ak-num">@(linePrice is { } value ? FormatCardDecimal(value * line.QuantityMt, true) : "-")</td>
+                                                    <td><span class="ak-status @ContractStatusToneClass(line)">@CardStatusText(line)</span></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                            continue;
+                        }
+
+                        var item = row.Contract!;
                         var partyText = PartyName(item);
                         var productText = DashIfEmpty(item.Product?.Name);
                         var journeyUrl = Url.Action("Details", "ContractJourney", new { contractId = item.Id, tab = "summary", lockContract = true, returnUrl = currentReturnUrl });
@@ -147,7 +242,7 @@
                             </td>
                         </tr>
                     }
-                    @if (!items.Any())
+                    @if (rows.Count == 0)
                     {
                         <tr>
                             <td colspan="7">

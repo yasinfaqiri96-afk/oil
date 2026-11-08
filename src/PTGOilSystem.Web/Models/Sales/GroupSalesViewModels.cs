@@ -18,6 +18,8 @@ public sealed class GroupSaleSourceItem
     public string ProductName { get; init; } = "";
     public string CompanyName { get; init; } = "";
     public string ContractNumber { get; init; } = "";
+    // قرارداد مادرِ ردیف خرید چندتأمین‌کننده؛ فقط برای فیلتر یک‌جا. منشأ واقعی همان SourcePurchaseContractId است.
+    public PTGOilSystem.Web.Services.PurchaseGroupRef? ContractGroup { get; set; }
     public decimal AvailableMt { get; init; }           // موجودی آزاد (مخزن) یا مقدار کامل (وسیله)
     public bool IsFullVehicle { get; init; }            // وسیله: فروش کامل، مقدار قابل ویرایش نیست
     public string StatusLabel { get; init; } = "";

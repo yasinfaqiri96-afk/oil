@@ -54,6 +54,9 @@ public partial class SalesController
         var terminalIds = eligible.Where(s => s.TerminalId.HasValue).Select(s => s.TerminalId!.Value).Distinct().ToArray();
         var terminals = await _db.Terminals.AsNoTracking().Where(t => terminalIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.Name);
+        // قرارداد مادر فقط برای انتخاب یک‌جا است؛ منشأ هر منبع همان SourcePurchaseContractId ردیف می‌ماند.
+        var contractGroups = await PurchaseContractGroupLookup.LoadByContractNumberAsync(
+            _db, eligible.Select(s => s.ContractNumber));
         return eligible.Select(s =>
         {
             var kind = s.Kind switch
@@ -73,6 +76,7 @@ public partial class SalesController
                 Number = s.Kind == CargoSourceKind.Stock ? tanks.GetValueOrDefault(s.StorageTankId ?? 0, s.Number) : s.Number,
                 Route = s.Kind == CargoSourceKind.Stock ? terminals.GetValueOrDefault(s.TerminalId ?? 0, "") : s.Route,
                 ProductName = s.ProductName, CompanyName = s.CompanyName, ContractNumber = s.ContractNumber,
+                ContractGroup = contractGroups.GetValueOrDefault(s.ContractNumber ?? ""),
                 AvailableMt = decimal.Round(s.Kind == CargoSourceKind.Stock
                     ? (action == CargoAction.PreSaleDelivery ? s.PhysicalStockMt ?? 0m : s.SellableStockMt ?? 0m)
                     : s.RemainingQuantityMt, 4, MidpointRounding.AwayFromZero),
@@ -362,6 +366,11 @@ public partial class SalesController
             if (transaction is not null)
             {
                 await transaction.CommitAsync();
+            }
+
+            if (_whatsAppReceipts is not null)
+            {
+                await _whatsAppReceipts.QueueSaleBatchReceiptAsync(batch, CancellationToken.None);
             }
 
             TempData["ok"] = model.IsSalePricePending

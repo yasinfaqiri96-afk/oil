@@ -42,9 +42,10 @@
 
 TagHelper: `AkEntityComboboxTagHelper` (+ `wwwroot/js/ak-entity-combobox.js`) — کمبوی انتخاب موجودیت با «ایجاد سریع» و بازگشت از طریق `returnUrl`.
 
-این سند قرارداد ظاهری PTG است. گزارش «دیزاین سیستم مدیریت نواتیک» مرجع بصریِ پورت است، نه کد قابل انتقال: PTG همچنان ASP.NET Core MVC، Razor، Bootstrap 5 RTL و اجزای مشترک `ak-*` را به‌کار می‌برد. نام محصول، لوگو، محتوای نفت و گاز، route، مجوز، مدل، binding، validation، POST، منطق موجودی و Ledger همگی متعلق به PTG می‌مانند.
+## کلاس‌های CSS
 
-**وضعیت مهاجرت:** فازهای ۱ تا ۶ برای پوسته، داشبورد/جزئیات، فرم/جدول، مودال/ناوبری، گزارش/نمودار و پاکسازی نهایی در کد اعمال شده‌اند. `78-mashal-reference.css` همچنان لایهٔ runtime نهایی است؛ wrapperها و CSS سازگاری با مصرف‌کنندهٔ زنده حفظ شده‌اند و حذف نشده‌اند. بررسی ایستای UI و syntax اسکریپت نمودار موفق است؛ مرور تصویری واقعی در viewportهای ۳۷۵، ۷۶۸، ۱۰۲۴ و ۱۴۴۰ و تأیید نهایی بصری هنوز لازم است. پسوند `mashal-*` hook runtime است، نه مجوز ساخت visual system موازی.
+منبع ساختاری: `wwwroot/css/ptg/50-ak-components.css` (بدون `!important`).
+قواعد عمومی/توکن: `wwwroot/css/ptg/45-akaunting.css`.
 
 | خانواده | کلاس‌ها |
 |---|---|
@@ -89,7 +90,7 @@ TagHelper: `AkEntityComboboxTagHelper` (+ `wwwroot/js/ak-entity-combobox.js`) �
 - **۴۳ صفحه** `[data-ak-filter]` دارند؛ تمام Search/Filterهای واقعی به همین مالک مشترک مهاجرت کرده‌اند.
 - Search/Filter اصلی مالک مشترک دارد؛ فیلتر ستونی نمایش در `list-grid.js` قرارداد جدا و صریح دارد و جای آن را نمی‌گیرد.
 - `wwwroot/js/ak-filter.js` **حذف شد** و reference آن از `_Layout.cshtml` **حذف شد**.
-- CSS legacy (`.ak-fbar*`، `.ak-token*`، `.ak-fpop*`، `.ak-filterbar`، `.ak-search`، `.ak-search-input`، `.ak-filter-pop`، `.ak-filter-field`، `.ak-filter-apply`) از `50-ak-components.css` **حذف شد**.
+- CSS legacy (`.ak-fbar*`، `.ak-token*`، `.ak-fpop*`، `.ak-filterbar`، `.ak-search`، `.ak-search-input`، `.ak-filter-pop`، `.ak-filter-toggle`، `.ak-filter-field`، `.ak-filter-apply`) از `50-ak-components.css` **حذف شد**.
 
 ### محدودیت‌های شناخته‌شده (عمدی)
 
@@ -184,7 +185,7 @@ CSS صفحه باید `data-ptg-page-asset` داشته باشد؛ فایل و in
 | `wwwroot/js/ak-filter.js` | فایل حذف شد؛ reference از `_Layout` حذف شد |
 | `.ak-fbar*` · `.ak-fpop*` · `.ak-token*` | CSS حذف شد (نوار توکنی client-side) |
 | `.ak-filterbar` به‌عنوان Search/Filter | حذف شد؛ نام آن دیگر برای Search/Filter استفاده نمی‌شود |
-| `.ak-search` · `.ak-search-input` · `.ak-filter-pop` | CSS حذف شد |
+| `.ak-search` · `.ak-search-input` · `.ak-filter-pop` · `.ak-filter-toggle` | CSS حذف شد |
 | `_AkSearchBar` | حذف شد؛ جایگزین: `_AkSearchFilter` |
 | `_ManagementFilterBar` | حذف شد؛ جایگزین: `_AkSearchFilter` |
 | dropdown فیلتر Bootstrap قدیمی (`data-bs-toggle="dropdown"` روی نوار فیلتر لیست) | حذف شد؛ popover مالک مشترک جایگزین است |

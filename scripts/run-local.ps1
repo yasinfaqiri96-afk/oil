@@ -154,6 +154,35 @@ function Set-LocalRunnerEnvironment {
     }
 }
 
+function Start-LocalWhatsAppSender {
+    # sender واتساپ را کنار سیستم در پنجرهٔ کوچک‌شدهٔ جدا اجرا می‌کند؛ فقط وقتی یک‌بار QR اسکن شده باشد.
+    $senderDirectory = Join-Path $repoRoot "integrations/whatsapp-unofficial"
+    $senderScript = Join-Path $senderDirectory "start.ps1"
+    if (-not (Test-Path -LiteralPath (Join-Path $senderDirectory ".baileys_auth/creds.json"))) {
+        Write-Host "WhatsApp sender: not paired yet; run integrations\whatsapp-unofficial\start.ps1 once to scan the QR."
+        return
+    }
+
+    $secret = Get-LocalEnvironmentValue -Name "WA_SENDER_SECRET"
+    if (-not [string]::IsNullOrWhiteSpace($secret)) {
+        $env:WA_SENDER_SECRET = $secret
+    }
+
+    if (Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue) {
+        Write-Host "WhatsApp sender: already running."
+        return
+    }
+
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Warning "WhatsApp sender: Node.js was not found; receipts will not be sent."
+        return
+    }
+
+    Start-Process -FilePath "powershell.exe" -WindowStyle Minimized `
+        -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$senderScript`"")
+    Write-Host "WhatsApp sender: started in a separate minimized window."
+}
+
 function Invoke-LocalEfDatabaseUpdate {
     param(
         [Parameter(Mandatory = $true)]
@@ -256,6 +285,10 @@ if ([string]::IsNullOrWhiteSpace($BootstrapAdminPassword) -and $null -ne $stored
 Save-LocalSecretStore -DbPasswordValue $DbPassword -BootstrapAdminPasswordValue $BootstrapAdminPassword
 
 Set-LocalRunnerEnvironment
+
+if (-not $MigrateOnly) {
+    Start-LocalWhatsAppSender
+}
 
 Write-Host "PTG Oil System local run"
 Write-Host "Environment: $env:ASPNETCORE_ENVIRONMENT"

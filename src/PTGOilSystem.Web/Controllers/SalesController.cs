@@ -2740,6 +2740,11 @@ public partial class SalesController : Controller
                     await transaction.CommitAsync();
                 }
 
+                if (_whatsAppReceipts is not null)
+                {
+                    await _whatsAppReceipts.QueueSaleReceiptAsync(sale, CancellationToken.None);
+                }
+
                 TempData["ok"] = salePricePending
                     ? "فروش با قیمت باز ثبت شد. سند مالی پس از تعیین قیمت فروش ثبت می‌شود."
                     : hasEmbeddedLoss

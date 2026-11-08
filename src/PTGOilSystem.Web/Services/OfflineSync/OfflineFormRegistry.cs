@@ -385,6 +385,7 @@ public static class OfflineFormRegistry
     /// </summary>
     public static readonly IReadOnlyList<OnlineOnlyAction> OnlineOnly =
     [
+        new("Contracts", "AddPurchaseGroupLine", "ردیف تازه شرایط قرارداد را از ردیف‌های فعلی سرور می‌گیرد و باید با وضعیت روز همان قرارداد ثبت شود."),
         new("Auth", "Login", Reasons.Authentication),
         new("Auth", "Logout", "خروج روی دستگاه بی‌درنگ انجام می‌شود (کلید نشست محلی پاک می‌شود)؛ کوکی سرور با اتصال بعدی پایان می‌یابد."),
         new("Auth", "ChangePassword", Reasons.Credential),

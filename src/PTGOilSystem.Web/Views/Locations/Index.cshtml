@@ -37,11 +37,9 @@
                     locationsIsActive)
             });
     }
-    <div class="ak-list">
-        <div class="ak-list-toolbar">
-            <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="locationsFilter" />
-        </div>
+    <partial name="~/Views/Shared/_AkSearchFilter.cshtml" model="locationsFilter" />
 
+    <div class="ak-list">
         <div class="ak-table-wrap">
             <table class="ak-table" aria-label="@UiText.T(Context, "لیست مکان ها", "Location list")">
                 <thead><tr>

@@ -30,13 +30,12 @@ public sealed class UnifiedUiContractTests
         {
             var source = Read(layout);
             var previous = -1;
-            foreach (var asset in new[] { "01-tokens.css", "50-ak-components.css", "71-typography.css", "73-detail-system.css", "76-form-system.css", "78-mashal-reference.css" })
+            foreach (var asset in new[] { "01-tokens.css", "50-ak-components.css", "71-typography.css", "73-detail-system.css", "76-form-system.css" })
             {
                 var current = source.IndexOf(asset, StringComparison.Ordinal);
                 Assert.True(current > previous, $"{asset} must follow the preceding layer in {layout}");
                 previous = current;
             }
-            Assert.Contains("mashal-ui", source);
             Assert.Contains("id=\"ptg-main-content\"", source);
         }
     }

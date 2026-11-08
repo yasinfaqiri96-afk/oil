@@ -56,6 +56,7 @@ public partial class ApplicationDbContext : DbContext
 
     // --- Contracts & Pricing ---
     public DbSet<Contract> Contracts => Set<Contract>();
+    public DbSet<PurchaseContractGroup> PurchaseContractGroups => Set<PurchaseContractGroup>();
     public DbSet<ContractPartner> ContractPartners => Set<ContractPartner>();
     public DbSet<ContractAmendment> ContractAmendments => Set<ContractAmendment>();
     public DbSet<ContractPricingRule> ContractPricingRules => Set<ContractPricingRule>();
@@ -1037,6 +1038,20 @@ public partial class ApplicationDbContext : DbContext
             .HasForeignKey(c => c.ParentContractId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Contract>().HasIndex(c => c.ParentContractId);
+
+        // قرارداد خرید چندتأمین‌کننده: سرِبرگ با وجود ردیف قابل حذف نیست.
+        modelBuilder.Entity<Contract>()
+            .HasOne(c => c.PurchaseContractGroup)
+            .WithMany(g => g.Lines)
+            .HasForeignKey(c => c.PurchaseContractGroupId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Contract>().HasIndex(c => c.PurchaseContractGroupId);
+        modelBuilder.Entity<PurchaseContractGroup>().HasIndex(g => g.GroupNumber).IsUnique();
+        modelBuilder.Entity<PurchaseContractGroup>()
+            .HasOne(g => g.Company)
+            .WithMany()
+            .HasForeignKey(g => g.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<ContractPartner>()
             .HasOne(cp => cp.Contract)

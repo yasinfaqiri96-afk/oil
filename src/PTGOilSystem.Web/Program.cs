@@ -348,7 +348,7 @@ builder.Services.AddScoped<PTGOilSystem.Web.Services.Assistant.IAssistantService
 builder.Services.Configure<PTGOilSystem.Web.Configuration.BackupOptions>(
     builder.Configuration.GetSection(PTGOilSystem.Web.Configuration.BackupOptions.SectionName));
 builder.Services.AddHttpClient();
-builder.Services.AddHttpClient("whatsapp-unofficial");
+builder.Services.AddHttpClient("whatsapp-unofficial", client => client.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddScoped<PTGOilSystem.Web.Services.Notifications.IUnofficialWhatsAppReceiptService,
     PTGOilSystem.Web.Services.Notifications.UnofficialWhatsAppReceiptService>();
 builder.Services.AddSingleton<PTGOilSystem.Web.Services.Backups.IBackupExecutionLock,

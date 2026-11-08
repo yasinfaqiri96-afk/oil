@@ -216,6 +216,11 @@ public partial class ContractJourneyController
             partyInfo.Add(new(T("قرارداد اصلی", "Parent contract"), model.ParentContractNumber!.Trim()));
         }
 
+        if (!string.IsNullOrWhiteSpace(model.PurchaseContractGroupLabel))
+        {
+            partyInfo.Add(new(T("قرارداد چندتأمین‌کننده", "Multi-supplier contract"), model.PurchaseContractGroupLabel!.Trim()));
+        }
+
         if (model.SubContractItems.Count > 0)
         {
             partyInfo.Add(new(

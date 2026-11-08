@@ -1,0 +1,378 @@
+@model PTGOilSystem.Web.Models.Contracts.PurchaseContractGroupDetailsViewModel
+@using PTGOilSystem.Web.Helpers
+@{
+    ViewData["Title"] = $"{UiText.T(Context, "قرارداد چندتأمین‌کننده", "Multi-supplier contract")} {Model.GroupNumber}";
+    ViewData["HideSectionTabs"] = true;
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    var currentReturnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
+    var isEnglish = T("fa", "en") == "en";
+    var canManage = PTGOilSystem.Web.Security.RoleAccessRules.CanManageData(User);
+    var suppliers = ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+    var products = ViewBag.Products as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+
+    string StatusText(ContractStatus status) => status switch
+    {
+        ContractStatus.Draft => T("جدید", "New"),
+        ContractStatus.Active => T("فعال", "Active"),
+        ContractStatus.Closed => T("بسته‌شده", "Closed"),
+        ContractStatus.Cancelled => T("لغوشده", "Cancelled"),
+        _ => status.ToString()
+    };
+    string StatusTone(ContractStatus status) => status switch
+    {
+        ContractStatus.Active => "is-active",
+        ContractStatus.Draft => "is-pending",
+        ContractStatus.Closed => "is-neutral",
+        ContractStatus.Cancelled => "is-inactive",
+        _ => string.Empty
+    };
+
+    // همان قالب و تصاویر «چرخه قرارداد» صفحهٔ جزئیات قرارداد عادی (ContractJourney/Details).
+    string UnitMt() => T("تن", "MT");
+    string CycleAvatarViewBox(int stage) => stage switch
+    {
+        1 => "0 0 224 224",
+        2 => "224 0 224 224",
+        3 => "448 0 224 224",
+        4 => "672 0 224 224",
+        5 => "0 224 224 224",
+        6 => "224 224 224 224",
+        7 => "448 224 224 224",
+        _ => "672 224 224 224"
+    };
+    string FormatLifecycleQuantity(decimal value)
+    {
+        var absolute = NumberDisplay.Raw(Math.Abs(value), 3);
+        return value < 0m ? $"({absolute})" : absolute;
+    }
+    string FormatLifecycleUsd(decimal value)
+    {
+        var absolute = NumberDisplay.Raw(Math.Abs(value), 2);
+        return value < 0m ? $"($ {absolute})" : $"$ {absolute}";
+    }
+    Microsoft.AspNetCore.Html.IHtmlContent QuantityMarkup(decimal value)
+        => new Microsoft.AspNetCore.Html.HtmlContentBuilder()
+            .AppendHtml("<bdi dir=\"ltr\">").Append(FormatLifecycleQuantity(value)).AppendHtml("</bdi><span>")
+            .Append(UnitMt()).AppendHtml("</span>");
+    var lifecycle = Model.Lifecycle;
+    var lifecycleByContract = Model.LineLifecycles.ToDictionary(l => l.ContractId, l => l.Figures);
+    string JourneyUrl(int contractId, string tab, bool lossesView = false)
+        => Url.Action("Details", "ContractJourney", new { contractId, tab, lockContract = true, lossesView = lossesView ? "true" : null, returnUrl = currentReturnUrl }) ?? "#";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/boltz-invoice.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/contract-purchase-group-print.css" asp-append-version="true" />
+}
+
+<div class="ak-form-page ak-detail-page purchase-group-document">
+    @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkPageHeader.cshtml",
+        (ViewData["Title"]?.ToString() ?? "", false,
+         (string?)null, (string?)null, (string?)null, (string?)null,
+         T("بازگشت", "Back"), "bi-arrow-right", Url.Action("Index") ?? "/Contracts"))
+
+    <section class="ak-summary" aria-label="@T("مشخصات قرارداد", "Contract information")">
+        <article class="ak-field"><span>@T("نام قرارداد", "Contract name")</span><strong>@Model.Name</strong></article>
+        <article class="ak-field"><span>@T("شرکت خریدکننده", "Buyer company")</span><strong>@Model.CompanyName</strong></article>
+        <article class="ak-field"><span>@T("تاریخ قرارداد", "Contract date")</span><strong>@Model.ContractDate.ToString("yyyy-MM-dd")</strong></article>
+    </section>
+
+    <section class="ak-stat-grid mb-3 mt-3" aria-label="@T("جمع قرارداد", "Contract totals")">
+        <vc:stat-card title="@T("مجموع مقدار", "Total quantity")" value="@NumberDisplay.Quantity(Model.Totals.TotalQuantityMt)" unit="MT" avatar-path="/images/stat-cards/ref-contracts/contracts-total.webp"></vc:stat-card>
+        <vc:stat-card title="@T("مجموع ارزش", "Total value")" value="@NumberDisplay.Money(Model.Totals.TotalValueUsd)" unit="USD" avatar-path="/images/stat-cards/ref-contracts/contracts-purchase.webp"></vc:stat-card>
+        <vc:stat-card title="@T("تعداد تأمین‌کنندگان", "Suppliers")" value="@Model.Totals.SupplierCount.ToString("N0")" unit="@T("تأمین‌کننده", "suppliers")" avatar-path="/images/stat-cards/ref-contracts/contracts-active.webp"></vc:stat-card>
+        <vc:stat-card title="@T("میانگین وزنی فی تن", "Weighted average price")" value="@(Model.Totals.WeightedAveragePriceUsd is { } average ? NumberDisplay.Money(average) : "-")" unit="USD" avatar-path="/images/stat-cards/ref-contracts/contracts-sale.webp"></vc:stat-card>
+    </section>
+
+    @if (lifecycle is not null)
+    {
+        const string StepDone = "is-done";
+        const string StepCurrent = "is-current";
+        const string StepPending = "is-pending";
+        const string StepWarn = "is-warn";
+        const string StepGain = "is-gain";
+        const string StepLoss = "is-loss";
+        var steps = new List<(int Number, string Title, string State, string FirstLabel, Microsoft.AspNetCore.Html.IHtmlContent FirstValue, string SecondLabel, Microsoft.AspNetCore.Html.IHtmlContent SecondValue)>
+        {
+            (1, T("قرارداد", "Contract"), StepDone,
+                T("مقدار کل قرارداد", "Contract quantity"), QuantityMarkup(lifecycle.ContractQuantityMt),
+                T("ارزش قرارداد", "Contract value"), new Microsoft.AspNetCore.Html.HtmlString(lifecycle.ContractValueUsd > 0m ? FormatLifecycleUsd(lifecycle.ContractValueUsd) : T("در انتظار نرخ", "Pending price"))),
+            (2, T("بارگیری و موجودی", "Loading & stock"),
+                lifecycle.LoadingQuantityMt <= 0m ? StepPending : lifecycle.RemainingToLoadMt > 0m ? StepCurrent : StepDone,
+                T("بارگیری‌شده", "Loaded"), QuantityMarkup(lifecycle.LoadingQuantityMt),
+                T("باقی‌مانده بارگیری", "Remaining to load"), QuantityMarkup(lifecycle.RemainingToLoadMt)),
+            (3, T("فروشات", "Sales"),
+                lifecycle.SoldQuantityMt <= 0m ? StepPending : lifecycle.SaleableQuantityMt > 0m ? StepCurrent : StepDone,
+                T("فروخته‌شده", "Sold"), QuantityMarkup(lifecycle.SoldQuantityMt),
+                T("ارزش فروخته‌شده", "Sold value"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.SalesTotalUsd))),
+            (4, T("مصارف", "Expenses"), lifecycle.ExpenseTotalUsd > 0m ? StepDone : StepPending,
+                T("مجموع مصارف", "Total expenses"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.ExpenseTotalUsd)),
+                T("اوسط مصرف بر تن", "Expense per MT"), new Microsoft.AspNetCore.Html.HtmlString(lifecycle.ExpensePerLoadedMt is { } perMt ? FormatLifecycleUsd(perMt) : "-")),
+            (5, T("ضایعات", "Losses"), lifecycle.LossQuantityMt > 0m ? StepWarn : StepDone,
+                T("مقدار ضایعات", "Loss quantity"), QuantityMarkup(lifecycle.LossQuantityMt),
+                T("ارزش کسری قابل‌جبران", "Chargeable loss cost"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.LossCostUsd))),
+            (6, T("پرداخت‌ها", "Payments"),
+                lifecycle.SupplierRemainingUsd > 0m ? StepWarn : lifecycle.SupplierPaidNetUsd > 0m || lifecycle.SupplierPayableTotalUsd > 0m ? StepDone : StepPending,
+                T("پرداخت‌شده", "Paid"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.SupplierPaidNetUsd)),
+                T("مانده قابل پرداخت", "Remaining payable"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.SupplierRemainingUsd))),
+            (7, T("مفاد و ضرر", "Profit & loss"),
+                lifecycle.SoldQuantityMt <= 0m ? StepPending : lifecycle.LifecycleProfitUsd < 0m ? StepLoss : StepGain,
+                T("مفاد کل قرارداد", "Total contract profit"), new Microsoft.AspNetCore.Html.HtmlString(FormatLifecycleUsd(lifecycle.LifecycleProfitUsd)),
+                T("حاشیه مفاد", "Margin"), new Microsoft.AspNetCore.Html.HtmlString($"{NumberDisplay.Number(lifecycle.MarginPercent ?? 0m, 2)}%"))
+        };
+        string BadgeText(string state) => state switch
+        {
+            StepDone => T("تکمیل", "Done"),
+            StepCurrent => T("در جریان", "In progress"),
+            StepWarn => T("نیاز به توجه", "Needs attention"),
+            StepGain => T("با مفاد", "Profitable"),
+            StepLoss => T("با ضرر", "Loss"),
+            _ => T("در انتظار", "Pending")
+        };
+        string BadgeIcon(int number, string state) => state switch
+        {
+            StepDone => "bi-check-circle-fill",
+            StepCurrent => "bi-clock",
+            StepWarn => number == 5 ? "bi-exclamation-circle-fill" : "bi-exclamation-triangle-fill",
+            StepGain => "bi-arrow-up-circle-fill",
+            StepLoss => "bi-arrow-down-circle-fill",
+            _ => "bi-hourglass-split"
+        };
+        var forwardArrowIcon = T("bi-chevron-left", "bi-chevron-right");
+        var backwardArrowIcon = T("bi-chevron-right", "bi-chevron-left");
+        <div class="ak-summary-page mb-3">
+            <section class="ak-form-section ak-detail-section ak-journey-section">
+                <partial name="~/Views/ContractJourney/_ContractCycleAvatarArtwork.cshtml" />
+                <header class="ak-section-head ak-journey-head">
+                    <h2 class="ak-section-title"><i class="bi bi-diagram-2" aria-hidden="true"></i>@T("چرخه قرارداد", "Contract lifecycle")</h2>
+                </header>
+                <ol class="ak-journey-flow">
+                    @foreach (var step in steps)
+                    {
+                        var arrowIcon = step.Number is 3 or 6
+                            ? "bi-chevron-down"
+                            : (step.Number < 3 ? forwardArrowIcon : backwardArrowIcon);
+                        <li class="ak-journey-step ak-journey-step--@step.Number @step.State">
+                            <span class="ak-journey-step-num">@step.Number</span>
+                            <svg class="ak-cycle-avatar" viewBox="@CycleAvatarViewBox(step.Number)" aria-hidden="true" focusable="false" width="140" height="140">
+                                <use href="#journey-cycle-avatar-artwork" />
+                            </svg>
+                            <div class="ak-cycle-body">
+                                <div class="ak-journey-step-head">
+                                    <h3 class="ak-cycle-title">
+                                        @if (step.Number > 1)
+                                        {
+                                            <a href="#purchase-group-supplier-cycle">@step.Title</a>
+                                        }
+                                        else
+                                        {
+                                            @step.Title
+                                        }
+                                    </h3>
+                                    <span class="ak-journey-badge"><i class="bi @BadgeIcon(step.Number, step.State)" aria-hidden="true"></i>@BadgeText(step.State)</span>
+                                </div>
+                                <div class="ak-cycle-stats">
+                                    <div class="ak-cycle-row"><span class="ak-cycle-label">@step.FirstLabel</span><span class="ak-cycle-value @(step.Number is 1 or 2 or 3 or 5 ? "ak-cycle-quantity" : null)">@step.FirstValue</span></div>
+                                    <div class="ak-cycle-row"><span class="ak-cycle-label">@step.SecondLabel</span><span class="ak-cycle-value @(step.Number == 2 ? "ak-cycle-quantity" : null)">@step.SecondValue</span></div>
+                                </div>
+                            </div>
+                            @if (step.Number < steps.Count)
+                            {
+                                <span class="ak-journey-arrow" aria-hidden="true"><i class="bi @arrowIcon"></i></span>
+                            }
+                        </li>
+                    }
+                </ol>
+            </section>
+        </div>
+
+        <section class="ak-form-section ak-detail-section mb-3" id="purchase-group-supplier-cycle">
+            <header class="ak-section-head">
+                <h2 class="ak-section-title"><i class="bi bi-people" aria-hidden="true"></i>@T("چرخهٔ هر تأمین‌کننده", "Lifecycle per supplier")</h2>
+            </header>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <thead>
+                        <tr>
+                            <th>@T("تأمین‌کننده", "Supplier")</th>
+                            <th class="ak-col-num">@T("بارگیری‌شده", "Loaded")</th>
+                            <th class="ak-col-num">@T("فروخته‌شده", "Sold")</th>
+                            <th class="ak-col-num">@T("ارزش فروش", "Sales value")</th>
+                            <th class="ak-col-num">@T("مصارف", "Expenses")</th>
+                            <th class="ak-col-num">@T("ارزش کسری", "Loss cost")</th>
+                            <th class="ak-col-num">@T("پرداخت‌شده", "Paid")</th>
+                            <th class="ak-col-num">@T("مانده قابل پرداخت", "Remaining payable")</th>
+                            <th class="ak-col-num">@T("مفاد / ضرر", "Profit / loss")</th>
+                            <th class="no-print">@T("جزئیات", "Details")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in Model.Lines.Where(l => lifecycleByContract.ContainsKey(l.ContractId)))
+                        {
+                            var figures = lifecycleByContract[line.ContractId];
+                            <tr>
+                                <td><span class="ak-name">@line.SupplierName</span><small class="d-block">@line.ContractNumber</small></td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(figures.LoadingQuantityMt)</td>
+                                <td class="ak-col-num ak-num">@NumberDisplay.Quantity(figures.SoldQuantityMt)</td>
+                                <td class="ak-col-num ak-num">@FormatLifecycleUsd(figures.SalesTotalUsd)</td>
+                                <td class="ak-col-num ak-num">@FormatLifecycleUsd(figures.ExpenseTotalUsd)</td>
+                                <td class="ak-col-num ak-num">@FormatLifecycleUsd(figures.LossCostUsd)</td>
+                                <td class="ak-col-num ak-num">@FormatLifecycleUsd(figures.SupplierPaidNetUsd)</td>
+                                <td class="ak-col-num ak-num">@FormatLifecycleUsd(figures.SupplierRemainingUsd)</td>
+                                <td class="ak-col-num ak-num @(figures.LifecycleProfitUsd < 0m ? "text-danger" : null)">@FormatLifecycleUsd(figures.LifecycleProfitUsd)</td>
+                                <td class="no-print">
+                                    <a href="@JourneyUrl(line.ContractId, "costs")" data-no-spa="true">@T("مصارف", "Expenses")</a>
+                                    · <a href="@JourneyUrl(line.ContractId, "costs", lossesView: true)" data-no-spa="true">@T("کسری و ضایعات", "Losses")</a>
+                                    · <a href="@JourneyUrl(line.ContractId, "finance")" data-no-spa="true">@T("حساب قرارداد", "Contract account")</a>
+                                    · <a href="@JourneyUrl(line.ContractId, "summary")" data-no-spa="true">@T("همه", "All")</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>@T("جمع قرارداد", "Contract total")</th>
+                            <th class="ak-col-num ak-num">@NumberDisplay.Quantity(lifecycle.LoadingQuantityMt)</th>
+                            <th class="ak-col-num ak-num">@NumberDisplay.Quantity(lifecycle.SoldQuantityMt)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.SalesTotalUsd)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.ExpenseTotalUsd)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.LossCostUsd)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.SupplierPaidNetUsd)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.SupplierRemainingUsd)</th>
+                            <th class="ak-col-num ak-num">@FormatLifecycleUsd(lifecycle.LifecycleProfitUsd)</th>
+                            <th class="no-print"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <p class="ak-note mt-2">@T("اعداد هر تأمین‌کننده همان خلاصهٔ صفحهٔ جزئیات قرارداد عادی همان ردیف است؛ جمع قرارداد فقط مجموع آن‌ها است و هیچ رویدادی دوبار شمرده نمی‌شود.", "Each supplier's figures are that line's standard contract summary; the contract total only adds them up, so nothing is counted twice.")</p>
+        </section>
+    }
+
+    <div class="d-flex justify-content-end mb-2">
+        <button type="button" class="btn ak-secondary-action is-soft no-print" data-print-page>
+            <i class="bi bi-printer" aria-hidden="true"></i>
+            @T("چاپ", "Print")
+        </button>
+    </div>
+
+    <div class="ak-table-wrap">
+        <table class="ak-table">
+            <thead>
+                <tr>
+                    <th>@T("ردیف قرارداد", "Contract line")</th>
+                    <th>@T("تأمین‌کننده", "Supplier")</th>
+                    <th>@T("محصول", "Product")</th>
+                    <th class="ak-col-num">@T("مقدار (MT)", "Quantity (MT)")</th>
+                    <th class="ak-col-num">@T("فی تن (USD)", "Price/ton (USD)")</th>
+                    <th class="ak-col-num">@T("ارزش (USD)", "Value (USD)")</th>
+                    <th class="ak-col-num">@T("بارگیری‌شده", "Loaded")</th>
+                    <th class="ak-col-num">@T("دریافت‌شده", "Received")</th>
+                    <th class="ak-col-num">@T("باقی‌مانده", "Remaining")</th>
+                    <th class="ak-col-num">@T("پرداخت (USD)", "Paid (USD)")</th>
+                    <th class="ak-col-num">@T("ماندهٔ تأمین‌کننده (USD)", "Supplier balance (USD)")</th>
+                    <th>@T("وضعیت", "Status")</th>
+                    <th class="ak-col-actions no-print"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in Model.Lines)
+                {
+                    <tr>
+                        <td>
+                            <a asp-controller="ContractJourney" asp-action="Details" asp-route-contractId="@line.ContractId" asp-route-tab="summary" asp-route-lockContract="true" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" class="ak-name">@line.ContractNumber</a>
+                        </td>
+                        <td>@line.SupplierName</td>
+                        <td>@line.ProductName</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(line.QuantityMt)</td>
+                        <td class="ak-col-num ak-num">@(line.UnitPriceUsd is { } price ? NumberDisplay.Money(price) : T("در انتظار نرخ", "Pending"))</td>
+                        <td class="ak-col-num ak-num">@(line.ValueUsd is { } value ? NumberDisplay.Money(value) : "-")</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(line.LoadedQuantityMt)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(line.ReceivedQuantityMt)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Quantity(line.RemainingQuantityMt)</td>
+                        <td class="ak-col-num ak-num">@NumberDisplay.Money(line.PaidUsd)</td>
+                        <td class="ak-col-num ak-num" title="@ContractBalanceText.Title(line.SupplierBalanceUsd, isEnglish)">
+                            @NumberDisplay.Money(ContractBalanceText.Absolute(line.SupplierBalanceUsd))
+                            <small class="d-block">@ContractBalanceText.Title(line.SupplierBalanceUsd, isEnglish)</small>
+                        </td>
+                        <td><span class="ak-status @StatusTone(line.Status)">@StatusText(line.Status)</span></td>
+                        <td class="ak-col-actions no-print">
+                            <div class="ak-row-menu dropdown" data-ak-static-row-menu="true">
+                                <button class="ak-row-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T("عملیات", "Actions")"><i class="bi bi-three-dots"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" asp-action="Edit" asp-route-id="@line.ContractId"><i class="bi bi-pencil"></i> @T("ویرایش", "Edit")</a></li>
+                                    <li><a class="dropdown-item" asp-action="EditPricing" asp-route-id="@line.ContractId" asp-route-returnUrl="@currentReturnUrl" data-no-spa="true" data-page-modal="true" data-page-modal-close-on-redirect="true" data-page-modal-size="compact" data-page-modal-title="@T("وارد کردن قیمت قرارداد", "Enter contract price")"><i class="bi bi-cash-coin"></i> @T("وارد کردن قیمت قرارداد", "Enter contract price")</a></li>
+                                    @if (canManage)
+                                    {
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li><partial name="_LifecycleActionForms" model="@(("Contracts", line.ContractId, line.Status == ContractStatus.Cancelled, currentReturnUrl))" /></li>
+                                    }
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="3">@T("جمع ردیف‌های لغونشده", "Total of non-cancelled lines")</th>
+                    <th class="ak-col-num ak-num">@NumberDisplay.Quantity(Model.Totals.TotalQuantityMt)</th>
+                    <th class="ak-col-num ak-num">@(Model.Totals.WeightedAveragePriceUsd is { } footerAverage ? NumberDisplay.Money(footerAverage) : "-")</th>
+                    <th class="ak-col-num ak-num">@NumberDisplay.Money(Model.Totals.TotalValueUsd)</th>
+                    <th colspan="7"></th>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <p class="ak-note mt-2">@T("میانگین وزنی فقط گزارشی است. پرداخت، بدهی، بارگیری و دریافت هر تأمین‌کننده روی ردیف خودش ثبت و پیگیری می‌شود.", "The weighted average is for reporting only. Each supplier's payments, debt, loadings and receipts stay on its own line.")</p>
+    @if (Model.Totals.UnpricedLineCount > 0)
+    {
+        <p class="ak-note is-warning mt-2">@T($"{Model.Totals.UnpricedLineCount} ردیف هنوز نرخ نهایی ندارد و در ارزش و میانگین وزنی نیامده است.", $"{Model.Totals.UnpricedLineCount} line(s) have no final price yet and are excluded from value and average.")</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <p class="ak-note mt-2">@Model.Notes</p>
+    }
+
+    @if (canManage && Model.CanAddLine)
+    {
+        <details class="ak-advanced mt-3 no-print">
+            <summary class="ak-advanced-summary">@T("افزودن ردیف به این قرارداد", "Add a line to this contract")</summary>
+            <form asp-action="AddPurchaseGroupLine" asp-route-groupId="@Model.Id" method="post" class="ak-form mt-2">
+                @Html.AntiForgeryToken()
+                @Html.FormToken()
+                <p class="ak-note">@T($"قیمت به {Model.Currency} وارد می‌شود. شرایط دیگر از ردیف‌های همین قرارداد گرفته می‌شود.", $"Enter the price in {Model.Currency}. Other terms come from this contract's lines.")</p>
+                <div class="ak-form-grid">
+                    <div class="ak-field">
+                        <label for="line_SupplierId" class="ak-label">@T("تأمین‌کننده", "Supplier") <span class="ak-req">*</span></label>
+                        <select id="line_SupplierId" name="line.SupplierId" asp-items="suppliers" class="ak-input" required data-ak-entity-combobox data-ak-placeholder="برای جستجو بنویسید..." data-ak-empty="موردی پیدا نشد" data-ak-quick-create-label="تأمین‌کننده جدید" data-ak-quick-create-url="/Suppliers/Create">
+                            <option value="">@T("انتخاب کنید", "Select")</option>
+                        </select>
+                    </div>
+                    <div class="ak-field">
+                        <label for="line_ProductId" class="ak-label">@T("محصول", "Product") <span class="ak-req">*</span></label>
+                        <select id="line_ProductId" name="line.ProductId" asp-items="products" class="ak-input" required data-ak-entity-combobox data-ak-placeholder="برای جستجو بنویسید..." data-ak-empty="موردی پیدا نشد" data-ak-quick-create-label="جنس جدید" data-ak-quick-create-url="/Products/Create">
+                            <option value="">@T("انتخاب کنید", "Select")</option>
+                        </select>
+                    </div>
+                    <div class="ak-field">
+                        <label for="line_QuantityMt" class="ak-label">@T("مقدار (MT)", "Quantity (MT)") <span class="ak-req">*</span></label>
+                        <input id="line_QuantityMt" name="line.QuantityMt" class="ak-input ak-num" type="number" min="0.0001" step="0.0001" dir="ltr" autocomplete="off" required />
+                    </div>
+                    <div class="ak-field">
+                        <label for="line_UnitPrice" class="ak-label">@T("فی تن", "Price per ton") <span class="ak-req">*</span></label>
+                        <input id="line_UnitPrice" name="line.UnitPrice" class="ak-input ak-num" type="number" min="0.0001" step="0.0001" dir="ltr" autocomplete="off" required />
+                    </div>
+                </div>
+                <div class="ak-footer-actions">
+                    <button type="submit" class="ak-save">@T("ثبت ردیف", "Save line")</button>
+                </div>
+            </form>
+        </details>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/contract-multi-supplier.js" asp-append-version="true" defer></script>
+}

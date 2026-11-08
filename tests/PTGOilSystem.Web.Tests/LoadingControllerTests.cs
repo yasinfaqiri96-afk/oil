@@ -51,7 +51,7 @@ public class LoadingControllerTests
     }
 
     [Fact]
-    public async Task Index_Defaults_To_Ten_Ignores_Legacy_Cookie_And_Honors_Explicit_Page_Size()
+    public async Task Index_Defaults_To_Twenty_Ignores_Legacy_Cookie_And_Honors_Explicit_Page_Size()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -61,8 +61,8 @@ public class LoadingControllerTests
         var defaultController = NewLoadingController(db);
         defaultController.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         var defaultResult = Assert.IsType<ViewResult>(await defaultController.Index());
-        Assert.Equal(10, defaultController.ViewData["PageSize"]);
-        Assert.Equal(10, defaultController.ViewData["DefaultPageSize"]);
+        Assert.Equal(20, defaultController.ViewData["PageSize"]);
+        Assert.Equal(20, defaultController.ViewData["DefaultPageSize"]);
         Assert.IsType<LoadingIndexViewModel>(defaultResult.Model);
 
         var savedController = NewLoadingController(db);
@@ -70,7 +70,7 @@ public class LoadingControllerTests
         savedContext.Request.Headers.Cookie = "ptg-loading-page-size=50";
         savedController.ControllerContext = new ControllerContext { HttpContext = savedContext };
         await savedController.Index();
-        Assert.Equal(10, savedController.ViewData["PageSize"]);
+        Assert.Equal(20, savedController.ViewData["PageSize"]);
 
         var explicitController = NewLoadingController(db);
         explicitController.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };

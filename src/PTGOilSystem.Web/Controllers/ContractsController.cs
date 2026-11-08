@@ -221,6 +221,7 @@ public partial class ContractsController : Controller
             "DisplayName");
         ViewBag.PurchaseContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Purchase);
         ViewBag.SaleContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Sale);
+        ViewBag.PurchaseGroupNumberPreview = await GenerateNextPurchaseGroupNumberAsync();
     }
 
     public async Task<IActionResult> Index(string? q, ContractType[]? type, ContractStatus[]? status, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -239,6 +240,7 @@ public partial class ContractsController : Controller
             .Include(c => c.Unit)
             .Include(c => c.Supplier)
             .Include(c => c.Customer)
+            .Include(c => c.PurchaseContractGroup)
             .AsNoTracking()
             .AsQueryable();
 
@@ -256,6 +258,8 @@ public partial class ContractsController : Controller
                 c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.SearchKey != null && cp.Partner.SearchKey.Contains(canonicalTerm)) ||
                 c.ContractName.Contains(term) ||
                 c.ContractNumber.Contains(term) ||
+                (c.PurchaseContractGroup != null && c.PurchaseContractGroup.GroupNumber.Contains(term)) ||
+                (c.PurchaseContractGroup != null && c.PurchaseContractGroup.Name.Contains(term)) ||
                 (c.Supplier != null && c.Supplier.Name.Contains(term)) ||
                 (c.Customer != null && c.Customer.Name.Contains(term)) ||
                 (c.Product != null && c.Product.Name.Contains(term)) ||
@@ -265,43 +269,104 @@ public partial class ContractsController : Controller
         if (type is { Length: > 0 }) query = query.Where(c => type.Contains(c.ContractType));
         if (status is { Length: > 0 }) query = query.Where(c => status.Contains(c.Status));
 
-        var stats = await query
-            .GroupBy(_ => 1)
-            .Select(group => new
-            {
-                TotalCount = group.Count(),
-                ActiveCount = group.Count(contract => contract.Status == ContractStatus.Active),
-                PurchaseCount = group.Count(contract => contract.ContractType == ContractType.Purchase),
-                SaleCount = group.Count(contract => contract.ContractType == ContractType.Sale)
-            })
-            .SingleOrDefaultAsync();
-        var totalCount = stats?.TotalCount ?? 0;
+        // قرارداد چندتأمین‌کننده یک واحد فهرست است: شمارش، آمار و صفحه‌بندی روی واحدها انجام
+        // می‌شود تا تعداد قراردادهای مادر با تعداد ردیف‌های تأمین‌کننده اشتباه نشود.
+        var keys = await query
+            .Select(c => new ContractListKey(c.Id, c.PurchaseContractGroupId, c.ContractType, c.Status))
+            .ToListAsync();
+        var units = ContractListGrouping.Build(keys);
+        var totalCount = units.Count;
         var pageCount = page <= 0
             ? 1
             : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         var currentPage = page <= 0 ? 1 : Math.Clamp(page, 1, pageCount);
+        var pageUnits = page <= 0
+            ? units
+            : units.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
 
-        var items = await (page <= 0
-                ? query.OrderBy(c => c.Id)
-                : query
-                    .OrderBy(c => c.Id)
-                    .Skip((currentPage - 1) * pageSize)
-                    .Take(pageSize))
-            .ToListAsync();
+        var contractIds = pageUnits.Where(u => u.ContractId.HasValue).Select(u => u.ContractId!.Value).ToList();
+        var groupIds = pageUnits.Where(u => u.GroupId.HasValue).Select(u => u.GroupId!.Value).ToList();
+        var standalone = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => contractIds.Contains(c.Id))
+            .Include(c => c.Product)
+            .Include(c => c.Unit)
+            .Include(c => c.Supplier)
+            .Include(c => c.Customer)
+            .ToDictionaryAsync(c => c.Id);
+        // قرارداد مادر با همهٔ ردیف‌های بایگانی‌نشده‌اش نمایش داده می‌شود، حتی اگر جست‌وجو فقط یکی را یافته باشد.
+        var groupLines = groupIds.Count == 0
+            ? new List<Contract>()
+            : await _db.Contracts
+                .AsNoTracking()
+                .Where(c => !c.IsArchived && c.PurchaseContractGroupId != null && groupIds.Contains(c.PurchaseContractGroupId.Value))
+                .Include(c => c.Product)
+                .Include(c => c.Unit)
+                .Include(c => c.Supplier)
+                .Include(c => c.PurchaseContractGroup!)
+                .ThenInclude(g => g.Company)
+                .OrderBy(c => c.Id)
+                .ToListAsync();
+        var linesByGroup = groupLines
+            .GroupBy(c => c.PurchaseContractGroupId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var rows = new List<ContractListRow>(pageUnits.Count);
+        foreach (var unit in pageUnits)
+        {
+            if (unit.ContractId is { } contractId && standalone.TryGetValue(contractId, out var contract))
+            {
+                rows.Add(new ContractListRow { Contract = contract });
+            }
+            else if (unit.GroupId is { } groupId && linesByGroup.TryGetValue(groupId, out var lines))
+            {
+                rows.Add(new ContractListRow { Group = BuildPurchaseGroupListRow(lines) });
+            }
+        }
 
         return View(new ContractIndexViewModel
         {
             Query = q,
             Types = type ?? [],
             Statuses = status ?? [],
-            Items = items,
+            Items = rows.SelectMany(row => row.Contract is not null ? new[] { row.Contract } : row.Group!.Lines).ToList(),
+            Rows = rows,
             CurrentPage = currentPage,
             PageCount = pageCount,
             TotalCount = totalCount,
-            ActiveCount = stats?.ActiveCount ?? 0,
-            PurchaseCount = stats?.PurchaseCount ?? 0,
-            SaleCount = stats?.SaleCount ?? 0
+            ActiveCount = units.Count(u => u.Status == ContractStatus.Active),
+            PurchaseCount = units.Count(u => u.ContractType == ContractType.Purchase),
+            SaleCount = units.Count(u => u.ContractType == ContractType.Sale)
         });
+    }
+
+    private static PurchaseGroupListRow BuildPurchaseGroupListRow(IReadOnlyList<Contract> lines)
+    {
+        var group = lines[0].PurchaseContractGroup!;
+        var unitName = lines
+            .Select(c => c.Unit?.Symbol ?? c.Unit?.Code ?? c.Unit?.Name ?? c.Product?.UnitOfMeasure)
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+        return new PurchaseGroupListRow
+        {
+            Id = group.Id,
+            GroupNumber = group.GroupNumber,
+            Name = group.Name,
+            CompanyName = group.Company?.Name ?? "-",
+            ProductNames = string.Join("، ", lines
+                .Select(c => c.Product?.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.Ordinal)),
+            UnitName = unitName ?? "",
+            Status = PurchaseGroupStatus.Derive(lines.Select(c => c.Status)),
+            Lines = lines,
+            // مثل صفحهٔ جزئیات: ردیف لغوشده تعهدی ندارد و در جمع قرارداد نمی‌آید.
+            Totals = PurchaseGroupTotals.Calculate(lines
+                .Where(c => c.Status != ContractStatus.Cancelled)
+                .Select(c => new PurchaseGroupTotalsInput(
+                    c.SupplierId,
+                    c.QuantityMt,
+                    ContractPricingAdapter.GetCanonicalFinalPrice(c))))
+        };
     }
 
     public Task<IActionResult> Details(int id, string? tab = null)
@@ -360,6 +425,11 @@ public partial class ContractsController : Controller
         ContractFormViewModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        if (model.IsMultiSupplier)
+        {
+            return await CreateMultiSupplierAsync(model, formToken);
+        }
+
         NormalizeFormModel(model);
         await ResolveCompanyOwnerPartnerAsync(model);
         model.ContractNumber = await GenerateNextContractNumberAsync(model.ContractType);
@@ -879,6 +949,7 @@ public partial class ContractsController : Controller
             _db.ContractPartners.RemoveRange(item.ContractPartners);
         }
 
+        await RemovePurchaseGroupIfLastLineAsync(item);
         _db.Contracts.Remove(item);
         await _db.SaveChangesAsync();
         await _audit.LogAndSaveAsync(nameof(Contract), id, AuditAction.Delete, diff: diff);
@@ -1662,7 +1733,9 @@ public partial class ContractsController : Controller
             ModelState.AddModelError(nameof(model.DestinationStorageTankId), "برای تأیید خرید، مخزن مقصد الزامی است.");
     }
 
-    private async Task<string> GenerateNextContractNumberAsync(ContractType contractType)
+    private async Task<string> GenerateNextContractNumberAsync(
+        ContractType contractType,
+        IReadOnlySet<string>? reservedNumbers = null)
     {
         var prefix = contractType == ContractType.Sale ? "S" : "P";
         var marker = prefix + "-";
@@ -1671,6 +1744,13 @@ public partial class ContractsController : Controller
             .Where(c => c.ContractNumber.StartsWith(marker))
             .Select(c => c.ContractNumber)
             .ToListAsync();
+        // قرارداد مادرِ چندتأمین‌کننده از همین دنباله شماره می‌گیرد (P-011 با ردیف‌های P-011-1...).
+        var groupNumbers = await _db.PurchaseContractGroups
+            .AsNoTracking()
+            .Where(g => g.GroupNumber.StartsWith(marker))
+            .Select(g => g.GroupNumber)
+            .ToListAsync();
+        existingNumbers.AddRange(groupNumbers);
 
         var existingSet = existingNumbers.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var maxSequence = 0;
@@ -1696,7 +1776,9 @@ public partial class ContractsController : Controller
             candidate = $"{marker}{maxSequence:000}";
         }
         while (existingSet.Contains(candidate)
-            || await _db.Contracts.AsNoTracking().AnyAsync(c => c.ContractNumber == candidate));
+            || reservedNumbers?.Contains(candidate) == true
+            || await _db.Contracts.AsNoTracking().AnyAsync(c => c.ContractNumber == candidate)
+            || await _db.PurchaseContractGroups.AsNoTracking().AnyAsync(g => g.GroupNumber == candidate));
 
         return candidate;
     }

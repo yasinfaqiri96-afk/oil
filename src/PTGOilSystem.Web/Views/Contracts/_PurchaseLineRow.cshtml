@@ -1,0 +1,60 @@
+@model (string Index, PTGOilSystem.Web.Models.Contracts.PurchaseContractLineInput Line, List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> Suppliers, List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> Products)
+@{
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    string? Error(string field)
+        => ViewData.ModelState[$"PurchaseLines[{Model.Index}].{field}"]?.Errors.FirstOrDefault()?.ErrorMessage;
+    string FieldName(string field) => $"PurchaseLines[{Model.Index}].{field}";
+    string FieldTemplate(string field) => $"PurchaseLines[__index__].{field}";
+}
+<tr data-purchase-line>
+    <td>
+        <select name="@FieldName("SupplierId")" data-line-field="@FieldTemplate("SupplierId")" data-line-supplier class="ak-input" aria-label="@T("تأمین‌کننده", "Supplier")"
+                data-ak-entity-combobox data-ak-placeholder="برای جستجو بنویسید..." data-ak-empty="موردی پیدا نشد"
+                data-ak-quick-create-label="تأمین‌کننده جدید" data-ak-quick-create-url="/Suppliers/Create">
+            <option value="">@T("انتخاب کنید", "Select")</option>
+            @foreach (var supplier in Model.Suppliers)
+            {
+                if (supplier.Value == Model.Line.SupplierId?.ToString())
+                {
+                    <option value="@supplier.Value" selected>@supplier.Text</option>
+                }
+                else
+                {
+                    <option value="@supplier.Value">@supplier.Text</option>
+                }
+            }
+        </select>
+        <span class="ak-field-error d-block" data-line-error="SupplierId">@Error("SupplierId")</span>
+    </td>
+    <td>
+        <select name="@FieldName("ProductId")" data-line-field="@FieldTemplate("ProductId")" data-line-product class="ak-input" aria-label="@T("محصول", "Product")"
+                data-ak-entity-combobox data-ak-placeholder="برای جستجو بنویسید..." data-ak-empty="موردی پیدا نشد"
+                data-ak-quick-create-label="جنس جدید" data-ak-quick-create-url="/Products/Create">
+            <option value="">@T("انتخاب کنید", "Select")</option>
+            @foreach (var product in Model.Products)
+            {
+                if (product.Value == Model.Line.ProductId?.ToString())
+                {
+                    <option value="@product.Value" selected>@product.Text</option>
+                }
+                else
+                {
+                    <option value="@product.Value">@product.Text</option>
+                }
+            }
+        </select>
+        <span class="ak-field-error d-block" data-line-error="ProductId">@Error("ProductId")</span>
+    </td>
+    <td>
+        <input name="@FieldName("QuantityMt")" data-line-field="@FieldTemplate("QuantityMt")" data-line-quantity value="@(Model.Line.QuantityMt?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture))" class="ak-input ak-num" type="number" min="0.0001" step="0.0001" dir="ltr" autocomplete="off" aria-label="@T("مقدار به تن", "Quantity in tons")" />
+        <span class="ak-field-error d-block" data-line-error="QuantityMt">@Error("QuantityMt")</span>
+    </td>
+    <td>
+        <input name="@FieldName("UnitPrice")" data-line-field="@FieldTemplate("UnitPrice")" data-line-price value="@(Model.Line.UnitPrice?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture))" class="ak-input ak-num" type="number" min="0.0001" step="0.0001" dir="ltr" autocomplete="off" aria-label="@T("فی تن", "Price per ton")" />
+        <span class="ak-field-error d-block" data-line-error="UnitPrice">@Error("UnitPrice")</span>
+    </td>
+    <td class="ak-num" data-line-value>-</td>
+    <td>
+        <button type="button" class="ak-cancel" data-remove-purchase-line>@T("حذف", "Remove")</button>
+    </td>
+</tr>

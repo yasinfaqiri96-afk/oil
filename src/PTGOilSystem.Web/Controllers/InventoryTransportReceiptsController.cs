@@ -10,6 +10,7 @@ using PTGOilSystem.Web.Models.Sales;
 using PTGOilSystem.Web.Security;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Exceptions;
+using PTGOilSystem.Web.Services.Notifications;
 using PTGOilSystem.Web.Services.Time;
 
 namespace PTGOilSystem.Web.Controllers;
@@ -21,6 +22,7 @@ public class InventoryTransportReceiptsController : Controller
     private readonly ICurrencyConversionService _currencyConversion;
     private readonly ILogger<InventoryTransportReceiptsController> _logger;
     private readonly InventoryTransportReceiptService _receiptService;
+    private readonly IUnofficialWhatsAppReceiptService? _whatsAppReceipts;
 
     private readonly IAfghanistanBusinessClock _businessClock;
 
@@ -30,8 +32,10 @@ public class InventoryTransportReceiptsController : Controller
         ILogger<InventoryTransportReceiptsController> logger,
         IInventoryLineageWriter? lineage = null,
         IAfghanistanBusinessClock? businessClock = null,
-        InventoryTransportReceiptService? receiptService = null)
+        InventoryTransportReceiptService? receiptService = null,
+        IUnofficialWhatsAppReceiptService? whatsAppReceipts = null)
     {
+        _whatsAppReceipts = whatsAppReceipts;
         // مرجع «امروزِ کاری» همیشه ساعت کابل است، نه تاریخ UTC سرور.
         _businessClock = businessClock ?? new AfghanistanBusinessClock(TimeProvider.System);
         _db = db;
@@ -169,6 +173,11 @@ public class InventoryTransportReceiptsController : Controller
         if (transaction is not null)
         {
             await transaction.CommitAsync();
+        }
+
+        if (_whatsAppReceipts is not null && receipt.SalesTransactionId.HasValue)
+        {
+            await _whatsAppReceipts.QueueSaleReceiptAsync(receipt.SalesTransactionId.Value, CancellationToken.None);
         }
 
         TempData["ok"] = model.ReceiptDestination == InventoryTransportReceiptDestination.DirectSale

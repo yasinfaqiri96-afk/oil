@@ -23,7 +23,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.summary-strip > 
 
 body.boltz-shell.app-shell-authenticated :where(.summary-tile-label) {
     color: var(--ptg-muted);
-    font-size: var(--font-body);
+    font-size: 14px;
     font-weight: 650;
 }
 
@@ -74,7 +74,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.alert-secondary,
 
 body.boltz-shell.app-shell-authenticated .boltz-content :where(.warning-note) {
     background: var(--ptg-warning-soft) !important;
-    color: var(--ptg-warning-text);
+    color: #8A5A00;
 }
 
 body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb a) {
@@ -266,7 +266,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 
 .storage-tank-card-head .ak-name {
     overflow: hidden;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -286,11 +286,11 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
 
 .storage-tank-fact-label {
     color: var(--text-secondary);
-    font-size: var(--font-body);
+    font-size: 14px;
 }
 
 .storage-tank-fact-value {
-    font-size: var(--font-body);
+    font-size: 14px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
@@ -304,7 +304,7 @@ body.boltz-shell.app-shell-authenticated .boltz-content :where(.breadcrumb-item.
     padding: 4px 8px 4px 14px;
     border-top: 1px solid var(--divider);
     color: var(--text-secondary);
-    font-size: var(--font-body);
+    font-size: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -333,7 +333,7 @@ body.boltz-shell.controller-payments:is(.action-create, .action-edit) .field-val
 /* هدر صفحه فشرده‌تر */
 body.boltz-shell.controller-payments.action-hub .page-subtitle {
     margin-bottom: .15rem;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 body.boltz-shell.controller-payments.action-hub .page-header {

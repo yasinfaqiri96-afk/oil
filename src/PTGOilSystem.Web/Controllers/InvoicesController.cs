@@ -323,7 +323,9 @@ public class InvoicesController : Controller
         {
             HeadingFa = headingFa,
             HeadingEn = headingEn,
-            Name = company is null ? "MASHAL" : DisplayName(company.NamePersian, company.Name, "MASHAL"),
+            Name = company is null
+                ? ExcelDesignSystem.OrganizationName
+                : DisplayName(company.NamePersian, company.Name, ExcelDesignSystem.OrganizationName),
             Details = CleanDetails(
                 company?.Code,
                 company?.Address,
