@@ -21,6 +21,7 @@
     <partial name="~/Views/Shared/Components/Ak/_AkPageHeader.cshtml"
              model="@((UiText.T(Context, "فاکتورهای فروش", "Sales invoices"), true, UiText.T(Context, "ثبت فاکتور فروش", "New sales invoice"), "bi-plus-lg", Url.Action("Create"), (string?)null, UiText.T(Context, "ثبت فروش گروهی", "Group sale"), "bi-collection", Url.Action("CreateGroup")))" />
     <div class="ak-page-actions mb-3">
+        <a asp-action="ImportSales" class="btn ak-secondary-action"><i class="bi bi-file-earmark-excel"></i> ایمپورت گروهی فروشات از اکسل</a>
         <partial name="~/Views/Shared/_ExportMenu.cshtml" model="@(new PTGOilSystem.Web.Services.Exports.ExportMenuModel("Export"))" />
     </div>
     @{

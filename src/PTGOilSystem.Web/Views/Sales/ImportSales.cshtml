@@ -1,0 +1,110 @@
+@model PTGOilSystem.Web.Models.Sales.SalesExcelImportViewModel
+@using PTGOilSystem.Web.Helpers
+@{
+    ViewData["Title"] = "ایمپورت گروهی فروشات از اکسل";
+    var mappings = Model.Mappings.GroupBy(m => m.ImportKey).ToDictionary(g => g.Key, g => g.First());
+}
+<div class="ak-form-page">
+    <h1>ایمپورت گروهی فروشات از اکسل</h1>
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <p class="alert alert-info">هر ردیف یک سند مستقل است. ابتدا خریدار و منبع واقعی هر فروش را تطبیق دهید و اعتبارسنجی کنید. هیچ سندی تا تأیید نهایی ثبت نمی‌شود. تکت مشترک حذف نمی‌شود.</p>
+    <form asp-action="PreviewSalesExcel" method="post" enctype="multipart/form-data" class="ak-form-section">
+        @Html.AntiForgeryToken()
+        <label for="sales-file" class="ak-label">فایل آماده‌سازی فروشات (شیت فروشات_آماده، حداکثر ۵ مگابایت)</label>
+        <input id="sales-file" name="file" type="file" accept=".xlsx" class="ak-input" required />
+        <button type="submit" class="btn ak-secondary-action">خواندن فایل و پیش‌نمایش</button>
+        <a asp-action="Index" class="btn ak-secondary-action">بازگشت به فروشات</a>
+    </form>
+    @if (Model.Rows.Count > 0)
+    {
+        <div class="ak-summary my-3">
+            <strong>@Model.Rows.Count سند مستقل</strong> · @Model.Rows.Sum(r => r.QuantityMt).ToString("N4") تن ·
+            @Model.Rows.Sum(r => r.SourceAmountUsd).ToString("N2") USD · @Model.Rows.Count(r => r.RequiresReview) ردیف نیازمند تأیید
+        </div>
+        <p class="alert alert-warning">فقط شیت فروشات_آماده خوانده شده است؛ تعدیل ۹٬۶۱۹ دالر و فروش جداگانهٔ ۵۴۴٫۹۶ تن وارد نمی‌شوند. انتخاب منبع باید با قرارداد، جواز/شرکت، محصول و محل واقعی بار مطابقت داشته باشد. موتر و رانندهٔ فایل در یادداشت مستقل سند حفظ می‌شوند.</p>
+        @if (Model.Errors.TryGetValue("", out var globalErrors))
+        { foreach (var error in globalErrors) { <p class="text-danger" role="alert">@error</p> } }
+        <form asp-action="ValidateSalesExcel" method="post" class="ak-form" id="sales-import-mappings">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="manifest" value="@Model.Manifest" />
+            <p>خریدار خودکار انتخاب نمی‌شود. برای نام‌های مشابه و فروش از طریق واسطه، طرف‌حساب اصلی را بررسی کنید. موجودی برای تاریخ هر ردیف و مجموع همهٔ ردیف‌ها دوباره بررسی می‌شود.</p>
+            <div class="ak-form-grid mb-3">
+                <div class="ak-field"><label for="import-default-source" class="ak-label">منبع مشترک (اختیاری؛ فقط ردیف‌های بدون منبع)</label>
+                    <select id="import-default-source" class="ak-input"><option value="">انتخاب منبع مشترک</option>
+                        @foreach (var item in Model.Sources) { <option value="@item.Value">@item.Text</option> }
+                    </select>
+                </div>
+                <div class="ak-field"><label for="import-default-terminal" class="ak-label">محل مشترک فروش مستقیم بارگیری (اختیاری)</label>
+                    <select id="import-default-terminal" class="ak-input"><option value="">انتخاب محل</option>
+                        @foreach (var item in Model.Terminals) { <option value="@item.Value">@item.Text</option> }
+                    </select>
+                </div>
+                <button type="button" class="btn ak-secondary-action" data-copy-source>اعمال به ردیف‌های بدون منبع</button>
+            </div>
+            <div class="ak-table-wrap">
+                <table class="ak-table">
+                    <caption>پیش‌نمایش اسناد و تطبیق مستقل هر ردیف</caption>
+                    <thead><tr><th>شناسه / سطر</th><th>تاریخ شمسی / قرارداد</th><th>خریدار فایل / تطبیق</th><th>تکت / موتر / راننده</th><th>وزن تن</th><th>نرخ USD</th><th>مبلغ USD</th><th>منبع واقعی / محل فروش بارگیری</th><th>یادداشت / بررسی</th></tr></thead>
+                    <tbody>
+                    @for (var i = 0; i < Model.Rows.Count; i++)
+                    {
+                        var row = Model.Rows[i];
+                        var m = mappings.GetValueOrDefault(row.ImportKey) ?? new PTGOilSystem.Web.Models.Sales.SalesExcelMapping { ImportKey = row.ImportKey };
+                        <tr>
+                            <td>@row.ImportKey <small>سطر @row.ExcelRow</small><input type="hidden" name="mappings[@i].ImportKey" value="@row.ImportKey" /></td>
+                            <td>@row.SaleDateSolar<br />@row.ContractNumber</td>
+                            <td>
+                                <div>@row.BuyerName</div>
+                                <select name="mappings[@i].BuyerKey" class="ak-input" aria-label="خریدار @row.ImportKey" data-buyer-name="@row.BuyerName" required>
+                                    <option value="">انتخاب خریدار فعال</option>
+                                    @foreach (var item in Model.Buyers) { <option value="@item.Value" selected="@(m.BuyerKey == item.Value)">@item.Text (@item.Group?.Name)</option> }
+                                </select>
+                                <button type="button" class="btn btn-link" data-copy-buyer>اعمال به نام یکسان</button>
+                            </td>
+                            <td>تکت: @row.TicketSerial<br />موتر: @row.TruckNumber<br />راننده: @row.DriverName</td>
+                            <td class="ak-num">@row.QuantityMt.ToString("N4")</td>
+                            <td class="ak-num">@row.UnitPriceUsd.ToString("N4")</td>
+                            <td class="ak-num">@row.SourceAmountUsd.ToString("N4")</td>
+                            <td>
+                                <select name="mappings[@i].SourceKey" class="ak-input" aria-label="منبع @row.ImportKey" required>
+                                    <option value="">انتخاب منبع واقعی</option>
+                                    @foreach (var item in Model.Sources) { <option value="@item.Value" selected="@(m.SourceKey == item.Value)">@item.Text</option> }
+                                </select>
+                                <select name="mappings[@i].SaleTerminalId" class="ak-input" aria-label="محل فروش مستقیم بارگیری @row.ImportKey">
+                                    <option value="">محل فروش (فقط منبع بارگیری)</option>
+                                    @foreach (var item in Model.Terminals) { <option value="@item.Value" selected="@(m.SaleTerminalId?.ToString() == item.Value)">@item.Text</option> }
+                                </select>
+                            </td>
+                            <td>
+                                <div>@row.Notes</div>
+                                @if (row.RequiresReview)
+                                {
+                                    <div class="text-warning">@row.ReviewReason</div>
+                                    <label><input type="checkbox" name="mappings[@i].ReviewConfirmed" value="true" checked="@m.ReviewConfirmed" /> این ردیف را بررسی و تأیید کردم</label>
+                                }
+                                <input type="text" class="ak-input" name="mappings[@i].ReviewNote" value="@m.ReviewNote" maxlength="500" aria-label="توضیح بررسی @row.ImportKey" placeholder="توضیح تأیید (برای ردیف علامت‌خورده الزامی)" />
+                                @if (Model.Errors.TryGetValue(row.ImportKey, out var errors))
+                                { foreach (var error in errors) { <div class="text-danger" role="alert">@error</div> } }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="ak-footer-actions"><button type="submit" class="btn ak-primary-action">اعتبارسنجی و آماده‌سازی تأیید نهایی</button></div>
+        </form>
+        @if (Model.ReadyManifest is not null)
+        {
+            <form asp-action="CommitSalesExcel" method="post" class="ak-form-section mt-3" id="sales-import-final">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="manifest" value="@Model.ReadyManifest" />
+                <p class="alert alert-success">پیش‌نمایش اعتبارسنجی شد. ثبت نهایی همین خریداران و منابع نمایش‌داده‌شده را استفاده می‌کند. هر تغییر در جدول نیازمند اعتبارسنجی دوباره است. در صورت خطای هر ردیف، تمام این درخواست برگشت می‌خورد.</p>
+                <label><input type="checkbox" name="confirmed" value="true" required /> ثبت @Model.Rows.Count سند با همین تطبیق‌ها، مجموع @Model.Rows.Sum(r => r.QuantityMt).ToString("N4") تن و @Model.Rows.Sum(r => r.SourceAmountUsd).ToString("N2") دالر را تأیید می‌کنم.</label>
+                <button type="submit" class="btn ak-primary-action">تأیید و ثبت نهایی تمام اسناد</button>
+            </form>
+        }
+    }
+</div>
+@section Scripts {
+    <script src="~/js/sales-excel-import.js" asp-append-version="true"></script>
+}

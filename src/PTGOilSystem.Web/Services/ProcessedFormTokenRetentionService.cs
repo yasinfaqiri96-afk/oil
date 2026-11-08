@@ -55,6 +55,8 @@ public sealed class ProcessedFormTokenRetentionService(ApplicationDbContext db, 
         var offlineReplayCutoff = CutoffUtc(Math.Max(retentionDays, OfflineReplayRetentionDays));
 
         var expired = await db.ProcessedFormTokens
+            // ImportKey is a permanent document identity, not a temporary form replay window.
+            .Where(token => token.Purpose != "Sales.ExcelImport")
             .Where(token => token.ConsumedAtUtc != null && token.ConsumedAtUtc < cutoff
                 // Durable bulk row outcomes are part of the operation's request history.
                 // Removing them could consume a still-valid partial source again on retry.
