@@ -12,6 +12,9 @@
     var selectedProductName = productNames.TryGetValue(Model.ProductId, out var productName) ? productName : "";
     var isContractLocked = Model.LockContract;
     var rowContractOptions = ViewBag.RowContractOptions as IReadOnlyList<SelectListItem> ?? Array.Empty<SelectListItem>();
+    var contractSupplierOptions = ViewBag.ContractSupplierOptions as List<(int ContractId, int SupplierId, string Name)>
+        ?? new List<(int ContractId, int SupplierId, string Name)>();
+    var multiSupplierContractIds = contractSupplierOptions.Select(o => o.ContractId).ToHashSet();
     var showRowContractSelector = ViewBag.ShowRowContractSelector as bool? == true;
     var usesCompactRowPreview = !string.IsNullOrWhiteSpace(Model.ImportedRowsJson);
     // در حالت فشرده، اسکریپت صفحه بلافاصله سطرهای دیدنی را از loadingImportedRowsData
@@ -185,13 +188,29 @@
                                         <input id="@checkboxId" type="checkbox" name="SelectedContractIds" value="@option.Value"
                                                checked="@option.Selected" disabled="@(isContractLocked ? "disabled" : null)"
                                                data-contract-product-id="@(optionProductId > 0 ? optionProductId.ToString() : null)"
-                                               data-contract-product-name="@optionProductName" data-loading-contract-checkbox />
+                                               data-contract-product-name="@optionProductName"
+                                               data-contract-multi-supplier="@(multiSupplierContractIds.Contains(optionContractId) ? "true" : null)"
+                                               data-loading-contract-checkbox />
                                         <span data-loading-contract-label>@option.Text</span>
                                     </label>
                                 }
                             </div>
                         </div>
                         <span asp-validation-for="ContractId" class="ak-field-error"></span>
+                    </div>
+                    @* قرارداد چندتأمین‌کننده: فقط وقتی قرارداد انتخاب‌شده چند تأمین‌کننده دارد دیده می‌شود؛ اختیاری است. *@
+                    <div class="ak-field @(contractSupplierOptions.Count == 0 ? "d-none" : null)" data-loading-supplier-field hidden>
+                        <label asp-for="SupplierId" class="ak-label">تأمین‌کننده (اختیاری)</label>
+                        <select asp-for="SupplierId" class="ak-input" data-loading-supplier-select>
+                            <option value="">همهٔ تأمین‌کنندگان قرارداد (به نسبت سهم)</option>
+                            @foreach (var supplierOption in contractSupplierOptions.GroupBy(o => o.SupplierId))
+                            {
+                                <option value="@supplierOption.Key"
+                                        data-contract-ids="@string.Join(" ", supplierOption.Select(o => o.ContractId))"
+                                        selected="@(Model.SupplierId == supplierOption.Key ? "selected" : null)">@supplierOption.First().Name</option>
+                            }
+                        </select>
+                        <span asp-validation-for="SupplierId" class="ak-field-error"></span>
                     </div>
                     <div class="ak-field">
                         <label asp-for="ProductId" class="ak-label">جنس</label>
@@ -554,6 +573,7 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/loading-supplier-picker.js" asp-append-version="true" defer></script>
     <script>
         (function () {
             const loadingForm = document.querySelector('[data-loading-create-form]');

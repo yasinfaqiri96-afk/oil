@@ -25,7 +25,6 @@
         : string.Empty;
     var purchaseContractNumberPreview = ViewBag.PurchaseContractNumberPreview as string ?? Model.ContractNumber;
     var saleContractNumberPreview = ViewBag.SaleContractNumberPreview as string ?? Model.ContractNumber;
-    var purchaseGroupNumberPreview = ViewBag.PurchaseGroupNumberPreview as string ?? string.Empty;
     var cancelUrl = Url.Action("Index", "Contracts") ?? "/Contracts";
 }
 
@@ -40,18 +39,6 @@
             @Html.FormToken()
             @Html.FormDraft("Contracts.Create")
             <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
-
-            <input asp-for="IsMultiSupplier" type="hidden" data-multi-supplier-flag />
-            <div class="ak-choice-grid ak-choice-grid--2 ak-choice-grid--compact" role="group" aria-label="@UiText.T(Context, "نوع ثبت قرارداد", "Contract entry type")">
-                <button type="button" class="ak-choice @(Model.IsMultiSupplier ? null : "is-selected")" aria-pressed="@(Model.IsMultiSupplier ? "false" : "true")" data-contract-mode="single">
-                    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
-                    @UiText.T(Context, "قرارداد عادی", "Standard contract")
-                </button>
-                <button type="button" class="ak-choice @(Model.IsMultiSupplier ? "is-selected" : null)" aria-pressed="@(Model.IsMultiSupplier ? "true" : "false")" data-contract-mode="multi">
-                    <i class="bi bi-people" aria-hidden="true"></i>
-                    @UiText.T(Context, "چندتأمین‌کننده", "Multi-supplier")
-                </button>
-            </div>
 
             <div >
             <section class="ak-form-section">
@@ -72,8 +59,7 @@
                                    aria-readonly="true"
                                    data-contract-number-auto
                                    data-purchase-number="@purchaseContractNumberPreview"
-                                   data-sale-number="@saleContractNumberPreview"
-                                   data-multi-supplier-number="@purchaseGroupNumberPreview" />
+                                   data-sale-number="@saleContractNumberPreview" />
                         </div>
                         <span asp-validation-for="ContractNumber" class="ak-field-error"></span>
                     </div>
@@ -123,14 +109,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="ak-field" data-contract-supplier-field data-single-contract-only>
-                        <label asp-for="SupplierId" class="ak-label">تأمین‌کننده (خرید)</label>
-                        <div >
-                            <select asp-for="SupplierId" asp-items="suppliers" class="ak-input">
-                                <option value="">—</option>
-                            </select>
-                        </div>
-                    </div>
+                    <partial name="_ContractSupplierPicker" model="Model" />
                     <div class="ak-field" data-contract-customer-field>
                         <label asp-for="CustomerId" class="ak-label">مشتری (فروش)</label>
                         <div >
@@ -236,8 +215,6 @@
                     </tr>
                 </template>
             </section>
-
-            <partial name="_PurchaseLinesSection" model="Model" />
 
             <section class="ak-form-section">
                 @await Html.PartialAsync("~/Views/Shared/Components/Ak/_AkSectionHead.cshtml", ("مقدار و قیمت‌گذاری", (string?)null))
@@ -466,7 +443,7 @@
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="~/js/contract-book-owner.js" asp-append-version="true" defer></script>
-    <script src="~/js/contract-multi-supplier.js" asp-append-version="true" defer></script>
+    <script src="~/js/contract-supplier-picker.js" asp-append-version="true" defer></script>
     <script>
         (function () {
             const ownershipType = document.getElementById('ownershipType');

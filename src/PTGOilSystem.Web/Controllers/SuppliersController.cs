@@ -401,6 +401,48 @@ public partial class SuppliersController : Controller
                     : 0m);
         }
 
+        // قرارداد چندتأمین‌کننده: هر تأمین‌کننده فقط بارگیری‌های خودش (مقدار × قیمت بارگیری،
+        // وگرنه قیمت نهایی قرارداد — همان مبنای طلب).
+        var multiContracts = await _db.Contracts
+            .AsNoTracking()
+            .Where(c => c.ContractType == ContractType.Purchase
+                && !c.IsArchived
+                && c.SupplierId == null
+                && c.ContractSuppliers.Any(s => supplierIds.Contains(s.SupplierId)))
+            .Include(c => c.ContractSuppliers)
+            .ToListAsync();
+        if (multiContracts.Count > 0)
+        {
+            var multiIds = multiContracts.Select(c => c.Id).ToList();
+            var multiPrice = multiContracts.ToDictionary(c => c.Id, c => ContractPricingAdapter.GetCanonicalFinalPrice(c));
+            var multiLoadings = await _db.LoadingRegisters
+                .AsNoTracking()
+                .Where(l => multiIds.Contains(l.ContractId) && !l.IsCancelled && !l.IsArchived && l.SupplierId != null)
+                .Select(l => new { l.ContractId, SupplierId = l.SupplierId!.Value, l.LoadedQuantityMt, l.LoadingPriceUsd })
+                .ToListAsync();
+            foreach (var contract in multiContracts)
+            {
+                foreach (var supplierId in contract.ContractSuppliers.Select(s => s.SupplierId).Distinct())
+                {
+                    if (!bySupplierId.TryGetValue(supplierId, out var item))
+                    {
+                        continue;
+                    }
+
+                    var own = multiLoadings.Where(l => l.ContractId == contract.Id && l.SupplierId == supplierId).ToList();
+                    item.PurchaseContractsCount++;
+                    if (contract.Status == ContractStatus.Active)
+                    {
+                        item.ActivePurchaseContractsCount++;
+                    }
+
+                    item.TotalPurchaseQuantityMt += own.Sum(l => l.LoadedQuantityMt);
+                    item.LoadedPurchaseValueUsd += own.Sum(l =>
+                        l.LoadedQuantityMt * (l.LoadingPriceUsd is > 0m ? l.LoadingPriceUsd.Value : multiPrice[contract.Id] ?? 0m));
+                }
+            }
+        }
+
         // AUD-05: ماندهٔ List از همان bulk read-model رسمی می‌آید که Management استفاده می‌کند.
         // این مسیر با PartyStatement در policy/direction/closing formula مشترک است؛ List دیگر
         // Debit/Credit یا LoadedValue-Paid را به‌عنوان «Balance» دوباره محاسبه نمی‌کند.
@@ -486,7 +528,8 @@ public partial class SuppliersController : Controller
             .AsNoTracking()
             .Include(c => c.Product)
             // قرارداد لغوشدهٔ آرشیف‌شده (حذف از فهرست) در پروفایل تأمین‌کننده نمی‌آید.
-            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == supplier.Id && !c.IsArchived)
+            .Where(c => c.ContractType == ContractType.Purchase && !c.IsArchived)
+            .Where(ContractSupplierScope.HasSupplier(supplier.Id))
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .ToListAsync();
@@ -794,10 +837,12 @@ public partial class SuppliersController : Controller
             c => ContractPricingAdapter.GetCanonicalFinalPrice(c));
         var purchaseAggregates = await _purchaseAggregation.AggregateForContractsAsync(
             contractIds.ToList(),
-            finalPriceByContract);
+            finalPriceByContract,
+            supplierId: supplier.Id);
         var loadingRubRows = await _db.LoadingRegisters
             .AsNoTracking()
             .Where(l => contractIds.Contains(l.ContractId))
+            .Where(l => l.SupplierId == null || l.SupplierId == supplier.Id)
             .Select(l => new SupplierLoadingRubProjection
             {
                 ContractId = l.ContractId,

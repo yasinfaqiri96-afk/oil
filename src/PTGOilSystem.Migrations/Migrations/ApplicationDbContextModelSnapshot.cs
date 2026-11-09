@@ -2188,6 +2188,48 @@ namespace PTGOilSystem.Web.Migrations
                     b.ToTable("ContractPricingRules");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ContractSupplier", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("QuantityMt")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("UnitPriceUsd")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("ContractId", "SupplierId")
+                        .IsUnique();
+
+                    b.ToTable("ContractSuppliers");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.Currency", b =>
                 {
                     b.Property<int>("Id")
@@ -4672,6 +4714,12 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("AppliedFxRateToUsd")
                         .HasColumnType("numeric(24,12)");
 
+                    b.Property<decimal?>("BasisQuantityMt")
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int?>("CalculationMethod")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("CashAccountId")
                         .HasColumnType("integer");
 
@@ -4737,6 +4785,9 @@ namespace PTGOilSystem.Web.Migrations
 
                     b.Property<int?>("OperationalAssetId")
                         .HasColumnType("integer");
+
+                    b.Property<decimal?>("RatePerMt")
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<int?>("RelatedPaymentTransactionId")
                         .HasColumnType("integer");
@@ -7210,6 +7261,9 @@ namespace PTGOilSystem.Web.Migrations
                     b.Property<decimal?>("SettlementValueRub")
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TransitNumber")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -7261,6 +7315,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.HasIndex("ProductId");
 
                     b.HasIndex("SearchKey");
+
+                    b.HasIndex("SupplierId");
 
                     b.HasIndex("TruckId");
 
@@ -11978,6 +12034,25 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("Contract");
                 });
 
+            modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.ContractSupplier", b =>
+                {
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
+                        .WithMany("ContractSuppliers")
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("Supplier");
+                });
+
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.CustodyConversion", b =>
                 {
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Contract", "Contract")
@@ -13707,6 +13782,11 @@ namespace PTGOilSystem.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PTGOilSystem.Web.Models.Entities.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PTGOilSystem.Web.Models.Entities.Truck", "Truck")
                         .WithMany()
                         .HasForeignKey("TruckId");
@@ -13724,6 +13804,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("OriginLocation");
 
                     b.Navigation("Product");
+
+                    b.Navigation("Supplier");
 
                     b.Navigation("Truck");
 
@@ -14835,6 +14917,8 @@ namespace PTGOilSystem.Web.Migrations
                     b.Navigation("ChildContracts");
 
                     b.Navigation("ContractPartners");
+
+                    b.Navigation("ContractSuppliers");
                 });
 
             modelBuilder.Entity("PTGOilSystem.Web.Models.Entities.CustodyLot", b =>

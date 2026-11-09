@@ -1134,6 +1134,51 @@
                 </ol>
             </section>
 
+            @if (Model.SupplierTerms.Count > 0)
+            {
+                var termsQuantity = Model.SupplierTerms.Sum(t => t.QuantityMt ?? 0m);
+                var termsValue = Model.SupplierTerms.Sum(t => t.PurchaseValueUsd ?? 0m);
+                var termsComplete = Model.SupplierTerms.All(t => t.PurchaseValueUsd.HasValue);
+                <section class="ak-form-section ak-detail-section" data-contract-supplier-terms>
+                    <partial name="~/Views/Shared/Components/Ak/_AkSectionHead.cshtml"
+                             model="@((T("تأمین‌کنندگان قرارداد", "Contract suppliers"), (string?)T("یک قرارداد با چند تأمین‌کننده؛ بارگیری بدون تأمین‌کنندهٔ مشخص به نسبت ارزش خرید هر نفر به حساب او ثبت می‌شود.", "One contract with several suppliers; a loading without a named supplier is booked to each supplier by purchase-value share.")))" />
+                    <div class="ak-table-wrap">
+                        <table class="ak-table ak-detail-table">
+                            <thead>
+                                <tr>
+                                    <th class="ak-col-grow">@T("تأمین‌کننده", "Supplier")</th>
+                                    <th class="ak-col-num">@T("مقدار (تُن)", "Quantity (MT)")</th>
+                                    <th class="ak-col-num">@T("قیمت فی تُن", "Price / MT")</th>
+                                    <th class="ak-col-num">@T("مجموع خرید", "Purchase value")</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var term in Model.SupplierTerms)
+                                {
+                                    <tr>
+                                        <td class="ak-col-grow"><a asp-controller="Suppliers" asp-action="Details" asp-route-id="@term.SupplierId" class="ak-name">@term.SupplierName</a></td>
+                                        <td class="ak-col-num ak-num">@(term.QuantityMt?.ToString("N4") ?? "—")</td>
+                                        <td class="ak-col-num ak-num">@(term.UnitPriceUsd.HasValue ? $"{term.UnitPriceUsd.Value:N4} {UnitUsd()}" : "—")</td>
+                                        <td class="ak-col-num ak-num">@(term.PurchaseValueUsd.HasValue ? $"{term.PurchaseValueUsd.Value:N2} {UnitUsd()}" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            @if (termsComplete && termsQuantity > 0m)
+                            {
+                                <tfoot>
+                                    <tr>
+                                        <th class="ak-col-grow">@T("جمع قرارداد", "Contract total")</th>
+                                        <th class="ak-col-num ak-num">@termsQuantity.ToString("N4")</th>
+                                        <th class="ak-col-num ak-num">@((termsValue / termsQuantity).ToString("N4")) @UnitUsd() <span class="ak-note">@T("میانگین موزون", "weighted avg")</span></th>
+                                        <th class="ak-col-num ak-num">@termsValue.ToString("N2") @UnitUsd()</th>
+                                    </tr>
+                                </tfoot>
+                            }
+                        </table>
+                    </div>
+                </section>
+            }
+
             @if (Model.PurchaseContractGroupId is { } purchaseGroupId)
             {
                 <p class="ak-note no-print" data-purchase-group-link>
@@ -1401,6 +1446,9 @@
                                             <thead>
                                                 <tr>
                                                     <th class="ak-col-grow">@T("شرح", "Description")</th>
+                                                    <th>@T("روش محاسبه", "Method")</th>
+                                                    <th class="ak-col-num">@T("مقدار تُن", "Quantity MT")</th>
+                                                    <th class="ak-col-num">@T("نرخ فی تُن", "Rate / MT")</th>
                                                     <th>@T("تاریخ", "Date")</th>
                                                     <th class="ak-col-num">@T("مبلغ", "Amount")</th>
                                                     <th class="ak-col-actions">@T("عملیات", "Actions")</th>
@@ -1415,6 +1463,10 @@
                                                             @(!string.IsNullOrWhiteSpace(item.Description) ? item.Description : item.ExpenseTypeName)
                                                         </a>
                                                     </td>
+                                                    @{ var isPerTonExpense = item.CalculationMethod == ExpenseCalculationMethod.PerTon; }
+                                                    <td>@(isPerTonExpense ? T("بر اساس تُن", "Per ton") : T("مبلغ ثابت", "Fixed amount"))</td>
+                                                    <td class="ak-col-num ak-num">@(isPerTonExpense && item.BasisQuantityMt.HasValue ? item.BasisQuantityMt.Value.ToString("N4") : "—")</td>
+                                                    <td class="ak-col-num ak-num">@(isPerTonExpense && item.RatePerMt.HasValue ? $"{item.RatePerMt.Value:N4} {item.Currency}" : "—")</td>
                                                     <td>@item.ExpenseDate.ToDisplayDate()</td>
                                                     <td class="ak-col-num ak-num">@item.AmountUsd.ToString("N2") @UnitUsd()</td>
                                                     <td class="ak-col-actions">
@@ -1465,6 +1517,13 @@
                         </table>
                     </div>
                     @await DetailPager("expensesPage", expensesPage, expensesPageCount)
+                    <p class="ak-note" data-contract-expense-per-mt>
+                        @T("مجموع مصارف قرارداد", "Contract expenses total"): @filteredExpenseTotalUsd.ToString("N2") @UnitUsd() ·
+                        @T("میانگین مصرف هر تُن قرارداد", "Average expense per contract MT"):
+                        @(Model.ContractQuantityMt > 0m
+                            ? $"{decimal.Round(filteredExpenseTotalUsd / Model.ContractQuantityMt, 4, MidpointRounding.AwayFromZero):N4} {UnitUsd()}/{UnitMt()}"
+                            : T("مقدار قرارداد صفر است؛ تقسیم انجام نمی‌شود", "Contract quantity is zero; not divided"))
+                    </p>
                     <p class="ak-note">
                         @T("مصرف عمومی هر 1 تن بارگیری", "General expense per 1 MT loaded"):
                         @(expensePerLoadedMt.HasValue ? $"{expensePerLoadedMt.Value:N2} {UnitUsd()}/{UnitMt()}" : T("نیاز به بارگیری", "Loading required")) ·

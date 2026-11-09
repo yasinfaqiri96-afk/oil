@@ -165,7 +165,9 @@ public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocatio
                 "قرارداد باید قرارداد خرید باشد.");
         }
 
-        if (contract.SupplierId != payment.SupplierId)
+        if (!payment.SupplierId.HasValue
+            || await ContractSupplierScope.IsForeignSupplierAsync(_db, contract, payment.SupplierId.Value, ct)
+            || (!contract.SupplierId.HasValue && !await ContractSupplierScope.IsMultiSupplierAsync(_db, contract.Id, ct)))
         {
             throw new BusinessRuleException(
                 "SUPPLIER_PAYMENT_ALLOCATION_SUPPLIER_MISMATCH",

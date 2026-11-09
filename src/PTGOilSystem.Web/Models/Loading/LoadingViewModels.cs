@@ -14,6 +14,13 @@ public sealed class LoadingCreateViewModel
 
     public List<int> SelectedContractIds { get; set; } = [];
 
+    /// <summary>
+    /// تأمین‌کنندهٔ این بارگیری‌ها در قرارداد چندتأمین‌کننده (اجباری همان‌جا). برای قرارداد عادی
+    /// نادیده گرفته می‌شود و طلب مثل قبل به تأمین‌کنندهٔ قرارداد می‌رسد.
+    /// </summary>
+    [Display(Name = "تأمین‌کننده")]
+    public int? SupplierId { get; set; }
+
     [Display(Name = "جنس")]
     [Range(1, int.MaxValue, ErrorMessage = "انتخاب جنس الزامی است.")]
     public int ProductId { get; set; }
@@ -565,6 +572,8 @@ public sealed class LoadingEditViewModel
 
     public string ContractNumber { get; set; } = "";
     public string ProductName { get; set; } = "";
+    // فقط نمایش: تأمین‌کنندهٔ بارگیری در قرارداد چندتأمین‌کننده (بعد از ثبت قابل تغییر نیست).
+    public string? SupplierName { get; set; }
     public string VehicleSummary { get; set; } = "";
 
     [Display(Name = "وزن بارگیری‌شده (MT)")]

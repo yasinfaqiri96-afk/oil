@@ -118,7 +118,7 @@ public sealed class MaintenanceController : Controller
             .Include(l => l.Contract)
             .Where(l => l.Contract != null
                 && l.Contract.ContractType == ContractType.Purchase
-                && l.Contract.SupplierId != null
+                && (l.Contract.SupplierId != null || l.SupplierId != null)
                 && l.LoadedQuantityMt > 0m
                 && l.LoadingPriceUsd != null
                 && l.LoadingPriceUsd > 0m)
@@ -140,7 +140,7 @@ public sealed class MaintenanceController : Controller
 
         // حالت dry-run هیچ سطری نمی‌نویسد، پس فقط درخواست‌ها ساخته می‌شوند.
         var requests = candidates
-            .Select(l => SupplierLoadingLedger.Create(l, l.Contract!))
+            .SelectMany(l => SupplierLoadingLedger.CreateAll(l, l.Contract!))
             .ToList();
         var totalUsd = requests.Sum(e => e.AmountUsd);
 

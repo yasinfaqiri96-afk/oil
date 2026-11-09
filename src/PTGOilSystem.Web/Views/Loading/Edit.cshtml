@@ -23,6 +23,10 @@
             <dl class="ak-form-grid">
                 <div class="ak-field"><dt class="ak-label">قرارداد</dt><dd>@Model.ContractNumber</dd></div>
                 <div class="ak-field"><dt class="ak-label">محصول</dt><dd>@Model.ProductName</dd></div>
+                @if (!string.IsNullOrWhiteSpace(Model.SupplierName))
+                {
+                    <div class="ak-field"><dt class="ak-label">تأمین‌کننده</dt><dd>@Model.SupplierName</dd></div>
+                }
                 <div class="ak-field"><dt class="ak-label">وسیله حمل</dt><dd>@Model.VehicleSummary</dd></div>
             </dl>
         </section>

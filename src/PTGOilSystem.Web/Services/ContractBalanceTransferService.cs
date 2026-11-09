@@ -212,6 +212,16 @@ public sealed class ContractBalanceTransferService : IContractBalanceTransferSer
                 "قرارداد مقصد معتبر نیست.");
         }
 
+        // ماندهٔ قرارداد چندتأمین‌کننده بین چند تأمین‌کننده تقسیم است و یک مبلغ واحد ندارد؛
+        // انتقالش به تصمیم تجاری جدا نیاز دارد، پس فعلاً پذیرفته نمی‌شود.
+        if (await _db.ContractSuppliers.AsNoTracking()
+                .AnyAsync(s => s.ContractId == fromContract.Id || s.ContractId == toContract.Id, ct))
+        {
+            throw new BusinessRuleException(
+                "CONTRACT_BALANCE_TRANSFER_MULTI_SUPPLIER",
+                "انتقال مانده برای قرارداد چندتأمین‌کننده پشتیبانی نمی‌شود؛ از انتقال ماندهٔ تأمین‌کننده استفاده کنید.");
+        }
+
         if (request.OriginalPaymentTransactionId.HasValue)
         {
             var paymentExists = await _db.PaymentTransactions

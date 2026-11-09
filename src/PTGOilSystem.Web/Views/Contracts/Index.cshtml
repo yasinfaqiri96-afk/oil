@@ -24,7 +24,10 @@
         };
 
     string PartyName(Contract contract)
-        => DashIfEmpty(contract.ContractType == ContractType.Purchase ? contract.Supplier?.Name : contract.Customer?.Name);
+        => DashIfEmpty(contract.ContractType == ContractType.Purchase
+            // قرارداد چندتأمین‌کننده: همهٔ نام‌ها.
+            ? contract.Supplier?.Name ?? string.Join("، ", contract.ContractSuppliers.Select(s => s.Supplier?.Name).Where(n => !string.IsNullOrWhiteSpace(n)))
+            : contract.Customer?.Name);
 
     string UnitName(Contract contract)
         => DashIfEmpty(contract.Unit?.Symbol ?? contract.Unit?.Code ?? contract.Unit?.Name ?? contract.Product?.UnitOfMeasure);

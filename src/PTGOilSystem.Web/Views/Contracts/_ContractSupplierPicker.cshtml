@@ -1,0 +1,63 @@
+@model PTGOilSystem.Web.Models.Contracts.ContractFormViewModel
+@{
+    // فیلد تأمین‌کنندهٔ قرارداد خرید: یک تأمین‌کننده (قرارداد عادی) یا چند تأمین‌کننده در همین
+    // یک قرارداد. در حالت چندتأمین‌کننده مقدار و قیمت فی تُن هر نفر جدا ثبت می‌شود؛ مقدار قرارداد
+    // جمع مقدارها و قیمت قرارداد میانگین موزون است (سرور دوباره محاسبه می‌کند).
+    var suppliers = (ViewBag.Suppliers as Microsoft.AspNetCore.Mvc.Rendering.SelectList)?.ToList()
+        ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var additional = Model.AdditionalSupplierIds ?? new List<int?>();
+    var quantities = Model.AdditionalSupplierQuantitiesMt ?? new List<decimal?>();
+    var prices = Model.AdditionalSupplierUnitPricesUsd ?? new List<decimal?>();
+    string T(string fa, string en) => UiText.T(Context, fa, en);
+    string Num(decimal? value) => value?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+}
+<div class="ak-field" data-contract-supplier-field data-contract-supplier-picker>
+    <label asp-for="SupplierId" class="ak-label">@T("تأمین‌کننده (خرید)", "Supplier (purchase)")</label>
+    <select asp-for="SupplierId" asp-items="suppliers" class="ak-input">
+        <option value="">—</option>
+    </select>
+    <span asp-validation-for="SupplierId" class="ak-field-error"></span>
+    <div class="d-flex gap-2 mt-2" data-supplier-terms-primary hidden>
+        <input name="PrimarySupplierQuantityMt" value="@Num(Model.PrimarySupplierQuantityMt)" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-qty placeholder="@T("مقدار (تُن)", "Quantity (MT)")" aria-label="@T("مقدار (تُن)", "Quantity (MT)")" />
+        <input name="PrimarySupplierUnitPriceUsd" value="@Num(Model.PrimarySupplierUnitPriceUsd)" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-price placeholder="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" aria-label="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" />
+    </div>
+    <div data-extra-supplier-list>
+        @for (var i = 0; i < additional.Count; i++)
+        {
+            var selectedId = additional[i]?.ToString();
+            <div class="d-flex gap-2 mt-2" data-extra-supplier-row>
+                <select name="AdditionalSupplierIds[@i]" class="ak-input" aria-label="@T("تأمین‌کنندهٔ دیگر", "Additional supplier")">
+                    <option value="">—</option>
+                    @foreach (var supplier in suppliers)
+                    {
+                        <option value="@supplier.Value" selected="@(supplier.Value == selectedId ? "selected" : null)">@supplier.Text</option>
+                    }
+                </select>
+                <input name="AdditionalSupplierQuantitiesMt[@i]" value="@Num(i < quantities.Count ? quantities[i] : null)" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-qty placeholder="@T("مقدار (تُن)", "Quantity (MT)")" aria-label="@T("مقدار (تُن)", "Quantity (MT)")" />
+                <input name="AdditionalSupplierUnitPricesUsd[@i]" value="@Num(i < prices.Count ? prices[i] : null)" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-price placeholder="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" aria-label="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" />
+                <button type="button" class="ak-cancel" data-remove-extra-supplier>@T("حذف", "Remove")</button>
+            </div>
+        }
+    </div>
+    <button type="button" class="btn ak-secondary-action is-soft mt-2" data-add-extra-supplier>
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        @T("تأمین‌کنندهٔ دیگر", "Another supplier")
+    </button>
+    <span class="ak-note" data-supplier-terms-summary hidden></span>
+    <span class="ak-note">@T("با بیش از یک تأمین‌کننده، مقدار و قیمت هر نفر جدا ثبت می‌شود و همین قرارداد چندتأمین‌کننده می‌شود؛ مقدار قرارداد جمع مقدارها و قیمت آن میانگین موزون است. بارگیری‌ها به خودِ قرارداد ثبت می‌شوند.", "With more than one supplier, each supplier's quantity and price are recorded and this single contract becomes multi-supplier; contract quantity is the sum and its price the weighted average. Loadings belong to the contract.")</span>
+    <span asp-validation-for="AdditionalSupplierIds" class="ak-field-error"></span>
+    <template data-extra-supplier-template>
+        <div class="d-flex gap-2 mt-2" data-extra-supplier-row>
+            <select name="AdditionalSupplierIds[__index__]" class="ak-input" aria-label="@T("تأمین‌کنندهٔ دیگر", "Additional supplier")">
+                <option value="">—</option>
+                @foreach (var supplier in suppliers)
+                {
+                    <option value="@supplier.Value">@supplier.Text</option>
+                }
+            </select>
+            <input name="AdditionalSupplierQuantitiesMt[__index__]" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-qty placeholder="@T("مقدار (تُن)", "Quantity (MT)")" aria-label="@T("مقدار (تُن)", "Quantity (MT)")" />
+            <input name="AdditionalSupplierUnitPricesUsd[__index__]" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-supplier-term-price placeholder="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" aria-label="@T("قیمت فی تُن (USD)", "Price per MT (USD)")" />
+            <button type="button" class="ak-cancel" data-remove-extra-supplier>@T("حذف", "Remove")</button>
+        </div>
+    </template>
+</div>

@@ -53,6 +53,18 @@ public sealed class ExpenseCreateViewModel
         set => Amount = value;
     }
 
+    /// <summary>روش محاسبهٔ مبلغ: «مبلغ ثابت» (پیش‌فرض) یا «بر اساس تُن» (مقدار × نرخ).</summary>
+    [Display(Name = "روش محاسبه")]
+    public PTGOilSystem.Web.Models.Entities.ExpenseCalculationMethod CalculationMethod { get; set; }
+        = PTGOilSystem.Web.Models.Entities.ExpenseCalculationMethod.FixedAmount;
+
+    /// <summary>مقدار مبنای مصرف بر اساس تُن؛ مقدار خرید، موجودی یا بارگیری را تغییر نمی‌دهد.</summary>
+    [Display(Name = "مقدار (تُن)")]
+    public decimal? BasisQuantityMt { get; set; }
+
+    [Display(Name = "مبلغ فی تُن")]
+    public decimal? RatePerMt { get; set; }
+
     [Display(Name = "ارز")]
     [Required(ErrorMessage = "ارز الزامی است.")]
     [StringLength(10)]

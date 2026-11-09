@@ -221,7 +221,8 @@
                 return;
             }
 
-            const belongsToSupplier = option.dataset.supplierId === supplierId;
+            // قرارداد چندتأمین‌کننده چند شناسه با فاصله دارد.
+            const belongsToSupplier = (option.dataset.supplierId || "").split(" ").includes(supplierId);
             const isPurchase = option.dataset.contractType === "Purchase";
             const visible = !supplierMode || (Boolean(supplierId) && isPurchase && belongsToSupplier);
 

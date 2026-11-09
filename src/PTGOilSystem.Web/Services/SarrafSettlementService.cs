@@ -419,7 +419,8 @@ public sealed class SarrafSettlementService : ISarrafSettlementService
                 throw new InvalidOperationException("Contract can be attached only to supplier settlements.");
             }
 
-            if (command.SupplierId.HasValue && contract.SupplierId.HasValue && contract.SupplierId.Value != command.SupplierId.Value)
+            if (command.SupplierId.HasValue
+                && await ContractSupplierScope.IsForeignSupplierAsync(_db, contract, command.SupplierId.Value))
             {
                 throw new InvalidOperationException("Supplier does not match the selected contract.");
             }

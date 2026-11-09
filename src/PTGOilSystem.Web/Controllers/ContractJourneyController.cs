@@ -230,6 +230,26 @@ public partial class ContractJourneyController : Controller
             : [];
 
         var pricingResult = await _pricing.CalculateContractPriceAsync(contract);
+        // قرارداد چندتأمین‌کننده: همهٔ تأمین‌کننده‌ها در سرصفحه.
+        var multiSupplierNames = contract.SupplierId.HasValue
+            ? null
+            : (await ContractSupplierScope.MultiSupplierNamesAsync(_db, [contract.Id])).GetValueOrDefault(contract.Id);
+        var supplierTerms = contract.SupplierId.HasValue || !needsSummaryContext
+            ? new List<ContractJourneySupplierTermItemViewModel>()
+            : (await _db.ContractSuppliers.AsNoTracking()
+                    .Where(s => s.ContractId == contract.Id)
+                    .OrderBy(s => s.Id)
+                    .Select(s => new { s.SupplierId, Name = s.Supplier != null ? s.Supplier.Name : "", s.QuantityMt, s.UnitPriceUsd })
+                    .ToListAsync())
+                .Select(s => new ContractJourneySupplierTermItemViewModel
+                {
+                    SupplierId = s.SupplierId,
+                    SupplierName = s.Name,
+                    QuantityMt = s.QuantityMt,
+                    UnitPriceUsd = s.UnitPriceUsd,
+                    PurchaseValueUsd = new ContractSupplier { QuantityMt = s.QuantityMt, UnitPriceUsd = s.UnitPriceUsd }.PurchaseValueUsd
+                })
+                .ToList();
         var journeyReturnUrl = $"/ContractJourney/Details?contractId={contract.Id}&tab={activeTab}&lockContract={lockContract.ToString().ToLowerInvariant()}";
         var editPricingUrl = $"/Contracts/EditPricing/{contract.Id}?returnUrl={Uri.EscapeDataString(journeyReturnUrl)}";
 
@@ -245,7 +265,7 @@ public partial class ContractJourneyController : Controller
             CompanyName = contract.Company?.Name ?? string.Empty,
             ProductName = contract.Product?.Name ?? string.Empty,
             ContractUnitText = contract.Unit?.Symbol ?? contract.Unit?.Code ?? contract.Unit?.NamePersian ?? contract.Unit?.Name ?? "—",
-            SupplierName = contract.Supplier?.Name,
+            SupplierName = contract.Supplier?.Name ?? multiSupplierNames,
             CustomerName = contract.Customer?.Name,
             ContractQuantityMt = contract.QuantityMt,
             HasMixedLoadingPrices = hasMixedLoadingPrices,
@@ -259,6 +279,7 @@ public partial class ContractJourneyController : Controller
             SubContractItems = subContractItems,
             IsPartnershipContract = contract.OwnershipType == ContractOwnershipType.Partnership,
             PartnerShareItems = partnerShareItems,
+            SupplierTerms = supplierTerms,
             Currency = contract.Currency,
             PriceDisplay = ToResolvedPriceDisplay(contract, pricingResult),
             PricingMethodName = ToPricingMethodName(contract),
@@ -1388,6 +1409,10 @@ public partial class ContractJourneyController : Controller
                     ExpenseTypeName = e.ExpenseType?.NamePersian ?? e.ExpenseType?.Name ?? string.Empty,
                     ExpenseDate = e.ExpenseDate,
                     AmountUsd = e.AmountUsd,
+                    CalculationMethod = e.CalculationMethod,
+                    BasisQuantityMt = e.BasisQuantityMt,
+                    RatePerMt = e.RatePerMt,
+                    Currency = e.Currency,
                     ShipmentCode = e.Shipment?.ShipmentCode,
                     TransportLegId = transportLeg?.Id,
                     TransportLegLabel = transportLeg is null ? null : BuildTransportLegReference(transportLeg),
@@ -2055,6 +2080,7 @@ public partial class ContractJourneyController : Controller
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
+            SupplierTerms = baseModel.SupplierTerms,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -2791,6 +2817,7 @@ public partial class ContractJourneyController : Controller
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
+            SupplierTerms = baseModel.SupplierTerms,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -3855,6 +3882,7 @@ public partial class ContractJourneyController : Controller
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
+            SupplierTerms = baseModel.SupplierTerms,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,
@@ -4355,6 +4383,10 @@ public partial class ContractJourneyController : Controller
                 ExpenseTypeName = e.ExpenseType?.NamePersian ?? e.ExpenseType?.Name ?? string.Empty,
                 ExpenseDate = e.ExpenseDate,
                 AmountUsd = e.AmountUsd,
+                CalculationMethod = e.CalculationMethod,
+                BasisQuantityMt = e.BasisQuantityMt,
+                RatePerMt = e.RatePerMt,
+                Currency = e.Currency,
                 Description = e.Description,
                 TraceKind = "مستقیم از قرارداد فروش"
             })
@@ -4549,6 +4581,7 @@ public partial class ContractJourneyController : Controller
             SubContractItems = baseModel.SubContractItems,
             IsPartnershipContract = baseModel.IsPartnershipContract,
             PartnerShareItems = baseModel.PartnerShareItems,
+            SupplierTerms = baseModel.SupplierTerms,
             Currency = baseModel.Currency,
             PriceDisplay = baseModel.PriceDisplay,
             PricingMethodName = baseModel.PricingMethodName,

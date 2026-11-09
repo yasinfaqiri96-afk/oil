@@ -278,7 +278,11 @@ public sealed class SupplierPaymentAllocationAccountingAdapter(
             return (0, "NOT_SUPPLIER_PAYMENT");
         if (contract.ContractType != ContractType.Purchase)
             return (0, "CONTRACT_NOT_PURCHASE");
-        if (contract.SupplierId != payment.SupplierId)
+        // قرارداد چندتأمین‌کننده: هر تأمین‌کنندهٔ همان قرارداد؛ قرارداد عادی: همان شرط قبلی.
+        if (contract.SupplierId.HasValue
+                ? contract.SupplierId != payment.SupplierId
+                : !await db.ContractSuppliers.AsNoTracking().AnyAsync(
+                    s => s.ContractId == contract.Id && s.SupplierId == payment.SupplierId.Value, cancellationToken))
             return (0, "SUPPLIER_MISMATCH");
         if (allocation.AllocatedPaymentAmount <= 0m
             || allocation.AllocatedBookAmountUsd <= 0m

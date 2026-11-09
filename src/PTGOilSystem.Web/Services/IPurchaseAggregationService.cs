@@ -53,7 +53,8 @@ public interface IPurchaseAggregationService
     Task<IReadOnlyDictionary<int, PurchaseAggregationSnapshot>> AggregateForContractsAsync(
         IReadOnlyCollection<int> contractIds,
         IReadOnlyDictionary<int, decimal?> contractFinalPriceById,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? supplierId = null);
 
     /// <summary>
     /// Returns the simple <c>sum(LoadedQuantityMt)</c> per contract. Used

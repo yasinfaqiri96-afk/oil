@@ -103,7 +103,9 @@ public sealed class GoodsInTransitReader(ApplicationDbContext db, IAfghanistanBu
                 l.LoadingDate,
                 ProductName = l.Product != null ? l.Product.Name : "",
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null,
-                SupplierName = l.Contract != null && l.Contract.Supplier != null ? l.Contract.Supplier.Name : null,
+                SupplierName = l.Supplier != null
+                    ? l.Supplier.Name
+                    : l.Contract != null && l.Contract.Supplier != null ? l.Contract.Supplier.Name : null,
                 OriginName = l.OriginLocation != null ? l.OriginLocation.Name : null,
                 l.DestinationName,
                 l.ConsigneeName,

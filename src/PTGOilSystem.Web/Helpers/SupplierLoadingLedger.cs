@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using PTGOilSystem.Web.Models.Entities;
 using PTGOilSystem.Web.Services;
 using PTGOilSystem.Web.Services.Ledger;
@@ -27,9 +29,10 @@ public static class SupplierLoadingLedger
     {
         ArgumentNullException.ThrowIfNull(loading);
 
+        // قرارداد چندتأمین‌کننده و بارگیری بدون تأمین‌کننده: فقط وقتی سهم هر تأمین‌کننده قطعی است.
         if (contract is null
             || contract.ContractType != ContractType.Purchase
-            || !contract.SupplierId.HasValue)
+            || ContractSupplierScope.PayableShares(loading, contract) is null)
         {
             return false;
         }
@@ -74,29 +77,74 @@ public static class SupplierLoadingLedger
     /// </summary>
     public static LedgerPostingRequest Create(LoadingRegister loading, Contract contract)
     {
+        var requests = CreateAll(loading, contract);
+        if (requests.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"Loading #{loading.Id} is split between {requests.Count} suppliers; use CreateAll.");
+        }
+
+        return requests[0];
+    }
+
+    /// <summary>
+    /// سطرهای طلب این بارگیری: یک سطر برای بارگیری/قرارداد تک‌تأمین‌کننده (دقیقاً مثل قبل)، یا یک
+    /// سطر برای هر تأمین‌کنندهٔ قرارداد چندتأمین‌کننده وقتی بارگیری تأمین‌کننده ندارد. جمع مبلغ سطرها
+    /// همیشه برابر ارزش بارگیری است؛ بدهی دوباره ساخته نمی‌شود.
+    /// </summary>
+    public static IReadOnlyList<LedgerPostingRequest> CreateAll(LoadingRegister loading, Contract contract)
+    {
         ArgumentNullException.ThrowIfNull(loading);
         ArgumentNullException.ThrowIfNull(contract);
 
+        var shares = ContractSupplierScope.PayableShares(loading, contract)
+            ?? throw new InvalidOperationException($"Loading #{loading.Id} has no payable supplier.");
         var snapshot = BuildSnapshot(loading);
+        var amountParts = ContractSupplierScope.SplitAmount(snapshot?.AmountUsd ?? 0m, shares);
+        var sourceParts = snapshot is null ? null : ContractSupplierScope.SplitAmount(snapshot.SourceAmount, shares);
 
+        return amountParts
+            .Select((part, index) => Build(
+                loading,
+                contract,
+                snapshot,
+                part.SupplierId,
+                part.Amount,
+                sourceParts?[index].Amount,
+                shares.Count > 1))
+            .ToList();
+    }
+
+    private static LedgerPostingRequest Build(
+        LoadingRegister loading,
+        Contract contract,
+        LoadingLedgerSnapshot? snapshot,
+        int supplierId,
+        decimal amountUsd,
+        decimal? sourceAmount,
+        bool isShare)
+    {
         return new LedgerPostingRequest
         {
             Side = LedgerSide.Credit,
             Currency = SystemCurrency.BaseCurrencyCode,
             SourceCurrencyCode = snapshot?.SourceCurrencyCode
                 ?? (HasRubLockSnapshot(loading) ? "RUB" : SystemCurrency.BaseCurrencyCode),
-            Description = $"بدهی تأمین‌کننده بابت بارگیری #{loading.Id}",
+            Description = isShare
+                ? $"سهم تأمین‌کننده از بارگیری #{loading.Id}"
+                : $"بدهی تأمین‌کننده بابت بارگیری #{loading.Id}",
             SourceType = SourceType,
             SourceId = loading.Id,
             Reference = BuildReference(loading),
             ContractId = contract.Id,
-            SupplierId = contract.SupplierId!.Value,
+            // تأمین‌کنندهٔ بارگیری، تأمین‌کنندهٔ قرارداد، یا سهم‌دار قرارداد چندتأمین‌کننده.
+            SupplierId = supplierId,
 
             // وقتی snapshot وجود ندارد (بارگیری دالریِ بی‌قیمت) مقادیر دقیقاً همان
             // پیش‌فرض‌هایی می‌مانند که ApplySnapshot هم دست نمی‌زد.
             EntryDate = snapshot?.EntryDate ?? default,
-            AmountUsd = snapshot?.AmountUsd ?? 0m,
-            SourceAmount = snapshot?.SourceAmount,
+            AmountUsd = amountUsd,
+            SourceAmount = sourceAmount,
             AppliedFxRateToUsd = snapshot?.AppliedFxRateToUsd,
             AppliedFxRateDate = snapshot?.AppliedFxRateDate,
             AppliedFxRateSource = snapshot?.AppliedFxRateSource,
@@ -157,6 +205,23 @@ public static class SupplierLoadingLedger
     /// دست‌نخورده می‌ماند. اگر چیزی عوض نشده باشد false برمی‌گرداند تا فراخوان لاگ بی‌مورد ثبت نکند.
     /// </summary>
     public static bool ApplySnapshot(LedgerEntry entry, LoadingRegister loading)
+        => ApplySnapshot(entry, loading, shares: null);
+
+    /// <summary>
+    /// همان <see cref="ApplySnapshot(LedgerEntry, LoadingRegister)"/> برای سطر سهمیِ قرارداد
+    /// چندتأمین‌کننده: مبلغ سطر سهم همان تأمین‌کننده (<see cref="LedgerEntry.SupplierId"/>) است.
+    /// </summary>
+    public static bool ApplySnapshot(LedgerEntry entry, LoadingRegister loading, Contract contract)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        var shares = ContractSupplierScope.PayableShares(loading, contract);
+        return shares is not null && ApplySnapshot(entry, loading, shares.Count > 1 ? shares : null);
+    }
+
+    private static bool ApplySnapshot(
+        LedgerEntry entry,
+        LoadingRegister loading,
+        IReadOnlyList<(int SupplierId, decimal Fraction)>? shares)
     {
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(loading);
@@ -166,6 +231,18 @@ public static class SupplierLoadingLedger
         if (snapshot is null)
         {
             return false;
+        }
+
+        if (shares is not null)
+        {
+            if (entry.SupplierId is not { } supplierId
+                || ContractSupplierScope.ShareOf(snapshot.AmountUsd, shares, supplierId) is not { } shareUsd
+                || ContractSupplierScope.ShareOf(snapshot.SourceAmount, shares, supplierId) is not { } shareSource)
+            {
+                return false;
+            }
+
+            snapshot = snapshot with { AmountUsd = shareUsd, SourceAmount = shareSource };
         }
 
         var changed = entry.EntryDate != snapshot.EntryDate

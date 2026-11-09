@@ -76,7 +76,7 @@ public sealed class OpenContractsTool : IAssistantTool
 
         if (supplierId is > 0)
         {
-            query = query.Where(contract => contract.SupplierId == supplierId.Value);
+            query = query.Where(ContractSupplierScope.HasSupplier(supplierId.Value));
         }
 
         if (customerId is > 0)

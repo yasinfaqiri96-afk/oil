@@ -175,6 +175,10 @@ public class LoadingRegister : BaseEntity, IVersionedEntity, ICanonicalSearchabl
 
     public int ContractId { get; set; }       // required by system rule #2
     public Contract? Contract { get; set; }
+    // تأمین‌کنندهٔ همین بارگیری در قرارداد چندتأمین‌کننده. خالی یعنی تأمین‌کنندهٔ خودِ قرارداد
+    // (همهٔ بارگیری‌های قرارداد عادی و رکوردهای قدیمی).
+    public int? SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
     public int ProductId { get; set; }        // required by system rule #2
     public Product? Product { get; set; }
     public int? OriginLocationId { get; set; }

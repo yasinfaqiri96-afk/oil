@@ -350,7 +350,12 @@ public class ThreeWaySettlementController : Controller
             var purchaseContract = await _db.Contracts
                 .AsNoTracking()
                 .Where(c => c.Id == model.SupplierPurchaseContractId.Value)
-                .Select(c => new { c.ContractType, c.SupplierId })
+                .Select(c => new
+                {
+                    c.ContractType,
+                    c.SupplierId,
+                    SupplierIds = c.ContractSuppliers.Select(s => s.SupplierId).ToList()
+                })
                 .FirstOrDefaultAsync();
 
             if (purchaseContract is null)
@@ -361,7 +366,8 @@ public class ThreeWaySettlementController : Controller
             {
                 ModelState.AddModelError(nameof(model.SupplierPurchaseContractId), "قرارداد انتخاب‌شده باید قرارداد خرید باشد.");
             }
-            else if (purchaseContract.SupplierId != model.SupplierId.Value)
+            else if (purchaseContract.SupplierId != model.SupplierId.Value
+                     && !purchaseContract.SupplierIds.Contains(model.SupplierId.Value))
             {
                 ModelState.AddModelError(nameof(model.SupplierPurchaseContractId), "قرارداد خرید با تأمین‌کننده انتخاب‌شده مطابقت ندارد.");
             }

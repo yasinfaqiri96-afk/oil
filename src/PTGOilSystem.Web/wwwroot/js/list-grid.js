@@ -1,7 +1,7 @@
 /*
  * PTG Oil System — list grid (Mashal reference 5).
  * Adds the reference list chrome to canonical Index tables: a "#" row index;
- * local per-column filtering and sorting are limited to fully rendered tables.
+ * local column sorting is limited to fully rendered tables.
  * Presentation only: it works on the rows already rendered on the page; server
  * search, pagination, export, row navigation and bulk selection are untouched.
  */
@@ -9,7 +9,6 @@
     "use strict";
 
     var isEn = (document.documentElement.getAttribute("lang") || "fa").toLowerCase().indexOf("en") === 0;
-    function T(fa, en) { return isEn ? en : fa; }
 
     var skipColumns = ".ak-col-check, .ak-col-index, .ak-col-actions, .ak-col-spacer";
 
@@ -55,78 +54,23 @@
         shiftRows(table, insertAt, originalCount);
 
         var columnCount = headRow.cells.length;
-        var filters = [];
-        var filterRow = document.createElement("tr");
-        filterRow.className = "ak-filter-row";
         var partialPage = hasMorePages(table);
 
+        // No per-column search row: lists match the Expenses reference, where
+        // the toolbar search above the table is the only filter.
         Array.prototype.forEach.call(headRow.cells, function (cell, index) {
-            var slot = document.createElement("td");
-            slot.className = "ak-filter-cell";
-            if (isDataColumn(cell) && !partialPage) {
-                var input = document.createElement("input");
-                input.type = "search";
-                input.className = "ak-col-filter";
-                input.autocomplete = "off";
-                input.size = 1;
-                input.placeholder = T("فیلتر و جستجو", "Filter and search");
-                input.setAttribute("aria-label", T("فیلتر ستون ", "Filter column ") + label(cell));
-                input.addEventListener("input", debounce(applyFilters, 150));
-                slot.appendChild(input);
-                filters.push({ index: index, input: input });
-                makeSortable(cell, index);
-            }
-            filterRow.appendChild(slot);
+            if (isDataColumn(cell) && !partialPage) makeSortable(cell, index);
         });
-        if (!partialPage) head.appendChild(filterRow);
 
-        var emptyRow = null;
         var sortState = { index: -1, dir: 0 };
-        var filterState = document.createElement("div");
-        filterState.className = "ak-detail-toolbar ak-local-filter-state";
-        filterState.hidden = true;
-        var filterSummary = document.createElement("span");
-        filterSummary.className = "ak-note";
-        filterSummary.setAttribute("role", "status");
-        var clearFilters = document.createElement("button");
-        clearFilters.type = "button";
-        clearFilters.className = "btn btn-light ak-secondary-action";
-        clearFilters.textContent = T("پاک کردن فیلتر نمایش", "Clear display filters");
-        clearFilters.addEventListener("click", function () {
-            filters.forEach(function (filter) { filter.input.value = ""; });
-            applyFilters();
-            if (filters.length) filters[0].input.focus();
-        });
-        filterState.append(filterSummary, clearFilters);
-        if (filters.length) (table.closest(".ak-table-wrap") || table).before(filterState);
         dataRows().forEach(function (row, order) { row.dataset.listGridOrder = String(order); });
         number();
 
         function dataRows() {
             return Array.prototype.filter.call(body.rows, function (row) {
                 return row.cells.length === columnCount && !row.classList.contains("ak-table-total")
-                    && !row.hasAttribute("data-contract-breakdown-row") && row !== emptyRow;
+                    && !row.hasAttribute("data-contract-breakdown-row");
             });
-        }
-
-        function applyFilters() {
-            var active = filters
-                .map(function (f) { return { index: f.index, value: normalize(f.input.value) }; })
-                .filter(function (f) { return f.value; });
-            var shown = 0;
-            dataRows().forEach(function (row) {
-                var match = active.every(function (f) { return normalize(row.cells[f.index].textContent).indexOf(f.value) !== -1; });
-                row.hidden = !match;
-                if (match) { delete row.dataset.listGridHidden; shown += 1; }
-                else { row.dataset.listGridHidden = "true"; collapseBreakdown(row); }
-            });
-            toggleEmpty(active.length > 0 && shown === 0);
-            filterState.hidden = active.length === 0;
-            filterSummary.textContent = T("فیلتر نمایش: ", "Display filters: ") +
-                active.map(function (filter) { return label(headRow.cells[filter.index]) + ": " + filter.value; }).join(" · ") +
-                T(" — خروجی با فیلترهای اصلی صفحه تهیه می‌شود.", " — Exports use the page's main filters.");
-            refreshPager();
-            number();
         }
 
         function makeSortable(cell, index) {
@@ -184,35 +128,13 @@
             dataRows().forEach(function (row) {
                 var cell = row.cells[insertAt];
                 if (!cell || !cell.classList.contains("ak-col-index")) return;
-                if (row.dataset.listGridHidden === "true") { cell.textContent = ""; return; }
                 n += 1;
                 cell.textContent = String(offset + n);
             });
         }
 
-        function toggleEmpty(show) {
-            if (show && !emptyRow) {
-                emptyRow = document.createElement("tr");
-                emptyRow.className = "ak-filter-empty";
-                var cell = document.createElement("td");
-                cell.colSpan = columnCount;
-                cell.textContent = T("موردی با این فیلتر یافت نشد.", "No rows match this filter.");
-                emptyRow.appendChild(cell);
-                body.appendChild(emptyRow);
-            } else if (!show && emptyRow) {
-                emptyRow.remove();
-                emptyRow = null;
-            }
-        }
-
         function refreshPager() {
             if (typeof table.ptgClientPagerRefresh === "function") table.ptgClientPagerRefresh();
-        }
-
-        function collapseBreakdown(row) {
-            var key = row.dataset.breakdownParent;
-            var detail = key ? body.querySelector("[data-contract-breakdown-row='" + key + "']") : null;
-            if (detail) detail.hidden = true;
         }
     }
 
@@ -289,11 +211,4 @@
         return normalize(a).localeCompare(normalize(b), isEn ? "en" : "fa", { numeric: true });
     }
 
-    function debounce(fn, wait) {
-        var timer;
-        return function () {
-            window.clearTimeout(timer);
-            timer = window.setTimeout(fn, wait);
-        };
-    }
 })();

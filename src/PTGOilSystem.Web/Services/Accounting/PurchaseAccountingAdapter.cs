@@ -177,18 +177,7 @@ public sealed class PurchaseAccountingAdapter(
                     ContractId: loading.ContractId,
                     ProductId: loading.ProductId,
                     Description: "Purchased goods in transit"),
-                new AccountingPostLine(
-                    settings.AccountsPayableAccountId,
-                    Debit: 0m,
-                    Credit: amountUsd,
-                    SystemCurrency.BaseCurrencyCode,
-                    amountUsd,
-                    1m,
-                    AccountingPartyType.Supplier,
-                    context.SupplierId,
-                    ContractId: loading.ContractId,
-                    ProductId: loading.ProductId,
-                    Description: "Supplier payable for purchase")
+                .. BuildPayableLines(loading, context, settings, amountUsd)
             ],
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
@@ -245,6 +234,7 @@ public sealed class PurchaseAccountingAdapter(
         var contractIds = loadings.Select(loading => loading.ContractId).Distinct().ToList();
         var contractsById = await db.Contracts
             .AsNoTracking()
+            .Include(contract => contract.ContractSuppliers)
             .Where(contract => contractIds.Contains(contract.Id))
             .ToDictionaryAsync(contract => contract.Id, cancellationToken);
         var companyIds = contractsById.Values.Select(contract => contract.CompanyId).Distinct().ToList();
@@ -305,7 +295,7 @@ public sealed class PurchaseAccountingAdapter(
             {
                 context = BatchFail("CONTRACT_NOT_PURCHASE");
             }
-            else if (!contract.SupplierId.HasValue)
+            else if (ContractSupplierScope.PayableShares(loading, contract) is null)
             {
                 context = BatchFail("SUPPLIER_MISSING");
             }
@@ -350,9 +340,11 @@ public sealed class PurchaseAccountingAdapter(
                     }
                     else
                     {
+                        // طلبِ بارگیری به تأمین‌کنندهٔ خودِ بارگیری می‌رود، وگرنه تأمین‌کنندهٔ قرارداد
+                        // (رفتار قرارداد عادی بدون تغییر)، وگرنه سهم ارزشی تأمین‌کننده‌های قرارداد.
                         context = new PurchaseContext(
                             contract.CompanyId,
-                            contract.SupplierId.Value,
+                            ContractSupplierScope.PayableShares(loading, contract)!,
                             effectivePrice,
                             amountUsd,
                             null);
@@ -411,7 +403,7 @@ public sealed class PurchaseAccountingAdapter(
         return results.Select(result => result!).ToList();
 
         static PurchaseContext BatchFail(string reason, int? companyId = null)
-            => new(companyId, 0, null, null, reason);
+            => new(companyId, [], null, null, reason);
     }
 
     public async Task<PurchaseAccountingResult> TryPostInventoryReceiptAsync(
@@ -923,10 +915,34 @@ public sealed class PurchaseAccountingAdapter(
 
     private sealed record PurchaseContext(
         int? CompanyId,
-        int SupplierId,
+        IReadOnlyList<(int SupplierId, decimal Fraction)> SupplierShares,
         decimal? EffectivePrice,
         decimal? AmountUsd,
         string? SkipReason);
+
+    /// <summary>
+    /// خط(های) بستانکار حساب پرداختنی. قرارداد عادی یا بارگیری با تأمین‌کننده: یک خط (مثل قبل).
+    /// قرارداد چندتأمین‌کننده و بارگیری بدون تأمین‌کننده: یک خط برای هر تأمین‌کننده به نسبت ارزش
+    /// خرید او؛ جمع خط‌ها دقیقاً همان مبلغ بدهکار است.
+    /// </summary>
+    private static IEnumerable<AccountingPostLine> BuildPayableLines(
+        LoadingRegister loading,
+        PurchaseContext context,
+        AccountingSettings settings,
+        decimal amountUsd)
+        => ContractSupplierScope.SplitAmount(amountUsd, context.SupplierShares)
+            .Select(part => new AccountingPostLine(
+                settings.AccountsPayableAccountId,
+                Debit: 0m,
+                Credit: part.Amount,
+                SystemCurrency.BaseCurrencyCode,
+                part.Amount,
+                1m,
+                AccountingPartyType.Supplier,
+                part.SupplierId,
+                ContractId: loading.ContractId,
+                ProductId: loading.ProductId,
+                Description: "Supplier payable for purchase"));
 
     private AccountingPostRequest BuildPurchasePostRequest(
         LoadingRegister loading,
@@ -954,18 +970,7 @@ public sealed class PurchaseAccountingAdapter(
                     ContractId: loading.ContractId,
                     ProductId: loading.ProductId,
                     Description: "Purchased goods in transit"),
-                new AccountingPostLine(
-                    settings.AccountsPayableAccountId,
-                    Debit: 0m,
-                    Credit: amountUsd,
-                    SystemCurrency.BaseCurrencyCode,
-                    amountUsd,
-                    1m,
-                    AccountingPartyType.Supplier,
-                    context.SupplierId,
-                    ContractId: loading.ContractId,
-                    ProductId: loading.ProductId,
-                    Description: "Supplier payable for purchase")
+                .. BuildPayableLines(loading, context, settings, amountUsd)
             ],
             SourceEventId: BuildCreatedSourceEventId(loading.Id, revision),
             SourceEntityType: PurchaseSourceEntityType,
@@ -986,12 +991,14 @@ public sealed class PurchaseAccountingAdapter(
 
         var contract = await db.Contracts
             .AsNoTracking()
+            .Include(x => x.ContractSuppliers)
             .SingleOrDefaultAsync(x => x.Id == loading.ContractId, cancellationToken);
         if (contract is null)
             return Fail("CONTRACT_NOT_FOUND");
         if (contract.ContractType != ContractType.Purchase)
             return Fail("CONTRACT_NOT_PURCHASE");
-        if (!contract.SupplierId.HasValue)
+        var supplierShares = ContractSupplierScope.PayableShares(loading, contract);
+        if (supplierShares is null)
             return Fail("SUPPLIER_MISSING");
 
         // Same fallback the aggregation uses: the loading's own price, else the contract's.
@@ -1028,10 +1035,10 @@ public sealed class PurchaseAccountingAdapter(
         if (validAccountCount != accountIds.Distinct().Count())
             return Fail("ACCOUNTING_SETTINGS_INVALID_ACCOUNTS", companyId);
 
-        return new PurchaseContext(companyId, contract.SupplierId.Value, effectivePrice, amountUsd, null);
+        return new PurchaseContext(companyId, supplierShares, effectivePrice, amountUsd, null);
 
         static PurchaseContext Fail(string reason, int? companyId = null)
-            => new(companyId, 0, null, null, reason);
+            => new(companyId, [], null, null, reason);
     }
 
     private async Task<string?> ValidatePostedPurchaseAsync(

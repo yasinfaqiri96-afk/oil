@@ -518,7 +518,7 @@
                                 {
                                     var isSelected = Model.ContractId == contract.Id;
                                     <option value="@contract.Id"
-                                            data-supplier-id="@(contract.SupplierId?.ToString(CultureInfo.InvariantCulture) ?? "")"
+                                            data-supplier-id="@(contract.SupplierId?.ToString(CultureInfo.InvariantCulture) ?? string.Join(" ", contract.SupplierIds.Select(id => id.ToString(CultureInfo.InvariantCulture))))"
                                             data-contract-type="@contract.ContractType"
                                             selected="@(isSelected ? "selected" : null)">
                                         @contract.Display

@@ -186,7 +186,7 @@ public partial class BalanceController : Controller
         if (filter.SupplierId.Length > 0)
         {
             var supplierIds = filter.SupplierId;
-            query = query.Where(c => c.SupplierId != null && supplierIds.Contains(c.SupplierId.Value));
+            query = query.Where(ContractSupplierScope.HasAnySupplier(supplierIds));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -771,6 +771,51 @@ public partial class BalanceController : Controller
             .ToDictionary(
                 g => g.Key,
                 g => g.Sum(c => purchaseEconomics.GetValueOrDefault(c.Id)?.PurchaseValueUsd ?? 0m));
+
+        // قرارداد چندتأمین‌کننده (SupplierId خالی): برای هر تأمین‌کننده یک قرارداد شمرده می‌شود و
+        // «جمع خرید» او فقط ارزش بارگیری‌های خودش است (مقدار × قیمت بارگیری، وگرنه قیمت نهایی قرارداد
+        // — همان مبنای طلب). مصارف قرارداد به هیچ تأمین‌کننده‌ای نسبت داده نمی‌شود.
+        if (supplierIds.Count > 0)
+        {
+            var multiQuery = _db.Contracts
+                .AsNoTracking()
+                .Where(c => c.SupplierId == null && c.ContractSuppliers.Any(s => supplierIds.Contains(s.SupplierId)));
+            if (filter.FromDate.HasValue) multiQuery = multiQuery.Where(c => c.ContractDate >= filter.FromDate.Value);
+            if (filter.ToDate.HasValue) multiQuery = multiQuery.Where(c => c.ContractDate <= filter.ToDate.Value);
+            var multiContracts = await multiQuery.Include(c => c.ContractSuppliers).ToListAsync();
+            if (multiContracts.Count > 0)
+            {
+                var multiIds = multiContracts.Select(c => c.Id).ToList();
+                var multiLoadings = await _db.LoadingRegisters
+                    .AsNoTracking()
+                    .Where(l => multiIds.Contains(l.ContractId) && !l.IsCancelled)
+                    .Select(l => new { l.ContractId, l.SupplierId, l.LoadedQuantityMt, l.LoadingPriceUsd })
+                    .ToListAsync();
+                foreach (var contract in multiContracts)
+                {
+                    var finalPrice = ContractPricingAdapter.GetCanonicalFinalPrice(contract);
+                    // بارگیری بدون تأمین‌کننده به نسبت ارزش خرید هر تأمین‌کننده (همان مبنای طلب).
+                    var shares = ContractSupplierScope.PurchaseShares(contract);
+                    foreach (var supplierId in contract.ContractSuppliers.Select(s => s.SupplierId).Distinct().Where(supplierIds.Contains))
+                    {
+                        var fraction = shares?.FirstOrDefault(s => s.SupplierId == supplierId).Fraction ?? 0m;
+                        var current = contractSummary.GetValueOrDefault(supplierId) ?? new CountAggregate(0, 0, 0);
+                        contractSummary[supplierId] = new CountAggregate(
+                            current.Count + 1,
+                            current.ActiveCount + (contract.Status == ContractStatus.Active ? 1 : 0),
+                            current.ClosedCount + (contract.Status == ContractStatus.Closed ? 1 : 0));
+                        if (contract.ContractType == ContractType.Purchase)
+                        {
+                            purchaseSummary[supplierId] = purchaseSummary.GetValueOrDefault(supplierId)
+                                + multiLoadings
+                                    .Where(l => l.ContractId == contract.Id && (l.SupplierId == supplierId || l.SupplierId == null))
+                                    .Sum(l => (l.SupplierId == null ? fraction : 1m)
+                                        * l.LoadedQuantityMt * (l.LoadingPriceUsd is > 0m ? l.LoadingPriceUsd.Value : finalPrice ?? 0m));
+                        }
+                    }
+                }
+            }
+        }
 
         // «جمع پرداخت» = پول واقعیِ پرداخت‌شده (نقد، بانک، حوالهٔ صراف و تسویهٔ سه‌جانبه).
         var paidSummary = await _cashSettlements.GetSupplierNetPaymentsAsync(

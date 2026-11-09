@@ -221,7 +221,6 @@ public partial class ContractsController : Controller
             "DisplayName");
         ViewBag.PurchaseContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Purchase);
         ViewBag.SaleContractNumberPreview = await GenerateNextContractNumberAsync(ContractType.Sale);
-        ViewBag.PurchaseGroupNumberPreview = await GenerateNextPurchaseGroupNumberAsync();
     }
 
     public async Task<IActionResult> Index(string? q, ContractType[]? type, ContractStatus[]? status, int page = 1, [FromQuery(Name = "pageSize")] int? perPage = null)
@@ -261,6 +260,7 @@ public partial class ContractsController : Controller
                 (c.PurchaseContractGroup != null && c.PurchaseContractGroup.GroupNumber.Contains(term)) ||
                 (c.PurchaseContractGroup != null && c.PurchaseContractGroup.Name.Contains(term)) ||
                 (c.Supplier != null && c.Supplier.Name.Contains(term)) ||
+                c.ContractSuppliers.Any(cs => cs.Supplier != null && cs.Supplier.Name.Contains(term)) ||
                 (c.Customer != null && c.Customer.Name.Contains(term)) ||
                 (c.Product != null && c.Product.Name.Contains(term)) ||
                 c.ContractPartners.Any(cp => cp.Partner != null && cp.Partner.Name.Contains(term)));
@@ -293,6 +293,9 @@ public partial class ContractsController : Controller
             .Include(c => c.Unit)
             .Include(c => c.Supplier)
             .Include(c => c.Customer)
+            .Include(c => c.ContractSuppliers)
+                .ThenInclude(cs => cs.Supplier)
+            .AsSplitQuery()
             .ToDictionaryAsync(c => c.Id);
         // قرارداد مادر با همهٔ ردیف‌های بایگانی‌نشده‌اش نمایش داده می‌شود، حتی اگر جست‌وجو فقط یکی را یافته باشد.
         var groupLines = groupIds.Count == 0
@@ -425,6 +428,8 @@ public partial class ContractsController : Controller
         ContractFormViewModel model,
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
+        // مسیر قدیمیِ «قرارداد مادر + ردیف» فقط برای سازگاری می‌ماند و فرم دیگر آن را نمی‌فرستد؛
+        // چند تأمین‌کننده حالا در همین یک قرارداد انتخاب می‌شوند (AdditionalSupplierIds).
         if (model.IsMultiSupplier)
         {
             return await CreateMultiSupplierAsync(model, formToken);
@@ -435,6 +440,7 @@ public partial class ContractsController : Controller
         model.ContractNumber = await GenerateNextContractNumberAsync(model.ContractType);
         ModelState.Remove(nameof(model.ContractNumber));
         await ValidateLookupsAsync(model, isCreate: true);
+        await ValidateAdditionalSuppliersAsync(model);
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
         ValidateRubSettlementModel(model);
@@ -498,6 +504,8 @@ public partial class ContractsController : Controller
             await PopulateLookupsAsync(model);
             return ContractFormView(model, isEdit: false);
         }
+
+        await ApplySupplierSetAsync(contract, null, model);
 
         var partnerShares = GetNormalizedPartnerShares(model);
         // PTG-P0-03 — نخستین بازهٔ سهم از تاریخ خودِ قرارداد آغاز می‌شود، تا هر رویدادِ این
@@ -566,6 +574,7 @@ public partial class ContractsController : Controller
                 ("ProductId", contract.ProductId),
                 ("UnitId", contract.UnitId),
                 ("SupplierId", contract.SupplierId),
+                ("Suppliers", SupplierSetSummary(CollectSupplierIds(model))),
                 ("CustomerId", contract.CustomerId),
                 ("PurchaseSourceLocationId", contract.PurchaseSourceLocationId),
                 ("DestinationStorageTankId", contract.DestinationStorageTankId),
@@ -622,6 +631,7 @@ public partial class ContractsController : Controller
             .Include(c => c.Customer)
             .Include(c => c.ContractPartners)
                 .ThenInclude(cp => cp.Partner)
+            .Include(c => c.ContractSuppliers)
             .AsSplitQuery()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -651,6 +661,7 @@ public partial class ContractsController : Controller
             .Include(c => c.Customer)
             .Include(c => c.ContractPartners)
                 .ThenInclude(cp => cp.Partner)
+            .Include(c => c.ContractSuppliers)
             .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == id);
         if (existing == null) return NotFound();
@@ -663,6 +674,7 @@ public partial class ContractsController : Controller
         // نه نسخه‌ای که همین حالا خوانده شد.
         _db.UseExpectedVersion(existing, model.Version);
         await ValidateLookupsAsync(model, isCreate: false);
+        await ValidateAdditionalSuppliersAsync(model);
         await ValidateOwnershipAsync(model);
         ValidatePricingModel(model);
         ValidateRubSettlementModel(model);
@@ -788,8 +800,14 @@ public partial class ContractsController : Controller
             ("PlattsBasisMonth", existing.PlattsBasisMonth, candidate.PlattsBasisMonth),
             ("MinimumPriceUsd", existing.MinimumPriceUsd, candidate.MinimumPriceUsd),
             ("ManualFinalPriceUsd", existing.ManualFinalPriceUsd, candidate.ManualFinalPriceUsd),
-            ("PricingFormulaNote", existing.PricingFormulaNote, candidate.PricingFormulaNote));
+            ("PricingFormulaNote", existing.PricingFormulaNote, candidate.PricingFormulaNote),
+            ("Suppliers",
+                SupplierSetSummary(existing.ContractSuppliers.Count > 0
+                    ? existing.ContractSuppliers.Select(s => s.SupplierId)
+                    : existing.SupplierId.HasValue ? [existing.SupplierId.Value] : []),
+                SupplierSetSummary(CollectSupplierIds(model))));
 
+        var previousSupplierId = existing.SupplierId;
         existing.ContractName = candidate.ContractName;
         existing.ContractNumber = candidate.ContractNumber;
         existing.ContractType = candidate.ContractType;
@@ -828,6 +846,22 @@ public partial class ContractsController : Controller
         existing.MinimumPriceUsd = candidate.MinimumPriceUsd;
         existing.ManualFinalPriceUsd = candidate.ManualFinalPriceUsd;
         existing.PricingFormulaNote = candidate.PricingFormulaNote;
+
+        if (existing.ContractType == ContractType.Purchase)
+        {
+            var supplierError = await ApplySupplierSetAsync(existing, previousSupplierId, model);
+            if (supplierError is not null)
+            {
+                ModelState.AddModelError(nameof(model.AdditionalSupplierIds), supplierError);
+                EnsurePartnerRows(model);
+                await PopulateLookupsAsync(model);
+                return ContractFormView(model, isEdit: true);
+            }
+        }
+        else if (existing.ContractSuppliers.Count > 0)
+        {
+            existing.ContractSuppliers.Clear();
+        }
 
         // PTG-P0-03 — تغییر درصد سهم دیگر تاریخچه را پاک نمی‌کند. اگر ترکیب واقعاً عوض شده
         // باشد، بازهٔ جاری بسته و یک بازهٔ تازه از «امروزِ کاری» باز می‌شود؛ سطرهای گذشته
@@ -1330,6 +1364,7 @@ public partial class ContractsController : Controller
             return;
         }
 
+        await ContractSupplierScope.EnsureSuppliersLoadedAsync(_db, contract);
         var postable = touchedLoadings
             .Where(l => SupplierLoadingLedger.IsPostable(l, contract))
             .ToList();
@@ -1340,23 +1375,27 @@ public partial class ContractsController : Controller
 
         var loadingIds = postable.Select(l => l.Id).ToList();
         var entries = await _db.LedgerEntries
-            .Where(l => l.SourceType == SupplierLoadingLedger.SourceType && loadingIds.Contains(l.SourceId))
+            .Where(l => l.SourceType == SupplierLoadingLedger.SourceType && loadingIds.Contains(l.SourceId)
+                && (l.Reference == null || !l.Reference.EndsWith(LedgerReversalWriter.CancelReferenceSuffix)))
             .ToListAsync();
 
-        var entriesByLoadingId = entries.ToDictionary(l => l.SourceId);
+        // قرارداد چندتأمین‌کننده: هر بارگیری بدون تأمین‌کننده یک سطر برای هر تأمین‌کننده دارد.
+        var entriesByLoadingId = entries.ToLookup(l => l.SourceId);
         var created = new List<LedgerEntry>();
         foreach (var loading in postable)
+        foreach (var request in SupplierLoadingLedger.CreateAll(loading, contract))
         {
-            if (!entriesByLoadingId.TryGetValue(loading.Id, out var entry))
+            var entry = entriesByLoadingId[loading.Id].FirstOrDefault(l => l.SupplierId == request.SupplierId);
+            if (entry is null)
             {
-                created.Add(Ledger.Post(SupplierLoadingLedger.Create(loading, contract)));
+                created.Add(Ledger.Post(request));
                 continue;
             }
 
             var previousAmountUsd = entry.AmountUsd;
             var previousSourceAmount = entry.SourceAmount;
             var previousFxRateToUsd = entry.AppliedFxRateToUsd;
-            if (!SupplierLoadingLedger.ApplySnapshot(entry, loading))
+            if (!SupplierLoadingLedger.ApplySnapshot(entry, loading, contract))
             {
                 continue;
             }
@@ -2465,7 +2504,26 @@ public partial class ContractsController : Controller
             CompanyId = contract.CompanyId,
             ProductId = contract.ProductId,
             UnitId = contract.UnitId ?? contract.Product?.UnitId,
-            SupplierId = contract.SupplierId,
+            // قرارداد چندتأمین‌کننده: نفر اول در فیلد اصلی، بقیه در «تأمین‌کنندهٔ دیگر».
+            SupplierId = contract.SupplierId
+                ?? contract.ContractSuppliers.OrderBy(s => s.Id).Select(s => (int?)s.SupplierId).FirstOrDefault(),
+            AdditionalSupplierIds = contract.ContractSuppliers
+                .OrderBy(s => s.Id)
+                .Skip(1)
+                .Select(s => (int?)s.SupplierId)
+                .ToList(),
+            PrimarySupplierQuantityMt = contract.ContractSuppliers.OrderBy(s => s.Id).FirstOrDefault()?.QuantityMt,
+            PrimarySupplierUnitPriceUsd = contract.ContractSuppliers.OrderBy(s => s.Id).FirstOrDefault()?.UnitPriceUsd,
+            AdditionalSupplierQuantitiesMt = contract.ContractSuppliers
+                .OrderBy(s => s.Id)
+                .Skip(1)
+                .Select(s => s.QuantityMt)
+                .ToList(),
+            AdditionalSupplierUnitPricesUsd = contract.ContractSuppliers
+                .OrderBy(s => s.Id)
+                .Skip(1)
+                .Select(s => s.UnitPriceUsd)
+                .ToList(),
             CustomerId = contract.CustomerId,
             DestinationLocationId = contract.DestinationLocationId,
             PurchaseSourceLocationId = contract.PurchaseSourceLocationId,

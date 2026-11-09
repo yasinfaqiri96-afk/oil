@@ -147,6 +147,18 @@ public partial class ExpensesController : Controller
     {
         // فیلترِ چندانتخابی فقط وقتی «انتخابِ جاریِ» فهرست‌های کمکی است که دقیقاً یک مقدار دارد.
         var selectedContractId = createModel?.ContractId ?? filter?.ContractId.Only();
+        if (createModel?.ContractId is { } formContractId)
+        {
+            var formContract = await _db.Contracts.AsNoTracking()
+                .Where(c => c.Id == formContractId)
+                .Select(c => new { c.ContractName, c.ContractNumber, c.QuantityMt })
+                .FirstOrDefaultAsync();
+            if (formContract is not null)
+            {
+                ViewBag.ExpenseContractLabel = Contract.BuildDisplayLabel(formContract.ContractName, formContract.ContractNumber);
+                ViewBag.ExpenseContractQuantityMt = formContract.QuantityMt;
+            }
+        }
         var selectedShipmentId = createModel?.ShipmentId ?? filter?.ShipmentId.Only();
         var selectedTruckDispatchId = createModel?.TruckDispatchId ?? filter?.TruckDispatchId.Only();
         var selectedTransportLegId = createModel?.TransportLegId ?? filter?.TransportLegId;
@@ -711,6 +723,8 @@ public partial class ExpensesController : Controller
             if (contract is not null)
             {
                 model.ContractId = contract.Id;
+                // پیش‌فرض مقدار مصرف «بر اساس تُن» = مقدار کل قرارداد (کاربر می‌تواند تغییر دهد).
+                model.BasisQuantityMt = contract.QuantityMt > 0m ? contract.QuantityMt : null;
             }
         }
 
@@ -959,6 +973,7 @@ public partial class ExpensesController : Controller
         [FromForm(Name = FormTokenHtmlHelper.FieldName)] string? formToken = null)
     {
         NormalizeCreateModel(model);
+        ApplyCalculationMethod(model);
         var normalizedDescription = model.Description?.Trim() ?? string.Empty;
         var manualExpenseTypeName = model.ManualExpenseTypeName?.Trim() ?? string.Empty;
 
@@ -1181,6 +1196,9 @@ public partial class ExpensesController : Controller
                     AppliedFxRateToUsd = conversion.AppliedRateToBase,
                     AmountUsd = conversion.ConvertToBase(model.Amount),
                     Description = normalizedDescription,
+                    CalculationMethod = model.CalculationMethod,
+                    BasisQuantityMt = model.BasisQuantityMt,
+                    RatePerMt = model.RatePerMt,
                     // Phase 1 — مسئول هزینه/کرایه (فقط ثبت/نمایش، به Ledger اثر ندارد).
                     CostResponsibility = model.CostResponsibility
                 };
@@ -1832,6 +1850,9 @@ public partial class ExpensesController : Controller
             Currency = expense.Currency,
             AppliedFxRateToUsd = expense.AppliedFxRateToUsd,
             Description = expense.Description ?? string.Empty,
+            CalculationMethod = expense.CalculationMethod ?? ExpenseCalculationMethod.FixedAmount,
+            BasisQuantityMt = expense.BasisQuantityMt,
+            RatePerMt = expense.RatePerMt,
             CostResponsibility = expense.CostResponsibility,
             // PTG-P1-04 — هویتِ تسویهٔ همین سند با فرم برمی‌گردد. ردیفِ پیش از فاز ۱ روی
             // Unknown است و به‌عنوان «تشخیص از طرف‌حساب» به فرم می‌رود، نه به‌عنوان انتخابِ
@@ -1879,6 +1900,7 @@ public partial class ExpensesController : Controller
         }
 
         NormalizeCreateModel(model);
+        ApplyCalculationMethod(model);
         var normalizedDescription = model.Description?.Trim() ?? string.Empty;
         var manualExpenseTypeName = model.ManualExpenseTypeName?.Trim() ?? string.Empty;
 
@@ -2143,6 +2165,9 @@ public partial class ExpensesController : Controller
             expense.AppliedFxRateToUsd = conversion.AppliedRateToBase;
             expense.AmountUsd = conversion.ConvertToBase(model.Amount);
             expense.Description = normalizedDescription;
+            expense.CalculationMethod = model.CalculationMethod;
+            expense.BasisQuantityMt = model.BasisQuantityMt;
+            expense.RatePerMt = model.RatePerMt;
             expense.CostResponsibility = model.CostResponsibility;
 
             // PTG-P1-04 — هویت تسویه: انتخابِ فرم، وگرنه تشخیص از طرف‌حسابِ خودِ سند — که
@@ -3648,6 +3673,41 @@ public partial class ExpensesController : Controller
         ViewBag.Currencies = new SelectList(
             await _db.Currencies.AsNoTracking().Where(c => c.IsActive).OrderBy(c => c.Code).Select(c => new { c.Code }).ToListAsync(),
             "Code", "Code", model.Currency);
+    }
+
+    /// <summary>
+    /// «بر اساس تُن»: مبلغ = مقدار تُن × مبلغ فی تُن (گرد ۴ رقم، همان دقت ستون مبلغ). «مبلغ ثابت»:
+    /// مبلغ همان عدد واردشده است و مقدار/نرخ ذخیره نمی‌شود. در هر دو حالت فقط یک رکورد مصرف ثبت
+    /// می‌شود و مقدار مبنا هیچ اثری روی خرید، موجودی یا بارگیری ندارد.
+    /// </summary>
+    private void ApplyCalculationMethod(ExpenseCreateViewModel model)
+    {
+        if (model.CalculationMethod != ExpenseCalculationMethod.PerTon)
+        {
+            model.CalculationMethod = ExpenseCalculationMethod.FixedAmount;
+            model.BasisQuantityMt = null;
+            model.RatePerMt = null;
+            return;
+        }
+
+        ModelState.Remove(nameof(model.Amount));
+        if (model.BasisQuantityMt is not > 0m)
+        {
+            ModelState.AddModelError(nameof(model.BasisQuantityMt), "مقدار تُن باید بزرگ‌تر از صفر باشد.");
+        }
+
+        if (model.RatePerMt is not > 0m)
+        {
+            ModelState.AddModelError(nameof(model.RatePerMt), "مبلغ فی تُن باید بزرگ‌تر از صفر باشد.");
+        }
+
+        model.Amount = model.BasisQuantityMt is > 0m && model.RatePerMt is > 0m
+            ? decimal.Round(model.BasisQuantityMt.Value * model.RatePerMt.Value, 4, MidpointRounding.AwayFromZero)
+            : 0m;
+        if (model.Amount <= 0m && model.BasisQuantityMt is > 0m && model.RatePerMt is > 0m)
+        {
+            ModelState.AddModelError(nameof(model.Amount), "مبلغ مصرف باید بزرگ‌تر از صفر باشد.");
+        }
     }
 
     private static void NormalizeCreateModel(ExpenseCreateViewModel model)

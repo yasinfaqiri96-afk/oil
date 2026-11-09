@@ -230,8 +230,10 @@ public partial class ReportsController
         {
             var supplierIds = filter.SupplierId;
             query = query.Where(s =>
-                s.ShipmentContracts.Any(sc => sc.Contract!.SupplierId != null && supplierIds.Contains(sc.Contract.SupplierId.Value))
-                || (s.Contract != null && s.Contract.SupplierId != null && supplierIds.Contains(s.Contract.SupplierId.Value)));
+                s.ShipmentContracts.Any(sc => (sc.Contract!.SupplierId != null && supplierIds.Contains(sc.Contract.SupplierId.Value))
+                    || sc.Contract.ContractSuppliers.Any(cs => supplierIds.Contains(cs.SupplierId)))
+                || (s.Contract != null && ((s.Contract.SupplierId != null && supplierIds.Contains(s.Contract.SupplierId.Value))
+                    || s.Contract.ContractSuppliers.Any(cs => supplierIds.Contains(cs.SupplierId)))));
         }
 
         if (filter.CustomerId.Length > 0)

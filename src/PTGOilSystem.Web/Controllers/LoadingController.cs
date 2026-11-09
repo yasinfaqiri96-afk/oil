@@ -172,6 +172,17 @@ public partial class LoadingController : Controller
         ViewBag.ContractProductIds = purchaseContracts.ToDictionary(c => c.Id, c => c.ProductId);
         ViewBag.ContractProductNames = purchaseContracts.ToDictionary(c => c.Id, c => c.ProductName ?? "");
 
+        // قرارداد چندتأمین‌کننده: فهرست تأمین‌کننده‌های هر قرارداد برای فیلد «تأمین‌کننده» فرم.
+        var listedContractIds = purchaseContracts.Select(c => c.Id).ToList();
+        ViewBag.ContractSupplierOptions = (await _db.ContractSuppliers
+                .AsNoTracking()
+                .Where(s => listedContractIds.Contains(s.ContractId))
+                .OrderBy(s => s.Id)
+                .Select(s => new { s.ContractId, s.SupplierId, Name = s.Supplier != null ? s.Supplier.Name : "" })
+                .ToListAsync())
+            .Select(s => (s.ContractId, s.SupplierId, s.Name))
+            .ToList();
+
         if (selectedContractIds.Count == 1)
         {
             foreach (var row in createModel.Rows)
@@ -512,27 +523,44 @@ public partial class LoadingController : Controller
             await _purchaseAccounting.TryPostPurchaseAsync(loading);
         }
 
+        if (contract is not null)
+        {
+            await ContractSupplierScope.EnsureSuppliersLoadedAsync(_db, contract);
+        }
+
         if (contract is null || !SupplierLoadingLedger.IsPostable(loading, contract))
         {
             return;
         }
 
-        // سطر Legacy این بارگیری اگر از قبل هست همان به‌روزرسانی می‌شود، نه اینکه سطر دوم ساخته شود.
+        // سطر(های) Legacy این بارگیری اگر از قبل هست همان به‌روزرسانی می‌شود، نه اینکه سطر دوم ساخته شود.
         // بعد از «اصلاح قیمت»/بازقفل، AmountUsdAtRubLock عوض می‌شود و سطر قدیمی کهنه می‌ماند.
-        var existing = await _db.LedgerEntries
-            .SingleOrDefaultAsync(l => l.SourceType == SupplierLoadingLedgerSourceType && l.SourceId == loading.Id);
-        if (existing is not null)
+        // قرارداد چندتأمین‌کننده و بارگیری بدون تأمین‌کننده: یک سطر برای هر تأمین‌کننده (کلید = SupplierId).
+        var existingRows = await _db.LedgerEntries
+            .Where(l => l.SourceType == SupplierLoadingLedgerSourceType && l.SourceId == loading.Id
+                && (l.Reference == null || !l.Reference.EndsWith(LedgerReversalWriter.CancelReferenceSuffix)))
+            .ToListAsync();
+        var created = new List<LedgerEntry>();
+        var updated = false;
+        foreach (var request in SupplierLoadingLedger.CreateAll(loading, contract))
         {
+            var existing = existingRows.FirstOrDefault(l => l.SupplierId == request.SupplierId);
+            if (existing is null)
+            {
+                created.Add(Ledger.Post(request));
+                continue;
+            }
+
             var previousAmountUsd = existing.AmountUsd;
             var previousSourceAmount = existing.SourceAmount;
             var previousFxRateToUsd = existing.AppliedFxRateToUsd;
-            if (!SupplierLoadingLedger.ApplySnapshot(existing, loading))
+            if (!SupplierLoadingLedger.ApplySnapshot(existing, loading, contract))
             {
-                return;
+                continue;
             }
 
-            await _db.SaveChangesAsync();
-            await _audit.LogAndSaveAsync(
+            updated = true;
+            await _audit.LogAsync(
                 nameof(LedgerEntry),
                 existing.Id,
                 AuditAction.Update,
@@ -540,26 +568,34 @@ public partial class LoadingController : Controller
                     ("AmountUsd", previousAmountUsd, existing.AmountUsd),
                     ("SourceAmount", previousSourceAmount, existing.SourceAmount),
                     ("AppliedFxRateToUsd", previousFxRateToUsd, existing.AppliedFxRateToUsd)));
+        }
+
+        if (created.Count == 0 && !updated)
+        {
             return;
         }
 
-        var ledger = Ledger.Post(SupplierLoadingLedger.Create(loading, contract));
         await _db.SaveChangesAsync();
-        await _audit.LogAndSaveAsync(
-            nameof(LedgerEntry),
-            ledger.Id,
-            AuditAction.Insert,
-            diff: AuditDiffFormatter.ForCreate(
-                ("EntryDate", ledger.EntryDate),
-                ("Side", ledger.Side),
-                ("AmountUsd", ledger.AmountUsd),
-                ("SourceAmount", ledger.SourceAmount),
-                ("SourceCurrencyCode", ledger.SourceCurrencyCode),
-                ("AppliedFxRateToUsd", ledger.AppliedFxRateToUsd),
-                ("SourceType", ledger.SourceType),
-                ("SourceId", ledger.SourceId),
-                ("ContractId", ledger.ContractId),
-                ("SupplierId", ledger.SupplierId)));
+        foreach (var ledger in created)
+        {
+            await _audit.LogAsync(
+                nameof(LedgerEntry),
+                ledger.Id,
+                AuditAction.Insert,
+                diff: AuditDiffFormatter.ForCreate(
+                    ("EntryDate", ledger.EntryDate),
+                    ("Side", ledger.Side),
+                    ("AmountUsd", ledger.AmountUsd),
+                    ("SourceAmount", ledger.SourceAmount),
+                    ("SourceCurrencyCode", ledger.SourceCurrencyCode),
+                    ("AppliedFxRateToUsd", ledger.AppliedFxRateToUsd),
+                    ("SourceType", ledger.SourceType),
+                    ("SourceId", ledger.SourceId),
+                    ("ContractId", ledger.ContractId),
+                    ("SupplierId", ledger.SupplierId)));
+        }
+
+        await _db.SaveChangesAsync();
     }
 
     private async Task PostSupplierLoadingLedgersForCreateAsync(
@@ -571,9 +607,15 @@ public partial class LoadingController : Controller
                 createdRows.Select(row => row.Loading).ToList());
         }
 
+        foreach (var contract in createdRows.Select(row => row.Contract).Distinct())
+        {
+            await ContractSupplierScope.EnsureSuppliersLoadedAsync(_db, contract);
+        }
+
         var legacyLedgers = createdRows
             .Where(row => SupplierLoadingLedger.IsPostable(row.Loading, row.Contract))
-            .Select(row => Ledger.Post(SupplierLoadingLedger.Create(row.Loading, row.Contract)))
+            .SelectMany(row => SupplierLoadingLedger.CreateAll(row.Loading, row.Contract))
+            .Select(request => Ledger.Post(request))
             .ToList();
         if (legacyLedgers.Count == 0)
         {
@@ -664,7 +706,7 @@ public partial class LoadingController : Controller
             WagonNumber = loading.WagonNumber,
             VesselName = loading.Vessel?.Name,
             TruckPlateNumber = loading.Truck?.PlateNumber,
-            SupplierName = loading.Contract?.Supplier?.Name,
+            SupplierName = loading.Supplier?.Name ?? loading.Contract?.Supplier?.Name,
             CustomerName = loading.Contract?.Customer?.Name,
             ConsigneeName = loading.ConsigneeName,
             DestinationName = loading.DestinationName
@@ -1482,6 +1524,33 @@ public partial class LoadingController : Controller
             ModelState.AddModelError(nameof(model.ContractId), "All selected purchase contracts must have the same product.");
         }
 
+        // قرارداد چندتأمین‌کننده: بارگیری به خودِ قرارداد تعلق دارد و تأمین‌کننده اختیاری است. بدون
+        // تأمین‌کننده، طلب به نسبت مقدار × قیمت هر تأمین‌کنندهٔ قرارداد تقسیم می‌شود؛ پس فقط وقتی
+        // ردیف‌های قرارداد مقدار و قیمت ندارند (رکورد قدیمی) انتخاب تأمین‌کننده لازم است.
+        var multiSupplierRows = selectedContractIds.Count == 0
+            ? new List<ContractSupplier>()
+            : await _db.ContractSuppliers.AsNoTracking()
+                .Where(s => selectedContractIds.Contains(s.ContractId))
+                .ToListAsync();
+        var multiSupplierSets = multiSupplierRows
+            .GroupBy(s => s.ContractId)
+            .ToDictionary(g => g.Key, g => g.Select(s => s.SupplierId).ToHashSet());
+        if (multiSupplierSets.Count == 0)
+        {
+            model.SupplierId = null;
+        }
+        else if (!model.SupplierId.HasValue)
+        {
+            if (multiSupplierRows.GroupBy(s => s.ContractId).Any(g => ContractSupplierScope.PurchaseTotals(g) is null))
+            {
+                ModelState.AddModelError(nameof(model.SupplierId), "مقدار و قیمت تأمین‌کننده‌های این قرارداد ثبت نشده است؛ قرارداد را تکمیل کنید یا تأمین‌کنندهٔ این بارگیری را انتخاب کنید.");
+            }
+        }
+        else if (multiSupplierSets.Values.Any(set => !set.Contains(model.SupplierId.Value)))
+        {
+            ModelState.AddModelError(nameof(model.SupplierId), "تأمین‌کنندهٔ انتخاب‌شده جزو تأمین‌کننده‌های این قرارداد نیست.");
+        }
+
         if (model.OriginLocationId.HasValue)
         {
             var locationExists = await _db.Locations.AsNoTracking().AnyAsync(l => l.Id == model.OriginLocationId.Value);
@@ -1892,6 +1961,8 @@ public partial class LoadingController : Controller
                     var loading = new LoadingRegister
                     {
                         ContractId = effectiveContractId.Value,
+                        // فقط قرارداد چندتأمین‌کننده؛ قرارداد عادی مثل قبل خالی (= تأمین‌کنندهٔ قرارداد).
+                        SupplierId = multiSupplierSets.ContainsKey(effectiveContractId.Value) ? model.SupplierId : null,
                         ProductId = model.ProductId,
                         OriginLocationId = model.OriginLocationId,
                         TransportType = model.TransportType,
@@ -2538,6 +2609,7 @@ public partial class LoadingController : Controller
             .Include(l => l.Product)
             .Include(l => l.Vessel)
             .Include(l => l.Truck)
+            .Include(l => l.Supplier)
             .AsNoTracking()
             .FirstOrDefaultAsync(l => l.Id == id);
 
@@ -2560,6 +2632,7 @@ public partial class LoadingController : Controller
             LoadingDate = loading.LoadingDate,
             ContractNumber = loading.Contract?.DisplayLabel ?? "",
             ProductName = loading.Product?.Name ?? "",
+            SupplierName = loading.Supplier?.Name,
             VehicleSummary = BuildVehicleSummary(transportType, loading.Vessel?.Name, loading.Truck?.PlateNumber, loading.WagonNumber),
             LoadedQuantityMt = loading.LoadedQuantityMt,
             TotalReceivedQuantityMt = totalReceivedMt,

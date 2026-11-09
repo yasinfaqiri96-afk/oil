@@ -1260,7 +1260,7 @@ public partial class LoadingReceiptsController : Controller
         model.WagonNumber = loading.WagonNumber;
         model.VesselName = loading.Vessel?.Name;
         model.TruckPlateNumber = loading.Truck?.PlateNumber;
-        model.SupplierName = loading.Contract?.Supplier?.Name;
+        model.SupplierName = loading.Supplier?.Name ?? loading.Contract?.Supplier?.Name;
         model.CustomerName = loading.Contract?.Customer?.Name;
         model.ConsigneeName = loading.ConsigneeName;
         model.DestinationName = loading.DestinationName;

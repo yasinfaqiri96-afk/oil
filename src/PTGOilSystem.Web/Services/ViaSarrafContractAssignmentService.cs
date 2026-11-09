@@ -139,7 +139,9 @@ public sealed class ViaSarrafContractAssignmentService : IViaSarrafContractAssig
                     "فقط قرارداد خرید قابل انتخاب است.");
             }
 
-            if (newContract.SupplierId != group.SupplierId)
+            if (newContract.SupplierId != group.SupplierId
+                && !await _db.ContractSuppliers.AnyAsync(
+                    s => s.ContractId == newContract.Id && s.SupplierId == group.SupplierId, ct))
             {
                 throw new BusinessRuleException(
                     "VIA_SARRAF_CONTRACT_SUPPLIER_MISMATCH",

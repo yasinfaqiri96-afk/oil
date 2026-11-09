@@ -174,7 +174,8 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
     public async Task<IReadOnlyDictionary<int, PurchaseAggregationSnapshot>> AggregateForContractsAsync(
         IReadOnlyCollection<int> contractIds,
         IReadOnlyDictionary<int, decimal?> contractFinalPriceById,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int? supplierId = null)
     {
         if (contractIds is null || contractIds.Count == 0)
         {
@@ -185,6 +186,9 @@ public sealed class PurchaseAggregationService : IPurchaseAggregationService
             .AsNoTracking()
             .Where(lr => !_reportBefore.HasValue || lr.LoadingDate < _reportBefore.Value)
             .Where(lr => contractIds.Contains(lr.ContractId) && !lr.IsCancelled)
+            // سهم یک تأمین‌کننده در قرارداد چندتأمین‌کننده: فقط بارگیری‌های خودش. بارگیری بدون
+            // SupplierId (قرارداد عادی) همیشه مال تأمین‌کنندهٔ قرارداد است.
+            .Where(lr => supplierId == null || lr.SupplierId == null || lr.SupplierId == supplierId)
             .Select(lr => new LoadingRegisterRow(
                 lr.Id,
                 lr.ContractId,

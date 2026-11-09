@@ -20,6 +20,8 @@
         ? Model.ManualExpenseTypeName
         : selectedExpenseTypeText ?? "";
     var contractOptions = (ViewBag.Contracts as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>()).ToList();
+    var expenseContractLabel = ViewBag.ExpenseContractLabel as string;
+    var expenseContractQuantity = ViewBag.ExpenseContractQuantityMt as decimal?;
     var shipmentOptions = (ViewBag.Shipments as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>()).ToList();
     var truckDispatchOptions = (ViewBag.TruckDispatches as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>()).ToList();
     var transportLegOptions = (ViewBag.TransportLegs as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>()).ToList();
@@ -76,6 +78,10 @@
             @Html.FormDraft("Expenses.Create")
         }
         <input asp-for="Id" type="hidden" />
+        @if (!string.IsNullOrWhiteSpace(expenseContractLabel))
+        {
+            <p class="ak-note" data-expense-contract-banner>قرارداد: <strong>@expenseContractLabel</strong></p>
+        }
         <input asp-for="Version" type="hidden" />
         <input asp-for="ReturnUrl" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="alert alert-danger ak-form-alert"></div>
@@ -120,9 +126,28 @@
                     </select>
                     <span asp-validation-for="Currency" class="ak-field-error"></span>
                 </div>
+                <div class="ak-field" data-expense-calc-method>
+                    <label asp-for="CalculationMethod" class="ak-label"></label>
+                    <select asp-for="CalculationMethod" class="ak-input" data-expense-calc-method-select>
+                        <option value="@((int)ExpenseCalculationMethod.FixedAmount)">مبلغ ثابت</option>
+                        <option value="@((int)ExpenseCalculationMethod.PerTon)">بر اساس تُن</option>
+                    </select>
+                </div>
+                <div class="ak-field" data-expense-calc-per-ton>
+                    <label asp-for="BasisQuantityMt" class="ak-label"></label>
+                    <input asp-for="BasisQuantityMt" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-expense-calc-qty />
+                    <span asp-validation-for="BasisQuantityMt" class="ak-field-error"></span>
+                </div>
+                <div class="ak-field" data-expense-calc-per-ton>
+                    <label asp-for="RatePerMt" class="ak-label"></label>
+                    <input asp-for="RatePerMt" type="number" step="0.0001" min="0" inputmode="decimal" class="ak-input" data-expense-calc-rate />
+                    <span asp-validation-for="RatePerMt" class="ak-field-error"></span>
+                </div>
                 <div class="ak-field">
                     <label asp-for="Amount" class="ak-label"></label>
-                    <input asp-for="Amount" class="ak-input" />
+                    <input asp-for="Amount" class="ak-input" data-expense-calc-amount />
+                    <span class="ak-note" data-expense-calc-note
+                          data-contract-quantity="@(expenseContractQuantity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"></span>
                     <span asp-validation-for="Amount" class="ak-field-error"></span>
                 </div>
                 <div class="ak-field" data-fx-rate-group data-fx-currency-source="#Currency">

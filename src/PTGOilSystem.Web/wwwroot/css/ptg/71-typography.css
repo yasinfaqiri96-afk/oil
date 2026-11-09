@@ -169,8 +169,10 @@
 
     body.boltz-shell.app-shell-authenticated .ptg-page-frame table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx),
     body.ptg-modal-document .ptg-modal-body-shell table :where(.ak-number, .ak-num, .statement-num, .statement-money, .statement-fx) {
-        font-size: var(--font-number) !important;
-        font-weight: var(--weight-number) !important;
+        font-size: var(--font-table-cell) !important;
+        /* Table figures use the plain cell size and weight (Expenses list reference);
+           tabular-nums keeps them aligned without the heavier face. */
+        font-weight: var(--weight-table-cell) !important;
     }
 
     .ak-number--positive { color: var(--ptg-success-text); }

@@ -250,7 +250,8 @@ public sealed class ViaSarrafPaymentsController : Controller
             .AsNoTracking()
             .Include(c => c.Product)
             .Include(c => c.Unit)
-            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == supplierId)
+            .Where(c => c.ContractType == ContractType.Purchase
+                && (c.SupplierId == supplierId || c.ContractSuppliers.Any(s => s.SupplierId == supplierId)))
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .ToListAsync();

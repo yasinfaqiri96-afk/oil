@@ -56,6 +56,14 @@ public class Contract : BaseEntity, IVersionedEntity, ICanonicalSearchable
     public Unit? Unit { get; set; }
     public int? SupplierId { get; set; }
     public Supplier? Supplier { get; set; }
+
+    /// <summary>
+    /// قرارداد خرید با چند تأمین‌کننده. خالی یعنی قرارداد عادی با <see cref="SupplierId"/>.
+    /// وقتی پر است، <see cref="SupplierId"/> خالی می‌ماند و هیچ‌کدام «اصلی» نیست. بارگیری با
+    /// <see cref="LoadingRegister.SupplierId"/> کامل به همان تأمین‌کننده می‌رسد؛ بارگیری بدون
+    /// تأمین‌کننده به نسبت ارزش خرید هر ردیف (<see cref="ContractSupplier.PurchaseValueUsd"/>) تقسیم می‌شود.
+    /// </summary>
+    public ICollection<ContractSupplier> ContractSuppliers { get; set; } = [];
     public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }
     public int? DestinationLocationId { get; set; }
@@ -124,6 +132,27 @@ public class PurchaseContractGroup : BaseEntity
     public DateTime ContractDate { get; set; }
     [MaxLength(1000)] public string? Notes { get; set; }
     public ICollection<Contract> Lines { get; set; } = [];
+}
+
+/// <summary>یکی از تأمین‌کننده‌های قرارداد خرید چندتأمین‌کننده (یک قرارداد، یک کد).</summary>
+public class ContractSupplier : BaseEntity
+{
+    public int ContractId { get; set; }
+    public Contract? Contract { get; set; }
+    public int SupplierId { get; set; }
+    public Supplier? Supplier { get; set; }
+
+    /// <summary>مقدار خرید از این تأمین‌کننده (تُن). خالی فقط در رکوردهای پیش از ثبت سهم.</summary>
+    public decimal? QuantityMt { get; set; }
+
+    /// <summary>قیمت خرید فی تُن از این تأمین‌کننده (USD).</summary>
+    public decimal? UnitPriceUsd { get; set; }
+
+    /// <summary>ارزش خرید این تأمین‌کننده = مقدار × قیمت؛ مبنای سهم او از طلب هر بارگیری.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public decimal? PurchaseValueUsd => QuantityMt is > 0m && UnitPriceUsd is > 0m
+        ? decimal.Round(QuantityMt.Value * UnitPriceUsd.Value, 4, MidpointRounding.AwayFromZero)
+        : null;
 }
 
 /// <summary>

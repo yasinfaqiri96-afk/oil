@@ -96,6 +96,16 @@ public sealed class ContractJourneyPartnerShareItemViewModel
     public decimal SharePercent { get; init; }
 }
 
+/// <summary>یک تأمین‌کنندهٔ قرارداد چندتأمین‌کننده با مقدار و قیمت خرید خودش.</summary>
+public sealed class ContractJourneySupplierTermItemViewModel
+{
+    public int SupplierId { get; init; }
+    public string SupplierName { get; init; } = string.Empty;
+    public decimal? QuantityMt { get; init; }
+    public decimal? UnitPriceUsd { get; init; }
+    public decimal? PurchaseValueUsd { get; init; }
+}
+
 public sealed class ContractJourneyDetailsViewModel
 {
     public int ContractId { get; init; }
@@ -127,6 +137,8 @@ public sealed class ContractJourneyDetailsViewModel
     // مالکیت شراکتی: فقط برای نمایش سهم هر شریک در تب خلاصه. هیچ اثر مالی یا دفترکلی ندارد.
     public bool IsPartnershipContract { get; init; }
     public IReadOnlyList<ContractJourneyPartnerShareItemViewModel> PartnerShareItems { get; init; } = [];
+    /// <summary>تأمین‌کننده‌های قرارداد چندتأمین‌کننده؛ قرارداد عادی خالی است.</summary>
+    public IReadOnlyList<ContractJourneySupplierTermItemViewModel> SupplierTerms { get; init; } = [];
     public string Currency { get; init; } = "USD";
     public string PriceDisplay { get; init; } = string.Empty;
     public string PricingMethodName { get; init; } = string.Empty;
@@ -739,6 +751,12 @@ public sealed class ContractJourneyExpenseItemViewModel
     public string ExpenseTypeName { get; init; } = string.Empty;
     public DateTime ExpenseDate { get; init; }
     public decimal AmountUsd { get; init; }
+    /// <summary>روش محاسبه؛ null = رکورد قدیمی یا مسیر دیگر (مبلغ ثابت).</summary>
+    public ExpenseCalculationMethod? CalculationMethod { get; init; }
+    public decimal? BasisQuantityMt { get; init; }
+    /// <summary>نرخ فی تُن به ارز خودِ مصرف (<see cref="Currency"/>).</summary>
+    public decimal? RatePerMt { get; init; }
+    public string Currency { get; init; } = "USD";
     public string? ShipmentCode { get; init; }
     public string? DispatchLabel { get; init; }
     public int? TransportLegId { get; init; }

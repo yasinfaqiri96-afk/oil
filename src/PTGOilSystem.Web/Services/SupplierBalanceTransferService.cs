@@ -176,7 +176,8 @@ public sealed class SupplierBalanceTransferService : ISupplierBalanceTransferSer
                     "قرارداد مقصد باید قرارداد خرید باشد.");
             }
 
-            if (contract.SupplierId != supplier.Id)
+            if (contract.SupplierId != supplier.Id
+                && !await _db.ContractSuppliers.AnyAsync(s => s.ContractId == contract.Id && s.SupplierId == supplier.Id))
             {
                 throw new BusinessRuleException(
                     "SUPPLIER_BALANCE_TRANSFER_SUPPLIER_MISMATCH",

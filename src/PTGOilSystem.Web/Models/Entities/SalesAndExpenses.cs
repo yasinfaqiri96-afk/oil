@@ -288,6 +288,15 @@ public class ExpenseBatch : BaseEntity
     public System.Collections.Generic.ICollection<ExpenseTransaction> Expenses { get; set; } = new System.Collections.Generic.List<ExpenseTransaction>();
 }
 
+public enum ExpenseCalculationMethod
+{
+    /// <summary>یک مبلغ مشخص برای کل قرارداد/عملیات.</summary>
+    FixedAmount = 1,
+
+    /// <summary>مقدار تُن × نرخ فی تُن.</summary>
+    PerTon = 2
+}
+
 /// <summary>
 /// فاز ۱ — قرارداد تسویهٔ هر رویداد هزینه‌ای. یک مصرف مالی دقیقاً یکی از این حالت‌هاست.
 /// </summary>
@@ -358,6 +367,14 @@ public class ExpenseTransaction : BaseEntity, IVersionedEntity
     public decimal? AppliedFxRateToUsd { get; set; }
     public decimal AmountUsd { get; set; }
     [MaxLength(1000)] public string? Description { get; set; }
+
+    // روش محاسبهٔ مبلغ مصرف قرارداد. فقط برای نمایش و بازبینی است؛ مبلغ مالی همیشه Amount/AmountUsd است.
+    // null = رکوردهای قدیمی و مسیرهای دیگر (همان «مبلغ ثابت»).
+    public ExpenseCalculationMethod? CalculationMethod { get; set; }
+    /// <summary>مقدار مبنای مصرف «بر اساس تُن». مقدار خرید، موجودی یا بارگیری را تغییر نمی‌دهد.</summary>
+    public decimal? BasisQuantityMt { get; set; }
+    /// <summary>نرخ فی تُن به ارز همین مصرف (<see cref="Currency"/>).</summary>
+    public decimal? RatePerMt { get; set; }
 
     // Phase 1 — مسئول این هزینه/کرایه (فقط ثبت/نمایش، nullable). به Ledger وابسته نیست.
     public CostResponsibility? CostResponsibility { get; set; }

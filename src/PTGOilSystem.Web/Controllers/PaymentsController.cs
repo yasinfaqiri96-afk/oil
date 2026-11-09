@@ -628,6 +628,13 @@ public class PaymentsController : Controller
                 model.Direction = PaymentDirection.Out;
                 model.PaymentKind = PaymentKind.SupplierPayment;
             }
+            else if (contract?.ContractType == ContractType.Purchase
+                     && await ContractSupplierScope.IsMultiSupplierAsync(_db, contract.Id))
+            {
+                // قرارداد چندتأمین‌کننده: تأمین‌کننده را کاربر از همان قرارداد انتخاب می‌کند.
+                model.Direction = PaymentDirection.Out;
+                model.PaymentKind = PaymentKind.SupplierPayment;
+            }
             else if (contract?.ContractType == ContractType.Sale && contract.CustomerId.HasValue)
             {
                 model.CustomerId = contract.CustomerId.Value;
@@ -1563,7 +1570,8 @@ public class PaymentsController : Controller
     {
         var contracts = await _db.Contracts
             .AsNoTracking()
-            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == supplierId)
+            .Where(c => c.ContractType == ContractType.Purchase)
+            .Where(ContractSupplierScope.HasSupplier(supplierId))
             .OrderByDescending(c => c.ContractDate)
             .ThenBy(c => c.ContractNumber)
             .Take(LookupLimit)
@@ -2667,9 +2675,9 @@ public class PaymentsController : Controller
         var contractQuery = _db.Contracts.AsNoTracking();
         if (filterContractsToSupplier && selectedSupplierId is int supplierContractFilterId)
         {
-            contractQuery = contractQuery.Where(c =>
-                c.ContractType == ContractType.Purchase
-                && c.SupplierId == supplierContractFilterId);
+            contractQuery = contractQuery
+                .Where(c => c.ContractType == ContractType.Purchase)
+                .Where(ContractSupplierScope.HasSupplier(supplierContractFilterId));
         }
 
         var contracts = await contractQuery
@@ -2689,7 +2697,8 @@ public class PaymentsController : Controller
                 UnitSymbol = c.Unit != null ? c.Unit.Symbol : null,
                 UnitCode = c.Unit != null ? c.Unit.Code : null,
                 UnitNamePersian = c.Unit != null ? c.Unit.NamePersian : null,
-                UnitName = c.Unit != null ? c.Unit.Name : null
+                UnitName = c.Unit != null ? c.Unit.Name : null,
+                SupplierIds = c.ContractSuppliers.Select(s => s.SupplierId).ToList()
             })
             .ToListAsync();
 
@@ -2698,6 +2707,7 @@ public class PaymentsController : Controller
             {
                 Id = c.Id,
                 SupplierId = c.SupplierId,
+                SupplierIds = c.SupplierIds,
                 ContractType = c.ContractType,
                 Display = ContractUiText.FormatLookup(
                     c.ContractName,
@@ -3062,7 +3072,8 @@ public class PaymentsController : Controller
             ModelState.AddModelError(nameof(model.ContractId), "برای پرداخت تأمین‌کننده فقط قرارداد خرید معتبر است.");
         }
 
-        if (contract is not null && IsSupplierKind(model.PaymentKind) && contract.SupplierId.HasValue && resolvedSupplierId.HasValue && contract.SupplierId.Value != resolvedSupplierId.Value)
+        if (contract is not null && IsSupplierKind(model.PaymentKind) && resolvedSupplierId.HasValue
+            && await ContractSupplierScope.IsForeignSupplierAsync(_db, contract, resolvedSupplierId.Value))
         {
             ModelState.AddModelError(nameof(model.SupplierId), "تأمین‌کننده payment با تأمین‌کننده قرارداد هم‌خوان نیست.");
         }
@@ -3671,7 +3682,7 @@ public class PaymentsController : Controller
             {
                 ModelState.AddModelError(nameof(model.ContractId), "برای پرداخت تأمین‌کننده فقط قرارداد خرید معتبر است.");
             }
-            else if (contract.SupplierId.HasValue && contract.SupplierId.Value != supplierId)
+            else if (await ContractSupplierScope.IsForeignSupplierAsync(_db, contract, supplierId))
             {
                 ModelState.AddModelError(nameof(model.SupplierId), "تأمین‌کننده payment با تأمین‌کننده قرارداد هم‌خوان نیست.");
             }

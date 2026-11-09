@@ -1090,7 +1090,7 @@ public partial class ReportsController : Controller
             .Where(c => c.ContractType == ContractType.Purchase);
 
         if (filter.ProductId.HasValue)  purchaseQuery = purchaseQuery.Where(c => c.ProductId == filter.ProductId.Value);
-        if (filter.SupplierId.HasValue) purchaseQuery = purchaseQuery.Where(c => c.SupplierId == filter.SupplierId.Value);
+        if (filter.SupplierId.HasValue) purchaseQuery = purchaseQuery.Where(ContractSupplierScope.HasSupplier(filter.SupplierId.Value));
         if (filter.ContractId.HasValue) purchaseQuery = purchaseQuery.Where(c => c.Id == filter.ContractId.Value);
         if (filter.FromDate.HasValue)   purchaseQuery = purchaseQuery.Where(c => c.ContractDate >= filter.FromDate.Value);
         if (filter.ToDate.HasValue)     purchaseQuery = purchaseQuery.Where(c => c.ContractDate <= filter.ToDate.Value);

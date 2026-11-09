@@ -68,8 +68,10 @@ public sealed class LoadingDetailsTool : IAssistantTool
                 ContractNumber = register.Contract != null ? register.Contract.ContractNumber : null,
                 ContractName = register.Contract != null ? register.Contract.ContractName : null,
                 ContractQuantityMt = register.Contract != null ? register.Contract.QuantityMt : (decimal?)null,
-                SupplierId = register.Contract != null ? register.Contract.SupplierId : null,
-                SupplierName = register.Contract != null && register.Contract.Supplier != null ? register.Contract.Supplier.Name : null,
+                SupplierId = register.SupplierId ?? (register.Contract != null ? register.Contract.SupplierId : null),
+                SupplierName = register.Supplier != null
+                    ? register.Supplier.Name
+                    : register.Contract != null && register.Contract.Supplier != null ? register.Contract.Supplier.Name : null,
                 CustomerId = register.Contract != null ? register.Contract.CustomerId : null,
                 CustomerName = register.Contract != null && register.Contract.Customer != null ? register.Contract.Customer.Name : null,
                 ProductName = register.Product != null ? register.Product.Name : null,

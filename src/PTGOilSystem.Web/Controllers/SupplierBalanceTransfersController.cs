@@ -460,7 +460,8 @@ public sealed class SupplierBalanceTransfersController : Controller
     {
         var query = _db.Contracts
             .AsNoTracking()
-            .Where(c => c.ContractType == ContractType.Purchase && c.SupplierId == model.SupplierId);
+            .Where(c => c.ContractType == ContractType.Purchase
+                && (c.SupplierId == model.SupplierId || c.ContractSuppliers.Any(s => s.SupplierId == model.SupplierId)));
 
         if (!model.IsGroupLevel)
         {

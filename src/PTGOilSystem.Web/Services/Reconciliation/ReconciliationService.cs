@@ -639,6 +639,8 @@ public partial class ReconciliationService : IReconciliationService
             .Include(p => p.Supplier)
             .Include(p => p.Contract)
                 .ThenInclude(c => c!.Supplier)
+            .Include(p => p.Contract)
+                .ThenInclude(c => c!.ContractSuppliers)
             .Include(p => p.ServiceProvider)
             .Include(p => p.LedgerEntry)
             .Where(p => (p.PaymentKind == PaymentKind.SupplierPayment
@@ -647,6 +649,12 @@ public partial class ReconciliationService : IReconciliationService
                             && p.Contract != null
                             && p.Contract.SupplierId.HasValue
                             && p.Contract.SupplierId.Value != p.SupplierId.Value)
+                        // قرارداد چندتأمین‌کننده: تأمین‌کنندهٔ پرداخت باید یکی از تأمین‌کننده‌های قرارداد باشد.
+                        || (p.ContractId.HasValue
+                            && p.Contract != null
+                            && p.Contract.SupplierId == null
+                            && p.Contract.ContractSuppliers.Any()
+                            && !p.Contract.ContractSuppliers.Any(s => s.SupplierId == p.SupplierId))
                         || !p.LedgerEntryId.HasValue
                         || p.LedgerEntry == null
                         || p.LedgerEntry.SupplierId != p.SupplierId
@@ -684,8 +692,11 @@ public partial class ReconciliationService : IReconciliationService
         var supplierPaymentContractSupplierMismatches = supplierPaymentRows
             .Where(p => p.SupplierId.HasValue
                 && p.ContractId.HasValue
-                && p.Contract?.SupplierId.HasValue == true
-                && p.Contract.SupplierId.Value != p.SupplierId.Value)
+                && p.Contract is not null
+                && (p.Contract.SupplierId.HasValue
+                    ? p.Contract.SupplierId.Value != p.SupplierId.Value
+                    : p.Contract.ContractSuppliers.Count > 0
+                        && p.Contract.ContractSuppliers.All(s => s.SupplierId != p.SupplierId.Value)))
             .Select(p => ToSupplierPaymentIssue(p, "شناسه تأمین‌کننده پرداخت با تأمین‌کننده قرارداد هم‌خوان نیست."))
             .ToList();
 

@@ -239,14 +239,15 @@
 .ak-table .ak-cell-note {
     margin-top: 2px;
     color: var(--ptg-muted);
-    font-size: 12px;
+    font-size: var(--font-caption);
+    font-weight: var(--weight-caption);
     line-height: 1.5;
 }
 
 .ak-table a.ak-name {
     color: var(--ptg-text);
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 .ak-table a.ak-name:hover {

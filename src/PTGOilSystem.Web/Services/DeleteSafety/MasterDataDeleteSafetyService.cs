@@ -98,7 +98,9 @@ public class MasterDataDeleteSafetyService
             || await _db.Terminals.AnyAsync(t => t.CustodianPartyType == AccountingPartyType.Supplier && t.CustodianPartyId == supplierId))
             usageAreas.Add("امانی");
 
-        if (await _db.Contracts.AnyAsync(c => c.SupplierId == supplierId))
+        if (await _db.Contracts.AnyAsync(c => c.SupplierId == supplierId)
+            || await _db.ContractSuppliers.AnyAsync(s => s.SupplierId == supplierId)
+            || await _db.LoadingRegisters.AnyAsync(l => l.SupplierId == supplierId))
             usageAreas.Add("قراردادها");
         if (await _db.LedgerEntries.AnyAsync(l => l.SupplierId == supplierId))
             usageAreas.Add("دفتر کل");

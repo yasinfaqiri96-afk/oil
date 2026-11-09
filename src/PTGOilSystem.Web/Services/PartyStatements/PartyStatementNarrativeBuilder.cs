@@ -132,9 +132,11 @@ internal sealed class PartyStatementNarrativeBuilder(ApplicationDbContext db)
                 Plate = l.Truck != null ? l.Truck.PlateNumber : null,
                 Vessel = l.Vessel != null ? l.Vessel.Name : null,
                 ContractNumber = l.Contract != null ? l.Contract.ContractNumber : null,
-                Supplier = l.Contract != null && l.Contract.Supplier != null
-                    ? (l.Contract.Supplier.NamePersian ?? l.Contract.Supplier.Name)
-                    : null
+                Supplier = l.Supplier != null
+                    ? (l.Supplier.NamePersian ?? l.Supplier.Name)
+                    : l.Contract != null && l.Contract.Supplier != null
+                        ? (l.Contract.Supplier.NamePersian ?? l.Contract.Supplier.Name)
+                        : null
             })
             .ToDictionaryAsync(l => l.Id, ct);
 

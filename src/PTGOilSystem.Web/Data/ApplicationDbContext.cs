@@ -58,6 +58,7 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<PurchaseContractGroup> PurchaseContractGroups => Set<PurchaseContractGroup>();
     public DbSet<ContractPartner> ContractPartners => Set<ContractPartner>();
+    public DbSet<ContractSupplier> ContractSuppliers => Set<ContractSupplier>();
     public DbSet<ContractAmendment> ContractAmendments => Set<ContractAmendment>();
     public DbSet<ContractPricingRule> ContractPricingRules => Set<ContractPricingRule>();
     public DbSet<DailyPlattsPrice> DailyPlattsPrices => Set<DailyPlattsPrice>();
@@ -410,6 +411,8 @@ public partial class ApplicationDbContext : DbContext
         ConfigureMoney<ExpenseRule>(modelBuilder, r => r.Amount);
         ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.Amount);
         ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.AmountUsd);
+        ConfigureWeight<ExpenseTransaction>(modelBuilder, e => e.BasisQuantityMt!);
+        ConfigureMoney<ExpenseTransaction>(modelBuilder, e => e.RatePerMt!);
         modelBuilder.Entity<ExpenseTransaction>().Property(e => e.AppliedFxRateToUsd).HasColumnType("numeric(24,12)");
         modelBuilder.Entity<ExpenseTransaction>().Property(e => e.Currency).HasDefaultValue("USD");
         modelBuilder.Entity<ExpenseTransaction>().HasIndex(e => e.LoadingRegisterId);
@@ -1052,6 +1055,32 @@ public partial class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(g => g.CompanyId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // قرارداد خرید چندتأمین‌کننده: هر تأمین‌کننده یک بار در هر قرارداد.
+        modelBuilder.Entity<ContractSupplier>()
+            .HasOne(cs => cs.Contract)
+            .WithMany(c => c.ContractSuppliers)
+            .HasForeignKey(cs => cs.ContractId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ContractSupplier>()
+            .HasOne(cs => cs.Supplier)
+            .WithMany()
+            .HasForeignKey(cs => cs.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ContractSupplier>()
+            .HasIndex(cs => new { cs.ContractId, cs.SupplierId })
+            .IsUnique();
+        modelBuilder.Entity<ContractSupplier>().HasIndex(cs => cs.SupplierId);
+        ConfigureWeight<ContractSupplier>(modelBuilder, cs => cs.QuantityMt!);
+        ConfigureMoney<ContractSupplier>(modelBuilder, cs => cs.UnitPriceUsd!);
+
+        // تأمین‌کنندهٔ بارگیری در قرارداد چندتأمین‌کننده؛ حذف تأمین‌کنندهٔ دارای بارگیری مسدود است.
+        modelBuilder.Entity<LoadingRegister>()
+            .HasOne(l => l.Supplier)
+            .WithMany()
+            .HasForeignKey(l => l.SupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LoadingRegister>().HasIndex(l => l.SupplierId);
 
         modelBuilder.Entity<ContractPartner>()
             .HasOne(cp => cp.Contract)

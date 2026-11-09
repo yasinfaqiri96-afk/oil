@@ -205,7 +205,81 @@
         syncCashVisibility();
     }
 
+    // روش محاسبهٔ مصرف: «بر اساس تُن» مبلغ = مقدار × نرخ (فوری)؛ «مبلغ ثابت» مبلغ دستی است و
+    // میانگین فی تُن (مبلغ ÷ مقدار قرارداد) فقط برای نمایش قیمت تمام‌شده نشان داده می‌شود.
+    // سرور همین محاسبه را دوباره انجام می‌دهد و فقط یک رکورد مصرف ثبت می‌شود.
+    function initExpenseCalculation(form) {
+        if (form.dataset.expenseCalcReady === "true") {
+            return;
+        }
+
+        var method = form.querySelector("[data-expense-calc-method-select]");
+        var amount = form.querySelector("[data-expense-calc-amount]");
+        if (!method || !amount) {
+            return;
+        }
+
+        var qty = form.querySelector("[data-expense-calc-qty]");
+        var rate = form.querySelector("[data-expense-calc-rate]");
+        var note = form.querySelector("[data-expense-calc-note]");
+        var perTonFields = form.querySelectorAll("[data-expense-calc-per-ton]");
+        var PER_TON = "2";
+
+        function read(input) {
+            var value = input ? parseFloat(String(input.value || "").replace(",", ".")) : NaN;
+            return isFinite(value) ? value : 0;
+        }
+
+        function round(value, digits) {
+            var factor = Math.pow(10, digits);
+            return Math.round(value * factor) / factor;
+        }
+
+        function sync() {
+            var perTon = method.value === PER_TON;
+            perTonFields.forEach(function (field) {
+                field.classList.toggle("d-none", !perTon);
+                field.querySelectorAll("input").forEach(function (input) { input.disabled = !perTon; });
+            });
+            amount.readOnly = perTon;
+
+            if (perTon) {
+                var total = round(read(qty) * read(rate), 4);
+                amount.value = total > 0 ? String(total) : "";
+            }
+
+            if (!note) {
+                return;
+            }
+
+            var contractQty = parseFloat(note.dataset.contractQuantity || "");
+            var value = read(amount);
+            if (perTon || value <= 0) {
+                note.textContent = perTon && value > 0
+                    ? "مجموع مصرف = " + read(qty) + " تُن × " + read(rate) + " = " + value
+                    : "";
+            } else if (isFinite(contractQty) && contractQty > 0) {
+                note.textContent = "میانگین فی تُن برای قیمت تمام‌شده: " + round(value / contractQty, 4)
+                    + " (" + value + " ÷ " + contractQty + " تُن)";
+            } else if (note.dataset.contractQuantity !== undefined && note.dataset.contractQuantity !== "") {
+                note.textContent = "مقدار قرارداد صفر است؛ میانگین فی تُن محاسبه نمی‌شود.";
+            } else {
+                note.textContent = "";
+            }
+        }
+
+        [method, qty, rate, amount].forEach(function (input) {
+            if (input) {
+                input.addEventListener("input", sync);
+                input.addEventListener("change", sync);
+            }
+        });
+        form.dataset.expenseCalcReady = "true";
+        sync();
+    }
+
     function initExpenseForms() {
+        document.querySelectorAll("form.expense-create-form").forEach(initExpenseCalculation);
         document.querySelectorAll("[data-expense-type-entry]").forEach(initExpenseTypeEntry);
         document.querySelectorAll("[data-expense-operation-link]").forEach(initExpenseOperationLink);
         document.querySelectorAll("[data-expense-settlement]").forEach(initExpenseSettlement);

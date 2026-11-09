@@ -16,6 +16,13 @@
     var PAGE_SELECTOR = ".ak-list-page, .ak-form-page";
     var DONE_FLAG = "listToolbarRow";
 
+    // Declared before init() runs: with `defer` the document is already parsed,
+    // so init() executes immediately, ahead of any later `var` assignment.
+    var SKIP_HEAD = ".ak-col-grow, .col-name, .ak-col-check, .ak-col-actions, .ak-col-index, .ak-col-spacer";
+    var BUSY_CELL = ".ak-status, .ptg-capsule-badge, .badge, a, button, input, select, textarea, form";
+    var FIGURE = ".ak-num, .ak-number, .ak-col-num, .col-ltr, .ak-amount";
+    var BIDI_MARKS = /[‎‏‪-‮⁦-⁩]/g;
+
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init, { once: true });
     } else {
@@ -149,7 +156,76 @@
             if (!table.closest(".ak-list-card")) {
                 assembleTableCard(page, table, index === 0 ? toolbar : null);
             }
+            if (table.closest(".ak-list-card")) {
+                softenCells(table);
+            }
         });
+    }
+
+    /*
+     * Expenses-list cell language for every list, display only:
+     *  - currency and type/category columns read as soft capsules;
+     *  - negative figures turn red (no other figure is coloured, since the
+     *    sign is the only meaning every list shares).
+     * Text, links, forms and sort values are untouched; cells that already
+     * carry a capsule, link or control are left exactly as rendered.
+     */
+    function softenCells(table) {
+        if (table.dataset.akCellsSoftened === "true" || !table.tHead || !table.tBodies.length) return;
+        table.dataset.akCellsSoftened = "true";
+
+        var headCells = table.tHead.rows[0] ? table.tHead.rows[0].cells : [];
+        var capsules = [];
+        Array.prototype.forEach.call(headCells, function (th, index) {
+            if (th.matches(SKIP_HEAD)) return;
+            var kind = capsuleKind(cellText(th));
+            if (kind) capsules.push({ index: index, kind: kind });
+        });
+
+        Array.prototype.forEach.call(table.tBodies, function (body) {
+            Array.prototype.forEach.call(body.rows, function (row) {
+                if (row.cells.length === headCells.length) {
+                    capsules.forEach(function (column) { capsulize(row.cells[column.index], column.kind); });
+                }
+                markNegatives(row);
+            });
+        });
+    }
+
+    function capsuleKind(label) {
+        if (/^(ارز|واحد پول|currency)$/i.test(label)) return "is-info";
+        if (/^نوع(\s|$)/.test(label) || /(^|\s)type$/i.test(label) || /^type(\s|$)/i.test(label)) return "is-neutral";
+        return null;
+    }
+
+    function capsulize(cell, kind) {
+        if (!cell || cell.querySelector(BUSY_CELL)) return;
+        var text = cellText(cell);
+        if (!text || text === "-" || text === "—" || text.length > 40) return;
+
+        var target = cell.firstElementChild;
+        if (!target) {
+            target = document.createElement("span");
+            while (cell.firstChild) target.appendChild(cell.firstChild);
+            cell.appendChild(target);
+        } else if (target.tagName !== "SPAN" || !cellText(target)) {
+            return;
+        }
+        target.classList.add("ak-status", kind);
+    }
+
+    function markNegatives(row) {
+        Array.prototype.forEach.call(row.querySelectorAll(FIGURE), function (figure) {
+            if (figure.querySelector(FIGURE) || figure.matches(".ak-number--positive, .ak-number--negative, .is-profit, .is-loss")) return;
+            var text = cellText(figure);
+            if (/^[-−]\s*[\d۰-۹٠-٩]/.test(text) || /^\(\s*[\d۰-۹٠-٩][^)]*\)/.test(text)) {
+                figure.classList.add("ak-number--negative");
+            }
+        });
+    }
+
+    function cellText(element) {
+        return String(element.textContent || "").replace(BIDI_MARKS, "").replace(/\s+/g, " ").trim();
     }
 
     function assembleTableCard(page, table, toolbar) {

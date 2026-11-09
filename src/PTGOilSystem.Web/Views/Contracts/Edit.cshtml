@@ -86,13 +86,7 @@
                         </select>
                         <span asp-validation-for="UnitId" class="ak-field-error"></span>
                     </div>
-                    <div class="ak-field">
-                        <label asp-for="SupplierId" class="ak-label"></label>
-                        <select asp-for="SupplierId" asp-items="suppliers" class="ak-input">
-                            <option value="">—</option>
-                        </select>
-                        <span asp-validation-for="SupplierId" class="ak-field-error"></span>
-                    </div>
+                    <partial name="_ContractSupplierPicker" model="Model" />
                     <div class="ak-field">
                         <label asp-for="CustomerId" class="ak-label"></label>
                         <select asp-for="CustomerId" asp-items="customers" class="ak-input">
@@ -472,6 +466,7 @@
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="~/js/contract-book-owner.js" asp-append-version="true" defer></script>
+    <script src="~/js/contract-supplier-picker.js" asp-append-version="true" defer></script>
     <script>
         (function () {
             const ownershipType = document.getElementById('ownershipType');

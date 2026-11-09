@@ -617,7 +617,10 @@ public class ShellViewStructureTests
         Assert.Contains("window.PTG.setListCardLoading", listScript);
         Assert.Contains("--ptg-list-radius: 12px", listStyles);
         Assert.Contains(".ak-list-card", listStyles);
-        Assert.Contains("max-block-size: clamp(18rem, 56dvh, 44rem)", listStyles);
+        // Rows scroll inside a screen-height list box; the header stays via native sticky.
+        Assert.Contains("max-block-size: max(16rem, calc(100dvh - var(--ptg-topbar-height) - 9.5rem))", listStyles);
+        Assert.Contains("overscroll-behavior-x: contain", listStyles);
+        Assert.DoesNotContain("--ak-head-shift", listStyles);
         Assert.Contains(".ak-list-page .ak-journal-scroll", listStyles);
         Assert.Contains("position: sticky", listStyles);
         Assert.Contains("inset-block-start: 0", listStyles);

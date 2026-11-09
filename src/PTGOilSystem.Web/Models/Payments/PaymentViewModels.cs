@@ -428,6 +428,8 @@ public sealed class PaymentContractLookupItemViewModel
 {
     public int Id { get; init; }
     public int? SupplierId { get; init; }
+    // قرارداد چندتأمین‌کننده: SupplierId خالی و همهٔ تأمین‌کننده‌ها اینجا.
+    public IReadOnlyList<int> SupplierIds { get; init; } = [];
     public ContractType ContractType { get; init; }
     public string Display { get; init; } = "";
 }

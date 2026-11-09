@@ -101,6 +101,24 @@ public sealed class ContractFormViewModel
     [Display(Name = "تأمین‌کننده")]
     public int? SupplierId { get; set; }
 
+    /// <summary>
+    /// تأمین‌کننده‌های دیگرِ همین قرارداد خرید. با <see cref="SupplierId"/> روی‌هم بیش از یک نفر
+    /// یعنی قرارداد چندتأمین‌کننده (یک قرارداد، یک کد) با مقدار و قیمت مستقل برای هر نفر.
+    /// </summary>
+    public List<int?> AdditionalSupplierIds { get; set; } = [];
+
+    /// <summary>مقدار خرید (تُن) از <see cref="SupplierId"/> وقتی قرارداد چندتأمین‌کننده است.</summary>
+    public decimal? PrimarySupplierQuantityMt { get; set; }
+
+    /// <summary>قیمت خرید فی تُن (USD) از <see cref="SupplierId"/> وقتی قرارداد چندتأمین‌کننده است.</summary>
+    public decimal? PrimarySupplierUnitPriceUsd { get; set; }
+
+    /// <summary>مقدار خرید هر ردیف <see cref="AdditionalSupplierIds"/> (هم‌اندیس).</summary>
+    public List<decimal?> AdditionalSupplierQuantitiesMt { get; set; } = [];
+
+    /// <summary>قیمت فی تُن هر ردیف <see cref="AdditionalSupplierIds"/> (هم‌اندیس).</summary>
+    public List<decimal?> AdditionalSupplierUnitPricesUsd { get; set; } = [];
+
     [Display(Name = "مشتری")]
     public int? CustomerId { get; set; }
 
